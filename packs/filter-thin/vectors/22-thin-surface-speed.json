@@ -1,0 +1,396 @@
+{
+ "name": "22-thin-surface-speed",
+ "pack": "filter-thin",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "ais",
+    "uid": "M1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 0.9,
+    "speed_ms": 45,
+    "course": 10,
+    "type": "a-n-S-X"
+   },
+   "expect": [
+    {
+     "ev": "drop",
+     "entity": "ais/M1",
+     "rule": "fast-surface"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "older",
+     "entity": "ais/M1",
+     "test": "order",
+     "negated": false,
+     "value": 0,
+     "limit": null,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "exercise",
+     "entity": "ais/M1",
+     "test": "key",
+     "negated": false,
+     "value": null,
+     "limit": "1",
+     "pass": false,
+     "unknown": true
+    },
+    {
+     "stage": "rule",
+     "rule": "coarse",
+     "entity": "ais/M1",
+     "test": "key",
+     "negated": false,
+     "value": null,
+     "limit": [
+      2000.0,
+      null
+     ],
+     "pass": false,
+     "unknown": true
+    },
+    {
+     "stage": "rule",
+     "rule": "hostile-air",
+     "entity": "ais/M1",
+     "test": "env",
+     "negated": false,
+     "value": "S",
+     "limit": [
+      "A"
+     ],
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "air-thin",
+     "entity": "ais/M1",
+     "test": "env",
+     "negated": false,
+     "value": "S",
+     "limit": [
+      "A"
+     ],
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "fast-surface",
+     "entity": "ais/M1",
+     "test": "env",
+     "negated": false,
+     "value": "S",
+     "limit": [
+      "S"
+     ],
+     "pass": true
+    },
+    {
+     "stage": "rule",
+     "rule": "fast-surface",
+     "entity": "ais/M1",
+     "test": "speed",
+     "negated": false,
+     "value": 45,
+     "limit": [
+      40.0,
+      null
+     ],
+     "pass": true
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "ais",
+    "uid": "M2",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 0.9,
+    "speed_ms": 20,
+    "course": 10,
+    "type": "a-n-S-X"
+   },
+   "expect": [
+    {
+     "ev": "keep",
+     "entity": "ais/M2",
+     "rule": "default"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "older",
+     "entity": "ais/M2",
+     "test": "order",
+     "negated": false,
+     "value": 0,
+     "limit": null,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "exercise",
+     "entity": "ais/M2",
+     "test": "key",
+     "negated": false,
+     "value": null,
+     "limit": "1",
+     "pass": false,
+     "unknown": true
+    },
+    {
+     "stage": "rule",
+     "rule": "coarse",
+     "entity": "ais/M2",
+     "test": "key",
+     "negated": false,
+     "value": null,
+     "limit": [
+      2000.0,
+      null
+     ],
+     "pass": false,
+     "unknown": true
+    },
+    {
+     "stage": "rule",
+     "rule": "hostile-air",
+     "entity": "ais/M2",
+     "test": "env",
+     "negated": false,
+     "value": "S",
+     "limit": [
+      "A"
+     ],
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "air-thin",
+     "entity": "ais/M2",
+     "test": "env",
+     "negated": false,
+     "value": "S",
+     "limit": [
+      "A"
+     ],
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "fast-surface",
+     "entity": "ais/M2",
+     "test": "env",
+     "negated": false,
+     "value": "S",
+     "limit": [
+      "S"
+     ],
+     "pass": true
+    },
+    {
+     "stage": "rule",
+     "rule": "fast-surface",
+     "entity": "ais/M2",
+     "test": "speed",
+     "negated": false,
+     "value": 20,
+     "limit": [
+      40.0,
+      null
+     ],
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "surface-thin",
+     "entity": "ais/M2",
+     "test": "env",
+     "negated": false,
+     "value": "S",
+     "limit": [
+      "S"
+     ],
+     "pass": true
+    },
+    {
+     "stage": "rule",
+     "rule": "surface-thin",
+     "entity": "ais/M2",
+     "test": "interval",
+     "negated": false,
+     "value": null,
+     "limit": 10000,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "no-type",
+     "entity": "ais/M2",
+     "test": "has",
+     "negated": true,
+     "value": true,
+     "limit": null,
+     "pass": false
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "ais",
+    "uid": "M2",
+    "time_ms": 1000,
+    "lat": 1.0,
+    "lon": 0.9,
+    "type": "a-n-S-X"
+   },
+   "expect": [
+    {
+     "ev": "drop",
+     "entity": "ais/M2",
+     "rule": "surface-thin"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "older",
+     "entity": "ais/M2",
+     "test": "order",
+     "negated": false,
+     "value": 1000,
+     "limit": 0,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "exercise",
+     "entity": "ais/M2",
+     "test": "key",
+     "negated": false,
+     "value": null,
+     "limit": "1",
+     "pass": false,
+     "unknown": true
+    },
+    {
+     "stage": "rule",
+     "rule": "coarse",
+     "entity": "ais/M2",
+     "test": "key",
+     "negated": false,
+     "value": null,
+     "limit": [
+      2000.0,
+      null
+     ],
+     "pass": false,
+     "unknown": true
+    },
+    {
+     "stage": "rule",
+     "rule": "hostile-air",
+     "entity": "ais/M2",
+     "test": "env",
+     "negated": false,
+     "value": "S",
+     "limit": [
+      "A"
+     ],
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "air-thin",
+     "entity": "ais/M2",
+     "test": "env",
+     "negated": false,
+     "value": "S",
+     "limit": [
+      "A"
+     ],
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "fast-surface",
+     "entity": "ais/M2",
+     "test": "env",
+     "negated": false,
+     "value": "S",
+     "limit": [
+      "S"
+     ],
+     "pass": true
+    },
+    {
+     "stage": "rule",
+     "rule": "fast-surface",
+     "entity": "ais/M2",
+     "test": "speed",
+     "negated": false,
+     "value": null,
+     "limit": [
+      40.0,
+      null
+     ],
+     "pass": false,
+     "unknown": true
+    },
+    {
+     "stage": "rule",
+     "rule": "surface-thin",
+     "entity": "ais/M2",
+     "test": "env",
+     "negated": false,
+     "value": "S",
+     "limit": [
+      "S"
+     ],
+     "pass": true
+    },
+    {
+     "stage": "rule",
+     "rule": "surface-thin",
+     "entity": "ais/M2",
+     "test": "interval",
+     "negated": false,
+     "value": 1000,
+     "limit": 10000,
+     "pass": true
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "entities": {
+   "ais/M1": {
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 0.9,
+    "course": 10,
+    "speed_ms": 45,
+    "stale_ms": null,
+    "kept_ms": null
+   },
+   "ais/M2": {
+    "time_ms": 1000,
+    "lat": 1.0,
+    "lon": 0.9,
+    "course": null,
+    "speed_ms": null,
+    "stale_ms": null,
+    "kept_ms": 0
+   }
+  }
+ }
+}

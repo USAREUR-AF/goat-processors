@@ -1,0 +1,113 @@
+// spec/vector-format.md for spec/fuse.md: runs every fuse load vector
+// (spec/fuse-load-vectors/) and every fuse scenario vector (packs/fuse-*/vectors/).
+const std = @import("std");
+const json = std.json;
+const paths = @import("paths");
+const fuse_pack = @import("fuse_pack.zig");
+const fuse = @import("fuse.zig");
+const compare = @import("compare.zig");
+
+test {
+    _ = fuse_pack;
+    _ = @import("fuse_kinematics.zig");
+}
+
+fn lessName(_: void, a: []const u8, b: []const u8) bool {
+    return std.mem.order(u8, a, b) == .lt;
+}
+
+fn sortedJsonFiles(alloc: std.mem.Allocator, dir_path: []const u8) ![][]const u8 {
+    var dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
+    defer dir.close();
+    var names = std.ArrayList([]const u8).init(alloc);
+    var it = dir.iterate();
+    while (try it.next()) |e| {
+        if (e.kind == .file and std.mem.endsWith(u8, e.name, ".json")) {
+            try names.append(try std.fs.path.join(alloc, &.{ dir_path, e.name }));
+        }
+    }
+    std.mem.sort([]const u8, names.items, {}, lessName);
+    return names.items;
+}
+
+fn readJson(alloc: std.mem.Allocator, path: []const u8) !json.Value {
+    const text = try std.fs.cwd().readFileAlloc(alloc, path, 1 << 24);
+    return json.parseFromSliceLeaky(json.Value, alloc, text, .{});
+}
+
+// Load vectors: parsing `pack_def` fails exactly when `expect_error` is true.
+test "fuse load vectors" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    var failed: usize = 0;
+    const files = try sortedJsonFiles(alloc, paths.fuse_load_vectors_dir);
+    for (files) |path| {
+        const v = try readJson(alloc, path);
+        const expect_error = v.object.get("expect_error").?.bool;
+        const got_error = if (fuse_pack.parse(alloc, v.object.get("pack_def").?.string)) |_| false else |_| true;
+        if (got_error != expect_error) {
+            failed += 1;
+            std.debug.print("FAIL fuse load vector {s}: expect_error={} got_error={}\n", .{ path, expect_error, got_error });
+        }
+    }
+    std.debug.print("fuse load vectors: {d} run, {d} failed\n", .{ files.len, failed });
+    try std.testing.expect(files.len > 0);
+    try std.testing.expectEqual(@as(usize, 0), failed);
+}
+
+// One scenario vector: every step's events and trace, then the final snapshot.
+// Returns the path of the first mismatch, or null.
+fn runScenario(alloc: std.mem.Allocator, path: []const u8) !?[]const u8 {
+    const v = try readJson(alloc, path);
+    const name = v.object.get("name").?.string;
+    const pack_dir = try std.fs.path.join(alloc, &.{ paths.packs_dir, v.object.get("pack").?.string });
+    const pack = try fuse.load_pack(alloc, pack_dir);
+    const eng = try fuse.Engine.create(std.testing.allocator, pack);
+    defer eng.destroy();
+
+    for (v.object.get("steps").?.array.items, 0..) |step, i| {
+        const s = step.object;
+        const res = if (s.get("ingest")) |report|
+            try eng.ingest(report.object)
+        else
+            try eng.tick(s.get("tick").?.integer);
+        const at = try std.fmt.allocPrint(alloc, "{s}.steps[{d}]", .{ name, i });
+        if (try compare.firstMismatch(alloc, try std.fmt.allocPrint(alloc, "{s}.expect", .{at}), .{ .array = res.events }, s.get("expect").?)) |m| return m;
+        if (try compare.firstMismatch(alloc, try std.fmt.allocPrint(alloc, "{s}.trace", .{at}), .{ .array = res.trace }, s.get("trace").?)) |m| return m;
+    }
+    const snap_path = try std.fmt.allocPrint(alloc, "{s}.snapshot", .{name});
+    return compare.firstMismatch(alloc, snap_path, try eng.snapshot(), v.object.get("snapshot").?);
+}
+
+test "fuse scenario vectors" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    var run: usize = 0;
+    var failed: usize = 0;
+
+    // Only packs/fuse-*.
+    var packs = try std.fs.cwd().openDir(paths.packs_dir, .{ .iterate = true });
+    defer packs.close();
+    var pack_names = std.ArrayList([]const u8).init(alloc);
+    var it = packs.iterate();
+    while (try it.next()) |e| {
+        if (e.kind == .directory and std.mem.startsWith(u8, e.name, "fuse-")) try pack_names.append(try alloc.dupe(u8, e.name));
+    }
+    std.mem.sort([]const u8, pack_names.items, {}, lessName);
+
+    for (pack_names.items) |pn| {
+        const vdir = try std.fs.path.join(alloc, &.{ paths.packs_dir, pn, "vectors" });
+        for (try sortedJsonFiles(alloc, vdir)) |path| {
+            run += 1;
+            if (try runScenario(alloc, path)) |mismatch| {
+                failed += 1;
+                std.debug.print("FAIL {s}: first mismatch at {s}\n", .{ path, mismatch });
+            }
+        }
+    }
+    std.debug.print("fuse scenario vectors: {d} run, {d} failed\n", .{ run, failed });
+    try std.testing.expect(run > 0);
+    try std.testing.expectEqual(@as(usize, 0), failed);
+}

@@ -1,0 +1,171 @@
+{
+ "name": "06-rejections",
+ "pack": "fuse-independent",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0
+   },
+   "expect": [
+    {
+     "ev": "reject",
+     "reason": "missing:uid"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 0,
+    "lat": "1.0",
+    "lon": 1.0
+   },
+   "expect": [
+    {
+     "ev": "reject",
+     "reason": "missing:lat"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 0.5,
+    "lat": 1.0,
+    "lon": 1.0
+   },
+   "expect": [
+    {
+     "ev": "reject",
+     "reason": "missing:time_ms"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "fuse.group": "s1",
+    "ce": "30",
+    "hae": null,
+    "type": 7,
+    "callsign": [
+     "R",
+     "17"
+    ]
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/T1",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "tick": 0,
+   "expect": [
+    {
+     "ev": "fused",
+     "group": "s1",
+     "members": [
+      "radar-1/T1"
+     ],
+     "from": null,
+     "lat": 1.0,
+     "lon": 1.0,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 50.0,
+     "attributes": {}
+    }
+   ],
+   "trace": [
+    {
+     "stage": "kinematics",
+     "group": "s1",
+     "method": "inverse_variance",
+     "candidates": [
+      {
+       "member": "radar-1/T1",
+       "var": 5000.0,
+       "time_ms": 0,
+       "rank": 1
+      }
+     ],
+     "winner": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "type",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "callsign",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {
+   "radar-1/T1": {
+    "last_time_ms": 0,
+    "group": "s1",
+    "filter": {
+     "east": [
+      0.0,
+      0.0,
+      2500.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      2500.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "callsign": [
+      "R",
+      "17"
+     ],
+     "fuse.group": "s1",
+     "lat": 1.0,
+     "lon": 1.0,
+     "time_ms": 0,
+     "track.source_id": "radar-1",
+     "uid": "T1"
+    }
+   }
+  }
+ }
+}
