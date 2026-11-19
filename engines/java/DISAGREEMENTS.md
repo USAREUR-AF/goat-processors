@@ -1,19 +1,17 @@
 # Disagreements
 
-No vector contradicts the specification as this engine reads it.
+No vector contradicts specification 0.2 as this engine reads it. The four
+readings listed under 0.1 (stopping at a failure in `hold`, `course` without
+`speed_ms`, values from the last report, the dissolved group's remaining
+member) are all settled by 0.2 and are gone from this file.
 
 ## Readings the vectors do not settle
 
-Cases the spec leaves open and no vector covers. Each one names the choice
-this engine makes.
+The spec leaves these cases open and no vector covers them. Each one names
+the choice this engine makes.
 
-- Tests, stopping at a failure. The vectors show that `gate` and `confirm`
-  tests stop at the first failure for a pair (02, 09, 10, 12). This engine
-  also stops at the first failure for each member in `hold`, and runs the hold
-  tests against every other member, even after one member has passed.
-- Tests, `course`. Skipped when either entity has no `speed_ms`, as well as
-  when either speed is below `min_speed_ms`.
-- Tests, course/speed/hae. "Last reported" means the value in the entity's
-  most recent report: a later report without the key makes the value absent.
-- Association, dissolve. The remaining member keeps its `hold_failures`.
-  The spec resets the count only for the entity that leaves.
+- Tests, `same`, numbers. The spec does not say whether an integer and a
+  float with the same value are equal (`1` and `1.0`). This engine compares
+  numbers by value, so they are equal.
+- Tests, `@env`. The spec does not say what `@env` is when `type` has fewer
+  than three `-`-separated elements. This engine treats it as absent.
