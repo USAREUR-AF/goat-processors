@@ -10,7 +10,7 @@ endif()
 
 get_filename_component(CORR_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 
-add_library(correlator src/json.cpp src/pack.cpp src/engine.cpp)
+add_library(correlator src/json.cpp src/report.cpp src/pack.cpp src/engine.cpp)
 target_include_directories(correlator PUBLIC src)
 target_compile_options(correlator PRIVATE -Wall -Wextra)
 
@@ -26,3 +26,16 @@ add_executable(assignment_test test/assignment_test.cpp)
 target_link_libraries(assignment_test PRIVATE correlator)
 target_compile_options(assignment_test PRIVATE -Wall -Wextra)
 add_test(NAME assignment COMMAND assignment_test)
+
+# The filter (spec/filter.md), its own library beside the correlator; it
+# shares json, report (correlate.md "Reports") and PackError.
+add_library(filter src/filter_pack.cpp src/filter.cpp)
+target_include_directories(filter PUBLIC src)
+target_link_libraries(filter PUBLIC correlator)
+target_compile_options(filter PRIVATE -Wall -Wextra)
+
+add_executable(run_filter_vectors test/run_filter_vectors.cpp)
+target_link_libraries(run_filter_vectors PRIVATE filter)
+target_compile_definitions(run_filter_vectors PRIVATE CORR_REPO_ROOT="${CORR_REPO_ROOT}")
+target_compile_options(run_filter_vectors PRIVATE -Wall -Wextra)
+add_test(NAME filter_vectors COMMAND run_filter_vectors "${CORR_REPO_ROOT}")
