@@ -1,6 +1,6 @@
-%% Frame and track estimate (spec "Frame", "Track estimate").
+%% Frame and the one-model track estimate (correlate.md "Frame", "Track estimate").
 -module(correlator_filter).
--export([to_plane/3, from_plane/3, init/4, update/6, predict/3, velocity/2]).
+-export([to_plane/3, from_plane/3, init/4, update/7, predict/3, velocity/2]).
 
 -define(R, 6371008.8).
 
@@ -37,21 +37,22 @@ init({E, N}, Vel, Ce, F) ->
     PP = sq(Ce),
     #{east => {E, VE, PP, 0.0, VV}, north => {N, VN, PP, 0.0, VV}}.
 
-%% Later reports: predict, position update, velocity update when measured.
-update(Filter, Dt, {E, N}, Vel, Ce, F) ->
-    Q = maps:get(<<"accel_var">>, F),
+%% Later reports: steps 1 to 3 with acceleration variance Q. Returns the new
+%% filter and the innovations {Y, S} of its scalar updates in the order east
+%% position, north position, then (velocity measured) east and north velocity,
+%% the order Two-model filter step 3 adds them in.
+update(Filter, Dt, Q, {E, N}, Vel, Ce, F) ->
     R = sq(Ce),
     RV = sq(maps:get(<<"vel_sigma_ms">>, F)),
-    {ZVE, ZVN} = case Vel of none -> {none, none}; V -> V end,
-    #{east => axis(maps:get(east, Filter), Dt, Q, E, R, ZVE, RV),
-      north => axis(maps:get(north, Filter), Dt, Q, N, R, ZVN, RV)}.
-
-axis(A0, Dt, Q, Z, R, ZV, RV) ->
-    A1 = predict_axis(A0, Dt, Q),
-    A2 = position_update(A1, Z, R),
-    case ZV of
-        none -> A2;
-        _ -> velocity_update(A2, ZV, RV)
+    {EastPos, YSEP} = position_update(predict_axis(maps:get(east, Filter), Dt, Q), E, R),
+    {NorthPos, YSNP} = position_update(predict_axis(maps:get(north, Filter), Dt, Q), N, R),
+    case Vel of
+        none ->
+            {#{east => EastPos, north => NorthPos}, [YSEP, YSNP]};
+        {VE, VN} ->
+            {East, YSEV} = velocity_update(EastPos, VE, RV),
+            {North, YSNV} = velocity_update(NorthPos, VN, RV),
+            {#{east => East, north => North}, [YSEP, YSNP, YSEV, YSNV]}
     end.
 
 %% Step 1, predict.
@@ -62,19 +63,18 @@ predict_axis({P, V, PP, PV, VV}, Dt, Q) ->
      PV + Dt * VV + Q * Dt * Dt * Dt / 2,
      VV + Q * Dt * Dt}.
 
-%% Step 2, position update.
+%% Step 2, position update; returns the axis and {Y, S}.
 position_update({P, V, PP, PV, VV}, Z, R) ->
     S = PP + R, K1 = PP / S, K2 = PV / S, Y = Z - P,
-    {P + K1 * Y, V + K2 * Y, (1 - K1) * PP, (1 - K1) * PV, VV - K2 * PV}.
+    {{P + K1 * Y, V + K2 * Y, (1 - K1) * PP, (1 - K1) * PV, VV - K2 * PV}, {Y, S}}.
 
-%% Step 3, velocity update.
+%% Step 3, velocity update; returns the axis and {Y, S}.
 velocity_update({P, V, PP, PV, VV}, Z, R) ->
     S = VV + R, K1 = PV / S, K2 = VV / S, Y = Z - V,
-    {P + K1 * Y, V + K2 * Y, PP - K1 * PV, (1 - K2) * PV, (1 - K2) * VV}.
+    {{P + K1 * Y, V + K2 * Y, PP - K1 * PV, (1 - K2) * PV, (1 - K2) * VV}, {Y, S}}.
 
-%% Prediction of a filter by Dt seconds, a copy.
-predict(Filter, Dt, F) ->
-    Q = maps:get(<<"accel_var">>, F),
+%% Prediction of a filter by Dt seconds with acceleration variance Q, a copy.
+predict(Filter, Dt, Q) ->
     #{east => predict_axis(maps:get(east, Filter), Dt, Q),
       north => predict_axis(maps:get(north, Filter), Dt, Q)}.
 

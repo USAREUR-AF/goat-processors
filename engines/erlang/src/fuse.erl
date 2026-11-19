@@ -84,7 +84,8 @@ accept(Key, R, St0) ->
                 {correlator_filter:init(Z, Vel, Ce, F),
                  [#{<<"ev">> => <<"new">>, <<"entity">> => Key, <<"group">> => Group}]};
             {ok, #{time := Last, filter := Old, group := OldGroup}} ->
-                Updated = correlator_filter:update(Old, (T - Last) / 1000, Z, Vel, Ce, F),
+                {Updated, _} = correlator_filter:update(Old, (T - Last) / 1000,
+                                                    maps:get(<<"accel_var">>, F), Z, Vel, Ce, F),
                 {Updated,
                  case OldGroup =:= Group of
                      true -> [];
@@ -139,7 +140,8 @@ fuse_group(G, Ms, Now, St = #{pack := Pack, entities := Ents}) ->
     Members = [begin
                    E = maps:get(K, Ents),
                    {K, E, correlator_filter:predict(maps:get(filter, E),
-                                                    (Now - maps:get(time, E)) / 1000, F)}
+                                                    (Now - maps:get(time, E)) / 1000,
+                                                    maps:get(<<"accel_var">>, F))}
                end || K <- Ms],
     {{East, North}, From, Folds} = kinematics(Method, Members, Pack),
     FoldTrace = [#{<<"stage">> => <<"intersect">>, <<"group">> => G,
