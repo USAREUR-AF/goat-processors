@@ -138,7 +138,7 @@ fn load_vectors() {
 #[test]
 fn shipped_packs_load() {
     let root = repo_root();
-    for name in ["correlate-gnn", "correlate-window", "correlate-distance"] {
+    for name in ["correlate-gnn", "correlate-window", "correlate-distance", "correlate-assign"] {
         load_pack(&root.join("packs").join(name)).unwrap_or_else(|e| panic!("{}: {}", name, e));
     }
 }
