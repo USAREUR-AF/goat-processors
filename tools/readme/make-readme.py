@@ -158,13 +158,19 @@ def benchmark():
     d = json.load(open(p, encoding="utf-8"))
     fam = [m.get("family") for m in d.get("meta", [])]
     n_random = sum(1 for f in fam if f == "random")
-    n_named = len(fam) - n_random
+    n_time = sum(1 for f in fam if f == "time")
+    n_named = len(fam) - n_random - n_time
     head = ("| Pack | Set | Pairwise F1 | Precision | Recall | False merges | Missed merges | Identity swaps | GOSPA, m |\n"
             "|---|---|---:|---:|---:|---:|---:|---:|---:|")
     rows = []
     for pack in d["packs"]:
-        for key, label in (("named", "%d named" % n_named), ("random", "%d random" % n_random)):
-            s = d["scenarios"][pack][key]
+        sets = [("named", "%d named" % n_named), ("random", "%d random" % n_random)]
+        if n_time:
+            sets.append(("time", "%d time quality" % n_time))
+        for key, label in sets:
+            s = d["scenarios"][pack].get(key)
+            if s is None:
+                continue
             rows.append("| %s | %s | %.3f | %.3f | %.3f | %d | %d | %d | %.1f |" % (
                 pack.replace("correlate-", ""), label, s["f1"], s["precision"], s["recall"],
                 s["false_merges"], s["missed_merges"], s["swaps"], s["gospa_m"]))

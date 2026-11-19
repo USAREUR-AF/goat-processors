@@ -19,7 +19,10 @@ SERIES = {
 
 # Packs left out of the charts (eight slots at most), with the reason; they stay in every table.
 CHART_OMIT = {"correlate-assign-window": "assign-full includes its multi-frame window",
-              "correlate-assign-bias": "assign-full includes its bias estimate"}
+              "correlate-assign-bias": "assign-full includes its bias estimate",
+              "correlate-assign-full": "assign-time is assign-full plus a fitted clock offset",
+              "correlate-gnn-time": "its time_default names source radar-1, which no scenario has, "
+                                    "so it scores as gnn"}
 INK = {
     "light": dict(surface="#fcfcfb", text="#0b0b0b", text2="#52514e", muted="#898781",
                   grid="#e1e0d9", axis="#c3c2b7"),
@@ -175,8 +178,10 @@ def render_all(res):
     cpacks = [p for p in packs if p not in CHART_OMIT]
     if len(cpacks) > len(SERIES["light"]):
         raise SystemExit("more than %d packs to chart: add one to CHART_OMIT" % len(SERIES["light"]))
-    named = [m for m in res["meta"] if m["family"] != "random"]
+    named = [m for m in res["meta"] if m["family"] != "random"]   # per-scenario tables and charts
     random = [m for m in res["meta"] if m["family"] == "random"]
+    timed = [m for m in res["meta"] if m["family"] == "time"]
+    n_named = len(named) - len(timed)
     S = res["scenarios"]
     files = {}
 
@@ -218,8 +223,20 @@ def render_all(res):
     L.append(table(["Pack"] + [lab for _, lab, _, _ in METRICS],
                    [[short(p)] + [fmt(S[p]["random"][k], f) for k, _, f, _ in METRICS] for p in packs]))
     L.append("## Named scenarios, pooled\n")
+    L.append("The %d named scenarios outside the time family.\n" % n_named)
     L.append(table(["Pack"] + [lab for _, lab, _, _ in METRICS],
                    [[short(p)] + [fmt(S[p]["named"][k], f) for k, _, f, _ in METRICS] for p in packs]))
+    if timed:
+        L.append("## Time quality set, pooled\n")
+        L.append("The %d scenarios of the time family, pooled on their own: a sensor whose clock is "
+                 "200 ms ahead, drifting 10 ms per minute, or running free (1.5 s behind and drifting), "
+                 "each with every sensor reporting `time_error_ms` and `time_state` and as an "
+                 "\"undescribed\" twin with the same reports and no time keys; and reports arriving "
+                 "out of order. Truth is exact; only the stamped time is wrong. The object turns 90 "
+                 "degrees every 100 s, so a fixed position bias cannot stand in for a clock error.\n"
+                 % len(timed))
+        L.append(table(["Pack"] + [lab for _, lab, _, _ in METRICS],
+                       [[short(p)] + [fmt(S[p]["time"][k], f) for k, _, f, _ in METRICS] for p in packs]))
     L.append("## Scenarios\n")
     L.append(table(["Scenario", "Family", "Tests", "Objects", "Reports", "False reports", "Sensors"],
                    [[m["name"], m["family"], m["tests"], str(m["objects"]), str(m["reports"]),

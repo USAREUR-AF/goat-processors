@@ -166,11 +166,15 @@ class Sensor:
     | `drops` | (t_s, oid, gap_s): the track ends at t_s; after gap_s a new number starts |
     | `false_tracks` | number of false tracks over the scenario |
     | `sees` | object ids reported (None: all) |
+    | `clock_offset_ms`, `clock_drift_ms_min` | the sensor's clock error: a report made at true time t is stamped t + offset + drift * t / 60 s. The position is measured at t (truth stays exact); a report stamped before 0 is not sent |
+    | `delivery_spread_ms` | extra delay after `latency_ms`, uniform in 0 to this, drawn per report; reports then arrive out of order |
+    | `time_state` | None: reports carry no time quality. Otherwise `time_state` (`coherent`, `drifting` or `free-running`) and `time_error_ms` on every report: the clock's error at that report, rounded up, at least 1 ms; twice that when free-running (such a clock knows only a loose bound). Keys as in spec/correlate.md, "Time quality" |
     """
 
     def __init__(self, source, period_ms=1000, jitter_ms=0, sigma_m=20.0, ce="honest",
                  ce_factor=1.0, pd=1.0, latency_ms=0, bias_m=(0.0, 0.0), vel_sigma=2.0,
-                 hae_sigma=30.0, swaps=(), drops=(), false_tracks=0, sees=None):
+                 hae_sigma=30.0, swaps=(), drops=(), false_tracks=0, sees=None,
+                 clock_offset_ms=0, clock_drift_ms_min=0.0, delivery_spread_ms=0, time_state=None):
         self.source = source
         self.period_ms, self.jitter_ms = period_ms, jitter_ms
         self.sigma_m, self.ce, self.ce_factor = sigma_m, ce, ce_factor
@@ -178,6 +182,15 @@ class Sensor:
         self.vel_sigma, self.hae_sigma = vel_sigma, hae_sigma
         self.swaps, self.drops = list(swaps), list(drops)
         self.false_tracks, self.sees = false_tracks, sees
+        self.clock_offset_ms, self.clock_drift_ms_min = clock_offset_ms, clock_drift_ms_min
+        self.delivery_spread_ms, self.time_state = delivery_spread_ms, time_state
+
+    def clock_error_ms(self, t):
+        """Stamped minus true time for a report made at true time t (ms)."""
+        return self.clock_offset_ms + self.clock_drift_ms_min * t / 60000.0
+
+    def max_clock_error_ms(self, duration_s):
+        return max(abs(self.clock_error_ms(0)), abs(self.clock_error_ms(duration_s * 1000)))
 
     def summary(self):
         parts = ["%s %gs" % (self.source, self.period_ms / 1000.0), "sigma %g m" % self.sigma_m]
@@ -199,6 +212,14 @@ class Sensor:
             parts.append("%d drop" % len(self.drops))
         if self.false_tracks:
             parts.append("%d false" % self.false_tracks)
+        if self.clock_offset_ms:
+            parts.append("clock %+g ms" % self.clock_offset_ms)
+        if self.clock_drift_ms_min:
+            parts.append("clock drift %+g ms/min" % self.clock_drift_ms_min)
+        if self.delivery_spread_ms:
+            parts.append("delivery +0 to %g s" % (self.delivery_spread_ms / 1000.0))
+        if self.time_state:
+            parts.append("time %s" % self.time_state)
         return ", ".join(parts)
 
 
@@ -262,7 +283,8 @@ class Scenario:
                 else:
                     pos.append(None)
             objs[oid] = {"env": o.env, "pos": pos}
-        live_ms = max(2 * s.period_ms + s.jitter_ms + s.latency_ms for s in self.sensors)
+        live_ms = max(2 * s.period_ms + s.jitter_ms + s.latency_ms + s.delivery_spread_ms
+                      + int(math.ceil(s.max_clock_error_ms(self.duration_s))) for s in self.sensors)
         vector = {"name": self.name, "pack": None, "steps": steps}
         truth = {"name": self.name, "family": self.family, "tests": self.tests,
                  "ref": [LAT0, LON0], "live_ms": live_ms, "ticks": ticks,
@@ -315,7 +337,9 @@ class Scenario:
                     continue
                 e, n, _, _ = o.state(t / 1000.0)
                 ve, vn = o.velocity(t / 1000.0)
-                out.append(self._report(s, noise, uid_of[oid], t, e, n, ve, vn, o.alt, o.env, oid))
+                r = self._report(s, noise, uid_of[oid], t, e, n, ve, vn, o.alt, o.env, oid)
+                if r is not None:
+                    out.append(r)
         # False tracks: each lives 20-60 s, near the objects, on a straight line.
         fr = rng.fork("false")
         for i in range(s.false_tracks):
@@ -331,8 +355,10 @@ class Scenario:
             while t <= (start + life) * 1000 and t <= self.duration_s * 1000:
                 dt = t / 1000.0 - start
                 if fr.chance(s.pd):
-                    out.append(self._report(s, fr, uid, t, e0 + ve * dt, n0 + vn * dt, ve, vn,
-                                            anchor.alt, anchor.env, None))
+                    r = self._report(s, fr, uid, t, e0 + ve * dt, n0 + vn * dt, ve, vn,
+                                     anchor.alt, anchor.env, None)
+                    if r is not None:
+                        out.append(r)
                 t += s.period_ms
         return out
 
@@ -341,7 +367,9 @@ class Scenario:
         me = e + s.bias_m[0] + rng.normal(s.sigma_m)
         mn = n + s.bias_m[1] + rng.normal(s.sigma_m)
         lat, lon = to_deg(me, mn)
-        rep = {"track.source_id": s.source, "uid": uid, "time_ms": t,
+        err = s.clock_error_ms(t)
+        stamped = int(round(t + err))
+        rep = {"track.source_id": s.source, "uid": uid, "time_ms": stamped,
                "lat": round(lat, 7), "lon": round(lon, 7)}
         if s.hae_sigma is not None and env == "A":
             rep["hae"] = round(alt + rng.normal(s.hae_sigma), 0)
@@ -355,7 +383,14 @@ class Scenario:
             rep["course"] = round(math.degrees(math.atan2(mve, mvn)) % 360.0, 1)
             rep["speed_ms"] = round(math.hypot(mve, mvn), 1)
         rep["type"] = "a-u-" + env
-        return (t + s.latency_ms, s.source, uid, rep, oid)
+        if s.time_state:
+            rep["time_state"] = s.time_state
+            bound = abs(err) * (2 if s.time_state == "free-running" else 1)
+            rep["time_error_ms"] = max(1, int(math.ceil(bound)))
+        delay = rng.integer(0, s.delivery_spread_ms) if s.delivery_spread_ms else 0
+        if stamped < 0:
+            return None
+        return (t + s.latency_ms + delay, s.source, uid, rep, oid)
 
 
 # ---------------------------------------------------------------------------
@@ -367,7 +402,8 @@ def named():
     S = []
 
     def add(name, family, tests, objects, sensors, **kw):
-        S.append(Scenario(name, family, tests, objects, sensors, seed=len(S) + 101, **kw))
+        kw.setdefault("seed", len(S) + 101)
+        S.append(Scenario(name, family, tests, objects, sensors, **kw))
 
     two = lambda **kw: [radar(**kw.get("r", {})), beacon(**kw.get("b", {}))]  # noqa: E731
 
@@ -433,6 +469,45 @@ def named():
                          alt=r0.choice([2000.0, 3000.0, 3000.0, 5000.0]),
                          moves=[(r0.uniform(10, 60), r0.uniform(70, 110), r0.choice([0.0, 3.0, -3.0]), 0.0)]))
     add("dense-8", "mixed", "eight objects in a 20 km box, some turning", dense, two())
+
+    # Time quality. One object at 300 m/s seen by a radar and two beacons; the
+    # second beacon's clock is wrong (200 ms is 60 m along track). The object
+    # turns 90 degrees every 100 s (3 deg/s for 30 s, from 40 s on), so the
+    # along-track error of a clock changes direction: a fixed position bias
+    # cannot stand in for it. In a "described" scenario every sensor reports
+    # its time quality honestly (the good clocks: coherent, 1 ms); an
+    # "undescribed" twin carries none.
+    def fast(duration_s):
+        turns = [(t0, t0 + 30, 3.0, 0.0) for t0 in range(40, duration_s - 30, 100)]
+        return [Obj("o1", speed=300.0, heading=70.0, moves=turns)]
+
+    def timed(described, **b2):
+        good = dict(time_state="coherent") if described else {}
+        bad = dict(b2)
+        if not described:
+            bad.pop("time_state", None)
+        return [radar(**good), beacon(**good), beacon(source="beacon2", **dict(good, **bad))]
+
+    # A twin shares its described scenario's seed: same reports, only the time keys differ.
+    base = len(S) + 101
+    for described in (True, False):
+        tail = "" if described else "-undescribed"
+        how = ("every sensor reports its time quality" if described
+               else "no time quality on any report")
+        add("clock-offset-200ms" + tail, "time",
+            "beacon2's clock is 200 ms ahead, object at 300 m/s turning 90 deg every 100 s; " + how,
+            fast(120), timed(described, clock_offset_ms=200, time_state="coherent"), seed=base)
+        add("clock-drift-10ms-min" + tail, "time",
+            "beacon2's clock drifts 10 ms per minute from 0 to 200 ms over 20 min; " + how,
+            fast(1200), timed(described, clock_drift_ms_min=10.0, time_state="drifting"), duration_s=1200,
+            seed=base + 1)
+        add("clock-free-running" + tail, "time",
+            "beacon2's clock runs free: 1.5 s behind, drifting 30 ms per minute further; " + how,
+            fast(300), timed(described, clock_offset_ms=-1500, clock_drift_ms_min=-30.0,
+                          time_state="free-running"), duration_s=300, seed=base + 2)
+    add("out-of-order", "time",
+        "beacon2's reports arrive 0.3 to 2.8 s after their time, so out of order; clocks coherent",
+        fast(120), timed(True, delivery_spread_ms=2500), seed=base + 3)
     return S
 
 
