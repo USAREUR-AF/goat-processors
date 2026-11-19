@@ -1,6 +1,6 @@
 # Correlate by assignment specification
 
-Status: Written. Version 0.5. A second method for the correlate function.
+Status: Written. Version 0.6. A second method for the correlate function.
 Engines implement it from this document, [correlate.md](correlate.md) and the
 vectors, never from another engine's source.
 Version 0.5 adds three optional directives, each without effect when absent:
@@ -371,6 +371,7 @@ new_cost    <number>
 keep_bonus  <number>
 stale_ms    <ms>
 restart     gate=<g>
+time_default <source_id> error_ms=<ms> state=<state>
 bias        sigma_m=<s> floor_m=<f> gate=<g>
 window      <n>
 hypotheses  <k>
@@ -386,8 +387,8 @@ column entry passes. `new_cost` must be above 0 and `keep_bonus` 0 or above.
 are optional and appear at most once. `bias` takes exactly `sigma_m`,
 `floor_m` and `gate`, with `sigma_m` and `gate` above 0 and `floor_m` above 0
 and at most `sigma_m`. `margin` is one number above 0 and needs `hypotheses`
-above 1. Otherwise the pack does not load. `maneuver` and `restart` follow
-`correlate.md`.
+above 1. Otherwise the pack does not load. `maneuver`, `restart` and `time_default`
+follow `correlate.md`.
 
 A `method` value other than `confirm` or `assign` does not load. `method`
 may appear anywhere in the file; which directives are required or refused is

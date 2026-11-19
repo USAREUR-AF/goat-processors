@@ -18,10 +18,11 @@ FILTER_PARAMS = ("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms")
 MANEUVER_PARAMS = ("accel_var", "p_enter", "p_leave")
 MODELS = ("quiet", "maneuver")
 BIAS_PARAMS = ("sigma_m", "floor_m", "gate")
+TIME_STATES = ("coherent", "drifting", "free-running")
 REQUIRED = (("track.source_id", "str"), ("uid", "str"), ("time_ms", "int"),
             ("lat", "num"), ("lon", "num"))
 OPTIONAL = {"hae": "num", "ce": "num", "course": "num", "speed_ms": "num",
-            "type": "str", "stale_ms": "int"}
+            "type": "str", "stale_ms": "int", "time_error_ms": "num", "time_state": "str"}
 
 
 def _is(v, kind):
@@ -43,6 +44,10 @@ def _normalize(report):
         if k in OPTIONAL and not _is(v, OPTIONAL[k]):
             continue
         if k == "ce" and v <= 0:
+            continue
+        if k == "time_error_ms" and (v < 0 or not math.isfinite(v)):
+            continue
+        if k == "time_state" and v not in TIME_STATES:
             continue
         out[k] = v
     return out
@@ -75,6 +80,7 @@ class Pack:
         self.bias = None
         self.restart = None
         self.margin = None
+        self.time_default = {}
 
 
 def _params(args, line_no):
@@ -151,6 +157,25 @@ def parse_pack(text):
             if m["p_enter"] <= 0 or m["p_leave"] <= 0 or m["p_enter"] + m["p_leave"] >= 1:
                 raise PackError("line %d: p_enter and p_leave must be above 0 with a sum below 1" % i)
             p.maneuver = m
+        elif d == "time_default":
+            if not args or "=" in args[0]:
+                raise PackError("line %d: time_default needs a source id" % i)
+            src = args[0]
+            if src in p.time_default:
+                raise PackError("line %d: time_default repeated for %s" % (i, src))
+            kv = _params(args[1:], i)
+            if not kv or set(kv) - {"error_ms", "state"}:
+                raise PackError("line %d: time_default takes error_ms, state or both" % i)
+            td = {}
+            if "error_ms" in kv:
+                td["error_ms"] = _num(kv["error_ms"], i)
+                if td["error_ms"] < 0:
+                    raise PackError("line %d: time_default error_ms must be 0 or above" % i)
+            if "state" in kv:
+                if kv["state"] not in TIME_STATES:
+                    raise PackError("line %d: time_default state is one of %s" % (i, ", ".join(TIME_STATES)))
+                td["state"] = kv["state"]
+            p.time_default[src] = td
         elif d == "margin":
             if len(args) != 1:
                 raise PackError("line %d: margin takes one value" % i)

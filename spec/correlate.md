@@ -1,10 +1,11 @@
 # Correlate specification
 
-Status: Written. Version 0.7. Every language's engine implements this document
+Status: Written. Version 0.8. Every language's engine implements this document
 and passes every vector. Engines are written from this document and the
 vectors, never from another engine's source.
-Version 0.7 adds the optional `restart` directive (Restart); a pack without
-it behaves as in 0.6. Version 0.6 spelled the pack line `maneuver` (it was
+Version 0.8 adds the time quality of a report (Reports, "Time quality") and
+the pack directive `time_default`; a report and pack without them behave as
+in 0.7. Version 0.7 added the optional `restart` directive (Restart). Version 0.6 spelled the pack line `maneuver` (it was
 `manoeuvre` in 0.5).
 
 ## What the correlator does
@@ -46,6 +47,8 @@ A report is a map from shared-model key to value, the entity
 | `speed_ms` | float, m/s | no | with `course`, a velocity measurement |
 | `type` | string | no | CoT type token; its third `-`-separated element is the environment `@env` (`a-f-A-M-F` gives `A`) |
 | `stale_ms` | int | no | absolute time after which the report is stale |
+| `time_error_ms` | float, ms | no | error bound of the clock that stamped `time_ms`, against the fabric's common time (Time quality) |
+| `time_state` | string | no | state of that clock: `coherent`, `drifting` or `free-running` (Time quality) |
 | any other key | | no | read only by a `same` test that names it |
 
 The entity key is `<track.source_id>/<uid>`. Keys are compared as byte
@@ -64,6 +67,34 @@ is accepted where a number is required. A `null` value for any key is the
 same as the key being absent. A report whose `time_ms` is earlier than its entity's last report is
 rejected with `{"ev":"reject","entity":<key>,"reason":"out-of-order"}`.
 A rejected report changes no state.
+
+### Time quality
+
+`time_ms` comes from the clock of the node that stamped the report. That
+clock may be out of step with the other nodes' clocks. Two optional keys
+state how far, as the stamping node measured it:
+
+| Key | Meaning |
+|---|---|
+| `time_error_ms` | the bound, in milliseconds, on how far `time_ms` may be from the common time the nodes keep among themselves (their internal coherence, not their agreement with UTC); 0 or above |
+| `time_state` | `coherent`: the clock is in step with the others within `time_error_ms`. `drifting`: the clock is moving away from the others and is being corrected. `free-running`: the clock runs on its own oscillator with no correction, and its error grows with time |
+
+`time_error_ms` is a number, finite and 0 or above; a value of the wrong type,
+negative or not finite is treated as absent. `time_state` is one of the three
+strings above, compared byte for byte; any other value, or a value of the
+wrong type, is treated as absent. Neither key causes a reject.
+
+A pack may give a source defaults with `time_default` (Pack). The **time
+error** and **time state** of a report are found per key, independently:
+
+1. the report's own key, when present (not absent by the rules above);
+2. otherwise the pack's `time_default` for the report's `track.source_id`,
+   when it gives that key;
+3. otherwise time error 0 and time state `coherent`: the time is exact, as in
+   every version before 0.8.
+
+The correlator never reads a clock. Time quality comes only from reports and
+the pack, so two runs on the same input decide the same way.
 
 ## Frame
 
@@ -375,6 +406,7 @@ method         confirm
 filter         accel_var=<q> default_ce_m=<m> vel_sigma_ms=<m/s> unknown_vel_ms=<m/s>
 maneuver       accel_var=<q2> p_enter=<per s> p_leave=<per s>
 restart        gate=<g>
+time_default   <source_id> error_ms=<ms> state=<coherent | drifting | free-running>
 gate           <test> <param>=<value> ...
 confirm        <test> <param>=<value> ...
 hold           <test> <param>=<value> ...
@@ -397,6 +429,12 @@ checked once the whole file is read, so `maneuver` may come before `filter`.
 
 `restart` is optional, appears at most once, takes exactly `gate`, which must
 be above 0, and is valid with either method.
+
+`time_default` is optional, valid with either method, and repeats, at most
+once per source: a second line for the same `<source_id>` is a load error.
+It takes the source id and then `error_ms`, `state` or both, at least one;
+`error_ms` is a number 0 or above and `state` one of `coherent`, `drifting`,
+`free-running`. Any other parameter or value is a load error.
 
 `gate`, `confirm`, `hold` and `priority` repeat; their order is the order the
 tests run. Every other directive appears once, and `pack`, `version`,
