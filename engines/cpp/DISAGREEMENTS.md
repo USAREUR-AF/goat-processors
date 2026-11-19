@@ -1,11 +1,10 @@
 # Open points
 
-No vector contradicts correlate.md 0.4 or correlate-assign.md 0.2 as this
-engine reads them. The 0.3/0.1 entries on gate failure against several
-others, the unassigned entity's `system` in the snapshot, and the ranges of
-`new_cost` and `keep_bonus` are settled by these versions and removed. The
-entries below are points the specifications leave open, and the reading this
-engine takes. No vector covers any of them.
+No vector contradicts correlate.md 0.5 or correlate-assign.md 0.3 as this
+engine reads them. The 0.4/0.2 entries on ties in the least total and on
+where `method` may appear are settled by these versions (Ranking; Pack) and
+removed. The entries below are points the specifications leave open, and
+the reading this engine takes. No vector covers any of them.
 
 ## Integers outside the signed 64-bit range (correlate.md "Open points")
 
@@ -20,14 +19,19 @@ engine takes. No vector covers any of them.
   element in order, objects by equal key sets with equal values; values of
   different JSON kinds are never equal.
 
-## Ties in the least total (correlate-assign.md "Assignment", step 3)
+## A repeated parameter within one `filter`, `manoeuvre` or test line (correlate.md "Open points")
 
-- 0.2 says engines may choose differently on a tie. The engine takes
-  whatever assignment its Hungarian solver reaches first (rows in key order,
-  columns in creation order, then each row's `alone`).
+- A load error.
 
-## Where `method` may appear (correlate-assign.md "Pack")
+## Decimal spellings in `pack.def` (correlate.md "Open points")
 
-- The spec does not say `method` must come before the directives it
-  governs. The engine accepts `method` anywhere in `pack.def`, and checks the
-  required and refused directives after the whole file is read.
+- A number may have a leading sign, a fraction, an exponent, and `.5` or `5.`;
+  `inf` and `nan` do not parse. `window` and `hypotheses` take digits with an
+  optional sign only. `#` always starts a comment, inside a value too.
+
+## How ranked assignments are found (correlate-assign.md "Ranking")
+
+- The spec allows any exact method. The engine enumerates every assignment
+  and sorts them by the Ranking order, which is exact and follows the tie rule
+  directly; its cost grows exponentially with the number of rows and columns
+  of one source, which is fine at vector sizes but not for large inputs.

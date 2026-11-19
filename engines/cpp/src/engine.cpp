@@ -1,5 +1,7 @@
 #include "engine.hpp"
 
+#include "common.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -9,23 +11,7 @@ namespace corr {
 
 namespace {
 
-// Spec "Frame".
-constexpr double R = 6371008.8;
-constexpr double PI = 3.141592653589793;
-double rad(double x) { return x * PI / 180; }
-double deg(double x) { return x * 180 / PI; }
-double wrap180(double lon) {
-    while (lon > 180) lon -= 360;
-    while (lon <= -180) lon += 360;
-    return lon;
-}
-
-// Report values; a null value counts as absent.
-std::optional<double> number_at(const Json& r, const std::string& key) {
-    const Json* v = r.find(key);
-    if (!v || !v->is_number()) return std::nullopt;
-    return v->number;
-}
+using namespace detail;
 
 // Spec "Reports": a `ce` of 0 or below is absent.
 std::optional<double> ce_at(const Json& r) {
@@ -33,9 +19,6 @@ std::optional<double> ce_at(const Json& r) {
     if (ce && *ce <= 0) return std::nullopt;
     return ce;
 }
-
-// Spec "Reports": `time_ms` and `stale_ms` must be integers.
-bool is_integer(const Json* v) { return v && v->is_number() && v->is_int; }
 
 // Spec "Reports": `@env` is the third `-`-separated element of `type`.
 std::optional<Json> same_value(const Json& r, const std::string& key) {
@@ -66,8 +49,9 @@ void axis_predict(Axis& a, double dt, double q) {
     a.vv = b.vv + q * (dt * dt);
 }
 
-// Spec "Track estimate", step 2.
-void axis_position_update(Axis& a, double z, double r) {
+// Spec "Track estimate", step 2. Returns the innovation's likelihood term
+// y*y/s + ln(s) (spec "Two-model filter", step 3).
+double axis_position_update(Axis& a, double z, double r) {
     const Axis b = a;
     double s = b.pp + r, k1 = b.pp / s, k2 = b.pv / s, y = z - b.p;
     a.p = b.p + k1 * y;
@@ -75,10 +59,11 @@ void axis_position_update(Axis& a, double z, double r) {
     a.pp = (1 - k1) * b.pp;
     a.pv = (1 - k1) * b.pv;
     a.vv = b.vv - k2 * b.pv;
+    return y * y / s + std::log(s);
 }
 
-// Spec "Track estimate", step 3.
-void axis_velocity_update(Axis& a, double z, double r) {
+// Spec "Track estimate", step 3. Returns the likelihood term, as step 2.
+double axis_velocity_update(Axis& a, double z, double r) {
     const Axis b = a;
     double s = b.vv + r, k1 = b.pv / s, k2 = b.vv / s, y = z - b.v;
     a.p = b.p + k1 * y;
@@ -86,18 +71,59 @@ void axis_velocity_update(Axis& a, double z, double r) {
     a.pp = b.pp - k1 * b.pv;
     a.pv = (1 - k2) * b.pv;
     a.vv = (1 - k2) * b.vv;
+    return y * y / s + std::log(s);
 }
 
-Json axis_json(const Axis& a) {
-    Json j = Json::make_array();
-    for (double x : {a.p, a.v, a.pp, a.pv, a.vv}) j.push(x);
-    return j;
+// Spec "Two-model filter", step 1: blend(w1, w2) of one axis.
+Axis blend(double w1, double w2, const Axis& m1, const Axis& m2) {
+    Axis o;
+    o.p = w1 * m1.p + w2 * m2.p;
+    o.v = w1 * m1.v + w2 * m2.v;
+    double d1 = m1.p - o.p, e1 = m1.v - o.v, d2 = m2.p - o.p, e2 = m2.v - o.v;
+    o.pp = w1 * (m1.pp + d1 * d1) + w2 * (m2.pp + d2 * d2);
+    o.pv = w1 * (m1.pv + d1 * e1) + w2 * (m2.pv + d2 * e2);
+    o.vv = w1 * (m1.vv + e1 * e1) + w2 * (m2.vv + e2 * e2);
+    return o;
 }
 
-Json event(const char* ev) {
-    Json e = Json::make_object();
-    e["ev"] = ev;
-    return e;
+Filter blend(double w1, double w2, const Filter& m1, const Filter& m2) {
+    return {blend(w1, w2, m1.east, m2.east), blend(w1, w2, m1.north, m2.north)};
+}
+
+// Spec "Track estimate", steps 1 to 3 on one filter, with acceleration
+// variance q. Returns g, the likelihood terms added left to right from 0 in
+// the order east position, north position, east velocity, north velocity.
+double kalman_step(Filter& f, double dt, double q, double z_east, double z_north,
+                   const double* vel_east, const double* vel_north, double r_pos, double r_vel) {
+    axis_predict(f.east, dt, q);
+    axis_predict(f.north, dt, q);
+    double term[4] = {0, 0, 0, 0};
+    term[0] = axis_position_update(f.east, z_east, r_pos);
+    term[1] = axis_position_update(f.north, z_north, r_pos);
+    if (vel_east) {
+        term[2] = axis_velocity_update(f.east, *vel_east, r_vel);
+        term[3] = axis_velocity_update(f.north, *vel_north, r_vel);
+    }
+    double g = 0;
+    g = g + term[0];
+    g = g + term[1];
+    if (vel_east) {
+        g = g + term[2];
+        g = g + term[3];
+    }
+    return g;
+}
+
+Json filter_record(const std::string& entity, const char* test, const char* model, double value) {
+    Json rec = Json::make_object();
+    rec["stage"] = "filter";
+    rec["a"] = entity;
+    rec["b"] = model;
+    rec["test"] = test;
+    rec["value"] = value;
+    rec["limit"] = Json();
+    rec["pass"] = true;
+    return rec;
 }
 
 } // namespace
@@ -126,26 +152,106 @@ void Engine::filter_first(Entity& e, const Point& z, const std::optional<Point>&
     double vv = vel ? f.vel_sigma_ms * f.vel_sigma_ms : f.unknown_vel_ms * f.unknown_vel_ms;
     e.filter.east = {z.east, vel ? vel->east : 0.0, ce * ce, 0.0, vv};
     e.filter.north = {z.north, vel ? vel->north : 0.0, ce * ce, 0.0, vv};
-}
-
-void Engine::filter_update(Entity& e, const Point& z, const std::optional<Point>& vel, double ce,
-                           double dt) const {
-    const auto& f = pack_.filter;
-    for (int axis = 0; axis < 2; ++axis) {
-        Axis& a = axis == 0 ? e.filter.east : e.filter.north;
-        axis_predict(a, dt, f.accel_var);
-        axis_position_update(a, axis == 0 ? z.east : z.north, ce * ce);
-        if (vel) axis_velocity_update(a, axis == 0 ? vel->east : vel->north, f.vel_sigma_ms * f.vel_sigma_ms);
+    // Spec "Two-model filter", First report: both models are this filter,
+    // with the long-run share of each model.
+    if (pack_.manoeuvre) {
+        double a = pack_.manoeuvre->p_enter, b = pack_.manoeuvre->p_leave, s = a + b;
+        e.models[0] = e.models[1] = e.filter;
+        e.mu[0] = b / s;
+        e.mu[1] = a / s;
     }
 }
 
-// Spec "Track estimate", Prediction: step 1 on a copy.
+void Engine::filter_update(Entity& e, const Point& z, const std::optional<Point>& vel, double ce, double dt,
+                           Output& out) const {
+    const auto& f = pack_.filter;
+    const double r_pos = ce * ce, r_vel = f.vel_sigma_ms * f.vel_sigma_ms;
+    const double* ve = vel ? &vel->east : nullptr;
+    const double* vn = vel ? &vel->north : nullptr;
+    if (!pack_.manoeuvre) {
+        kalman_step(e.filter, dt, f.accel_var, z.east, z.north, ve, vn, r_pos, r_vel);
+        return;
+    }
+
+    // Spec "Two-model filter", Later reports.
+    const double a = pack_.manoeuvre->p_enter, b = pack_.manoeuvre->p_leave;
+    const double q[2] = {f.accel_var, pack_.manoeuvre->accel_var};
+
+    // Switching over dt seconds: t[i][j] is model i -> model j.
+    double s = a + b;
+    double l = std::pow(1 - s, dt);
+    double t12 = a / s * (1 - l), t21 = b / s * (1 - l);
+    double t[2][2] = {{1 - t12, t12}, {t21, 1 - t21}};
+    const double mu1 = e.mu[0], mu2 = e.mu[1];
+
+    // 1. Mixing, both mixed states from the model states before mixing.
+    double c[2];
+    Filter mixed[2];
+    for (int j = 0; j < 2; ++j) {
+        c[j] = t[0][j] * mu1 + t[1][j] * mu2;
+        if (c[j] == 0) {
+            mixed[j] = e.models[j];
+        } else {
+            double w1 = t[0][j] * mu1 / c[j], w2 = t[1][j] * mu2 / c[j];
+            mixed[j] = blend(w1, w2, e.models[0], e.models[1]);
+        }
+    }
+
+    // 2. Predict and update, and 3. likelihood lambda = -0.5 * g.
+    double lambda[2];
+    for (int j = 0; j < 2; ++j) {
+        e.models[j] = mixed[j];
+        double g = kalman_step(e.models[j], dt, q[j], z.east, z.north, ve, vn, r_pos, r_vel);
+        lambda[j] = -0.5 * g;
+    }
+
+    // 4. Mode probabilities, relative to the larger lambda of the models with c above 0.
+    bool have_m = false;
+    double m = 0;
+    for (int j = 0; j < 2; ++j)
+        if (c[j] > 0 && (!have_m || lambda[j] > m)) { m = lambda[j]; have_m = true; }
+    double ev[2];
+    for (int j = 0; j < 2; ++j) ev[j] = c[j] > 0 ? c[j] * std::exp(lambda[j] - m) : 0.0;
+    double sum = ev[0] + ev[1];
+    e.mu[0] = ev[0] / sum;
+    e.mu[1] = ev[1] / sum;
+
+    // 5. Combination.
+    e.filter = blend(e.mu[0], e.mu[1], e.models[0], e.models[1]);
+
+    // Trace: likelihoods, then modes.
+    out.trace.push(filter_record(e.key, "likelihood", "quiet", lambda[0]));
+    out.trace.push(filter_record(e.key, "likelihood", "manoeuvre", lambda[1]));
+    out.trace.push(filter_record(e.key, "mode", "quiet", e.mu[0]));
+    out.trace.push(filter_record(e.key, "mode", "manoeuvre", e.mu[1]));
+}
+
+// Spec "Track estimate", Prediction: step 1 on a copy. With two models, each
+// is predicted with its own q and the two are blended with the current mu.
 Filter Engine::predict(const Entity& e, std::int64_t t) const {
-    Filter f = e.filter;
     double dt = static_cast<double>(t - e.last_time_ms) / 1000;
-    axis_predict(f.east, dt, pack_.filter.accel_var);
-    axis_predict(f.north, dt, pack_.filter.accel_var);
-    return f;
+    auto step1 = [dt](Filter f, double q) {
+        axis_predict(f.east, dt, q);
+        axis_predict(f.north, dt, q);
+        return f;
+    };
+    if (!pack_.manoeuvre) return step1(e.filter, pack_.filter.accel_var);
+    return blend(e.mu[0], e.mu[1], step1(e.models[0], pack_.filter.accel_var),
+                 step1(e.models[1], pack_.manoeuvre->accel_var));
+}
+
+// Snapshot: `filter`, and with `manoeuvre` also `models` and `mode`.
+void Engine::filter_json(const Entity& e, Json& into) const {
+    into["filter"] = filter_json_of(e.filter);
+    if (!pack_.manoeuvre) return;
+    Json models = Json::make_object();
+    models["quiet"] = filter_json_of(e.models[0]);
+    models["manoeuvre"] = filter_json_of(e.models[1]);
+    into["models"] = models;
+    Json mode = Json::make_array();
+    mode.push(e.mu[0]);
+    mode.push(e.mu[1]);
+    into["mode"] = mode;
 }
 
 // ---- Tests -----------------------------------------------------------------
@@ -210,9 +316,10 @@ Engine::TestResult Engine::run_test(const TestSpec& t, const Entity& a, const En
 }
 
 // Runs one stage's tests in pack order, writing each to the trace; stops at
-// the first failure. Returns true when every test ran and passed.
+// the first failure. Returns true when every test ran and passed. `extra`,
+// when given, is an object whose keys are added to each record.
 bool Engine::run_stage(const char* stage, const std::vector<TestSpec>& tests, const Entity& a,
-                       const Entity& b, const Filter& bp, Output& out) const {
+                       const Entity& b, const Filter& bp, Output& out, const Json* extra) const {
     for (const TestSpec& t : tests) {
         TestResult r = run_test(t, a, b, bp);
         Json rec = Json::make_object();
@@ -224,6 +331,8 @@ bool Engine::run_stage(const char* stage, const std::vector<TestSpec>& tests, co
         rec["limit"] = r.limit;
         rec["pass"] = r.pass;
         if (r.skipped) rec["skipped"] = true;
+        if (extra)
+            for (const auto& kv : extra->object) rec[kv.first] = kv.second;
         out.trace.push(rec);
         if (!r.pass) return false;
     }
@@ -374,6 +483,16 @@ Output Engine::ingest(const Json& r) {
     const std::int64_t time_ms = r.find("time_ms")->integer;
     const double lat = r.find("lat")->number, lon = r.find("lon")->number;
 
+    // correlate-assign.md "Window": a retiring entity's report, after the
+    // required keys and before the out-of-order check.
+    if (retiring_.count(key)) {
+        Json ev = event("reject");
+        ev["entity"] = key;
+        ev["reason"] = "retiring";
+        out.events.push(ev);
+        return out;
+    }
+
     auto it = entities_.find(key);
     if (it != entities_.end() && time_ms < it->second.last_time_ms) {
         Json ev = event("reject");
@@ -402,7 +521,7 @@ Output Engine::ingest(const Json& r) {
         out.events.push(ev);
     } else {
         double dt = static_cast<double>(time_ms - it->second.last_time_ms) / 1000;
-        filter_update(it->second, z, vel, ce, dt);
+        filter_update(it->second, z, vel, ce, dt, out);
     }
     Entity& a = it->second;
     a.last_time_ms = time_ms;
@@ -417,6 +536,13 @@ Output Engine::ingest(const Json& r) {
     return out;
 }
 
+// Spec "On each tick", 1: the pack's stale_ms, or the report's own stale_ms.
+bool Engine::is_stale(const Entity& e, std::int64_t now_ms) const {
+    auto report_stale = e.last.find("stale_ms");
+    return now_ms - e.last_time_ms > pack_.stale_ms ||
+           (is_integer(report_stale) && now_ms >= report_stale->integer);
+}
+
 Output Engine::tick(std::int64_t now_ms) {
     if (pack_.method_assign) return tick_assign(now_ms);
     Output out;
@@ -426,10 +552,7 @@ Output Engine::tick(std::int64_t now_ms) {
     for (const auto& kv : entities_) keys.push_back(kv.first);
     for (const std::string& k : keys) {
         Entity& e = entities_.at(k);
-        auto report_stale = e.last.find("stale_ms");
-        bool stale = now_ms - e.last_time_ms > pack_.stale_ms ||
-                     (is_integer(report_stale) && now_ms >= report_stale->integer);
-        if (!stale) continue;
+        if (!is_stale(e, now_ms)) continue;
         if (e.group) leave_group(e, "stale", out);
         for (auto c = counts_.begin(); c != counts_.end();) {
             if (c->first.first == k || c->first.second == k) c = counts_.erase(c);
@@ -460,9 +583,6 @@ Output Engine::tick(std::int64_t now_ms) {
         Filter f = predict(*primary, now_ms);
         auto pos = to_degrees(f.east.p, f.north.p);
         double ve = f.east.v, vn = f.north.v;
-        double course = deg(std::atan2(ve, vn));
-        if (course < 0) course += 360;
-        if (course >= 360) course -= 360;
 
         Json ev = event("fused");
         ev["group"] = group_name(kv.first);
@@ -472,7 +592,7 @@ Output Engine::tick(std::int64_t now_ms) {
         ev["members"] = members;
         ev["lat"] = pos.first;
         ev["lon"] = pos.second;
-        ev["course"] = course;
+        ev["course"] = course_of(ve, vn);
         ev["speed_ms"] = std::hypot(ve, vn);
         if (auto hae = number_at(primary->last, "hae")) ev["hae"] = *hae;
         out.events.push(ev);
@@ -498,10 +618,7 @@ Json Engine::snapshot() const {
         j["last_time_ms"] = static_cast<long long>(e.last_time_ms);
         j["group"] = e.group ? Json(group_name(e.group)) : Json();
         j["hold_failures"] = static_cast<long long>(e.hold_failures);
-        Json f = Json::make_object();
-        f["east"] = axis_json(e.filter.east);
-        f["north"] = axis_json(e.filter.north);
-        j["filter"] = f;
+        filter_json(e, j);
         entities[kv.first] = j;
     }
     s["entities"] = entities;
@@ -517,288 +634,6 @@ Json Engine::snapshot() const {
         counts[kv.first.first + "|" + kv.first.second] = static_cast<long long>(kv.second);
     s["counts"] = counts;
     s["next_group"] = next_group_;
-    return s;
-}
-
-// ---- Method assign (correlate-assign.md) ---------------------------------
-
-// Hungarian method with row and column potentials (shortest augmenting paths).
-// Rows and columns are 1-based inside; column 0 is the virtual start.
-std::vector<int> min_cost_assignment(const std::vector<std::vector<double>>& cost) {
-    const double INF = std::numeric_limits<double>::infinity();
-    const size_t n = cost.size();
-    if (n == 0) return {};
-    const size_t m = cost[0].size();
-    std::vector<double> u(n + 1, 0), v(m + 1, 0);
-    std::vector<size_t> match(m + 1, 0), way(m + 1, 0);   // match[j]: row of column j
-    for (size_t i = 1; i <= n; ++i) {
-        match[0] = i;
-        size_t j0 = 0;
-        std::vector<double> minv(m + 1, INF);
-        std::vector<bool> used(m + 1, false);
-        do {
-            used[j0] = true;
-            size_t i0 = match[j0], j1 = 0;
-            double delta = INF;
-            for (size_t j = 1; j <= m; ++j) {
-                if (used[j]) continue;
-                double c = cost[i0 - 1][j - 1];
-                if (c != INF) {
-                    double cur = c - u[i0] - v[j];
-                    if (cur < minv[j]) { minv[j] = cur; way[j] = j0; }
-                }
-                if (minv[j] < delta) { delta = minv[j]; j1 = j; }
-            }
-            if (j1 == 0) return {};   // no finite assignment
-            for (size_t j = 0; j <= m; ++j) {
-                if (used[j]) { u[match[j]] += delta; v[j] -= delta; }
-                else if (minv[j] != INF) minv[j] -= delta;
-            }
-            j0 = j1;
-        } while (match[j0] != 0);
-        do {
-            size_t j1 = way[j0];
-            match[j0] = match[j1];
-            j0 = j1;
-        } while (j0 != 0);
-    }
-    std::vector<int> out(n, -1);
-    for (size_t j = 1; j <= m; ++j)
-        if (match[j]) out[match[j] - 1] = static_cast<int>(j - 1);
-    return out;
-}
-
-// "Fused estimate": per axis, inverse-variance weights of the members
-// predicted to t. Only p, v, pp and vv are meaningful.
-Filter Engine::fuse(const std::vector<const Entity*>& members, std::int64_t t) const {
-    double sp[2] = {0, 0}, spp[2] = {0, 0}, sv[2] = {0, 0}, svv[2] = {0, 0};
-    for (const Entity* e : members) {
-        Filter f = predict(*e, t);
-        const Axis* ax[2] = {&f.east, &f.north};
-        for (int k = 0; k < 2; ++k) {
-            spp[k] += 1 / ax[k]->pp;
-            sp[k] += ax[k]->p / ax[k]->pp;
-            svv[k] += 1 / ax[k]->vv;
-            sv[k] += ax[k]->v / ax[k]->vv;
-        }
-    }
-    Filter out;
-    Axis* ax[2] = {&out.east, &out.north};
-    for (int k = 0; k < 2; ++k) {
-        ax[k]->pp = 1 / spp[k];
-        ax[k]->p = ax[k]->pp * sp[k];
-        ax[k]->vv = 1 / svv[k];
-        ax[k]->v = ax[k]->vv * sv[k];
-        ax[k]->pv = 0;
-    }
-    return out;
-}
-
-// `leave`, then `end` when the system track is left empty.
-void Engine::leave_system(Entity& e, const char* reason, Output& out) {
-    int s = e.system;
-    auto& members = systems_.at(s);
-    members.erase(e.key);
-    e.system = 0;
-    Json ev = event("leave");
-    ev["system"] = system_name(s);
-    ev["entity"] = e.key;
-    ev["reason"] = reason;
-    out.events.push(ev);
-    if (members.empty()) {
-        systems_.erase(s);
-        Json end = event("end");
-        end["system"] = system_name(s);
-        out.events.push(end);
-    }
-}
-
-// "On each tick", steps 1 to 4 for one source S; `reported` is R in key order.
-void Engine::assign_source(const std::vector<std::string>& reported, Output& out) {
-    const double INF = std::numeric_limits<double>::infinity();
-    const std::string& source = entities_.at(reported.front()).source;
-    const std::set<std::string> in_r(reported.begin(), reported.end());
-
-    // 1. Columns: system tracks whose members outside R are not empty and
-    //    hold no entity of S; those members are the track's others.
-    std::vector<int> columns;
-    std::vector<std::vector<const Entity*>> others;
-    for (const auto& kv : systems_) {
-        std::vector<const Entity*> rest;
-        bool has_source = false;
-        for (const std::string& k : kv.second) {
-            if (in_r.count(k)) continue;
-            const Entity& e = entities_.at(k);
-            if (e.source == source) has_source = true;
-            rest.push_back(&e);
-        }
-        if (rest.empty() || has_source) continue;
-        columns.push_back(kv.first);
-        others.push_back(std::move(rest));
-    }
-
-    // 2. Entries: row i is reported[i]; column j < m is columns[j], column
-    //    m + i is row i's own `alone`.
-    const size_t n = reported.size(), m = columns.size();
-    std::vector<std::vector<double>> cost(n, std::vector<double>(m + n, INF));
-    for (size_t i = 0; i < n; ++i) {
-        const Entity& a = entities_.at(reported[i]);
-        for (size_t j = 0; j < m; ++j) {
-            bool ok = true;
-            for (const Entity* b : others[j]) {
-                if (!run_stage("gate", pack_.gate, a, *b, predict(*b, a.last_time_ms), out)) {
-                    ok = false;
-                    break;
-                }
-            }
-            if (!ok) continue;
-            Filter f = fuse(others[j], a.last_time_ms);
-            double de = a.filter.east.p - f.east.p, dn = a.filter.north.p - f.north.p;
-            double d2 = de * de / (a.filter.east.pp + f.east.pp) + dn * dn / (a.filter.north.pp + f.north.pp);
-            if (a.system == columns[j]) d2 -= pack_.keep_bonus;
-            cost[i][j] = d2;
-        }
-        double alone = pack_.new_cost;
-        if (a.system && systems_.at(a.system).size() == 1) alone -= pack_.keep_bonus;
-        cost[i][m + i] = alone;
-    }
-    auto record = [&](const std::string& a, const std::string& b, const char* test, double value) {
-        Json rec = Json::make_object();
-        rec["stage"] = "assign";
-        rec["a"] = a;
-        rec["b"] = b;
-        rec["test"] = test;
-        rec["value"] = value == INF ? Json() : Json(value);
-        rec["limit"] = Json();
-        rec["pass"] = value != INF;
-        out.trace.push(rec);
-    };
-    for (size_t i = 0; i < n; ++i) {
-        for (size_t j = 0; j < m; ++j) record(reported[i], system_name(columns[j]), "cost", cost[i][j]);
-        record(reported[i], "alone", "cost", cost[i][m + i]);
-    }
-
-    // 3. Assignment with the least total cost.
-    std::vector<int> choice = min_cost_assignment(cost);
-    for (size_t i = 0; i < n; ++i) {
-        size_t j = static_cast<size_t>(choice[i]);
-        record(reported[i], j < m ? system_name(columns[j]) : "alone", "choice", cost[i][j]);
-    }
-
-    // 4. Apply, entities of R in key order.
-    for (size_t i = 0; i < n; ++i) {
-        Entity& a = entities_.at(reported[i]);
-        size_t j = static_cast<size_t>(choice[i]);
-        if (j < m && a.system == columns[j]) continue;
-        if (j >= m && a.system && systems_.at(a.system).size() == 1) continue;
-        if (a.system) leave_system(a, "assign", out);
-        Json ev;
-        if (j < m) {
-            a.system = columns[j];
-            ev = event("join");
-        } else {
-            a.system = next_system_++;
-            ev = event("start");
-        }
-        systems_[a.system].insert(a.key);
-        ev["system"] = system_name(a.system);
-        ev["entity"] = a.key;
-        out.events.push(ev);
-    }
-}
-
-Output Engine::tick_assign(std::int64_t now_ms) {
-    Output out;
-
-    // Staleness, entities in key order.
-    std::vector<std::string> keys;
-    for (const auto& kv : entities_) keys.push_back(kv.first);
-    for (const std::string& k : keys) {
-        Entity& e = entities_.at(k);
-        auto report_stale = e.last.find("stale_ms");
-        bool stale = now_ms - e.last_time_ms > pack_.stale_ms ||
-                     (is_integer(report_stale) && now_ms >= report_stale->integer);
-        if (!stale) continue;
-        if (e.system) leave_system(e, "stale", out);
-        entities_.erase(k);
-        reported_.erase(k);
-        Json ev = event("drop");
-        ev["entity"] = k;
-        out.events.push(ev);
-    }
-
-    // Assignment, sources in key order, each with its reported entities in key order.
-    std::map<std::string, std::vector<std::string>> by_source;
-    for (const std::string& k : reported_) by_source[entities_.at(k).source].push_back(k);
-    reported_.clear();
-    for (const auto& kv : by_source) assign_source(kv.second, out);
-
-    // Output, system tracks in creation order.
-    for (const auto& kv : systems_) {
-        std::vector<const Entity*> members;
-        const Entity* latest_hae = nullptr;
-        Json names = Json::make_array();
-        for (const std::string& k : kv.second) {
-            const Entity& e = entities_.at(k);
-            members.push_back(&e);
-            names.push(k);
-            if (number_at(e.last, "hae") && (!latest_hae || e.last_time_ms > latest_hae->last_time_ms))
-                latest_hae = &e;
-        }
-        Filter f = fuse(members, now_ms);
-        auto pos = to_degrees(f.east.p, f.north.p);
-        double ve = f.east.v, vn = f.north.v;
-        double course = deg(std::atan2(ve, vn));
-        if (course < 0) course += 360;
-        if (course >= 360) course -= 360;
-
-        Json ev = event("system");
-        ev["system"] = system_name(kv.first);
-        ev["members"] = names;
-        ev["lat"] = pos.first;
-        ev["lon"] = pos.second;
-        ev["course"] = course;
-        ev["speed_ms"] = std::hypot(ve, vn);
-        if (latest_hae) ev["hae"] = *number_at(latest_hae->last, "hae");
-        out.events.push(ev);
-    }
-    return out;
-}
-
-Json Engine::snapshot_assign() const {
-    Json s = Json::make_object();
-    if (ref_) {
-        Json ref = Json::make_array();
-        ref.push(ref_->first);
-        ref.push(ref_->second);
-        s["ref"] = ref;
-    } else {
-        s["ref"] = Json();
-    }
-    Json entities = Json::make_object();
-    for (const auto& kv : entities_) {
-        const Entity& e = kv.second;
-        Json j = Json::make_object();
-        j["last_time_ms"] = static_cast<long long>(e.last_time_ms);
-        j["system"] = e.system ? Json(system_name(e.system)) : Json();
-        Json f = Json::make_object();
-        f["east"] = axis_json(e.filter.east);
-        f["north"] = axis_json(e.filter.north);
-        j["filter"] = f;
-        entities[kv.first] = j;
-    }
-    s["entities"] = entities;
-    Json systems = Json::make_object();
-    for (const auto& kv : systems_) {
-        Json members = Json::make_array();
-        for (const auto& m : kv.second) members.push(m);
-        systems[system_name(kv.first)] = members;
-    }
-    s["systems"] = systems;
-    s["next_system"] = next_system_;
-    Json reported = Json::make_array();
-    for (const auto& k : reported_) reported.push(k);   // std::set: key order
-    s["reported"] = reported;
     return s;
 }
 
