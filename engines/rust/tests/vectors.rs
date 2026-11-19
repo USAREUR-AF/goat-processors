@@ -29,7 +29,8 @@ fn read_json(path: &Path) -> Json {
 fn compare(got: &Json, want: &Json, path: &str) -> Result<(), String> {
     let mismatch = || Err(format!("{}: got {}, want {}", path, got, want));
     match (got, want) {
-        (Json::Num(g), Json::Num(w)) => {
+        (Json::Num(_) | Json::Int(_), Json::Num(_) | Json::Int(_)) => {
+            let (g, w) = (got.as_f64().unwrap(), want.as_f64().unwrap());
             if (g - w).abs() <= 1e-6 * w.abs().max(1.0) {
                 Ok(())
             } else {
@@ -153,5 +154,5 @@ fn comparison_rules() {
     assert!(compare(&p("[1,2]"), &p("[1]"), "$").is_err());
     assert!(compare(&p(r#""A""#), &p(r#""a""#), "$").is_err());
     assert!(compare(&p("0"), &p("false"), "$").is_err());
-    assert_eq!(compare(&p(r#"{"x":[1,{"y":2}]}"#), &p(r#"{"x":[1,{"y":3}]}"#), "$").unwrap_err(), "$.x[1].y: got 2.0, want 3.0");
+    assert_eq!(compare(&p(r#"{"x":[1,{"y":2}]}"#), &p(r#"{"x":[1,{"y":3}]}"#), "$").unwrap_err(), "$.x[1].y: got 2, want 3");
 }

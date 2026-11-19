@@ -7,7 +7,10 @@ use std::fmt;
 pub enum Json {
     Null,
     Bool(bool),
+    /// A number written with a fraction or an exponent.
     Num(f64),
+    /// A number written without a fraction or an exponent (spec: Reports).
+    Int(i64),
     Str(String),
     Arr(Vec<Json>),
     Obj(BTreeMap<String, Json>),
@@ -24,15 +27,30 @@ impl Json {
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             Json::Num(n) => Some(*n),
+            Json::Int(n) => Some(*n as f64),
             _ => None,
         }
     }
 
-    /// An integral number, as `i64`.
+    /// An integer: a number written without a fraction or an exponent.
     pub fn as_i64(&self) -> Option<i64> {
         match self {
-            Json::Num(n) if n.fract() == 0.0 && n.abs() < 9.0e15 => Some(*n as i64),
+            Json::Int(n) => Some(*n),
             _ => None,
+        }
+    }
+
+    /// Value equality: numbers by value whatever their form (`1` equals
+    /// `1.0`), strings byte for byte, a string never equals a number.
+    pub fn same(&self, other: &Json) -> bool {
+        match (self, other) {
+            (Json::Num(_) | Json::Int(_), Json::Num(_) | Json::Int(_)) => match (self, other) {
+                (Json::Int(a), Json::Int(b)) => a == b,
+                _ => self.as_f64() == other.as_f64(),
+            },
+            (Json::Arr(a), Json::Arr(b)) => a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.same(y)),
+            (Json::Obj(a), Json::Obj(b)) => a.len() == b.len() && a.iter().zip(b).all(|((ka, va), (kb, vb))| ka == kb && va.same(vb)),
+            _ => self == other,
         }
     }
 
@@ -66,7 +84,7 @@ impl From<f64> for Json {
 
 impl From<i64> for Json {
     fn from(n: i64) -> Json {
-        Json::Num(n as f64)
+        Json::Int(n)
     }
 }
 
@@ -99,6 +117,7 @@ impl fmt::Display for Json {
             Json::Null => write!(f, "null"),
             Json::Bool(b) => write!(f, "{}", b),
             Json::Num(n) => write!(f, "{:?}", n),
+            Json::Int(n) => write!(f, "{}", n),
             Json::Str(s) => write_str(f, s),
             Json::Arr(a) => {
                 write!(f, "[")?;
@@ -310,6 +329,11 @@ impl<'a> Parser<'a> {
             }
         }
         let t = std::str::from_utf8(&self.s[start..self.i]).unwrap();
+        if !t.contains(['.', 'e', 'E']) {
+            if let Ok(n) = t.parse::<i64>() {
+                return Ok(Json::Int(n));
+            }
+        }
         t.parse::<f64>().map(Json::Num).map_err(|_| self.err("bad number"))
     }
 }

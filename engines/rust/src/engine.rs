@@ -33,10 +33,11 @@ impl Entity {
 
     /// Last `ce`, or the pack's `default_ce_m`.
     fn ce(&self, default_ce_m: f64) -> f64 {
-        self.num("ce").unwrap_or(default_ce_m)
+        report_ce(&self.report).unwrap_or(default_ce_m)
     }
 
-    /// `@env`: the third `-`-separated element of `type`.
+    /// `@env`: the third `-`-separated element of `type`; absent when `type`
+    /// is absent or has fewer than three elements.
     fn env(&self) -> Option<Json> {
         let t = self.report.get("type")?.as_str()?;
         t.split('-').nth(2).map(Json::from)
@@ -47,7 +48,7 @@ impl Entity {
         if key == "@env" {
             self.env()
         } else {
-            self.report.get(key).cloned()
+            self.report.get(key).filter(|v| **v != Json::Null).cloned()
         }
     }
 
@@ -56,6 +57,11 @@ impl Entity {
         let dt = (t - self.last_time_ms) as f64 / 1000.0;
         (self.east.predict(dt, q), self.north.predict(dt, q))
     }
+}
+
+/// A report's `ce`; absent when not a number or 0 or below (spec: Reports).
+fn report_ce(report: &BTreeMap<String, Json>) -> Option<f64> {
+    report.get("ce").and_then(Json::as_f64).filter(|c| *c > 0.0)
 }
 
 /// The result of one test (spec: Tests).
@@ -171,7 +177,7 @@ impl Engine {
 
         // Track estimate.
         let f = self.pack.filter.clone();
-        let ce = fields.get("ce").and_then(Json::as_f64).unwrap_or(f.default_ce_m);
+        let ce = report_ce(fields).unwrap_or(f.default_ce_m);
         let course = fields.get("course").and_then(Json::as_f64);
         let speed = fields.get("speed_ms").and_then(Json::as_f64);
         let vel = match (course, speed) {
@@ -396,7 +402,11 @@ impl Engine {
             },
             Test::Same { key } => {
                 let (va, vb) = (ea.same_value(key), eb.same_value(key));
-                let pass = va == vb;
+                let pass = match (&va, &vb) {
+                    (Some(x), Some(y)) => x.same(y),
+                    (None, None) => true,
+                    _ => false,
+                };
                 Outcome { value: va.unwrap_or(Json::Null), limit: vb.unwrap_or(Json::Null), pass, skipped: false }
             }
         }

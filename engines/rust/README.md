@@ -1,6 +1,6 @@
 # goat-correlator, rust engine
 
-An implementation of `spec/correlate.md` (version 0.2) in Rust, written
+An implementation of `spec/correlate.md` (version 0.3) in Rust, written
 from the specification and the vectors only. Standard library only; it carries
 its own small JSON reader (`src/json.rs`).
 
@@ -44,4 +44,4 @@ failure the test prints the vector and the path of the first mismatch, for
 example `steps[2].trace[6].value: got 1.0, want 2.0`. Add `-- --nocapture` to
 see one line per vector.
 
-Points still open under spec 0.2 are in `DISAGREEMENTS.md`.
+Points still open under spec 0.3 are in `DISAGREEMENTS.md`.
