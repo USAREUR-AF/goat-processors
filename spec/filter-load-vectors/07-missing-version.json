@@ -1,0 +1,5 @@
+{
+ "name": "07-missing-version",
+ "pack_def": "pack x\ndefault keep\nforget_ms 1000\n",
+ "expect_error": true
+}

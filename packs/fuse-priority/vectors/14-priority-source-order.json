@@ -1,0 +1,447 @@
+{
+ "name": "14-priority-source-order",
+ "pack": "fuse-priority",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "adsb",
+    "uid": "X",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "fuse.group": "s1",
+    "ce": 10,
+    "callsign": "ADSB",
+    "type": "a-f-A"
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "adsb/X",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "R1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.000089946,
+    "fuse.group": "s1",
+    "ce": 30,
+    "callsign": "R-ONE",
+    "type": "a-u-A"
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/R1",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "R0",
+    "time_ms": 500,
+    "lat": 1.0,
+    "lon": 1.000179891,
+    "fuse.group": "s1",
+    "ce": 40,
+    "type": "a-h-A"
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/R0",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "zz",
+    "uid": "Z",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.044972868,
+    "fuse.group": "s2",
+    "ce": 30,
+    "callsign": "ZED"
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "zz/Z",
+     "group": "s2"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "adsb",
+    "uid": "Y",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.045062814,
+    "fuse.group": "s2",
+    "ce": 30,
+    "callsign": "WHY"
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "adsb/Y",
+     "group": "s2"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "tick": 1000,
+   "expect": [
+    {
+     "ev": "fused",
+     "group": "s1",
+     "members": [
+      "adsb/X",
+      "radar-1/R0",
+      "radar-1/R1"
+     ],
+     "from": "radar-1/R0",
+     "lat": 1.0,
+     "lon": 1.000179891,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 64.03136438496372,
+     "attributes": {
+      "callsign": {
+       "value": "R-ONE",
+       "from": "radar-1/R1"
+      },
+      "type": {
+       "value": "a-h-A",
+       "from": "radar-1/R0"
+      }
+     }
+    },
+    {
+     "ev": "fused",
+     "group": "s2",
+     "members": [
+      "adsb/Y",
+      "zz/Z"
+     ],
+     "from": "adsb/Y",
+     "lat": 1.0,
+     "lon": 1.045062814,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 104.40426236509695,
+     "attributes": {
+      "callsign": {
+       "value": "WHY",
+       "from": "adsb/Y"
+      }
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "kinematics",
+     "group": "s1",
+     "method": "priority",
+     "candidates": [
+      {
+       "member": "adsb/X",
+       "var": 20200.5,
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-1/R0",
+       "var": 8200.03125,
+       "time_ms": 500,
+       "rank": 1
+      },
+      {
+       "member": "radar-1/R1",
+       "var": 21800.5,
+       "time_ms": 0,
+       "rank": 1
+      }
+     ],
+     "winner": "radar-1/R0"
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "callsign",
+     "rule": "priority",
+     "candidates": [
+      {
+       "member": "adsb/X",
+       "value": "ADSB",
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-1/R1",
+       "value": "R-ONE",
+       "time_ms": 0,
+       "rank": 1
+      }
+     ],
+     "winner": "radar-1/R1",
+     "value": "R-ONE"
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "type",
+     "rule": "latest",
+     "candidates": [
+      {
+       "member": "adsb/X",
+       "value": "a-f-A",
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-1/R0",
+       "value": "a-h-A",
+       "time_ms": 500,
+       "rank": 1
+      },
+      {
+       "member": "radar-1/R1",
+       "value": "a-u-A",
+       "time_ms": 0,
+       "rank": 1
+      }
+     ],
+     "winner": "radar-1/R0",
+     "value": "a-h-A"
+    },
+    {
+     "stage": "kinematics",
+     "group": "s2",
+     "method": "priority",
+     "candidates": [
+      {
+       "member": "adsb/Y",
+       "var": 21800.5,
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "zz/Z",
+       "var": 21800.5,
+       "time_ms": 0,
+       "rank": null
+      }
+     ],
+     "winner": "adsb/Y"
+    },
+    {
+     "stage": "attribute",
+     "group": "s2",
+     "key": "callsign",
+     "rule": "priority",
+     "candidates": [
+      {
+       "member": "adsb/Y",
+       "value": "WHY",
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "zz/Z",
+       "value": "ZED",
+       "time_ms": 0,
+       "rank": null
+      }
+     ],
+     "winner": "adsb/Y",
+     "value": "WHY"
+    },
+    {
+     "stage": "attribute",
+     "group": "s2",
+     "key": "type",
+     "rule": "latest",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {
+   "adsb/X": {
+    "last_time_ms": 0,
+    "group": "s1",
+    "filter": {
+     "east": [
+      0.0,
+      0.0,
+      100.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      100.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "callsign": "ADSB",
+     "ce": 10,
+     "fuse.group": "s1",
+     "lat": 1.0,
+     "lon": 1.0,
+     "time_ms": 0,
+     "track.source_id": "adsb",
+     "type": "a-f-A",
+     "uid": "X"
+    }
+   },
+   "adsb/Y": {
+    "last_time_ms": 0,
+    "group": "s2",
+    "filter": {
+     "east": [
+      5010.000054770449,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "callsign": "WHY",
+     "ce": 30,
+     "fuse.group": "s2",
+     "lat": 1.0,
+     "lon": 1.045062814,
+     "time_ms": 0,
+     "track.source_id": "adsb",
+     "uid": "Y"
+    }
+   },
+   "radar-1/R0": {
+    "last_time_ms": 500,
+    "group": "s1",
+    "filter": {
+     "east": [
+      19.999947625382884,
+      0.0,
+      1600.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      1600.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 40,
+     "fuse.group": "s1",
+     "lat": 1.0,
+     "lon": 1.000179891,
+     "time_ms": 500,
+     "track.source_id": "radar-1",
+     "type": "a-h-A",
+     "uid": "R0"
+    }
+   },
+   "radar-1/R1": {
+    "last_time_ms": 0,
+    "group": "s1",
+    "filter": {
+     "east": [
+      10.000029401756041,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "callsign": "R-ONE",
+     "ce": 30,
+     "fuse.group": "s1",
+     "lat": 1.0,
+     "lon": 1.000089946,
+     "time_ms": 0,
+     "track.source_id": "radar-1",
+     "type": "a-u-A",
+     "uid": "R1"
+    }
+   },
+   "zz/Z": {
+    "last_time_ms": 0,
+    "group": "s2",
+    "filter": {
+     "east": [
+      5000.000025368694,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "callsign": "ZED",
+     "ce": 30,
+     "fuse.group": "s2",
+     "lat": 1.0,
+     "lon": 1.044972868,
+     "time_ms": 0,
+     "track.source_id": "zz",
+     "uid": "Z"
+    }
+   }
+  }
+ }
+}

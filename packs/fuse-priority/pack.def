@@ -1,0 +1,11 @@
+# The sources are ranked: the member of the highest-ranked source gives the
+# kinematics and the attributes. A source not listed ranks last.
+pack        fuse-priority
+version     0.1.0
+filter      accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+kinematics  priority
+attribute   callsign rule=priority
+attribute   type rule=latest
+source      eo-2
+source      radar-1
+stale_ms    120000

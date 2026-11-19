@@ -1,0 +1,5 @@
+{
+ "name": "32-latitude-out-of-range",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 1000\nrule r drop\nwhen circle lat=90.5 lon=1 radius_m=1\n",
+ "expect_error": true
+}

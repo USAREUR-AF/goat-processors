@@ -1,0 +1,17 @@
+# Feed health: how fresh, how regular and how late each track's reports are.
+# Measures cover the last 60 s of input time and need 3 samples. A track
+# silent for more than 30 s raises an alert. A track whose reports come more
+# than 10 s apart on average, on two ticks in a row, is marked until the
+# average falls below 8 s. A track with a report more than 10 s late is held
+# back until its worst latency in the window is below 5 s. A source whose mean
+# latency stays above 2 s on two ticks raises an alert until it falls below
+# 1 s. A track with an out-of-order report in the window is marked.
+pack     quality-feed
+version  0.1.0
+filter   accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+window   window_ms=60000 min_samples=3 forget_ms=300000
+rule     silent         scope=entity measure=age           op=>  limit=30000 for=1 clear=30000 action=alert
+rule     slow           scope=entity measure=interval_mean op=>  limit=10000 for=2 clear=8000  action=mark
+rule     late           scope=entity measure=latency_max   op=>  limit=10000 for=1 clear=5000  action=drop
+rule     source-latent  scope=source measure=latency_mean  op=>  limit=2000  for=2 clear=1000  action=alert
+rule     disorder       scope=entity measure=out_of_order  op=>= limit=1     for=1 clear=1     action=mark
