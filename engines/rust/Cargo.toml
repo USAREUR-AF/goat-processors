@@ -1,0 +1,7 @@
+[package]
+name = "goat_correlator"
+version = "0.1.0"
+edition = "2021"
+description = "Rust engine of the goat-correlator specification 0.1"
+
+[dependencies]
