@@ -1,5 +1,5 @@
 #include "engine.hpp"
-#include "kalman.hpp"
+#include "report.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -10,37 +10,17 @@ namespace corr {
 
 namespace {
 
-// Report values; a null value counts as absent.
-std::optional<double> number_at(const Json& r, const std::string& key) {
-    const Json* v = r.find(key);
-    if (!v || !v->is_number()) return std::nullopt;
-    return v->number;
-}
-
-// Spec "Reports": a `ce` of 0 or below is absent.
-std::optional<double> ce_at(const Json& r) {
-    auto ce = number_at(r, "ce");
-    if (ce && *ce <= 0) return std::nullopt;
-    return ce;
-}
-
-// Spec "Reports": `time_ms` and `stale_ms` must be integers.
-bool is_integer(const Json* v) { return v && v->is_number() && v->is_int; }
+// Spec "Reports" helpers live in report.hpp, shared with the filter and fuse.
+using report::ce_at;
+using report::is_integer;
+using report::number_at;
 
 // Spec "Reports": `@env` is the third `-`-separated element of `type`.
 std::optional<Json> same_value(const Json& r, const std::string& key) {
     if (key == "@env") {
-        const Json* t = r.find("type");
-        if (!t || !t->is_string()) return std::nullopt;
-        std::vector<std::string> parts;
-        std::string cur;
-        for (char c : t->string) {
-            if (c == '-') { parts.push_back(cur); cur.clear(); }
-            else cur += c;
-        }
-        parts.push_back(cur);
-        if (parts.size() < 3) return std::nullopt;
-        return Json(parts[2]);
+        auto env = report::type_element(r, 2);
+        if (!env) return std::nullopt;
+        return Json(*env);
     }
     const Json* v = r.find(key);
     if (!v || v->is_null()) return std::nullopt;
@@ -59,32 +39,28 @@ Engine::Engine(Pack pack) : pack_(std::move(pack)) {}
 
 // ---- Frame -----------------------------------------------------------------
 
-Engine::Point Engine::to_plane(double lat, double lon) const {
+Point Engine::to_plane(double lat, double lon) const {
     return corr::to_plane(ref_->first, ref_->second, lat, lon);
 }
 
 std::pair<double, double> Engine::to_degrees(double east, double north) const {
-    const double lat0 = ref_->first, lon0 = ref_->second;
-    double lat = lat0 + deg(north / EARTH_R);
-    double lon = lon0 + deg(east / (EARTH_R * std::cos(rad(lat0))));
-    return {lat, wrap180(lon)};
+    return corr::to_degrees(ref_->first, ref_->second, east, north);
 }
 
 // ---- Track estimate --------------------------------------------------------
 
 void Engine::filter_first(Entity& e, const Point& z, const std::optional<Point>& vel, double ce) const {
-    corr::filter_first(e.filter, z, vel, ce, pack_.filter);
+    e.filter = corr::filter_first(pack_.filter, z, vel, ce);
 }
 
 void Engine::filter_update(Entity& e, const Point& z, const std::optional<Point>& vel, double ce,
                            double dt) const {
-    corr::filter_update(e.filter, z, vel, ce, dt, pack_.filter);
+    corr::filter_update(e.filter, pack_.filter, z, vel, ce, dt);
 }
 
 // Spec "Track estimate", Prediction: step 1 on a copy.
 Filter Engine::predict(const Entity& e, std::int64_t t) const {
-    double dt = static_cast<double>(t - e.last_time_ms) / 1000;
-    return filter_predict(e.filter, dt, pack_.filter.accel_var);
+    return filter_predict(e.filter, e.last_time_ms, t, pack_.filter.accel_var);
 }
 
 // ---- Tests -----------------------------------------------------------------
@@ -294,19 +270,11 @@ Output Engine::ingest(const Json& r) {
     Output out;
 
     // Spec "Reports": required keys, in table order.
-    const std::pair<const char*, char> required[] = {
-        {"track.source_id", 's'}, {"uid", 's'}, {"time_ms", 'i'}, {"lat", 'n'}, {"lon", 'n'}};
-    for (const auto& req : required) {
-        const Json* v = r.find(req.first);
-        bool ok = req.second == 's' ? v && v->is_string()
-                : req.second == 'i' ? is_integer(v)
-                                    : v && v->is_number();
-        if (!ok) {
-            Json ev = event("reject");
-            ev["reason"] = std::string("missing:") + req.first;
-            out.events.push(ev);
-            return out;
-        }
+    if (auto missing = report::missing_required(r)) {
+        Json ev = event("reject");
+        ev["reason"] = "missing:" + *missing;
+        out.events.push(ev);
+        return out;
     }
     const std::string source = r.find("track.source_id")->string;
     const std::string key = source + "/" + r.find("uid")->string;
@@ -325,9 +293,7 @@ Output Engine::ingest(const Json& r) {
     // Spec "Frame": the reference is the first accepted report.
     if (!ref_) ref_ = std::make_pair(lat, lon);
     Point z = to_plane(lat, lon);
-    std::optional<Point> vel;
-    auto course = number_at(r, "course"), speed = number_at(r, "speed_ms");
-    if (course && speed) vel = velocity_of(*course, *speed);
+    std::optional<Point> vel = measured_velocity(r);
     double ce = ce_at(r).value_or(pack_.filter.default_ce_m);
 
     if (it == entities_.end()) {

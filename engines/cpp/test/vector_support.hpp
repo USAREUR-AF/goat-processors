@@ -1,33 +1,57 @@
-// The comparison of spec/vector-format.md, "What the engine checks", shared
-// by the correlate and quality vector runners.
+// What the vector runners (correlate, filter, fuse) share: reading files,
+// listing vectors, and the comparison of spec/vector-format.md "What the
+// engine checks".
 #pragma once
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <string>
+#include <vector>
 
 #include "json.hpp"
 
-namespace corr {
+namespace vectors {
+
+namespace fs = std::filesystem;
+using corr::Json;
+
+inline std::string read_file(const fs::path& p) {
+    std::ifstream f(p, std::ios::binary);
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
+}
+
+inline std::vector<fs::path> json_files(const fs::path& dir) {
+    std::vector<fs::path> out;
+    if (!fs::is_directory(dir)) return out;
+    for (const auto& e : fs::directory_iterator(dir))
+        if (e.path().extension() == ".json") out.push_back(e.path());
+    std::sort(out.begin(), out.end());
+    return out;
+}
 
 // vector-format.md "What the engine checks": structural equality, numbers
 // within 1e-6 * max(1, |want|), null distinct from absent. Returns the path of
 // the first mismatch, or an empty string.
-inline std::string mismatch(const corr::Json& got, const corr::Json& want, const std::string& path) {
-    auto show = [](const corr::Json& v) { return corr::to_json(v); };
+inline std::string mismatch(const Json& got, const Json& want, const std::string& path) {
+    auto show = [](const Json& v) { return corr::to_json(v); };
     auto differ = [&](const std::string& why) {
         return path + ": " + why + " (got " + show(got) + ", want " + show(want) + ")";
     };
     if (got.kind != want.kind) return differ("type differs");
     switch (want.kind) {
-        case corr::Json::Kind::Null: return "";
-        case corr::Json::Kind::Bool: return got.boolean == want.boolean ? "" : differ("value differs");
-        case corr::Json::Kind::String: return got.string == want.string ? "" : differ("value differs");
-        case corr::Json::Kind::Number: {
+        case Json::Kind::Null: return "";
+        case Json::Kind::Bool: return got.boolean == want.boolean ? "" : differ("value differs");
+        case Json::Kind::String: return got.string == want.string ? "" : differ("value differs");
+        case Json::Kind::Number: {
             double tol = 1e-6 * std::max(1.0, std::abs(want.number));
             return std::abs(got.number - want.number) <= tol ? "" : differ("number differs");
         }
-        case corr::Json::Kind::Array: {
+        case Json::Kind::Array: {
             size_t n = std::min(got.array.size(), want.array.size());
             for (size_t i = 0; i < n; ++i) {
                 std::string m = mismatch(got.array[i], want.array[i], path + "[" + std::to_string(i) + "]");
@@ -38,7 +62,7 @@ inline std::string mismatch(const corr::Json& got, const corr::Json& want, const
                               std::to_string(want.array.size()));
             return "";
         }
-        case corr::Json::Kind::Object: {
+        case Json::Kind::Object: {
             for (const auto& kv : want.object)
                 if (!got.has(kv.first)) return path + "." + kv.first + ": absent (want " + show(kv.second) + ")";
             for (const auto& kv : got.object)
@@ -53,4 +77,4 @@ inline std::string mismatch(const corr::Json& got, const corr::Json& want, const
     return "";
 }
 
-} // namespace corr
+} // namespace vectors

@@ -14,28 +14,15 @@
 
 #include "json.hpp"
 #include "quality.hpp"
-#include "vector_compare.hpp"
+#include "vector_support.hpp"
 
 namespace fs = std::filesystem;
 using corr::Json;
+using vectors::json_files;
+using vectors::mismatch;
+using vectors::read_file;
 
 namespace {
-
-std::string read_file(const fs::path& p) {
-    std::ifstream f(p, std::ios::binary);
-    std::ostringstream ss;
-    ss << f.rdbuf();
-    return ss.str();
-}
-
-std::vector<fs::path> json_files(const fs::path& dir) {
-    std::vector<fs::path> out;
-    if (!fs::is_directory(dir)) return out;
-    for (const auto& e : fs::directory_iterator(dir))
-        if (e.path().extension() == ".json") out.push_back(e.path());
-    std::sort(out.begin(), out.end());
-    return out;
-}
 
 // One scenario vector: each step's events and trace, then the snapshot.
 std::string run_scenario(const fs::path& root, const Json& v) {
@@ -46,11 +33,11 @@ std::string run_scenario(const fs::path& root, const Json& v) {
         corr::quality::Output out = step.has("ingest") ? engine.ingest(*step.find("ingest"))
                                                        : engine.tick(step.find("tick")->integer);
         std::string at = "steps[" + std::to_string(i) + "]";
-        std::string m = corr::mismatch(out.events, *step.find("expect"), at + ".expect");
-        if (m.empty()) m = corr::mismatch(out.trace, *step.find("trace"), at + ".trace");
+        std::string m = mismatch(out.events, *step.find("expect"), at + ".expect");
+        if (m.empty()) m = mismatch(out.trace, *step.find("trace"), at + ".trace");
         if (!m.empty()) return m;
     }
-    return corr::mismatch(engine.snapshot(), *v.find("snapshot"), "snapshot");
+    return mismatch(engine.snapshot(), *v.find("snapshot"), "snapshot");
 }
 
 // One load vector: parsing must fail exactly when expect_error is true.

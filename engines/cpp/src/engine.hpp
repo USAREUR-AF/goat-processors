@@ -10,8 +10,8 @@
 #include <vector>
 
 #include "json.hpp"
-#include "kalman.hpp"
 #include "pack.hpp"
+#include "track.hpp"
 
 namespace corr {
 
@@ -41,7 +41,6 @@ public:
     Json snapshot() const;
 
 private:
-    using Point = PlanePoint;
     struct TestResult { Json value, limit; bool pass; bool skipped; };
 
     // Frame

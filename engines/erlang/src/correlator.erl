@@ -6,7 +6,7 @@
 -module(correlator).
 -export([load_pack/1, new/1, ingest/2, tick/2, snapshot/1]).
 %% Shared with correlator_assign (correlate-assign.md "Shared with correlate.md").
--export([emit/2, record/2, finish/1, entity/2, put_entity/3, value/2, run_tests/5,
+-export([validate/1, entity_key/1, emit/2, record/2, finish/1, entity/2, put_entity/3, value/2, run_tests/5,
          is_stale/3]).
 
 %% Reports: required keys in table order with their type; optional keys with
@@ -37,17 +37,10 @@ finish(St = #{events := Es, trace := Ts}) ->
 
 %% Reports: reject missing keys in table order, then out-of-order.
 ingest(Report0, St) ->
-    case [K || {K, Type} <- ?REQUIRED, not typed(Type, maps:get(K, Report0, null))] of
-        [Missing | _] ->
-            finish(emit(#{<<"ev">> => <<"reject">>,
-                          <<"reason">> => <<"missing:", Missing/binary>>}, St));
-        [] ->
-            Report = maps:filter(fun(K, V) ->
-                                         case lists:keyfind(K, 1, ?OPTIONAL) of
-                                             {K, Type} -> typed(Type, V);
-                                             false -> true
-                                         end
-                                 end, Report0),
+    case validate(Report0) of
+        {reject, Reason} ->
+            finish(emit(#{<<"ev">> => <<"reject">>, <<"reason">> => Reason}, St));
+        {ok, Report} ->
             Key = entity_key(Report),
             T = maps:get(<<"time_ms">>, Report),
             case maps:find(Key, maps:get(entities, St)) of
@@ -57,6 +50,23 @@ ingest(Report0, St) ->
                 _ ->
                     finish(accept(Key, Report, St))
             end
+    end.
+
+%% Reports: the first missing required key in table order gives
+%% {reject, <<"missing:<key>">>}; otherwise {ok, Report} with every optional
+%% key that is null or of the wrong type removed (and every null value, since
+%% null is the same as absent). Shared with the filter (filter.md "Reports").
+validate(Report0) ->
+    case [K || {K, Type} <- ?REQUIRED, not typed(Type, maps:get(K, Report0, null))] of
+        [Missing | _] -> {reject, <<"missing:", Missing/binary>>};
+        [] ->
+            {ok, maps:filter(fun(_K, null) -> false;
+                                (K, V) ->
+                                     case lists:keyfind(K, 1, ?OPTIONAL) of
+                                         {K, Type} -> typed(Type, V);
+                                         false -> true
+                                     end
+                             end, Report0)}
     end.
 
 %% A ce of 0 or below is absent.

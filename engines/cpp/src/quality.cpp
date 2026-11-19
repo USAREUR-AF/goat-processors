@@ -136,12 +136,12 @@ Output Engine::ingest(const Json& r) {
     const std::optional<double> hae = number_at(r, "hae");
     const std::optional<std::int64_t> received = integer_at(r, "received_ms");
     const double ce = ce_valid.value_or(pack_.filter.default_ce_m);
-    std::optional<PlanePoint> vel;
-    if (course && speed) vel = velocity_of(*course, *speed);
+    std::optional<Point> vel;
+    if (course && speed) vel = Point{*speed * std::sin(rad(*course)), *speed * std::cos(rad(*course))};
 
     // "Frame and filter": the reference is the first accepted report, of any order.
     if (!ref_) ref_ = std::make_pair(lat, lon);
-    const PlanePoint z = to_plane(ref_->first, ref_->second, lat, lon);
+    const Point z = to_plane(ref_->first, ref_->second, lat, lon);
 
     // "Order".
     auto it = entities_.find(key);
@@ -177,8 +177,7 @@ Output Engine::ingest(const Json& r) {
     Filter predicted;
     if (advance) {
         // nis: the entity's filter predicted to t, against the report.
-        const double dt = static_cast<double>(t - last) / 1000;
-        predicted = filter_predict(it->second.filter, dt, pack_.filter.accel_var);
+        predicted = filter_predict(it->second.filter, last, t, pack_.filter.accel_var);
         const double rr = ce * ce;
         const double de = z.east - predicted.east.p, dn = z.north - predicted.north.p;
         const double se = predicted.east.pp + rr, sn = predicted.north.pp + rr;
@@ -188,7 +187,7 @@ Output Engine::ingest(const Json& r) {
     if (advance && speed) {
         // speed_err: speed implied by the movement since last_pos, against speed_ms.
         const double dt = static_cast<double>(t - last) / 1000;
-        const PlanePoint& lp = it->second.last_pos;
+        const Point& lp = it->second.last_pos;
         const double implied = std::hypot(z.east - lp.east, z.north - lp.north) / dt;
         rec.speed_err = std::abs(implied - *speed);
         out.trace.push(sample_trace(key, "speed_err", *rec.speed_err, list({implied, *speed})));
@@ -200,7 +199,7 @@ Output Engine::ingest(const Json& r) {
         e.source = source;
         e.last = t;
         e.last_pos = z;
-        filter_first(e.filter, z, vel, ce, pack_.filter);
+        e.filter = filter_first(pack_.filter, z, vel, ce);
         it = entities_.emplace(key, std::move(e)).first;
         Json ev = event("new");
         ev["entity"] = key;
@@ -208,7 +207,7 @@ Output Engine::ingest(const Json& r) {
     } else if (advance) {
         // The filter is updated from the prediction that gave nis.
         it->second.filter = predicted;
-        filter_correct(it->second.filter, z, vel, ce, pack_.filter);
+        filter_correct(it->second.filter, pack_.filter, z, vel, ce);
         it->second.last = t;
         it->second.last_pos = z;
     }

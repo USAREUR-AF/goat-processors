@@ -2,7 +2,7 @@
 //
 // Quality measures every entity and every source from the reports alone and
 // applies the actions a pack's rules attach to those measures. It reuses the
-// correlate frame and filter (kalman.hpp) and the JSON value (json.hpp).
+// correlate frame and filter (track.hpp) and the JSON value (json.hpp).
 #pragma once
 
 #include <cstdint>
@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "json.hpp"
-#include "kalman.hpp"
+#include "track.hpp"
 #include "pack.hpp"
 
 namespace corr::quality {
@@ -76,7 +76,7 @@ struct Record {
 struct Entity {
     std::string source;                     // track.source_id of its first report
     std::int64_t last = 0;                  // latest accepted time (`last`)
-    PlanePoint last_pos{0, 0};              // plane position of its latest first/advance report
+    Point last_pos{0, 0};              // plane position of its latest first/advance report
     Filter filter;
     std::vector<Record> window;             // arrival order
 };

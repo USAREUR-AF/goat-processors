@@ -1,0 +1,130 @@
+{
+ "name": "25-dateline-circle",
+ "pack": "filter-dateline",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "sat",
+    "uid": "1",
+    "time_ms": 0,
+    "lat": 20.0,
+    "lon": -179.95
+   },
+   "expect": [
+    {
+     "ev": "keep",
+     "entity": "sat/1",
+     "rule": "anchorage"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "zone",
+     "entity": "sat/1",
+     "test": "polygon",
+     "negated": false,
+     "value": "outside",
+     "limit": null,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "anchorage",
+     "entity": "sat/1",
+     "test": "circle",
+     "negated": false,
+     "value": 5224.459798766329,
+     "limit": 10000.0,
+     "pass": true
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "sat",
+    "uid": "2",
+    "time_ms": 0,
+    "lat": 20.0,
+    "lon": 179.85
+   },
+   "expect": [
+    {
+     "ev": "drop",
+     "entity": "sat/2",
+     "rule": "default"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "zone",
+     "entity": "sat/2",
+     "test": "polygon",
+     "negated": false,
+     "value": "outside",
+     "limit": null,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "anchorage",
+     "entity": "sat/2",
+     "test": "circle",
+     "negated": false,
+     "value": 15673.378930881641,
+     "limit": 10000.0,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "tasked",
+     "entity": "sat/2",
+     "test": "key",
+     "negated": false,
+     "value": null,
+     "limit": [
+      "alpha",
+      "bravo"
+     ],
+     "pass": false,
+     "unknown": true
+    },
+    {
+     "stage": "rule",
+     "rule": "range-test",
+     "entity": "sat/2",
+     "test": "source",
+     "negated": false,
+     "value": "sat",
+     "limit": [
+      "range"
+     ],
+     "pass": false
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "entities": {
+   "sat/1": {
+    "time_ms": 0,
+    "lat": 20.0,
+    "lon": -179.95,
+    "course": null,
+    "speed_ms": null,
+    "stale_ms": null,
+    "kept_ms": 0
+   },
+   "sat/2": {
+    "time_ms": 0,
+    "lat": 20.0,
+    "lon": 179.85,
+    "course": null,
+    "speed_ms": null,
+    "stale_ms": null,
+    "kept_ms": null
+   }
+  }
+ }
+}

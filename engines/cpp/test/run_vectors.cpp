@@ -14,28 +14,15 @@
 #include "engine.hpp"
 #include "json.hpp"
 #include "pack.hpp"
-#include "vector_compare.hpp"
+#include "vector_support.hpp"
 
 namespace fs = std::filesystem;
 using corr::Json;
+using vectors::json_files;
+using vectors::mismatch;
+using vectors::read_file;
 
 namespace {
-
-std::string read_file(const fs::path& p) {
-    std::ifstream f(p, std::ios::binary);
-    std::ostringstream ss;
-    ss << f.rdbuf();
-    return ss.str();
-}
-
-std::vector<fs::path> json_files(const fs::path& dir) {
-    std::vector<fs::path> out;
-    if (!fs::is_directory(dir)) return out;
-    for (const auto& e : fs::directory_iterator(dir))
-        if (e.path().extension() == ".json") out.push_back(e.path());
-    std::sort(out.begin(), out.end());
-    return out;
-}
 
 // One scenario vector: each step's events and trace, then the snapshot.
 std::string run_scenario(const fs::path& root, const Json& v) {
