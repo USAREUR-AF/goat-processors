@@ -81,9 +81,12 @@ public final class Engine {
     private long nextGroup = 1;
     /** Method assign (correlate-assign.md), or null with method confirm. */
     private final Assign assign;
+    /** correlate-assign.md, Sensor bias, or null without the {@code bias} line. */
+    final Bias bias;
 
     public Engine(Pack pack) {
         this.pack = pack;
+        this.bias = pack.bias ? new Bias(pack) : null;
         this.assign = pack.methodAssign ? new Assign(this, pack) : null;
     }
 
@@ -141,6 +144,11 @@ public final class Engine {
             a.filter = new Filter(pack, meas);
             entities.put(key, a);
             res.events.add(ev("new", "entity", key));
+        } else if (pack.restart && !restartPasses(a, time, meas, ce, res)) {
+            // Restart: the filter starts again from this report as a first report. No `new` event;
+            // the entity keeps its key, group, pair counts and hold failure count.
+            a.filter = new Filter(pack, meas);
+            if (assign != null) assign.restarted(key);
         } else {
             // Later reports; with two models, the four filter records come before any association record.
             double[] f = a.filter.update((time - a.lastTime) / 1000.0, meas);
@@ -164,6 +172,27 @@ public final class Engine {
         if (a.group != null) hold(a, res);
         else associate(a, res);
         return res;
+    }
+
+    /**
+     * correlate.md, Restart: d² of the report against the entity predicted to its time_ms, and its
+     * trace record, before any other record of the report. True when d² is below the gate.
+     */
+    private boolean restartPasses(Entity a, long time, Filter.Measurement meas, double ce, Result res) {
+        Predicted pr = new Predicted(a, time);
+        double de = meas.z[0] - pr.east.p, dn = meas.z[1] - pr.north.p;
+        double d2 = de * de / (pr.east.pp + ce * ce) + dn * dn / (pr.north.pp + ce * ce);
+        boolean pass = d2 < pack.restartGate;
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("stage", "filter");
+        m.put("a", a.key);
+        m.put("b", null);
+        m.put("test", "restart");
+        m.put("value", d2);
+        m.put("limit", pack.restartGate);
+        m.put("pass", pass);
+        res.trace.add(m);
+        return pass;
     }
 
     /** Spec: Association, "A is in a group G: hold". */
@@ -259,6 +288,8 @@ public final class Engine {
     /** Runs tests in order, stopping at the first that fails; true when all ran and passed. */
     boolean runTests(List<Pack.Test> tests, String stage, Entity a, Entity b, Result res) {
         Predicted pb = new Predicted(b, a.lastTime);
+        // correlate-assign.md, Sensor bias: B's prediction moved into A's frame before the test formula.
+        if (bias != null) bias.moveInto(a.source, b.source, new Filter.Axis[] {pb.east, pb.north});
         for (Pack.Test t : tests) {
             Map<String, Object> r = runTest(t, stage, a, b, pb);
             res.trace.add(r);

@@ -58,6 +58,15 @@ public final class Pack {
     /** correlate.md, Two-model filter: the {@code maneuver} line, when present. */
     public boolean maneuver = false;
     public double maneuverAccelVar, pEnter, pLeave;
+    /** correlate.md, Restart: the {@code restart gate=<g>} line, when present. */
+    public boolean restart = false;
+    public double restartGate;
+    /** correlate-assign.md, Sensor bias: the {@code bias sigma_m=<s> floor_m=<f> gate=<g>} line, when present. */
+    public boolean bias = false;
+    public double biasSigma, biasFloor, biasGate;
+    /** correlate-assign.md, Window: the {@code margin <m>} line, when present. */
+    public boolean margin = false;
+    public double marginValue;
 
     /** Spec: Tests table, the parameters of each test. */
     private static final Map<String, List<String>> TESTS = new LinkedHashMap<>();
@@ -73,10 +82,12 @@ public final class Pack {
 
     private static final List<String> FILTER = List.of("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms");
     private static final List<String> MANEUVER = List.of("accel_var", "p_enter", "p_leave");
+    private static final List<String> RESTART = List.of("gate");
+    private static final List<String> BIAS = List.of("sigma_m", "floor_m", "gate");
     private static final Set<String> REPEATING = Set.of("gate", "confirm", "hold", "priority");
     private static final Set<String> SINGLE = Set.of("pack", "version", "method", "filter", "confirm_count",
             "hold_failures", "stale_ms", "same_source", "output", "new_cost", "keep_bonus", "maneuver", "window",
-            "hypotheses");
+            "hypotheses", "restart", "bias", "margin");
     private static final List<String> REQUIRED = List.of("pack", "version", "filter", "confirm_count",
             "hold_failures", "stale_ms");
     /** Spec: correlate-assign.md, Pack. */
@@ -84,7 +95,8 @@ public final class Pack {
             "new_cost", "keep_bonus", "stale_ms");
     private static final Set<String> ONLY_CONFIRM = Set.of("confirm", "hold", "confirm_count", "hold_failures",
             "same_source", "output", "priority");
-    private static final Set<String> ONLY_ASSIGN = Set.of("new_cost", "keep_bonus", "window", "hypotheses");
+    private static final Set<String> ONLY_ASSIGN = Set.of("new_cost", "keep_bonus", "window", "hypotheses",
+            "margin", "bias");
     private static final Pattern DECIMAL = Pattern.compile("[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?");
     private static final Pattern INTEGER = Pattern.compile("[+-]?[0-9]+");
 
@@ -148,6 +160,31 @@ public final class Pack {
                     if (!(pk.pEnter + pk.pLeave < 1)) throw new LoadError(ln, "p_enter + p_leave must be below 1");
                     break;
                 }
+                case "restart": {
+                    // correlate.md, Pack: exactly gate, above 0; valid with either method.
+                    Map<String, String> kv = params(tok, 1, ln);
+                    if (!kv.keySet().equals(new HashSet<>(RESTART))) throw new LoadError(ln, "restart takes " + RESTART);
+                    pk.restart = true;
+                    pk.restartGate = positive(dec(kv.get("gate"), ln), "restart gate", ln);
+                    break;
+                }
+                case "bias": {
+                    // correlate-assign.md, Pack: exactly sigma_m, floor_m and gate; sigma_m and gate
+                    // above 0, floor_m above 0 and at most sigma_m.
+                    Map<String, String> kv = params(tok, 1, ln);
+                    if (!kv.keySet().equals(new HashSet<>(BIAS))) throw new LoadError(ln, "bias takes " + BIAS);
+                    pk.bias = true;
+                    pk.biasSigma = positive(dec(kv.get("sigma_m"), ln), "sigma_m", ln);
+                    pk.biasFloor = positive(dec(kv.get("floor_m"), ln), "floor_m", ln);
+                    pk.biasGate = positive(dec(kv.get("gate"), ln), "bias gate", ln);
+                    if (!(pk.biasFloor <= pk.biasSigma)) throw new LoadError(ln, "floor_m must be at most sigma_m");
+                    break;
+                }
+                // correlate-assign.md, Pack: one number above 0; needs hypotheses above 1 (checked at the end).
+                case "margin":
+                    pk.margin = true;
+                    pk.marginValue = positive(dec(one(tok, ln), ln), "margin", ln);
+                    break;
                 // correlate-assign.md, Pack: integers, 1 or above, written as one value.
                 case "window": pk.window = atLeastOne(integer(one(tok, ln), ln), "window", ln); break;
                 case "hypotheses": pk.hypotheses = atLeastOne(integer(one(tok, ln), ln), "hypotheses", ln); break;
@@ -188,6 +225,7 @@ public final class Pack {
         if (pk.maneuver && !(pk.maneuverAccelVar > pk.accelVar))
             throw new LoadError("maneuver accel_var must be above filter accel_var");
         if (pk.hypotheses > 1 && pk.window <= 1) throw new LoadError("hypotheses above 1 needs window above 1");
+        if (pk.margin && pk.hypotheses <= 1) throw new LoadError("margin needs hypotheses above 1");
         return pk;
     }
 
