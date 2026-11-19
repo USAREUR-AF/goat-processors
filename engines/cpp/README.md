@@ -1,7 +1,7 @@
 # goat-correlator, C++ engine
 
-A C++17 implementation of `spec/correlate.md` (version 0.3, method `confirm`)
-and `spec/correlate-assign.md` (version 0.1, method `assign`), written from the
+A C++17 implementation of `spec/correlate.md` (version 0.4, method `confirm`)
+and `spec/correlate-assign.md` (version 0.2, method `assign`), written from the
 specifications and the vectors. The pack's `method` line selects which runs. It uses only the standard library and has its
 own small JSON reader.
 
