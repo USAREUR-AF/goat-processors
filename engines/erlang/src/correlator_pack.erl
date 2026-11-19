@@ -1,12 +1,19 @@
-%% Pack: load and parse pack.def (spec "Pack").
+%% Pack: load and parse pack.def (correlate.md "Pack", correlate-assign.md "Pack").
 -module(correlator_pack).
 -export([load_pack/1, parse/1]).
 
--define(REQUIRED, [<<"pack">>, <<"version">>, <<"filter">>, <<"confirm_count">>,
-                   <<"hold_failures">>, <<"stale_ms">>]).
--define(REPEATING, [<<"gate">>, <<"confirm">>, <<"hold">>, <<"priority">>]).
--define(ONCE, [<<"pack">>, <<"version">>, <<"filter">>, <<"confirm_count">>,
-               <<"hold_failures">>, <<"stale_ms">>, <<"same_source">>, <<"output">>]).
+%% Directives per method: {Required, Repeating, Once}. correlate.md "Pack" for
+%% confirm; correlate-assign.md "Pack" for assign.
+-define(CONFIRM, {[<<"pack">>, <<"version">>, <<"filter">>, <<"confirm_count">>,
+                   <<"hold_failures">>, <<"stale_ms">>],
+                  [<<"gate">>, <<"confirm">>, <<"hold">>, <<"priority">>],
+                  [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"confirm_count">>,
+                   <<"hold_failures">>, <<"stale_ms">>, <<"same_source">>, <<"output">>]}).
+-define(ASSIGN, {[<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"new_cost">>,
+                  <<"keep_bonus">>, <<"stale_ms">>],
+                 [<<"gate">>],
+                 [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"new_cost">>,
+                  <<"keep_bonus">>, <<"stale_ms">>]}).
 -define(FILTER_PARAMS, [<<"accel_var">>, <<"default_ce_m">>, <<"vel_sigma_ms">>,
                         <<"unknown_vel_ms">>]).
 
@@ -34,22 +41,37 @@ split_line(Line) ->
 
 build(Directives) ->
     Names = [N || [N | _] <- Directives],
+    %% method: optional, defaults to confirm; any other value is a load error.
+    Method = case [D || D = [<<"method">> | _] <- Directives] of
+                 [] -> confirm;
+                 [[_, <<"confirm">>] | _] -> confirm;
+                 [[_, <<"assign">>] | _] -> assign;
+                 [D | _] -> fail({bad_method, D})
+             end,
+    {Required, Repeating, Once} = case Method of
+                                      confirm -> ?CONFIRM;
+                                      assign -> ?ASSIGN
+                                  end,
     [fail({unknown_directive, N}) || N <- Names,
-                                     not lists:member(N, ?ONCE ++ ?REPEATING)],
-    [fail({repeated, N}) || N <- ?ONCE, count(N, Names) > 1],
-    [fail({missing, N}) || N <- ?REQUIRED, count(N, Names) =:= 0],
-    Base = #{gate => [], confirm => [], hold => [], priority => [],
-             same_source => forbid, output => priority},
+                                     not lists:member(N, Once ++ Repeating)],
+    [fail({repeated, N}) || N <- Once, count(N, Names) > 1],
+    [fail({missing, N}) || N <- Required, count(N, Names) =:= 0],
+    Base = case Method of
+               confirm -> #{method => confirm, gate => [], confirm => [], hold => [],
+                            priority => [], same_source => forbid, output => priority};
+               assign -> #{method => assign, gate => []}
+           end,
     P = lists:foldl(fun directive/2, Base, Directives),
-    P#{gate := lists:reverse(maps:get(gate, P)),
-       confirm := lists:reverse(maps:get(confirm, P)),
-       hold := lists:reverse(maps:get(hold, P)),
-       priority := lists:reverse(maps:get(priority, P))}.
+    lists:foldl(fun(K, Acc) -> Acc#{K := lists:reverse(maps:get(K, Acc))} end, P,
+                [K || K <- [gate, confirm, hold, priority], maps:is_key(K, P)]).
 
 count(N, Names) -> length([X || X <- Names, X =:= N]).
 
 directive([<<"pack">>, Name], P) -> P#{name => Name};
 directive([<<"version">>, V], P) -> P#{version => V};
+directive([<<"method">>, _], P) -> P;
+directive([<<"new_cost">>, N], P) -> P#{new_cost => number(N)};
+directive([<<"keep_bonus">>, N], P) -> P#{keep_bonus => number(N)};
 directive([<<"filter">> | Params], P) ->
     P#{filter => number_params(params(Params, ?FILTER_PARAMS))};
 directive([Stage, Test | Params], P)

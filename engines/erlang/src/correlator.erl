@@ -5,6 +5,9 @@
 %% when a case on its result follows.
 -module(correlator).
 -export([load_pack/1, new/1, ingest/2, tick/2, snapshot/1]).
+%% Shared with correlator_assign (correlate-assign.md "Shared with correlate.md").
+-export([emit/2, record/2, finish/1, entity/2, put_entity/3, value/2, run_tests/5,
+         is_stale/3]).
 
 %% Reports: required keys in table order with their type; optional keys with
 %% their type. A key of the wrong type is missing (required) or absent (optional).
@@ -15,6 +18,9 @@
 
 load_pack(Dir) -> correlator_pack:load_pack(Dir).
 
+new(Pack = #{method := assign}) ->
+    #{pack => Pack, ref => none, entities => #{}, systems => #{}, next_system => 1,
+      reported => #{}, events => [], trace => []};
 new(Pack) ->
     #{pack => Pack, ref => none, entities => #{}, groups => #{}, counts => #{},
       next_group => 1, events => [], trace => []}.
@@ -81,9 +87,12 @@ accept(Key, Report, St0) ->
     {Ent, St2} =
         case maps:find(Key, Ents) of
             error ->
-                E0 = #{source => maps:get(<<"track.source_id">>, Report),
-                       group => none, hold_failures => 0,
-                       filter => correlator_filter:init(Z, Vel, Ce, F)},
+                Assoc = case maps:get(method, Pack) of
+                            confirm -> #{group => none, hold_failures => 0};
+                            assign -> #{system => none}
+                        end,
+                E0 = Assoc#{source => maps:get(<<"track.source_id">>, Report),
+                            filter => correlator_filter:init(Z, Vel, Ce, F)},
                 {E0, emit(#{<<"ev">> => <<"new">>, <<"entity">> => Key}, St1)};
             {ok, E0 = #{time := Last, filter := Filter}} ->
                 Dt = (T - Last) / 1000,
@@ -92,6 +101,8 @@ accept(Key, Report, St0) ->
     Ent1 = Ent#{time => T, report => Report, ce => Ce},
     St3 = put_entity(Key, Ent1, St2),
     case Ent1 of
+        %% Method assign: a report gives only new; the tick decides.
+        #{system := _} -> St3#{reported := (maps:get(reported, St3))#{Key => true}};
         #{group := none} -> associate(Key, St3);
         #{group := G} -> hold(Key, G, St3)
     end.
@@ -358,6 +369,7 @@ group_with(A, B, St) ->
 
 %% ---------------------------------------------------------------- tick
 
+tick(Now, St0 = #{pack := #{method := assign}}) -> correlator_assign:tick(Now, St0);
 tick(Now, St0) ->
     St1 = lists:foldl(fun(K, S) -> stale(K, Now, S) end, St0,
                       lists:sort(maps:keys(maps:get(entities, St0)))),
@@ -368,11 +380,7 @@ tick(Now, St0) ->
 %% Tick step 1, staleness.
 stale(K, Now, St0) ->
     Ent = entity(K, St0),
-    Last = maps:get(time, Ent),
-    ReportStale = value(<<"stale_ms">>, Ent),
-    IsStale = Now - Last > maps:get(stale_ms, maps:get(pack, St0))
-        orelse (is_number(ReportStale) andalso Now >= ReportStale),
-    case IsStale of
+    case is_stale(Ent, Now, St0) of
         false -> St0;
         true ->
             St1 = case maps:get(group, Ent) of
@@ -384,6 +392,11 @@ stale(K, Now, St0) ->
             St2 = St1#{entities := maps:remove(K, maps:get(entities, St1)), counts := Counts},
             emit(#{<<"ev">> => <<"drop">>, <<"entity">> => K}, St2)
     end.
+
+is_stale(Ent, Now, St) ->
+    ReportStale = value(<<"stale_ms">>, Ent),
+    Now - maps:get(time, Ent) > maps:get(stale_ms, maps:get(pack, St))
+        orelse (is_number(ReportStale) andalso Now >= ReportStale).
 
 %% Tick step 2, fused output.
 fused(G, Now, St) ->
@@ -426,6 +439,7 @@ best([M | Ms], Score) ->
 
 %% ---------------------------------------------------------------- snapshot
 
+snapshot(St = #{pack := #{method := assign}}) -> correlator_assign:snapshot(St);
 snapshot(St) ->
     #{ref := Ref, entities := Ents, groups := Groups, counts := Counts,
       next_group := Next} = St,

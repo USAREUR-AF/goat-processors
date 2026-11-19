@@ -1,11 +1,13 @@
 # goat-correlator: Erlang engine
 
-An implementation of `spec/correlate.md` (version 0.3) in Erlang/OTP, standard library
-only. JSON is read with OTP 27's `json` module.
+An implementation of `spec/correlate.md` (version 0.3), method `confirm`, and
+`spec/correlate-assign.md` (version 0.1), method `assign`, in Erlang/OTP, standard library
+only. The pack's `method` line selects which runs. JSON is read with OTP 27's `json` module.
 
 | File | Contents |
 |---|---|
 | `src/correlator.erl` | `load_pack/1`, `new/1`, `ingest/2`, `tick/2`, `snapshot/1`: reports, tests, association, events, trace, snapshot |
+| `src/correlator_assign.erl` | method `assign`: system tracks, per-source least-cost assignment (Hungarian method with potentials), inverse-variance fused estimate, its events, trace and snapshot |
 | `src/correlator_filter.erl` | the local plane frame and the two-axis constant-velocity Kalman filter |
 | `src/correlator_pack.erl` | `pack.def` parsing and validation |
 | `src/correlator_vectors.erl` | the vector runner |
@@ -30,12 +32,15 @@ engines/erlang/run_tests
 ```
 
 Builds, then runs every scenario vector under `packs/*/vectors/` (`correlate-gnn`,
-`correlate-window`, `correlate-distance`) (each step's
+`correlate-window`, `correlate-distance`, `correlate-assign`) (each step's
 events and trace, then the final snapshot) and every load vector under
 `spec/correlate-load-vectors/`, using the structural comparison of
 `spec/vector-format.md`. It prints `PASS` or `FAIL` per vector, the path of the
 first mismatch for a failing vector, and a summary line, and exits non-zero if
 any vector fails.
+
+Open points and any vector that disagrees with the specification are in
+`DISAGREEMENTS.md`.
 
 ## Note on OTP 27.3
 
