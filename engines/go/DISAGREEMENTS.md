@@ -2,11 +2,11 @@
 
 ## Vectors that contradict the specification
 
-None. Every vector in `packs/correlate-*/vectors/` (01-53),
-`spec/correlate-load-vectors/` (01-60), `packs/filter-*/vectors/`,
+None. Every vector in `packs/correlate-*/vectors/` (01-56),
+`spec/correlate-load-vectors/` (01-73), `packs/filter-*/vectors/`,
 `spec/filter-load-vectors/`, `packs/fuse-*/vectors/` and
-`spec/fuse-load-vectors/` agrees with `spec/correlate.md` 0.7,
-`spec/correlate-assign.md` 0.5, `spec/filter.md` 0.1 and `spec/fuse.md` 0.2 as
+`spec/fuse-load-vectors/` agrees with `spec/correlate.md` 0.8,
+`spec/correlate-assign.md` 0.6, `spec/filter.md` 0.1 and `spec/fuse.md` 0.2 as
 this engine reads them.
 
 ## Points still open
@@ -29,6 +29,8 @@ No vector covers any of them; each is listed with what this engine does.
 | `#` inside a parameter value | filter: Pack | `#` always starts a comment, wherever it is on the line |
 | A repeated parameter within one `restart` or `bias` line | `correlate.md` Pack, `correlate-assign.md` Pack | load error, as for `filter` and `maneuver` |
 | `margin` with a value that is not finite or not decimal | `correlate-assign.md` Pack | read as the other pack numbers above |
+| A repeated parameter within one `time_offset` line | `correlate-assign.md` Pack | load error, as for `bias` |
+| `time_default` `error_ms` spelled with an exponent, `+` or `.5` | `correlate.md` Pack | read as the other pack numbers above; `inf` and `nan` do not load |
 
 ## Quality (`quality/`, `spec/quality.md` 0.1)
 

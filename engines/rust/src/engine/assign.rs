@@ -1,6 +1,7 @@
-//! `method assign` (spec/correlate-assign.md 0.5): system tracks, ranked
+//! `method assign` (spec/correlate-assign.md 0.6): system tracks, ranked
 //! per-source assignments at each tick, a window of histories (with an
-//! optional margin), sensor bias, and the inverse-variance fused estimate.
+//! optional margin), sensor bias with an optional clock offset, and the
+//! inverse-variance fused estimate.
 //!
 //! The sections of the spec map onto this file as follows:
 //! Memberships -> `Membership`, `Record`, `History`;
@@ -143,7 +144,9 @@ impl History {
 
 /// The stored state of one pair of sources `"<S>|<T>"`: per axis the offset
 /// `o` of T's positions from S's and the weight sum `w`; `var` for both axes;
-/// `n`, the count of accepted pairs.
+/// `n`, the count of accepted pairs. With `time_offset`, also `tau`, how far
+/// T's clock is ahead of S's in seconds, and the sums `S1` to `S8` (Time
+/// offset); both stay 0 without it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PairBias {
     east: f64,
@@ -152,18 +155,37 @@ pub struct PairBias {
     weight_north: f64,
     var: f64,
     pairs: u64,
+    tau: f64,
+    sums: [f64; 8],
 }
 
 impl PairBias {
-    fn json(&self) -> Json {
-        obj(vec![
+    /// The snapshot entry; `time_offset_ms` and `sums` only with `time_offset`.
+    fn json(&self, time_offset: bool) -> Json {
+        let mut pairs = vec![
             ("east", self.east.into()),
             ("weight_east", self.weight_east.into()),
             ("north", self.north.into()),
             ("weight_north", self.weight_north.into()),
             ("var", self.var.into()),
             ("pairs", Json::Int(self.pairs as i64)),
-        ])
+        ];
+        if time_offset {
+            pairs.push(("time_offset_ms", (self.tau * 1000.0).into()));
+            pairs.push(("sums", Json::Arr(self.sums.iter().map(|x| Json::Num(*x)).collect())));
+        }
+        obj(pairs)
+    }
+
+    /// The offset B is moved by on one axis: `o`, or with `time_offset`
+    /// `o - v*tau`, `v` the velocity on that axis (Time offset). Without
+    /// `time_offset`, `tau` is not part of the formula.
+    fn offset(&self, o: f64, v: f64, time_offset: bool) -> f64 {
+        if time_offset {
+            o - v * self.tau
+        } else {
+            o
+        }
     }
 }
 
@@ -175,20 +197,35 @@ impl Engine {
     /// A pair's state; with none stored, `o = 0`, `w = 0`, `var = s²`, `n = 0`.
     fn pair_bias(&self, key: &str) -> PairBias {
         let s = self.pack.bias.as_ref().expect("bias state needs the bias directive").sigma_m;
-        self.bias.get(key).cloned().unwrap_or(PairBias { east: 0.0, weight_east: 0.0, north: 0.0, weight_north: 0.0, var: s * s, pairs: 0 })
+        self.bias.get(key).cloned().unwrap_or(PairBias {
+            east: 0.0,
+            weight_east: 0.0,
+            north: 0.0,
+            weight_north: 0.0,
+            var: s * s,
+            pairs: 0,
+            tau: 0.0,
+            sums: [0.0; 8],
+        })
     }
 
     /// Moving B into A's frame: B's prediction `(east, north)` becomes `p + o`
     /// (pair `"<b_src>|<a_src>"`, when `b_src` is first) or `p - o` (pair
     /// `"<a_src>|<b_src>"`, when `a_src` is first), with `pp + var` on each
-    /// axis. Two entities of one source, or a pack without `bias`, move nothing.
+    /// axis. With `time_offset`, `o - v*tau` takes the place of `o`, with `v`
+    /// B's predicted velocity on that axis. Two entities of one source, or a
+    /// pack without `bias`, move nothing.
     pub(super) fn move_into_frame(&self, a_src: &str, b_src: &str, (east, north): (Axis, Axis)) -> (Axis, Axis) {
         if self.pack.bias.is_none() || a_src == b_src {
             return (east, north);
         }
+        let timed = self.pack.time_offset.is_some();
         let b_first = b_src < a_src;
         let state = if b_first { self.pair_bias(&bias_key(b_src, a_src)) } else { self.pair_bias(&bias_key(a_src, b_src)) };
-        let moved = |axis: Axis, o: f64| Axis { p: if b_first { axis.p + o } else { axis.p - o }, pp: axis.pp + state.var, ..axis };
+        let moved = |axis: Axis, o: f64| {
+            let o = state.offset(o, axis.v, timed);
+            Axis { p: if b_first { axis.p + o } else { axis.p - o }, pp: axis.pp + state.var, ..axis }
+        };
         (moved(east, state.east), moved(north, state.north))
     }
 
@@ -198,6 +235,7 @@ impl Engine {
     /// tick's `rows`.
     fn update_bias(&mut self, now_ms: i64, rows: &BTreeSet<String>, trace: &mut Vec<Json>) {
         let Some(params) = self.pack.bias.clone() else { return };
+        let time_offset = self.pack.time_offset;
         let (s2, f2) = (params.sigma_m * params.sigma_m, params.floor_m * params.floor_m);
         let mut pairs: Vec<(String, String)> = Vec::new();
         for members in self.committed.systems.values() {
@@ -220,11 +258,17 @@ impl Engine {
             let (y_e, r_e) = (t_e.p - s_e.p, s_e.pp + t_e.pp);
             let (y_n, r_n) = (t_n.p - s_n.p, s_n.pp + t_n.pp);
 
-            // 2. d² against the pair's state.
-            let mut st = self.pair_bias(&key);
-            let d2 = (y_e - st.east) * (y_e - st.east) / (st.var + r_e) + (y_n - st.north) * (y_n - st.north) / (st.var + r_n);
+            // Time offset: per axis `v = (v_ES + v_ET) / 2`.
+            let (v_e, v_n) = ((s_e.v + t_e.v) / 2.0, (s_n.v + t_n.v) / 2.0);
 
-            // 3. Accepted below the gate: count, variance, weighted mean per axis.
+            // 2. d² against the pair's state; with `time_offset`, `o - v*tau`
+            // takes the place of `o`.
+            let mut st = self.pair_bias(&key);
+            let timed = time_offset.is_some();
+            let (o_e, o_n) = (st.offset(st.east, v_e, timed), st.offset(st.north, v_n, timed));
+            let d2 = (y_e - o_e) * (y_e - o_e) / (st.var + r_e) + (y_n - o_n) * (y_n - o_n) / (st.var + r_n);
+
+            // 3. Accepted below the gate: count, variance, then the offset.
             let accepted = d2 < params.gate;
             if accepted {
                 st.pairs += 1;
@@ -232,15 +276,24 @@ impl Engine {
                 if st.var < f2 {
                     st.var = f2;
                 }
-                st.weight_east += 1.0 / r_e;
-                st.east += ((1.0 / r_e) / st.weight_east) * (y_e - st.east);
-                st.weight_north += 1.0 / r_n;
-                st.north += ((1.0 / r_n) / st.weight_north) * (y_n - st.north);
+                match time_offset {
+                    // Without `time_offset`: the weighted running mean per axis.
+                    None => {
+                        st.weight_east += 1.0 / r_e;
+                        st.east += ((1.0 / r_e) / st.weight_east) * (y_e - st.east);
+                        st.weight_north += 1.0 / r_n;
+                        st.north += ((1.0 / r_n) / st.weight_north) * (y_n - st.north);
+                    }
+                    // Time offset: the weighted least-squares fit of
+                    // `y = o - v*tau` with priors.
+                    Some(t) => fit_time_offset(&mut st, params.sigma_m, t, (v_e, v_n), (y_e, y_n), (r_e, r_n)),
+                }
                 self.bias.insert(key, st.clone());
             }
 
-            // 4. Trace, with the state after step 3.
-            trace.push(obj(vec![
+            // 4. Trace, with the state after step 3; `time_offset_ms` with
+            // `time_offset`.
+            let mut rec = vec![
                 ("stage", "bias".into()),
                 ("a", x.as_str().into()),
                 ("b", y.as_str().into()),
@@ -252,9 +305,52 @@ impl Engine {
                 ("north", st.north.into()),
                 ("var", st.var.into()),
                 ("pairs", Json::Int(st.pairs as i64)),
-            ]));
+            ];
+            if time_offset.is_some() {
+                rec.push(("time_offset_ms", (st.tau * 1000.0).into()));
+            }
+            trace.push(obj(rec));
         }
     }
+}
+
+/// Sensor bias, Time offset, for an accepted pair: add this pair to the sums
+/// `S1` to `S8` (each `+=` one addition of the whole right-hand side), then
+/// solve for `tau` and `o` in closed form. `s` is `bias sigma_m`, `t` is
+/// `time_offset sigma_ms`; `v`, `y`, `r` are this pair's `(east, north)`.
+fn fit_time_offset(st: &mut PairBias, s: f64, t: f64, (ve, vn): (f64, f64), (ye, yn): (f64, f64), (r_e, r_n): (f64, f64)) {
+    let (we, wn) = (1.0 / r_e, 1.0 / r_n);
+    let sum = &mut st.sums;
+    sum[0] += we;
+    sum[1] += wn;
+    sum[2] += we * ve;
+    sum[3] += wn * vn;
+    sum[4] += we * ve * ve + wn * vn * vn;
+    sum[5] += we * ye;
+    sum[6] += wn * yn;
+    sum[7] += we * ve * ye + wn * vn * yn;
+    let [s1, s2, s3, s4, s5, s6, s7, s8] = *sum;
+
+    // Priors: `po = 1/s²`, `pt = 1/(t/1000)²`.
+    let po = 1.0 / (s * s);
+    let t_s = t / 1000.0;
+    let pt = 1.0 / (t_s * t_s);
+
+    let a11 = po + s1;
+    let a22 = po + s2;
+    let a13 = -s3;
+    let a23 = -s4;
+    let a33 = pt + s5;
+    let b1 = s6;
+    let b2 = s7;
+    let b3 = -s8;
+    let tau = (b3 - a13 * b1 / a11 - a23 * b2 / a22) / (a33 - a13 * a13 / a11 - a23 * a23 / a22);
+    st.tau = tau;
+    st.east = (b1 - a13 * tau) / a11;
+    st.north = (b2 - a23 * tau) / a22;
+    // The weight sum `w` of each axis is `S1` and `S2`.
+    st.weight_east = s1;
+    st.weight_north = s2;
 }
 
 // ---- Assignment of one source
@@ -332,18 +428,18 @@ fn ranked_assignments(e: &Entries, k: usize) -> Vec<Assignment> {
 
 impl Engine {
     /// Fused estimate of `members` at time `t`, per axis (spec: Fused estimate).
-    /// With `seen_by`, A's source, each member is moved into A's frame after
-    /// its prediction (Cost, with `bias`). `pv` of the result is not defined
-    /// by the spec and is left 0.
+    /// With `seen_by`, A's source (Cost), each member's prediction gets its
+    /// timing variance added to `pp` and is then moved into A's frame (with
+    /// `bias`); for output (`None`) neither applies. `pv` of the result is not
+    /// defined by the spec and is left 0.
     fn fused<'a>(&self, members: impl IntoIterator<Item = &'a String>, t: i64, seen_by: Option<&str>) -> (Axis, Axis) {
         // Per axis: sum 1/pp, sum p/pp, sum 1/vv, sum v/vv.
         let mut sums = [[0.0f64; 4]; 2];
         for m in members {
             let e = &self.entities[m];
-            let predicted = e.predict(t, &self.pack);
             let (pe, pn) = match seen_by {
-                Some(a_src) => self.move_into_frame(a_src, &e.source, predicted),
-                None => predicted,
+                Some(a_src) => self.move_into_frame(a_src, &e.source, e.predict_for_comparison(t, &self.pack)),
+                None => e.predict(t, &self.pack),
             };
             for (s, a) in sums.iter_mut().zip([pe, pn]) {
                 s[0] += 1.0 / a.pp;
@@ -360,11 +456,14 @@ impl Engine {
         (axis(sums[0]), axis(sums[1]))
     }
 
-    /// Cost `d²` of entity A against the set `others`, predicted to A's time.
+    /// Cost `d²` of entity A against the set `others`, predicted to A's time;
+    /// `pp_a` is A's filter `pp` plus A's timing variance.
     fn assign_cost(&self, a: &str, others: &[String]) -> f64 {
         let ea = &self.entities[a];
         let (fe, fn_) = self.fused(others, ea.last_time_ms, Some(&ea.source));
-        (ea.east.p - fe.p).powi(2) / (ea.east.pp + fe.pp) + (ea.north.p - fn_.p).powi(2) / (ea.north.pp + fn_.pp)
+        let (var_e, var_n) = ea.timing_variance();
+        let (pp_ae, pp_an) = (ea.east.pp + var_e, ea.north.pp + var_n);
+        (ea.east.p - fe.p).powi(2) / (pp_ae + fe.pp) + (ea.north.p - fn_.p).powi(2) / (pp_an + fn_.pp)
     }
 
     /// Assignment of one source, steps 1 and 2, against `membership`; gate and
@@ -639,7 +738,7 @@ impl Engine {
             pairs.push(("restarted", Json::Arr(self.restarted.iter().map(|k| k.as_str().into()).collect())));
         }
         if self.pack.bias.is_some() {
-            pairs.push(("bias", Json::Obj(self.bias.iter().map(|(k, b)| (k.clone(), b.json())).collect())));
+            pairs.push(("bias", Json::Obj(self.bias.iter().map(|(k, b)| (k.clone(), b.json(self.pack.time_offset.is_some()))).collect())));
         }
         if self.pack.window > 1 {
             let histories = self

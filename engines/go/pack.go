@@ -59,6 +59,13 @@ type Pack struct {
 	// margin line (spec: correlate-assign.md Window)
 	HasMargin bool
 	Margin    float64 // m
+
+	// time_default lines, by source id (spec: correlate.md Pack, Time quality)
+	TimeDefaults map[string]TimeDefault
+
+	// time_offset line (spec: correlate-assign.md Sensor bias, Time offset)
+	HasTimeOffset     bool
+	TimeOffsetSigmaMs float64 // t
 }
 
 // testParams lists every test and its parameters (spec: Tests table).
@@ -165,7 +172,8 @@ func oneValue(d string, rest []string) (string, error) {
 
 // ParsePack parses the text of a pack.def (spec: Pack).
 func ParsePack(text string) (*Pack, error) {
-	p := &Pack{SameSource: "forbid", Output: "priority", Priority: map[string]int64{}, Method: "confirm", Window: 1, Hypotheses: 1}
+	p := &Pack{SameSource: "forbid", Output: "priority", Priority: map[string]int64{}, Method: "confirm", Window: 1, Hypotheses: 1,
+		TimeDefaults: map[string]TimeDefault{}}
 	seen := map[string]bool{}
 	for n, line := range strings.Split(text, "\n") {
 		if i := strings.IndexByte(line, '#'); i >= 0 {
@@ -176,7 +184,7 @@ func ParsePack(text string) (*Pack, error) {
 			continue
 		}
 		d, rest := fields[0], fields[1:]
-		repeats := d == "gate" || d == "confirm" || d == "hold" || d == "priority"
+		repeats := d == "gate" || d == "confirm" || d == "hold" || d == "priority" || d == "time_default"
 		if !repeats && seen[d] {
 			return nil, fmt.Errorf("line %d: repeated directive %q", n+1, d)
 		}
@@ -235,6 +243,23 @@ func ParsePack(text string) (*Pack, error) {
 					if *f.p, err = parseFloat(m[f.k]); err != nil {
 						break
 					}
+				}
+			}
+		case "time_default":
+			var src string
+			var td TimeDefault
+			if src, td, err = parseTimeDefault(rest); err == nil {
+				if _, dup := p.TimeDefaults[src]; dup {
+					err = fmt.Errorf("time_default: second line for source %q", src)
+				}
+				p.TimeDefaults[src] = td
+			}
+		case "time_offset":
+			var m map[string]string
+			if m, err = parseParams(rest, []string{"sigma_ms"}); err == nil {
+				p.HasTimeOffset = true
+				if p.TimeOffsetSigmaMs, err = parseFloat(m["sigma_ms"]); err == nil && !(p.TimeOffsetSigmaMs > 0) {
+					err = fmt.Errorf("time_offset: sigma_ms must be above 0")
 				}
 			}
 		case "margin":
@@ -333,7 +358,7 @@ func ParsePack(text string) (*Pack, error) {
 	}
 	// Each method has its own directives (spec: correlate.md Pack, correlate-assign.md Pack).
 	required := []string{"pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms"}
-	refused := []string{"new_cost", "keep_bonus", "window", "hypotheses", "margin", "bias"}
+	refused := []string{"new_cost", "keep_bonus", "window", "hypotheses", "margin", "bias", "time_offset"}
 	if p.Method == "assign" {
 		required = []string{"pack", "version", "method", "filter", "new_cost", "keep_bonus", "stale_ms"}
 		refused = []string{"confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"}
@@ -363,6 +388,9 @@ func ParsePack(text string) (*Pack, error) {
 	}
 	if p.HasBias && !(p.BiasSigma > 0 && p.BiasGate > 0 && p.BiasFloor > 0 && p.BiasFloor <= p.BiasSigma) {
 		return nil, fmt.Errorf("bias: sigma_m and gate must be above 0, floor_m above 0 and at most sigma_m")
+	}
+	if p.HasTimeOffset && !p.HasBias {
+		return nil, fmt.Errorf("time_offset needs bias")
 	}
 	if p.HasMargin && p.Hypotheses <= 1 {
 		return nil, fmt.Errorf("margin needs hypotheses above 1")

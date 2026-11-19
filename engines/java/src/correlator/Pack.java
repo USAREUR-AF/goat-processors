@@ -64,6 +64,17 @@ public final class Pack {
     /** correlate-assign.md, Sensor bias: the {@code bias sigma_m=<s> floor_m=<f> gate=<g>} line, when present. */
     public boolean bias = false;
     public double biasSigma, biasFloor, biasGate;
+    /**
+     * correlate-assign.md, Sensor bias, "Time offset": the {@code time_offset sigma_ms=<t>} line,
+     * when present.
+     */
+    public boolean timeOffset = false;
+    public double timeOffsetSigmaMs;
+    /**
+     * correlate.md, Reports, "Time quality": the {@code time_default} lines, by source id. Each
+     * holds the keys the line gives: {@code error_ms} (a Double) and/or {@code state} (a String).
+     */
+    public final Map<String, Map<String, Object>> timeDefault = new LinkedHashMap<>();
     /** correlate-assign.md, Window: the {@code margin <m>} line, when present. */
     public boolean margin = false;
     public double marginValue;
@@ -84,10 +95,13 @@ public final class Pack {
     private static final List<String> MANEUVER = List.of("accel_var", "p_enter", "p_leave");
     private static final List<String> RESTART = List.of("gate");
     private static final List<String> BIAS = List.of("sigma_m", "floor_m", "gate");
-    private static final Set<String> REPEATING = Set.of("gate", "confirm", "hold", "priority");
+    private static final List<String> TIME_OFFSET = List.of("sigma_ms");
+    /** correlate.md, Reports, "Time quality": the three clock states. */
+    public static final Set<String> TIME_STATES = Set.of("coherent", "drifting", "free-running");
+    private static final Set<String> REPEATING = Set.of("gate", "confirm", "hold", "priority", "time_default");
     private static final Set<String> SINGLE = Set.of("pack", "version", "method", "filter", "confirm_count",
             "hold_failures", "stale_ms", "same_source", "output", "new_cost", "keep_bonus", "maneuver", "window",
-            "hypotheses", "restart", "bias", "margin");
+            "hypotheses", "restart", "bias", "margin", "time_offset");
     private static final List<String> REQUIRED = List.of("pack", "version", "filter", "confirm_count",
             "hold_failures", "stale_ms");
     /** Spec: correlate-assign.md, Pack. */
@@ -96,7 +110,7 @@ public final class Pack {
     private static final Set<String> ONLY_CONFIRM = Set.of("confirm", "hold", "confirm_count", "hold_failures",
             "same_source", "output", "priority");
     private static final Set<String> ONLY_ASSIGN = Set.of("new_cost", "keep_bonus", "window", "hypotheses",
-            "margin", "bias");
+            "margin", "bias", "time_offset");
     private static final Pattern DECIMAL = Pattern.compile("[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?");
     private static final Pattern INTEGER = Pattern.compile("[+-]?[0-9]+");
 
@@ -180,6 +194,37 @@ public final class Pack {
                     if (!(pk.biasFloor <= pk.biasSigma)) throw new LoadError(ln, "floor_m must be at most sigma_m");
                     break;
                 }
+                case "time_offset": {
+                    // correlate-assign.md, Pack: exactly sigma_ms, above 0; needs bias (checked at the end).
+                    Map<String, String> kv = params(tok, 1, ln);
+                    if (!kv.keySet().equals(new HashSet<>(TIME_OFFSET)))
+                        throw new LoadError(ln, "time_offset takes " + TIME_OFFSET);
+                    pk.timeOffset = true;
+                    pk.timeOffsetSigmaMs = positive(dec(kv.get("sigma_ms"), ln), "sigma_ms", ln);
+                    break;
+                }
+                case "time_default": {
+                    // correlate.md, Pack: the source id (a first token without '='), then error_ms,
+                    // state or both, each at most once; at most one line per source.
+                    if (tok.length < 2 || tok[1].indexOf('=') >= 0)
+                        throw new LoadError(ln, "time_default <source_id> error_ms=<ms> state=<state>");
+                    String source = tok[1];
+                    if (pk.timeDefault.containsKey(source)) throw new LoadError(ln, "repeated time_default " + source);
+                    Map<String, String> kv = params(tok, 2, ln);
+                    if (kv.isEmpty()) throw new LoadError(ln, "time_default needs error_ms, state or both");
+                    Map<String, Object> given = new LinkedHashMap<>();
+                    for (Map.Entry<String, String> p : kv.entrySet()) {
+                        if (p.getKey().equals("error_ms")) {
+                            given.put("error_ms", nonNegative(dec(p.getValue(), ln), "error_ms", ln));
+                        } else if (p.getKey().equals("state")) {
+                            if (!TIME_STATES.contains(p.getValue()))
+                                throw new LoadError(ln, "state is coherent, drifting or free-running");
+                            given.put("state", p.getValue());
+                        } else throw new LoadError(ln, "time_default takes error_ms and state");
+                    }
+                    pk.timeDefault.put(source, given);
+                    break;
+                }
                 // correlate-assign.md, Pack: one number above 0; needs hypotheses above 1 (checked at the end).
                 case "margin":
                     pk.margin = true;
@@ -226,6 +271,7 @@ public final class Pack {
             throw new LoadError("maneuver accel_var must be above filter accel_var");
         if (pk.hypotheses > 1 && pk.window <= 1) throw new LoadError("hypotheses above 1 needs window above 1");
         if (pk.margin && pk.hypotheses <= 1) throw new LoadError("margin needs hypotheses above 1");
+        if (pk.timeOffset && !pk.bias) throw new LoadError("time_offset needs bias");
         return pk;
     }
 

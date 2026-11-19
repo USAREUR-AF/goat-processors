@@ -1,4 +1,5 @@
-// The correlator engine: ingest, tick, snapshot (spec "What the correlator does").
+// The correlator engine: ingest, tick, snapshot (spec "What the correlator does"),
+// spec/correlate.md version 0.8 and spec/correlate-assign.md version 0.6.
 #pragma once
 
 #include <cstdint>
@@ -23,6 +24,11 @@ struct Entity {
     Filter models[2];          // with `maneuver`: quiet (index 0), maneuver (index 1)
     double mu[2] = {0, 0};     // with `maneuver`: mu1, mu2
     Json last;                 // the last accepted report
+    // correlate.md "Track estimate", Measurement variance, of the last report:
+    double time_error_ms = 0;  // its time error te (Reports, "Time quality")
+    std::string time_state = "coherent";   // its time state; read by no step of correlate
+    Point r = {0, 0};          // r_east, r_north
+    Point timing = {0, 0};     // timing variance (v_e*ts)², (v_n*ts)²; 0 and 0 when te is 0
     int group = 0;             // group number, 0 when ungrouped
     std::int64_t hold_failures = 0;
     int system = 0;            // method assign: committed system track number, 0 when none
@@ -67,6 +73,16 @@ struct BiasState {
     double w[2] = {0, 0};   // weight sum, east and north
     double var = 0;         // one variance for both axes
     std::int64_t n = 0;     // count of accepted pairs
+    // "Time offset", with `time_offset`: the clock offset tau in seconds and
+    // the sums S1 to S8 (S[0] is S1).
+    double tau = 0;
+    double S[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+};
+
+// correlate.md "Track estimate", Measurement variance: what one report gives.
+struct MeasurementVariance {
+    Point r;        // r_east, r_north
+    Point timing;   // (v_e*ts)², (v_n*ts)²; 0 and 0 when te is 0
 };
 
 class Engine {
@@ -85,11 +101,14 @@ private:
     std::pair<double, double> to_degrees(double east, double north) const;
 
     // Track estimate and Two-model filter
-    void filter_first(Entity& e, const Point& z, const std::optional<Point>& vel, double ce) const;
-    void filter_update(Entity& e, const Point& z, const std::optional<Point>& vel, double ce, double dt,
+    MeasurementVariance measurement_variance(const Entity* e, std::int64_t time_ms,
+                                             const std::optional<Point>& vel, double ce, double te) const;
+    void filter_first(Entity& e, const Point& z, const std::optional<Point>& vel, const Point& r) const;
+    void filter_update(Entity& e, const Point& z, const std::optional<Point>& vel, const Point& r, double dt,
                        Output& out) const;
     Filter predict(const Entity& e, std::int64_t t) const;
-    bool restart_test(const Entity& e, std::int64_t time_ms, const Point& z, double ce, Output& out) const;
+    Filter predict_for_comparison(const Entity& b, std::int64_t t) const;
+    bool restart_test(const Entity& e, std::int64_t time_ms, const Point& z, const Point& r, Output& out) const;
 
     // Tests
     double ce_of(const Entity& e) const;
@@ -111,6 +130,7 @@ private:
     BiasState bias_state(const std::string& pair) const;
     Filter predict_into_frame(const Entity& a, const Entity& b, std::int64_t t) const;
     void bias_update(std::int64_t now_ms, const std::set<std::string>& rows, Output& out);
+    void fit_time_offset(BiasState& st, const double r[2], const double v[2], const double y[2]) const;
     std::vector<RankedAssignment> rank_source(const std::vector<std::string>& rows, const Membership& m,
                                               int h, std::vector<int>& columns,
                                               std::vector<std::vector<double>>& entries, Output& out) const;

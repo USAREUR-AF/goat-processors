@@ -1,6 +1,6 @@
-//! The four operations' engine: ingest, tick, snapshot (spec/correlate.md 0.7:
-//! Reports, Track estimate, Two-model filter, Restart, Tests, Association,
-//! Events, Trace, Snapshot).
+//! The four operations' engine: ingest, tick, snapshot (spec/correlate.md 0.8:
+//! Reports with Time quality, Track estimate with Measurement variance,
+//! Two-model filter, Restart, Tests, Association, Events, Trace, Snapshot).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -33,6 +33,12 @@ struct Entity {
     imm: Option<TwoModel>,
     /// The entity's last accepted report.
     report: BTreeMap<String, Json>,
+    /// That report's measurement variance `(r_east, r_north)` (Track
+    /// estimate, Measurement variance).
+    r: (f64, f64),
+    /// That report's timing variance `((v_e*ts)², (v_n*ts)²)`; `None` when its
+    /// time error was 0, which reads as 0 and 0.
+    time_var: Option<(f64, f64)>,
 }
 
 impl Entity {
@@ -59,6 +65,21 @@ impl Entity {
         } else {
             self.report.get(key).filter(|v| **v != Json::Null).cloned()
         }
+    }
+
+    /// The timing variance per axis, 0 and 0 when the last report's time
+    /// error was 0.
+    fn timing_variance(&self) -> (f64, f64) {
+        self.time_var.unwrap_or((0.0, 0.0))
+    }
+
+    /// Prediction to time `t` for a comparison with another entity: the
+    /// prediction with this entity's timing variance added to `pp` on each
+    /// axis (Track estimate, Measurement variance).
+    fn predict_for_comparison(&self, t: i64, pack: &Pack) -> (Axis, Axis) {
+        let (pe, pn) = self.predict(t, pack);
+        let (var_e, var_n) = self.timing_variance();
+        (Axis { pp: pe.pp + var_e, ..pe }, Axis { pp: pn.pp + var_n, ..pn })
     }
 
     /// Prediction to time `t` (spec: Track estimate, Prediction; Two-model
@@ -217,14 +238,53 @@ impl Engine {
             _ => None,
         };
 
-        let meas = Measurement { pos: (ze, zn), r_pos: ce * ce, vel, r_vel: f.vel_sigma_ms * f.vel_sigma_ms };
+        // Reports, Time quality: `te`, from the report, else the pack's
+        // `time_default` for the source, else 0. The time state is resolved
+        // with it but not used by correlate in this version.
+        let time = report::time_quality(fields, source, &self.pack.time_default);
+        let te = time.error_ms;
+
+        // Track estimate, Measurement variance. With `te` 0, r = ce² on both
+        // axes. Otherwise the velocity comes from the entity's prediction to
+        // this report's time (for its first report: the measured velocity, or
+        // 0), `ts = te / 1000`, and r = ce² + (v*ts)² per axis.
+        let (r, time_var) = if te == 0.0 {
+            ((ce * ce, ce * ce), None)
+        } else {
+            let (v_e, v_n) = match self.entities.get(&key) {
+                Some(e) => {
+                    let (pe, pn) = e.predict(time_ms, &self.pack);
+                    (pe.v, pn.v)
+                }
+                None => vel.unwrap_or((0.0, 0.0)),
+            };
+            let ts = te / 1000.0;
+            let (de, dn) = (v_e * ts, v_n * ts);
+            let (var_e, var_n) = (de * de, dn * dn);
+            out.trace.push(obj(vec![
+                ("stage", "filter".into()),
+                ("a", key.as_str().into()),
+                ("b", Json::Null),
+                ("test", "time".into()),
+                ("value", te.into()),
+                ("limit", Json::Null),
+                ("pass", true.into()),
+                ("var_east", var_e.into()),
+                ("var_north", var_n.into()),
+            ]));
+            ((ce * ce + var_e, ce * ce + var_n), Some((var_e, var_n)))
+        };
+        let (r_east, r_north) = r;
+
+        let meas = Measurement { pos: (ze, zn), r_pos: r, vel, r_vel: f.vel_sigma_ms * f.vel_sigma_ms };
         let maneuver = self.pack.maneuver.clone();
 
-        // Track estimate, first report; Two-model filter, first report. Also
-        // the filter a Restart starts again from.
+        // Track estimate, first report (pp = that axis's measurement
+        // variance); Two-model filter, first report. Also the filter a
+        // Restart starts again from.
         let first_filter = || {
-            let east = Axis::first(ze, vel.map(|v| v.0), ce, f.vel_sigma_ms, f.unknown_vel_ms);
-            let north = Axis::first(zn, vel.map(|v| v.1), ce, f.vel_sigma_ms, f.unknown_vel_ms);
+            let east = Axis::first_with_variance(ze, vel.map(|v| v.0), r_east, f.vel_sigma_ms, f.unknown_vel_ms);
+            let north = Axis::first_with_variance(zn, vel.map(|v| v.1), r_north, f.vel_sigma_ms, f.unknown_vel_ms);
             let imm = maneuver.as_ref().map(|m| TwoModel::first(Model { east, north }, m.p_enter, m.p_leave));
             (east, north, imm)
         };
@@ -244,6 +304,8 @@ impl Engine {
                         north,
                         imm,
                         report: fields.clone(),
+                        r,
+                        time_var,
                     },
                 );
                 out.events.push(obj(vec![("ev", "new".into()), ("entity", key.as_str().into())]));
@@ -253,9 +315,9 @@ impl Engine {
                 // report against the entity predicted to its time.
                 let mut restart = false;
                 if let Some(g) = self.pack.restart {
+                    // The entity's own prediction: no timing variance added.
                     let (pe, pn) = e.predict(time_ms, &self.pack);
-                    let r = ce * ce;
-                    let d2 = (ze - pe.p) * (ze - pe.p) / (pe.pp + r) + (zn - pn.p) * (zn - pn.p) / (pn.pp + r);
+                    let d2 = (ze - pe.p) * (ze - pe.p) / (pe.pp + r_east) + (zn - pn.p) * (zn - pn.p) / (pn.pp + r_north);
                     let pass = d2 < g;
                     out.trace.push(obj(vec![
                         ("stage", "filter".into()),
@@ -303,6 +365,10 @@ impl Engine {
                 }
                 e.last_time_ms = time_ms;
                 e.report = fields.clone();
+                // The entity keeps this report's measurement and timing
+                // variance, also after a restart.
+                e.r = r;
+                e.time_var = time_var;
                 // With method assign the entity is restarted until the next tick.
                 if restart && self.pack.method == Method::Assign {
                     self.restarted.insert(key.clone());
@@ -423,20 +489,22 @@ impl Engine {
         true
     }
 
-    /// B predicted to A's `time_ms`, and with `bias` moved into A's frame
-    /// (correlate-assign.md Sensor bias, Moving B into A's frame).
+    /// B predicted to A's `time_ms`, with B's timing variance added to `pp`
+    /// (Track estimate, Measurement variance), then with `bias` moved into
+    /// A's frame (correlate-assign.md Sensor bias, Moving B into A's frame).
     fn predict_seen_by(&self, a: &str, b: &str) -> (Axis, Axis) {
         let ea = &self.entities[a];
         let eb = &self.entities[b];
-        self.move_into_frame(&ea.source, &eb.source, eb.predict(ea.last_time_ms, &self.pack))
+        self.move_into_frame(&ea.source, &eb.source, eb.predict_for_comparison(ea.last_time_ms, &self.pack))
     }
 
-    /// `d²` between A's filter and B predicted to A's time.
+    /// `d² = sum over east, north of (pa - pb)² / (pp_b + r_a)`: A's filter,
+    /// B as seen by A, and `r_a` A's measurement variance on that axis.
     fn d2(&self, a: &str, b: &str) -> f64 {
         let ea = &self.entities[a];
         let (pe, pn) = self.predict_seen_by(a, b);
-        let r = ea.ce(self.pack.filter.default_ce_m).powi(2);
-        (ea.east.p - pe.p).powi(2) / (pe.pp + r) + (ea.north.p - pn.p).powi(2) / (pn.pp + r)
+        let (r_east, r_north) = ea.r;
+        (ea.east.p - pe.p).powi(2) / (pe.pp + r_east) + (ea.north.p - pn.p).powi(2) / (pn.pp + r_north)
     }
 
     /// Tests: A as filtered, B predicted to A's `time_ms`.
@@ -682,6 +750,10 @@ fn filter_json(e: &Entity) -> Vec<(&'static str, Json)> {
     if let Some(two) = &e.imm {
         pairs.push(("models", obj(vec![("quiet", model_json(&two.models[0])), ("maneuver", model_json(&two.models[1]))])));
         pairs.push(("mode", Json::Arr(vec![two.mu[0].into(), two.mu[1].into()])));
+    }
+    // `time`, when the last report had a time error above 0.
+    if let Some((var_e, var_n)) = e.time_var {
+        pairs.push(("time", obj(vec![("var_east", var_e.into()), ("var_north", var_n.into())])));
     }
     pairs
 }

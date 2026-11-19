@@ -58,4 +58,35 @@ public final class Reports {
         if (!(m.get("stale_ms") instanceof Long)) m.remove("stale_ms");
         return m;
     }
+
+    /**
+     * Time quality (correlate.md, Reports, "Time quality"): the report's {@code time_error_ms}
+     * when present, a number, finite and 0 or above; otherwise the pack's {@code time_default}
+     * {@code error_ms} for the report's source; otherwise 0, the exact time of every version
+     * before 0.8. A value of the wrong type, negative or not finite is absent, never a reject.
+     */
+    public static double timeError(Map<String, Object> report, Map<String, Map<String, Object>> defaults) {
+        Object o = report.get("time_error_ms");
+        if (o instanceof Number) {
+            double te = ((Number) o).doubleValue();
+            if (Double.isFinite(te) && te >= 0) return te;
+        }
+        Map<String, Object> d = defaults.get((String) report.get("track.source_id"));
+        if (d != null && d.containsKey("error_ms")) return (Double) d.get("error_ms");
+        return 0;
+    }
+
+    /**
+     * The report's time state, found per key as {@link #timeError}: its {@code time_state} when it
+     * is one of {@code coherent}, {@code drifting}, {@code free-running} (byte for byte), else the
+     * pack's {@code time_default} state for its source, else {@code coherent}. Correlate parses
+     * and validates it but does not use it in this version.
+     */
+    public static String timeState(Map<String, Object> report, Map<String, Map<String, Object>> defaults) {
+        Object o = report.get("time_state");
+        if (o instanceof String && Pack.TIME_STATES.contains(o)) return (String) o;
+        Map<String, Object> d = defaults.get((String) report.get("track.source_id"));
+        if (d != null && d.containsKey("state")) return (String) d.get("state");
+        return "coherent";
+    }
 }

@@ -1,5 +1,6 @@
 #include "report.hpp"
 
+#include <cmath>
 #include <vector>
 
 namespace corr::report {
@@ -57,6 +58,22 @@ std::optional<std::string> type_element(const Json& r, size_t index) {
     }
     if (parts.size() <= index) return std::nullopt;
     return parts[index];
+}
+
+std::optional<double> time_error_at(const Json& r) {
+    auto te = number_at(r, "time_error_ms");
+    if (!te || !std::isfinite(*te) || *te < 0) return std::nullopt;
+    return te;
+}
+
+bool is_time_state(const std::string& s) {
+    return s == "coherent" || s == "drifting" || s == "free-running";
+}
+
+std::optional<std::string> time_state_at(const Json& r) {
+    const Json* v = r.find("time_state");
+    if (!v || !v->is_string() || !is_time_state(v->string)) return std::nullopt;
+    return v->string;
 }
 
 } // namespace corr::report

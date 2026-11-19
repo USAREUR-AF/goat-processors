@@ -44,6 +44,10 @@ public final class Engine {
         Filter filter;
         Map<String, Object> last;
         double ce;
+        /** Track estimate, Measurement variance: the last report's time error (ms), r and timing variance, east and north. */
+        double timeError;
+        double[] r = new double[2];
+        double[] timingVar = new double[2];
         String group;
         long holdFailures;
         /** Method assign: the entity's system track in the committed membership. */
@@ -54,6 +58,15 @@ public final class Engine {
         Entity(String key, String source) {
             this.key = key;
             this.source = source;
+        }
+
+        /** Snapshot: {@code time}, the timing variance, when the last report had a time error above 0. */
+        void putTimeSnapshot(Map<String, Object> m) {
+            if (!(timeError > 0)) return;
+            Map<String, Object> t = new LinkedHashMap<>();
+            t.put("var_east", timingVar[0]);
+            t.put("var_north", timingVar[1]);
+            m.put("time", t);
         }
 
         Double num(String k) {
@@ -70,6 +83,18 @@ public final class Engine {
             Filter.Axis[] ax = b.filter.predicted((t - b.lastTime) / 1000.0);
             east = ax[0];
             north = ax[1];
+        }
+
+        /**
+         * B predicted to t to be compared with another entity (Track estimate, Measurement
+         * variance): B's timing variance added to the predicted pp on each axis, before any other
+         * change to the prediction.
+         */
+        static Predicted forComparison(Entity b, long t) {
+            Predicted pr = new Predicted(b, t);
+            pr.east.pp = pr.east.pp + b.timingVar[0];
+            pr.north.pp = pr.north.pp + b.timingVar[1];
+            return pr;
         }
     }
 
@@ -137,14 +162,40 @@ public final class Engine {
             vn = sp * Math.cos(c);
         }
 
-        Filter.Measurement meas = new Filter.Measurement(en, ce, hasVel, ve, vn);
+        // Track estimate, Measurement variance, with te the report's time error (Reports, Time quality).
+        // The time state is found as well; correlate does not use it in this version.
+        double te = Reports.timeError(report, pack.timeDefault);
+        Reports.timeState(report, pack.timeDefault);
+        double[] r = new double[2], timingVar = new double[2];
+        if (te == 0) {
+            r[0] = ce * ce;
+            r[1] = ce * ce;
+        } else {
+            // The velocity: the entity's prediction to time_ms, or for a first report the measured
+            // velocity, or 0 without one.
+            double[] vel;
+            if (a == null) vel = new double[] {ve, vn};
+            else {
+                Predicted pr = new Predicted(a, time);
+                vel = new double[] {pr.east.v, pr.north.v};
+            }
+            double ts = te / 1000;
+            for (int k = 0; k < 2; k++) {
+                double moved = vel[k] * ts;
+                timingVar[k] = moved * moved;
+                r[k] = ce * ce + timingVar[k];
+            }
+            res.trace.add(timeRec(key, te, timingVar));
+        }
+
+        Filter.Measurement meas = new Filter.Measurement(en, r, hasVel, ve, vn);
         if (a == null) {
             // Track estimate (and Two-model filter), first report: no trace record.
             a = new Entity(key, source);
             a.filter = new Filter(pack, meas);
             entities.put(key, a);
             res.events.add(ev("new", "entity", key));
-        } else if (pack.restart && !restartPasses(a, time, meas, ce, res)) {
+        } else if (pack.restart && !restartPasses(a, time, meas, res)) {
             // Restart: the filter starts again from this report as a first report. No `new` event;
             // the entity keeps its key, group, pair counts and hold failure count.
             a.filter = new Filter(pack, meas);
@@ -163,6 +214,11 @@ public final class Engine {
         // Spec: Reports, the optional-key rules.
         a.last = Reports.present(report);
         a.ce = ce;
+        // Track estimate, Measurement variance: the entity keeps this report's r and timing
+        // variance (also after a restart).
+        a.timeError = te;
+        a.r = r;
+        a.timingVar = timingVar;
 
         if (assign != null) {
             // correlate-assign.md: a report gives only `new` or `reject`; the tick decides.
@@ -178,10 +234,11 @@ public final class Engine {
      * correlate.md, Restart: d² of the report against the entity predicted to its time_ms, and its
      * trace record, before any other record of the report. True when d² is below the gate.
      */
-    private boolean restartPasses(Entity a, long time, Filter.Measurement meas, double ce, Result res) {
+    private boolean restartPasses(Entity a, long time, Filter.Measurement meas, Result res) {
+        // Not a comparison with another entity: no timing variance on the prediction.
         Predicted pr = new Predicted(a, time);
         double de = meas.z[0] - pr.east.p, dn = meas.z[1] - pr.north.p;
-        double d2 = de * de / (pr.east.pp + ce * ce) + dn * dn / (pr.north.pp + ce * ce);
+        double d2 = de * de / (pr.east.pp + meas.r[0]) + dn * dn / (pr.north.pp + meas.r[1]);
         boolean pass = d2 < pack.restartGate;
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("stage", "filter");
@@ -237,7 +294,7 @@ public final class Engine {
         Entity chosen = null;
         double best = 0;
         for (Entity b : reached) {
-            double d2 = mahalanobis(a, b, new Predicted(b, a.lastTime));
+            double d2 = mahalanobis(a, b, Predicted.forComparison(b, a.lastTime));
             res.trace.add(rec("rank", a, b, "rank", d2, null, true, false));
             if (chosen == null || d2 < best) {
                 chosen = b;
@@ -287,8 +344,9 @@ public final class Engine {
 
     /** Runs tests in order, stopping at the first that fails; true when all ran and passed. */
     boolean runTests(List<Pack.Test> tests, String stage, Entity a, Entity b, Result res) {
-        Predicted pb = new Predicted(b, a.lastTime);
-        // correlate-assign.md, Sensor bias: B's prediction moved into A's frame before the test formula.
+        // B's timing variance first (Track estimate, Measurement variance), then, with bias,
+        // B's prediction moved into A's frame (correlate-assign.md, Sensor bias), before the test formula.
+        Predicted pb = Predicted.forComparison(b, a.lastTime);
         if (bias != null) bias.moveInto(a.source, b.source, new Filter.Axis[] {pb.east, pb.north});
         for (Pack.Test t : tests) {
             Map<String, Object> r = runTest(t, stage, a, b, pb);
@@ -361,11 +419,13 @@ public final class Engine {
         return Math.sqrt(de * de + dn * dn);
     }
 
-    /** d² = sum over east, north of (pa - pb)² / (pp_b + ce_a²). */
+    /**
+     * d² = sum over east, north of (pa - pb)² / (pp_b + r_a), r_a A's measurement variance on
+     * that axis (ce_a² when A's last report has time error 0); pb already holds B's timing variance.
+     */
     private static double mahalanobis(Entity a, Entity b, Predicted pb) {
-        double r = a.ce * a.ce;
         double de = a.filter.east().p - pb.east.p, dn = a.filter.north().p - pb.north.p;
-        return de * de / (pb.east.pp + r) + dn * dn / (pb.north.pp + r);
+        return de * de / (pb.east.pp + a.r[0]) + dn * dn / (pb.north.pp + a.r[1]);
     }
 
     /** `@env` is the third `-`-separated element of `type`; absent with fewer than three. */
@@ -444,6 +504,7 @@ public final class Engine {
             m.put("group", e.group);
             m.put("hold_failures", e.holdFailures);
             e.filter.putSnapshot(m);
+            e.putTimeSnapshot(m);
             ents.put(e.key, m);
         }
         s.put("entities", ents);
@@ -524,6 +585,21 @@ public final class Engine {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("ev", name);
         for (int k = 0; k < kv.length; k += 2) m.put((String) kv[k], kv[k + 1]);
+        return m;
+    }
+
+    /** Track estimate, Measurement variance: the {@code time} record of a report with time error above 0. */
+    private static Map<String, Object> timeRec(String key, double te, double[] timingVar) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("stage", "filter");
+        m.put("a", key);
+        m.put("b", null);
+        m.put("test", "time");
+        m.put("value", te);
+        m.put("limit", null);
+        m.put("pass", true);
+        m.put("var_east", timingVar[0]);
+        m.put("var_north", timingVar[1]);
         return m;
     }
 

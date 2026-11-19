@@ -40,6 +40,26 @@ pub const Bias = struct {
     gate: f64,
 };
 
+// correlate-assign.md 0.6 "Sensor bias", "Time offset": the `time_offset` line.
+pub const TimeOffset = struct {
+    sigma_ms: f64,
+};
+
+// correlate.md 0.8 "Reports", "Time quality": the state of a report's clock.
+pub const TimeState = enum {
+    coherent,
+    drifting,
+    @"free-running",
+};
+
+// correlate.md 0.8 "Pack": one `time_default <source_id> error_ms= state=`
+// line; each key is null when the line does not give it.
+pub const TimeDefault = struct {
+    source: []const u8,
+    error_ms: ?f64,
+    state: ?TimeState,
+};
+
 pub const Output = enum { priority, latest };
 
 // Spec "Pack": `method confirm` (correlate.md) or `method assign` (correlate-assign.md).
@@ -55,6 +75,10 @@ pub const Pack = struct {
     maneuver: ?Maneuver,
     restart: ?Restart,
     bias: ?Bias,
+    // correlate-assign.md 0.6: the clock offset fitted with the position offset.
+    time_offset: ?TimeOffset,
+    // correlate.md 0.8 "Time quality": per-source defaults, at most one per source.
+    time_default: []const TimeDefault,
     gate: []const Test,
     confirm: []const Test,
     hold: []const Test,
@@ -78,6 +102,14 @@ pub const Pack = struct {
             if (std.mem.eql(u8, p.source, source)) return p.n;
         }
         return 100;
+    }
+
+    // correlate.md 0.8 "Time quality": the pack's `time_default` for a source.
+    pub fn timeDefaultOf(self: Pack, source: []const u8) ?TimeDefault {
+        for (self.time_default) |d| {
+            if (std.mem.eql(u8, d.source, source)) return d;
+        }
+        return null;
     }
 };
 
@@ -104,6 +136,8 @@ const Directive = enum {
     maneuver,
     restart,
     bias,
+    time_offset,
+    time_default,
     gate,
     confirm,
     hold,
@@ -123,7 +157,7 @@ const Directive = enum {
 // Spec "Pack": `gate`, `confirm`, `hold` and `priority` repeat.
 fn repeats(d: Directive) bool {
     return switch (d) {
-        .gate, .confirm, .hold, .priority => true,
+        .gate, .confirm, .hold, .priority, .time_default => true,
         else => false,
     };
 }
@@ -212,6 +246,30 @@ fn parseTest(alloc: Allocator, tokens: []const []const u8) Error!Test {
     return error.UnknownTest;
 }
 
+// correlate.md 0.8 "Pack": `time_default <source_id>` then `error_ms`, `state`
+// or both, at least one, each at most once. `error_ms` is a number 0 or above;
+// `state` one of the three clock states. Anything else is a load error.
+fn parseTimeDefault(alloc: Allocator, args: []const []const u8) Error!TimeDefault {
+    if (args.len < 2) return error.WrongArgumentCount;
+    if (std.mem.indexOfScalar(u8, args[0], '=') != null) return error.BadValue;
+    var out = TimeDefault{ .source = try alloc.dupe(u8, args[0]), .error_ms = null, .state = null };
+    for (args[1..]) |tok| {
+        const eq = std.mem.indexOfScalar(u8, tok, '=') orelse return error.ParamWithoutValue;
+        const name = tok[0..eq];
+        const value = tok[eq + 1 ..];
+        if (std.mem.eql(u8, name, "error_ms")) {
+            if (out.error_ms != null) return error.RepeatedParam;
+            const ms = try parseDecimal(value);
+            if (!(ms >= 0 and std.math.isFinite(ms))) return error.BadValue;
+            out.error_ms = ms;
+        } else if (std.mem.eql(u8, name, "state")) {
+            if (out.state != null) return error.RepeatedParam;
+            out.state = std.meta.stringToEnum(TimeState, value) orelse return error.BadValue;
+        } else return error.UnknownParam;
+    }
+    return out;
+}
+
 fn one(args: []const []const u8) Error![]const u8 {
     if (args.len != 1) return error.WrongArgumentCount;
     return args[0];
@@ -223,6 +281,7 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
     var confirm = std.ArrayList(Test).init(alloc);
     var hold = std.ArrayList(Test).init(alloc);
     var priority = std.ArrayList(Priority).init(alloc);
+    var time_default = std.ArrayList(TimeDefault).init(alloc);
     var pack: Pack = .{
         .name = "",
         .version = "",
@@ -231,6 +290,8 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
         .maneuver = null,
         .restart = null,
         .bias = null,
+        .time_offset = null,
+        .time_default = &.{},
         .gate = &.{},
         .confirm = &.{},
         .hold = &.{},
@@ -274,6 +335,13 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
             .maneuver => pack.maneuver = try parseParams(Maneuver, alloc, args),
             .restart => pack.restart = try parseParams(Restart, alloc, args),
             .bias => pack.bias = try parseParams(Bias, alloc, args),
+            .time_offset => pack.time_offset = try parseParams(TimeOffset, alloc, args),
+            .time_default => {
+                const td = try parseTimeDefault(alloc, args);
+                // A second line for the same source is a load error.
+                for (time_default.items) |prev| if (std.mem.eql(u8, prev.source, td.source)) return error.RepeatedDirective;
+                try time_default.append(td);
+            },
             .margin => pack.margin = try parseDecimal(try one(args)),
             .window => pack.window = try parseCount(try one(args)),
             .hypotheses => pack.hypotheses = try parseCount(try one(args)),
@@ -321,7 +389,7 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
             const required = [_]Directive{ .pack, .version, .filter, .confirm_count, .hold_failures, .stale_ms };
             for (required) |r| if (!seen.contains(r)) return error.MissingDirective;
             // correlate-assign.md directives are not directives of correlate.md.
-            const refused = [_]Directive{ .new_cost, .keep_bonus, .window, .hypotheses, .margin, .bias };
+            const refused = [_]Directive{ .new_cost, .keep_bonus, .window, .hypotheses, .margin, .bias, .time_offset };
             for (refused) |r| if (seen.contains(r)) return error.DirectiveNotForMethod;
         },
         .assign => {
@@ -341,6 +409,11 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
             if (pack.bias) |b| {
                 if (!(b.sigma_m > 0 and b.gate > 0 and b.floor_m > 0 and b.floor_m <= b.sigma_m)) return error.BadValue;
             }
+            // correlate-assign.md 0.6 "Pack": `time_offset`'s `sigma_ms` above 0, and
+            // only with `bias`.
+            if (pack.time_offset) |t| {
+                if (!(t.sigma_ms > 0) or pack.bias == null) return error.BadValue;
+            }
             // `margin` above 0, and only with `hypotheses` above 1.
             if (pack.margin) |m| {
                 if (!(m > 0) or pack.hypotheses <= 1) return error.BadValue;
@@ -352,6 +425,7 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
     pack.confirm = try confirm.toOwnedSlice();
     pack.hold = try hold.toOwnedSlice();
     pack.priority = try priority.toOwnedSlice();
+    pack.time_default = try time_default.toOwnedSlice();
     return pack;
 }
 

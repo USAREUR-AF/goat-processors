@@ -374,13 +374,14 @@ final class Assign {
     /**
      * Fused estimate of a set of entities at t: each member's filter predicted to t, combined per
      * axis by inverse-variance weights, members in key order. pv of the result is unused and 0.
-     * With {@code frameOf} (Cost with bias), each member is moved into that entity's frame
-     * (Sensor bias) after its prediction; the estimate for output moves no member.
+     * With {@code frameOf} (Cost, a comparison with that entity), each member's predicted pp gets
+     * its timing variance (correlate.md, Track estimate) and then, with bias, the member is moved
+     * into that entity's frame (Sensor bias); the estimate for output does neither.
      */
     private Filter.Axis[] fusedEstimate(List<Entity> members, long t, Entity frameOf) {
         List<Filter.Axis[]> predicted = new ArrayList<>();
         for (Entity m : members) {
-            Engine.Predicted pr = new Engine.Predicted(m, t);
+            Engine.Predicted pr = frameOf != null ? Engine.Predicted.forComparison(m, t) : new Engine.Predicted(m, t);
             Filter.Axis[] ax = {pr.east, pr.north};
             if (frameOf != null && engine.bias != null) engine.bias.moveInto(frameOf.source, m.source, ax);
             predicted.add(ax);
@@ -388,14 +389,15 @@ final class Assign {
         return Engine.inverseVariance(predicted);
     }
 
-    /** Cost: d² of A against the fused estimate of M at A's last_time_ms. */
+    /** Cost: d² of A against the fused estimate of M at A's last_time_ms; pp_a is A's pp plus A's timing variance. */
     private double cost(Entity a, List<Entity> m) {
         Filter.Axis[] f = fusedEstimate(m, a.lastTime, a);
         Filter.Axis[] own = {a.filter.east(), a.filter.north()};
         double d2 = 0;
         for (int k = 0; k < 2; k++) {
             double d = own[k].p - f[k].p;
-            d2 += d * d / (own[k].pp + f[k].pp);
+            double ppA = own[k].pp + a.timingVar[k];
+            d2 += d * d / (ppA + f[k].pp);
         }
         return d2;
     }
@@ -513,6 +515,7 @@ final class Assign {
             m.put("last_time_ms", e.lastTime);
             m.put("system", e.system);
             e.filter.putSnapshot(m);
+            e.putTimeSnapshot(m);
             ents.put(e.key, m);
             if (e.retiring) retiring.add(e.key);
         }
