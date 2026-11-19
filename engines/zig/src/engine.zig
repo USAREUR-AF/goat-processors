@@ -206,20 +206,59 @@ pub const Engine = struct {
         const ce = entity_mod.ceOf(stored) orelse f.default_ce_m;
 
         // Spec "Track estimate": velocity measurement.
-        var meas = kalman.Measurement{ .east = pos.east, .north = pos.north, .r_pos = ce * ce, .r_vel = f.vel_sigma_ms * f.vel_sigma_ms };
+        var meas = kalman.Measurement{ .east = pos.east, .north = pos.north, .r_east = 0, .r_north = 0, .r_vel = f.vel_sigma_ms * f.vel_sigma_ms };
         if (entity_mod.numberOf(stored, "course")) |course| {
             if (entity_mod.numberOf(stored, "speed_ms")) |speed| {
                 meas.vel = .{ .east = speed * @sin(frame.rad(course)), .north = speed * @cos(frame.rad(course)) };
             }
         }
-
-        // Spec "Track estimate", first report (also a restart): one filter, or both
-        // models with the long-run mode probabilities.
         const ve: ?f64 = if (meas.vel) |v| v.east else null;
         const vn: ?f64 = if (meas.vel) |v| v.north else null;
+
+        // correlate.md 0.8 "Reports", Time quality: the report's time error and state.
+        const tq = entity_mod.timeQualityOf(stored, source.?, self.pack);
+        const te = tq.error_ms;
+
+        // A later report's entity is predicted to the report's time once: the
+        // velocity of the measurement variance and the Restart test read it.
+        const existing: ?Entity = self.entities.get(key);
+        const pred: ?kalman.Filter = if (existing) |e| e.predictedTo(time_ms.?, self.pack) else null;
+
+        // correlate.md 0.8 "Track estimate", Measurement variance. With `te` 0,
+        // r_east = r_north = ce². Otherwise, with ts = te / 1000 and (v_e, v_n) the
+        // prediction's velocity (the first report: the measured velocity, or 0),
+        // r = ce² + (v*ts)² per axis, and (v*ts)² is the timing variance.
+        var time_var_east: f64 = 0;
+        var time_var_north: f64 = 0;
+        if (te > 0) {
+            const ts = te / 1000.0;
+            const v_e = if (pred) |pf| pf.east.v else (ve orelse 0.0);
+            const v_n = if (pred) |pf| pf.north.v else (vn orelse 0.0);
+            time_var_east = (v_e * ts) * (v_e * ts);
+            time_var_north = (v_n * ts) * (v_n * ts);
+        }
+        meas.r_east = if (te > 0) ce * ce + time_var_east else ce * ce;
+        meas.r_north = if (te > 0) ce * ce + time_var_north else ce * ce;
+        if (te > 0) {
+            // The `time` record, before any other record of the report.
+            try res.trace.append(try self.object(.{
+                .{ "stage", "filter" },
+                .{ "a", key },
+                .{ "b", json.Value{ .null = {} } },
+                .{ "test", "time" },
+                .{ "value", te },
+                .{ "limit", json.Value{ .null = {} } },
+                .{ "pass", true },
+                .{ "var_east", time_var_east },
+                .{ "var_north", time_var_north },
+            }));
+        }
+
+        // Spec "Track estimate", first report (also a restart): per axis `pp = r`;
+        // one filter, or both models with the long-run mode probabilities.
         const first = kalman.Filter{
-            .east = kalman.Axis.init(pos.east, ve, ce, f.vel_sigma_ms, f.unknown_vel_ms),
-            .north = kalman.Axis.init(pos.north, vn, ce, f.vel_sigma_ms, f.unknown_vel_ms),
+            .east = kalman.Axis.initWithVariance(pos.east, ve, meas.r_east, f.vel_sigma_ms, f.unknown_vel_ms),
+            .north = kalman.Axis.initWithVariance(pos.north, vn, meas.r_north, f.vel_sigma_ms, f.unknown_vel_ms),
         };
         const first_imm: ?imm.State = if (self.pack.maneuver) |m| imm.init(m, first) else null;
 
@@ -234,18 +273,25 @@ pub const Engine = struct {
                 .imm = first_imm,
                 .group = null,
                 .hold_failures = 0,
+                .r_east = meas.r_east,
+                .r_north = meas.r_north,
+                .time_error_ms = te,
+                .time_var_east = time_var_east,
+                .time_var_north = time_var_north,
+                .time_state = tq.state,
             };
             try res.events.append(try self.object(.{ .{ "ev", "new" }, .{ "entity", key } }));
         } else {
             const e = gop.value_ptr;
             // correlate.md 0.7 "Restart": d² of the report against the entity's
-            // prediction to its time, before any other record of the report.
+            // prediction to its time, with the report's measurement variance; after
+            // the `time` record and before any other record of the report.
             var restart = false;
             if (self.pack.restart) |rs| {
-                const pred = e.predictedTo(time_ms.?, self.pack);
-                const de = pos.east - pred.east.p;
-                const dn = pos.north - pred.north.p;
-                const d2 = de * de / (pred.east.pp + ce * ce) + dn * dn / (pred.north.pp + ce * ce);
+                const pf = pred.?;
+                const de = pos.east - pf.east.p;
+                const dn = pos.north - pf.north.p;
+                const d2 = de * de / (pf.east.pp + meas.r_east) + dn * dn / (pf.north.pp + meas.r_north);
                 const pass = d2 < rs.gate;
                 try res.trace.append(try self.object(.{
                     .{ "stage", "filter" },
@@ -278,6 +324,14 @@ pub const Engine = struct {
             }
             e.last_time_ms = time_ms.?;
             e.report = stored;
+            // The entity keeps this report's measurement variance and timing
+            // variance (also after a restart).
+            e.r_east = meas.r_east;
+            e.r_north = meas.r_north;
+            e.time_error_ms = te;
+            e.time_var_east = time_var_east;
+            e.time_var_north = time_var_north;
+            e.time_state = tq.state;
         }
 
         const a_key = self.entities.getPtr(key).?.key;
@@ -310,9 +364,10 @@ pub const Engine = struct {
     pub fn runTests(self: *Engine, res: *Result, stage: Stage, tests: []const pack_mod.Test, a_key: []const u8, b_key: []const u8) !bool {
         const a = self.entities.get(a_key).?;
         const b = self.entities.get(b_key).?;
-        var b_pred = b.predictedTo(a.last_time_ms, self.pack);
-        // correlate-assign.md 0.5 "Sensor bias": B is moved into A's frame before the test formula.
-        if (self.pack.bias) |bp| b_pred = try bias_mod.moveInto(self.alloc(), &self.assign_state.bias, bp, a.source, b.source, b_pred);
+        // correlate.md 0.8: B's prediction with its timing variance added, first.
+        var b_pred = b.predictedForComparison(a.last_time_ms, self.pack);
+        // correlate-assign.md 0.5 "Sensor bias": B is then moved into A's frame before the test formula.
+        if (self.pack.bias) |bp| b_pred = try bias_mod.moveInto(self.alloc(), &self.assign_state.bias, bp, self.pack.time_offset, a.source, b.source, b_pred);
         for (tests) |t| {
             const o = pair_tests.run(t, a, b, b_pred, self.pack.filter);
             var rec = try self.object(.{
@@ -422,7 +477,8 @@ pub const Engine = struct {
         var best: f64 = 0;
         for (reached.items) |b_key| {
             const b = self.entities.get(b_key).?;
-            const d2 = pair_tests.mahalanobis(a, b.predictedTo(a.last_time_ms, self.pack), self.pack.filter.default_ce_m);
+            // correlate.md 0.8: the rank `d²` also adds B's timing variance.
+            const d2 = pair_tests.mahalanobis(a, b.predictedForComparison(a.last_time_ms, self.pack));
             try res.trace.append(try self.object(.{
                 .{ "stage", "rank" },
                 .{ "a", a_key },
@@ -531,7 +587,8 @@ pub const Engine = struct {
         return .{ .array = arr };
     }
 
-    // Spec "Snapshot": `filter`, plus `models` and `mode` with the `maneuver` directive.
+    // Spec "Snapshot": `filter`, plus `models` and `mode` with the `maneuver`
+    // directive, plus `time` (correlate.md 0.8).
     pub fn putFilter(self: *Engine, obj: *json.ObjectMap, e: Entity) !void {
         try obj.put("filter", try self.filterValue(e.filter));
         if (e.imm) |st| {
@@ -543,6 +600,11 @@ pub const Engine = struct {
             try mode.append(.{ .float = st.mu[0] });
             try mode.append(.{ .float = st.mu[1] });
             try obj.put("mode", .{ .array = mode });
+        }
+        // correlate.md 0.8 "Snapshot": `time`, the timing variance, when the
+        // entity's last report had a time error above 0.
+        if (e.time_error_ms > 0) {
+            try obj.put("time", try self.object(.{ .{ "var_east", e.time_var_east }, .{ "var_north", e.time_var_north } }));
         }
     }
 

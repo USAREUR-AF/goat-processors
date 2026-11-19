@@ -1,8 +1,9 @@
-// spec/correlate-assign.md (version 0.5): system tracks, per-source ranked
+// spec/correlate-assign.md (version 0.6): system tracks, per-source ranked
 // assignments at each tick, a window of `n` ticks over the best `k` histories
 // (kept within `margin` of the best), the inverse-variance fused estimate, the
 // leave of a restarted entity (correlate.md 0.7 "Restart") and the update of
-// the sensor bias offsets (`bias.zig`).
+// the sensor bias offsets with their clock offsets (`bias.zig`), and the
+// timing variance of correlate.md 0.8 in the Cost.
 const std = @import("std");
 const json = std.json;
 const Allocator = std.mem.Allocator;
@@ -10,6 +11,7 @@ const engine_mod = @import("engine.zig");
 const frame = @import("frame.zig");
 const kalman = @import("kalman.zig");
 const bias_mod = @import("bias.zig");
+const pack_mod = @import("pack.zig");
 const Engine = engine_mod.Engine;
 const Result = engine_mod.Result;
 const lessKey = engine_mod.lessKey;
@@ -185,17 +187,19 @@ fn fuseAxis(axes: []const kalman.Axis) FusedAxis {
 }
 
 // Members in key order, each predicted to `t_ms`. With `frame_of` (an entity's
-// source) and the pack's `bias`, each member is moved into that source's frame
-// ("Sensor bias") after its prediction; an estimate for output moves no member.
+// source) the estimate is for a comparison ("Cost"): each member's predicted
+// `pp` gets its timing variance (correlate.md 0.8), then, with the pack's
+// `bias`, the member is moved into that source's frame ("Sensor bias"). An
+// estimate for output (`frame_of` null) does neither.
 fn fused(eng: *Engine, members: []const []const u8, t_ms: i64, frame_of: ?[]const u8) !Fused {
     const a = eng.alloc();
     const east = try a.alloc(kalman.Axis, members.len);
     const north = try a.alloc(kalman.Axis, members.len);
     for (members, 0..) |m, i| {
         const e = eng.entities.get(m).?;
-        var f = e.predictedTo(t_ms, eng.pack);
+        var f = if (frame_of != null) e.predictedForComparison(t_ms, eng.pack) else e.predictedTo(t_ms, eng.pack);
         if (eng.pack.bias) |bp| {
-            if (frame_of) |src| f = try bias_mod.moveInto(a, &eng.assign_state.bias, bp, src, e.source, f);
+            if (frame_of) |src| f = try bias_mod.moveInto(a, &eng.assign_state.bias, bp, eng.pack.time_offset, src, e.source, f);
         }
         east[i] = f.east;
         north[i] = f.north;
@@ -203,13 +207,16 @@ fn fused(eng: *Engine, members: []const []const u8, t_ms: i64, frame_of: ?[]cons
     return .{ .east = fuseAxis(east), .north = fuseAxis(north) };
 }
 
-// "Cost": d² of A against the fused estimate of M, both at A's `last_time_ms`.
+// "Cost": d² of A against the fused estimate of M, both at A's `last_time_ms`;
+// `pp_a` is A's filter `pp` plus A's timing variance (0.6).
 fn cost(eng: *Engine, a_key: []const u8, members: []const []const u8) !f64 {
     const a = eng.entities.get(a_key).?;
     const m = try fused(eng, members, a.last_time_ms, a.source);
+    const pp_a_east = a.filter.east.pp + a.time_var_east;
+    const pp_a_north = a.filter.north.pp + a.time_var_north;
     const de = a.filter.east.p - m.east.p;
     const dn = a.filter.north.p - m.north.p;
-    return de * de / (a.filter.east.pp + m.east.pp) + dn * dn / (a.filter.north.pp + m.north.pp);
+    return de * de / (pp_a_east + m.east.pp) + dn * dn / (pp_a_north + m.north.pp);
 }
 
 const Column = struct { id: u64, others: []const []const u8 };
@@ -559,7 +566,7 @@ pub fn tick(eng: *Engine, now_ms: i64) !Result {
 // "Sensor bias", Update: committed system tracks in creation order, their members
 // not retiring in key order, each pair X before Y of two sources with at least
 // one of them among the tick's rows.
-fn updateBias(eng: *Engine, res: *Result, bp: @import("pack.zig").Bias, rows: []const []const u8, now_ms: i64) !void {
+fn updateBias(eng: *Engine, res: *Result, bp: pack_mod.Bias, rows: []const []const u8, now_ms: i64) !void {
     const a = eng.alloc();
     const st = &eng.assign_state;
     for (st.committed.systems.items) |s| {
@@ -575,9 +582,9 @@ fn updateBias(eng: *Engine, res: *Result, bp: @import("pack.zig").Bias, rows: []
                 const es, const et = if (lessKey({}, ex.source, ey.source)) .{ ex, ey } else .{ ey, ex };
                 const key = try bias_mod.pairKey(a, es.source, et.source);
                 // 2 and 3.
-                const o = try bias_mod.update(a, &st.bias, bp, key, es.predictedTo(now_ms, eng.pack), et.predictedTo(now_ms, eng.pack));
+                const o = try bias_mod.update(a, &st.bias, bp, eng.pack.time_offset, key, es.predictedTo(now_ms, eng.pack), et.predictedTo(now_ms, eng.pack));
                 // 4. Trace, with the state after step 3.
-                try res.trace.append(try eng.object(.{
+                var rec = try eng.object(.{
                     .{ "stage", "bias" },
                     .{ "a", x },
                     .{ "b", y },
@@ -589,7 +596,10 @@ fn updateBias(eng: *Engine, res: *Result, bp: @import("pack.zig").Bias, rows: []
                     .{ "north", o.after.north },
                     .{ "var", o.after.variance },
                     .{ "pairs", o.after.pairs },
-                }));
+                });
+                // "Time offset": the record adds `time_offset_ms`, tau*1000.
+                if (eng.pack.time_offset != null) try rec.object.put("time_offset_ms", .{ .float = o.after.tau * 1000.0 });
+                try res.trace.append(rec);
             }
         }
     }
@@ -692,14 +702,22 @@ pub fn snapshot(eng: *Engine) !json.Value {
         std.mem.sort([]const u8, keys, {}, lessKey);
         for (keys) |key| {
             const p = st.bias.pairs.get(key).?;
-            try pairs.put(key, try eng.object(.{
+            var pair = try eng.object(.{
                 .{ "east", p.east },
                 .{ "weight_east", p.weight_east },
                 .{ "north", p.north },
                 .{ "weight_north", p.weight_north },
                 .{ "var", p.variance },
                 .{ "pairs", p.pairs },
-            }));
+            });
+            // With `time_offset`: `time_offset_ms` (tau*1000) and `sums` ([S1, ..., S8]).
+            if (eng.pack.time_offset != null) {
+                try pair.object.put("time_offset_ms", .{ .float = p.tau * 1000.0 });
+                var sums = json.Array.init(a);
+                for (p.sums) |x| try sums.append(.{ .float = x });
+                try pair.object.put("sums", .{ .array = sums });
+            }
+            try pairs.put(key, pair);
         }
         try out.object.put("bias", .{ .object = pairs });
     }

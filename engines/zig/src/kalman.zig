@@ -8,12 +8,17 @@ pub const Axis = struct {
     pv: f64,
     vv: f64,
 
-    // First report.
+    // First report, with `pp = ce²` (the measurement variance when the time is exact).
     pub fn init(z: f64, vel: ?f64, ce: f64, vel_sigma_ms: f64, unknown_vel_ms: f64) Axis {
+        return initWithVariance(z, vel, ce * ce, vel_sigma_ms, unknown_vel_ms);
+    }
+
+    // First report, correlate.md 0.8: `pp = r`, that axis's measurement variance.
+    pub fn initWithVariance(z: f64, vel: ?f64, r: f64, vel_sigma_ms: f64, unknown_vel_ms: f64) Axis {
         return .{
             .p = z,
             .v = vel orelse 0.0,
-            .pp = ce * ce,
+            .pp = r,
             .pv = 0.0,
             .vv = if (vel != null) vel_sigma_ms * vel_sigma_ms else unknown_vel_ms * unknown_vel_ms,
         };
@@ -65,7 +70,10 @@ pub const Axis = struct {
 pub const Measurement = struct {
     east: f64,
     north: f64,
-    r_pos: f64, // ce²
+    // correlate.md 0.8 "Measurement variance": the position variance per axis,
+    // ce² plus the timing term (v*ts)² of that axis.
+    r_east: f64,
+    r_north: f64,
     vel: ?struct { east: f64, north: f64 } = null,
     r_vel: f64, // vel_sigma_ms²
 };
@@ -90,10 +98,10 @@ pub const Filter = struct {
     pub fn update(f: Filter, m: Measurement) struct { filter: Filter, g: f64 } {
         var out = f;
         var g: f64 = 0;
-        g += term(m.east - out.east.p, out.east.pp + m.r_pos);
-        g += term(m.north - out.north.p, out.north.pp + m.r_pos);
-        out.east = out.east.updatePosition(m.east, m.r_pos);
-        out.north = out.north.updatePosition(m.north, m.r_pos);
+        g += term(m.east - out.east.p, out.east.pp + m.r_east);
+        g += term(m.north - out.north.p, out.north.pp + m.r_north);
+        out.east = out.east.updatePosition(m.east, m.r_east);
+        out.north = out.north.updatePosition(m.north, m.r_north);
         if (m.vel) |v| {
             g += term(v.east - out.east.v, out.east.vv + m.r_vel);
             g += term(v.north - out.north.v, out.north.vv + m.r_vel);
