@@ -66,15 +66,28 @@ integer literal outside that range is read as a float, so `time_ms` with that
 value is missing), compares integers with pack numbers after conversion to
 binary64, and applies the prediction formula as written near a pole.
 
-# Open points under quality 0.1
+# Open points under quality 0.2
 
-No vector contradicts `spec/quality.md` (version 0.1) as this engine reads it:
-scenario vectors q01 to q15 and load vectors 01 to 45 pass. The spec's own
-"Open points" are undecided; the engine does this:
+No vector contradicts `spec/quality.md` (version 0.2) as this engine reads it:
+scenario vectors q01 to q22 and load vectors 01 to 62 pass. Version 0.2
+settles three points this file listed under 0.1: a forwarded `ce` that
+overflows is now the largest finite binary64 (Forwarding); only space and
+tab separate tokens and a control character is a load error (Pack); two
+reports whose keys collide are one entity (Reports). The spec's one
+remaining open point is undecided; the engine does this:
 
 | # | Spec section | What the engine does |
 |---|---|---|
 | 1 | Reports | Integers are 64-bit signed, as for correlate (point 2 above): a `time_ms` or `received_ms` literal outside that range is not an integer, so `time_ms` is missing and `received_ms` absent. |
-| 2 | Reports | The entity key is the string `<track.source_id>/<uid>`; two reports whose keys collide are one entity, whose source is that of its first report. |
-| 3 | Forwarding | The forwarded `ce` is the binary64 product; one that overflows is written as Rust's `inf`, which is not valid JSON. |
-| 4 | Pack | Only space and tab separate tokens; any other whitespace is part of a token, so it makes a value or directive fail to parse. |
+
+## Readings the engine takes
+
+These follow the spec text and the vectors agree with them; they are written
+down because the text could be read another way.
+
+| # | Spec section | Reading |
+|---|---|---|
+| 1 | Trace, `time_error` and `time_state` | The `inputs` are the report's *valid* value and the default's value: a report value treated as absent (negative or non-finite `time_error_ms`, an unknown `time_state`, a wrong type) is written `null` (vector q20, step 3). |
+| 2 | Input clock; Reports | "The entities whose source is" a source means the entities whose *entity* source it is. On a key collision, a report from source `a` for the entity `a/b/c` created by source `a/b` has no source latest, and `a/b` is one of the other sources of its input clock (vector q22, step 2). |
+| 3 | Rules, Actions; Reports | A source rule is in force for a report when it is active for the report's own `track.source_id`, which on a key collision differs from the entity's source. |
+| 4 | Input clock; Samples | The clock is an integer for an odd count of other sources; for an even count it is `(a + b) / 2` with `a` and `b` converted to binary64, and `lateness` is then `clock - t` in binary64. Source and entity `lateness_max`/`lateness_min` keep the sample's type (integer or binary64); two integers are compared exactly. |

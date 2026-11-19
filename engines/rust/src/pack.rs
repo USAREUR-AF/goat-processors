@@ -51,6 +51,15 @@ impl TimeState {
             _ => None,
         }
     }
+
+    /// The state as written in a report or a pack.
+    pub fn name(self) -> &'static str {
+        match self {
+            TimeState::Coherent => "coherent",
+            TimeState::Drifting => "drifting",
+            TimeState::FreeRunning => "free-running",
+        }
+    }
 }
 
 /// One `time_default <source_id> error_ms=<ms> state=<state>` line (spec:
@@ -59,6 +68,40 @@ impl TimeState {
 pub struct TimeDefault {
     pub error_ms: Option<f64>,
     pub state: Option<TimeState>,
+}
+
+/// The values of one `time_default` line (correlate.md 0.8 Pack): a source
+/// id (a first token without `=`), then `error_ms` (a number 0 or above),
+/// `state` (one of the three states) or both, each at most once. `number`
+/// reads `error_ms` with the calling function's own number grammar. The
+/// caller checks that no earlier line gave the same source id. Shared with
+/// the quality function (quality.md 0.2 Pack).
+pub fn parse_time_default(args: &[&str], number: fn(&str) -> Result<f64, String>) -> Result<(String, TimeDefault), String> {
+    let (source, params) = match args.split_first() {
+        Some((s, rest)) if !s.contains('=') => (*s, rest),
+        _ => return Err("time_default needs a source id".to_string()),
+    };
+    let mut d = TimeDefault { error_ms: None, state: None };
+    for a in params {
+        let (k, v) = a.split_once('=').ok_or_else(|| format!("parameter without '=': {:?}", a))?;
+        match k {
+            "error_ms" if d.error_ms.is_none() => {
+                let ms = number(v)?;
+                if !(ms >= 0.0) {
+                    return Err("time_default error_ms must be 0 or above".to_string());
+                }
+                d.error_ms = Some(ms);
+            }
+            "state" if d.state.is_none() => {
+                d.state = Some(TimeState::parse(v).ok_or_else(|| format!("unknown time state: {:?}", v))?);
+            }
+            _ => return Err(format!("unknown or repeated time_default parameter: {:?}", k)),
+        }
+    }
+    if d.error_ms.is_none() && d.state.is_none() {
+        return Err("time_default needs error_ms, state or both".to_string());
+    }
+    Ok((source.to_string(), d))
 }
 
 /// One named test with its parameters (spec: Tests).
@@ -385,36 +428,9 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
                 bias = Some(b);
             }
             "time_default" => {
-                // correlate.md 0.8 Pack: a source id (a first token without
-                // `=`), then `error_ms` (a number 0 or above), `state` (one of
-                // the three states) or both, each at most once; at most one
-                // line per source.
-                let (source, params) = match args.split_first() {
-                    Some((s, rest)) if !s.contains('=') => (*s, rest),
-                    _ => return Err(at("time_default needs a source id".to_string())),
-                };
-                let mut d = TimeDefault { error_ms: None, state: None };
-                for a in params {
-                    let (k, v) = a.split_once('=').ok_or_else(|| at(format!("parameter without '=': {:?}", a)))?;
-                    match k {
-                        "error_ms" if d.error_ms.is_none() => {
-                            let ms = decimal(v).map_err(at)?;
-                            if !(ms >= 0.0) {
-                                return Err(at("time_default error_ms must be 0 or above".to_string()));
-                            }
-                            d.error_ms = Some(ms);
-                        }
-                        "state" if d.state.is_none() => {
-                            d.state = Some(TimeState::parse(v).ok_or_else(|| at(format!("unknown time state: {:?}", v)))?);
-                        }
-                        _ => return Err(at(format!("unknown or repeated time_default parameter: {:?}", k))),
-                    }
-                }
-                if d.error_ms.is_none() && d.state.is_none() {
-                    return Err(at("time_default needs error_ms, state or both".to_string()));
-                }
-                if time_default.insert(source.to_string(), d).is_some() {
-                    return Err(at(format!("second time_default for source {:?}", source)));
+                let (source, d) = parse_time_default(args, decimal).map_err(at)?;
+                if time_default.insert(source, d).is_some() {
+                    return Err(at("a second time_default for the same source".to_string()));
                 }
             }
             "time_offset" => {

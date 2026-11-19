@@ -1,12 +1,13 @@
-//! Quality pack: `pack.def` parsing and validation (spec/quality.md, Pack).
+//! Quality pack: `pack.def` parsing and validation (spec/quality.md version
+//! 0.2, Pack).
 
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use crate::pack::FilterParams;
+use crate::pack::{parse_time_default, FilterParams, TimeDefault};
 
 /// The entity measures, in the order of the table "Entity measures".
-pub const ENTITY_MEASURES: [&str; 14] = [
+pub const ENTITY_MEASURES: [&str; 23] = [
     "reports",
     "interval_last",
     "interval_mean",
@@ -14,13 +15,22 @@ pub const ENTITY_MEASURES: [&str; 14] = [
     "age",
     "latency_mean",
     "latency_max",
+    "lateness_mean",
+    "lateness_max",
+    "lateness_min",
     "nis_mean",
     "speed_err_mean",
     "out_of_order",
     "duplicate",
+    "source_out_of_order",
     "missing_ce",
     "missing_vel",
     "missing_hae",
+    "time_error_mean",
+    "time_error_max",
+    "time_state_last",
+    "time_state_worst",
+    "missing_time",
 ];
 
 /// The one measure only a source has (table "Source measures").
@@ -115,6 +125,8 @@ pub struct Pack {
     pub version: String,
     pub filter: FilterParams,
     pub window: WindowParams,
+    /// `time_default` lines by source id (Reports, Time quality).
+    pub time_default: BTreeMap<String, TimeDefault>,
     /// Pack order.
     pub rules: Vec<Rule>,
 }
@@ -127,7 +139,7 @@ pub fn load_pack(dir: &Path) -> Result<Pack, String> {
 }
 
 /// Values: a *number* is written `-?[0-9]+(\.[0-9]+)?`, read as the nearest
-/// binary64.
+/// binary64; a number whose nearest binary64 is infinite is a load error.
 fn number(s: &str) -> Result<f64, String> {
     let digits = |t: &str| !t.is_empty() && t.bytes().all(|b| b.is_ascii_digit());
     let body = s.strip_prefix('-').unwrap_or(s);
@@ -138,7 +150,11 @@ fn number(s: &str) -> Result<f64, String> {
     if !ok {
         return Err(format!("not a number: {:?}", s));
     }
-    s.parse::<f64>().map_err(|_| format!("not a number: {:?}", s))
+    let value = s.parse::<f64>().map_err(|_| format!("not a number: {:?}", s))?;
+    if value.is_infinite() {
+        return Err(format!("number not finite: {:?}", s));
+    }
+    Ok(value)
 }
 
 /// Values: an *integer* is written `[0-9]+`.
@@ -273,16 +289,39 @@ fn one_value(directive: &str, args: &[&str]) -> Result<String, String> {
     }
 }
 
-/// Parses the text of a `pack.def` (spec Pack): `#` starts a comment, blank
-/// lines are ignored, tokens are separated by spaces or tabs.
+/// Pack, steps 1 and 2: the lines of a `pack.def`. Lines end at LF; one CR
+/// at the end of a line is removed; a final LF does not start another line.
+/// A line that then holds a control character (U+0000 to U+001F other than
+/// tab, or U+007F, so also any other CR) is a load error.
+fn pack_lines(text: &str) -> Result<Vec<&str>, String> {
+    let mut lines: Vec<&str> = text.split('\n').collect();
+    if text.ends_with('\n') {
+        lines.pop();
+    }
+    let mut out = Vec::with_capacity(lines.len());
+    for (lineno, raw) in lines.into_iter().enumerate() {
+        let line = raw.strip_suffix('\r').unwrap_or(raw);
+        let control = |c: char| (c < '\u{20}' && c != '\t') || c == '\u{7f}';
+        if line.chars().any(control) {
+            return Err(format!("line {}: control character", lineno + 1));
+        }
+        out.push(line);
+    }
+    Ok(out)
+}
+
+/// Parses the text of a `pack.def` (spec Pack): steps 1 and 2 in
+/// `pack_lines`; 3. `#` starts a comment; 4. a line left empty is ignored;
+/// 5. tokens are separated by runs of space and tab, and by nothing else.
 pub fn parse_pack(text: &str) -> Result<Pack, String> {
     let mut name = None;
     let mut version = None;
     let mut filter = None;
     let mut window = None;
+    let mut time_default: BTreeMap<String, TimeDefault> = BTreeMap::new();
     let mut rules: Vec<Rule> = Vec::new();
 
-    for (lineno, raw) in text.lines().enumerate() {
+    for (lineno, raw) in pack_lines(text)?.into_iter().enumerate() {
         let line = raw.split('#').next().unwrap_or("");
         let tokens: Vec<&str> = line.split([' ', '\t']).filter(|t| !t.is_empty()).collect();
         let Some((directive, args)) = tokens.split_first() else { continue };
@@ -305,6 +344,14 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
                 once(window.is_some())?;
                 window = Some(parse_window(args).map_err(at)?);
             }
+            "time_default" => {
+                // The grammar of correlate.md Pack, with `error_ms` a number
+                // of this section's grammar; at most once per source id.
+                let (source, d) = parse_time_default(args, number).map_err(at)?;
+                if time_default.insert(source, d).is_some() {
+                    return Err(at("a second time_default for the same source".to_string()));
+                }
+            }
             "rule" => {
                 let rule = parse_rule(args, &rules).map_err(at)?;
                 rules.push(rule);
@@ -318,6 +365,7 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         version: version.ok_or("missing directive version")?,
         filter: filter.ok_or("missing directive filter")?,
         window: window.ok_or("missing directive window")?,
+        time_default,
         rules,
     })
 }

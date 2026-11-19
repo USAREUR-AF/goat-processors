@@ -2,7 +2,7 @@
 
 An implementation of `spec/correlate.md` (version 0.8),
 `spec/correlate-assign.md` (version 0.6), `spec/fuse.md` (version 0.2), the filter
-function `spec/filter.md` (version 0.1) and `spec/quality.md` (version 0.1) in Rust,
+function `spec/filter.md` (version 0.1) and `spec/quality.md` (version 0.2) in Rust,
 written from the
 specifications and the vectors only. The pack's `method` line selects which
 runs: `confirm` (the default) or `assign`. Standard library only; it carries
@@ -10,7 +10,7 @@ its own small JSON reader (`src/json.rs`).
 
 | File | Spec section |
 |---|---|
-| `src/pack.rs` | Pack: `load_pack(dir)` and `parse_pack(text)`, with `time_default` and `time_offset` |
+| `src/pack.rs` | Pack: `load_pack(dir)` and `parse_pack(text)`, with `time_default` (`parse_time_default`, shared with quality) and `time_offset` |
 | `src/filter.rs` | Frame; Track estimate (the per-axis Kalman steps, with a position variance per axis); Two-model filter |
 | `src/engine.rs` | Reports, Measurement variance and its `time` record, Restart (the test in `Engine::ingest`), Tests (with B's timing variance), Association, Events, Trace, Snapshot: `Engine::ingest`, `Engine::tick`, `Engine::snapshot` |
 | `src/engine/assign.rs` | `correlate-assign.md`: Memberships, Assignment of one source, Cost (with timing variance), Sensor bias (moving into a frame, the update, the time offset fit), Ranking (exhaustive enumeration), Window (with restarted entities and `margin`), Events, Trace, Snapshot |
@@ -25,8 +25,8 @@ its own small JSON reader (`src/json.rs`).
 | `tests/common/mod.rs` | `spec/vector-format.md`: the structural comparison, shared by all runners |
 | `tests/vectors.rs` | correlate vectors: `packs/correlate-*` and `spec/correlate-load-vectors` |
 | `tests/filter_vectors.rs` | filter vectors: `packs/filter-*` and `spec/filter-load-vectors` |
-| `src/quality.rs` | `spec/quality.md` 0.1: Reports, Order, Samples, Window, Entity and Source measures, Rules, Forwarding, Tick, Ingest, Events, Trace, Snapshot; reuses `src/filter.rs` for Frame and Track estimate |
-| `src/quality/pack.rs` | `spec/quality.md`, Pack: `quality::load_pack(dir)` and `quality::parse_pack(text)` |
+| `src/quality.rs` | `spec/quality.md` 0.2: Reports (with Time quality, resolved with `src/report.rs`), Order, Input clock, Samples, Window, Entity and Source measures, Rules, Forwarding, Tick, Ingest, Events, Trace, Snapshot; reuses `src/filter.rs` for Frame and Track estimate |
+| `src/quality/pack.rs` | `spec/quality.md` 0.2, Pack (line ends, control characters, `time_default` through `pack::parse_time_default`): `quality::load_pack(dir)` and `quality::parse_pack(text)` |
 | `tests/fuse_vectors.rs` | fuse vectors: `packs/fuse-*` and `spec/fuse-load-vectors` |
 | `tests/quality_vectors.rs` | quality vectors: `packs/quality-*` and `spec/quality-load-vectors` |
 
@@ -79,4 +79,4 @@ and `fuse_load_vectors` do the same for `packs/fuse-*/vectors/*.json` and
 see one line per vector.
 
 Points still open under correlate 0.8, correlate-assign 0.6, filter 0.1,
-fuse 0.2 and quality 0.1 are in `DISAGREEMENTS.md`.
+fuse 0.2 and quality 0.2 are in `DISAGREEMENTS.md`.
