@@ -1,22 +1,26 @@
 # goat-processors, C++ engine
 
-Two functions, correlate and fuse.
+Three functions: correlate, filter and fuse.
 
-## Correlate
+## Correlate and filter
 
-A C++17 implementation of `spec/correlate.md` (version 0.4, method `confirm`)
+A C++17 implementation of `spec/filter.md` (version 0.1) and of `spec/correlate.md` (version 0.4, method `confirm`)
 and `spec/correlate-assign.md` (version 0.2, method `assign`), written from the
 specifications and the vectors. The pack's `method` line selects which runs. It uses only the standard library and has its
 own small JSON reader.
 
 | File | Spec section |
 |---|---|
-| `src/track.cpp` | correlate.md Reports (reading keys, required keys), Frame, Track estimate; shared with fuse |
+| `src/track.cpp` | correlate.md Frame, Track estimate; shared with fuse |
 | `src/pack.cpp` | Pack (`parse_pack`, `load_pack`) |
 | `src/engine.cpp` | Reports, Frame, Track estimate, Tests, Association, Events, Trace, Snapshot; then correlate-assign.md: Assignment (with `min_cost_assignment`, the Hungarian method with potentials), Events, Trace, Snapshot |
+| `src/report.cpp` | correlate.md "Reports": required keys, optional-key rules, `type` elements; shared by all three functions |
+| `src/filter_pack.cpp` | filter.md "Pack": directives, rules, `when` lines, parameter sets, values |
+| `src/filter.cpp` | filter.md Geometry (distance, polygon, reference prediction), Conditions, Rules, Tick, Events, Trace, Snapshot |
 | `src/json.cpp` | JSON values for reports, events, trace and snapshot |
-| `test/compare.hpp` | the comparison in `spec/vector-format.md`, shared by both runners |
 | `test/run_vectors.cpp` | runs the correlate vectors |
+| `test/run_filter_vectors.cpp` | the same comparison for `packs/filter-*` and `spec/filter-load-vectors/` |
+| `test/vector_support.hpp` | the comparison in `spec/vector-format.md`, shared by the correlate, filter and fuse runners |
 | `test/assignment_test.cpp` | `min_cost_assignment` against brute force on random matrices |
 
 API, in `src/engine.hpp` and `src/pack.hpp`:
@@ -27,6 +31,13 @@ corr::Engine engine(pack);
 corr::Output out = engine.ingest(report);          // out.events, out.trace
 out = engine.tick(now_ms);
 corr::Json state = engine.snapshot();
+
+// The filter (spec/filter.md 0.1), in src/filter.hpp and src/filter_pack.hpp:
+corr::filter::Pack fpack = corr::filter::load_pack("packs/filter-area");  // throws corr::PackError
+corr::filter::Engine filter(fpack);
+corr::Output fout = filter.ingest(report);          // fout.events, fout.trace
+fout = filter.tick(now_ms);
+corr::Json fstate = filter.snapshot();
 ```
 
 ## Build and run the vectors
@@ -40,7 +51,9 @@ cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir
 The ctest test `vectors` runs `run_vectors <repo root>`. It runs every
 scenario vector under `packs/correlate-*/vectors/` and checks each step's events and
 trace, then the final snapshot. It also runs every load vector under
-`spec/correlate-load-vectors/`. The ctest test `assignment` checks the
+`spec/correlate-load-vectors/`. The ctest test `filter_vectors` runs `run_filter_vectors <repo root>`: every
+scenario vector under `packs/filter-*/vectors/` and every load vector under
+`spec/filter-load-vectors/`. The ctest test `assignment` checks the
 assignment solver against brute force. `run_vectors` prints `PASS` or `FAIL` for each vector, and for a
 failure the path of the first mismatch, for example
 `steps[1].trace[0].value: number differs (...)`. You can also run it by hand:
@@ -52,8 +65,9 @@ build/cpp/run_vectors .
 ## Fuse
 
 A C++17 implementation of `spec/fuse.md` (version 0.1), in its own module
-(`corr::fuse`). It reuses the correlate engine's filter, frame and report
-reading from `src/track.cpp`, as fuse.md "Shared with correlate.md" cites.
+(`corr::fuse`). It reuses the correlate engine's filter and frame from
+`src/track.cpp` and its report reading from `src/report.cpp`, as fuse.md
+"Shared with correlate.md" cites.
 
 | File | Spec section |
 |---|---|

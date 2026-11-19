@@ -47,3 +47,25 @@ them.
 - `inverse_variance` with one member (fuse.md "Kinematics"): the spec says
   every method gives that member's predicted filter, so the engine returns it
   as is rather than through `1/(1/pp)`, which can differ in the last bit.
+
+# Filter (spec/filter.md 0.1)
+
+No filter vector contradicts filter.md 0.1 as this engine reads it. The
+entries below are its open points and the reading this engine takes. No
+vector covers them.
+
+## Integers above 2^53 and outside the signed 64-bit range (filter.md "Open points")
+
+- Reports are read by the same JSON reader as the correlator, so the
+  correlator entry above applies: a literal outside the signed 64-bit range
+  is a number that is not an integer (`missing:time_ms`, or `stale_ms`
+  absent). `key` eq, in and range, `speed` and `altitude` compare the
+  binary64 value of an integer, so integers above 2^53 compare after
+  rounding to binary64.
+
+## A reference near a pole (filter.md "Open points", Geometry)
+
+- The reference prediction divides by `R * cos(rad(lat))` as written. Near a
+  pole the longitude can become very large; `wrap` then reduces a magnitude
+  above 1e6 with `fmod(x, 360)` (exact) before the add-or-subtract loop, so it
+  always ends, and passes an infinite or NaN longitude through unchanged.

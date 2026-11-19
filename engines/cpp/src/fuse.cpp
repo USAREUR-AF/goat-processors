@@ -1,13 +1,19 @@
-// fuse.md, section by section. Frame, Track estimate and the reading of
-// report keys are correlate.md's, from track.hpp (fuse.md "Shared with
-// correlate.md").
+// fuse.md, section by section. Frame and Track estimate are correlate.md's,
+// from track.hpp; the reading of report keys is correlate.md's, from
+// report.hpp (fuse.md "Shared with correlate.md").
 #include "fuse.hpp"
+#include "report.hpp"
 
 #include <cmath>
 
 namespace corr::fuse {
 
 namespace {
+
+using report::ce_at;
+using report::is_integer;
+using report::missing_required;
+using report::number_at;
 
 Json event(const char* ev) {
     Json e = Json::make_object();

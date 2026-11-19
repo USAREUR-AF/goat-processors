@@ -1,0 +1,5 @@
+{
+ "name": "43-key-without-test",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 1000\nrule r drop\nwhen key name=k\n",
+ "expect_error": true
+}

@@ -11,10 +11,10 @@
 #include <string>
 #include <vector>
 
-#include "compare.hpp"
 #include "fuse.hpp"
 #include "fuse_pack.hpp"
 #include "json.hpp"
+#include "vector_support.hpp"
 
 namespace fs = std::filesystem;
 using corr::Json;

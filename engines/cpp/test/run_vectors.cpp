@@ -14,7 +14,7 @@
 #include "engine.hpp"
 #include "json.hpp"
 #include "pack.hpp"
-#include "compare.hpp"
+#include "vector_support.hpp"
 
 namespace fs = std::filesystem;
 using corr::Json;
@@ -71,7 +71,8 @@ int main(int argc, char** argv) {
 
     std::vector<fs::path> packs;
     for (const auto& e : fs::directory_iterator(root / "packs"))
-        if (e.is_directory() && e.path().filename().string().rfind("correlate-", 0) == 0) packs.push_back(e.path());
+        if (e.is_directory() && e.path().filename().string().rfind("correlate-", 0) == 0)
+            packs.push_back(e.path());
     std::sort(packs.begin(), packs.end());
     for (const auto& pack : packs) {
         for (const auto& f : json_files(pack / "vectors")) {

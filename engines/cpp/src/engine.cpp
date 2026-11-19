@@ -1,4 +1,5 @@
 #include "engine.hpp"
+#include "report.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -9,20 +10,17 @@ namespace corr {
 
 namespace {
 
+// Spec "Reports" helpers live in report.hpp, shared with the filter and fuse.
+using report::ce_at;
+using report::is_integer;
+using report::number_at;
+
 // Spec "Reports": `@env` is the third `-`-separated element of `type`.
 std::optional<Json> same_value(const Json& r, const std::string& key) {
     if (key == "@env") {
-        const Json* t = r.find("type");
-        if (!t || !t->is_string()) return std::nullopt;
-        std::vector<std::string> parts;
-        std::string cur;
-        for (char c : t->string) {
-            if (c == '-') { parts.push_back(cur); cur.clear(); }
-            else cur += c;
-        }
-        parts.push_back(cur);
-        if (parts.size() < 3) return std::nullopt;
-        return Json(parts[2]);
+        auto env = report::type_element(r, 2);
+        if (!env) return std::nullopt;
+        return Json(*env);
     }
     const Json* v = r.find(key);
     if (!v || v->is_null()) return std::nullopt;
@@ -272,7 +270,7 @@ Output Engine::ingest(const Json& r) {
     Output out;
 
     // Spec "Reports": required keys, in table order.
-    if (auto missing = missing_required(r)) {
+    if (auto missing = report::missing_required(r)) {
         Json ev = event("reject");
         ev["reason"] = "missing:" + *missing;
         out.events.push(ev);

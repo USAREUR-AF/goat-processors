@@ -1,0 +1,5 @@
+{
+ "name": "10-bad-default",
+ "pack_def": "pack x\nversion 0.1.0\ndefault pass\nforget_ms 1000\n",
+ "expect_error": true
+}

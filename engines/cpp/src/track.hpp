@@ -1,5 +1,5 @@
-// The parts of correlate.md that more than one function uses: Reports (how a
-// key is read), Frame, and Track estimate (the per-entity filter). The
+// The parts of correlate.md that more than one function uses: Frame and
+// Track estimate (the per-entity filter); Reports is in report.hpp. The
 // correlate engine (engine.cpp) and the fuse engine (fuse.cpp) both use these,
 // so the two functions run the same filter with the same operations.
 #pragma once
@@ -34,15 +34,9 @@ std::pair<double, double> to_degrees(double lat0, double lon0, double east, doub
 
 // ---- correlate.md "Reports" ------------------------------------------------
 
-// A number-valued key; absent when missing, null or not a number.
-std::optional<double> number_at(const Json& r, const std::string& key);
-// `ce`, absent also when 0 or below.
-std::optional<double> ce_at(const Json& r);
-// An integer: a JSON number written without a fraction or an exponent.
-bool is_integer(const Json* v);
-// The first required key that is missing (absent, null or of the wrong
-// type), checked in the order of the Reports table; nullopt when none is.
-std::optional<std::string> missing_required(const Json& r);
+// How a key is read (number_at, ce_at, is_integer, missing_required) is in
+// report.hpp, shared with the filter.
+
 // The velocity measurement (east, north), when the report has both `course`
 // and `speed_ms`.
 std::optional<Point> measured_velocity(const Json& r);

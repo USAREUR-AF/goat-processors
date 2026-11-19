@@ -1,4 +1,5 @@
 #include "track.hpp"
+#include "report.hpp"
 
 #include <cmath>
 
@@ -25,35 +26,8 @@ std::pair<double, double> to_degrees(double lat0, double lon0, double east, doub
 
 // ---- Reports ---------------------------------------------------------------
 
-std::optional<double> number_at(const Json& r, const std::string& key) {
-    const Json* v = r.find(key);
-    if (!v || !v->is_number()) return std::nullopt;
-    return v->number;
-}
-
-std::optional<double> ce_at(const Json& r) {
-    auto ce = number_at(r, "ce");
-    if (ce && *ce <= 0) return std::nullopt;
-    return ce;
-}
-
-bool is_integer(const Json* v) { return v && v->is_number() && v->is_int; }
-
-std::optional<std::string> missing_required(const Json& r) {
-    const std::pair<const char*, char> required[] = {
-        {"track.source_id", 's'}, {"uid", 's'}, {"time_ms", 'i'}, {"lat", 'n'}, {"lon", 'n'}};
-    for (const auto& req : required) {
-        const Json* v = r.find(req.first);
-        bool ok = req.second == 's' ? v && v->is_string()
-                : req.second == 'i' ? is_integer(v)
-                                    : v && v->is_number();
-        if (!ok) return std::string(req.first);
-    }
-    return std::nullopt;
-}
-
 std::optional<Point> measured_velocity(const Json& r) {
-    auto course = number_at(r, "course"), speed = number_at(r, "speed_ms");
+    auto course = report::number_at(r, "course"), speed = report::number_at(r, "speed_ms");
     if (!course || !speed) return std::nullopt;
     return Point{*speed * std::sin(rad(*course)), *speed * std::cos(rad(*course))};
 }

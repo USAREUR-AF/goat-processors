@@ -10,8 +10,9 @@ model; goat-processors reads that model.
 |---|---|
 | correlate | Written (specification 0.4) and built in seven languages |
 | correlate, method assign | Written (specification 0.2) and built in seven languages |
-| fuse | Written (specification 0.1), built in Python |
-| filter, quality | Designed, not built ([spec/README.md](spec/README.md)) |
+| filter | Written (specification 0.1) and built in seven languages |
+| fuse | Written (specification 0.1) and built in seven languages |
+| quality | Designed, not built ([spec/README.md](spec/README.md)) |
 
 Every decision is explainable from the output. Each test a function runs is a
 trace record naming the inputs, the value computed, the limit and the result,
@@ -28,6 +29,7 @@ replaying the same input gives the same output and trace in every language.
 | `packs/<function>-<name>/vectors/` | scenarios with their exact expected events, trace and final state |
 | `engines/<language>/` | one independent engine per language: Python, Rust, Go, Java, C++, Erlang, Zig |
 | `tools/make-vectors.py` | the scenarios, with their decisions stated by hand |
+| `tools/bench/` | ground-truth scenarios and scores for every pack; results in [docs/benchmark.md](docs/benchmark.md) |
 
 ## Correlate packs
 
