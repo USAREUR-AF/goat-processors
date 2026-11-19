@@ -3,9 +3,10 @@
 Implementations, in Java 17 with only the standard library, of
 
 - the correlator: `spec/correlate.md` (version 0.4) and `spec/correlate-assign.md` (version 0.2), package `correlator`;
-- the filter: `spec/filter.md` (version 0.1), package `filter`.
+- the filter: `spec/filter.md` (version 0.1), package `filter`;
+- the fuser: `spec/fuse.md` (version 0.1), package `fuse`.
 
-Both were written from the specifications and the vectors, without reading any other engine.
+All were written from the specifications and the vectors, without reading any other engine.
 
 ## Correlator (`src/correlator/`)
 
@@ -39,6 +40,19 @@ a float (so it is not an integer), and integers above 2^53 compare as their
 nearest binary64; near a pole the reference prediction divides by
 `cos(rad(lat))` as written.
 
+## Fuse (`src/fuse/`)
+
+| File | Spec section |
+|---|---|
+| `FusePack.java` | fuse.md, Pack (`load_pack`, the `pack.def` parser) |
+| `Fuse.java` | fuse.md, Reports, Groups, On each tick, Fused event, Kinematics, Attributes, Events, Trace, Snapshot; it reuses the correlate engine's `Axis` filter, Frame conversions and inverse-variance estimate, which fuse.md cites |
+| `FuseVectorTest.java` | `spec/vector-format.md` for the fuser: `spec/fuse-load-vectors/` and `packs/fuse-*`, with the comparison of `correlator.VectorTest` |
+
+No fuse vector contradicts `spec/fuse.md`. On its two open points this engine
+compares two integer attribute values exactly and any other pair of numbers as
+binary64, and an integer literal outside the signed 64-bit range is read as a
+binary64 number.
+
 ## Build and run the vectors
 
 ```
@@ -46,7 +60,8 @@ engines/java/build.sh
 ```
 
 The script compiles with `javac --release 17 -Xlint:all -Werror` into
-`engines/java/build/`, then runs the correlator vectors and the filter vectors.
+`engines/java/build/`, then runs the correlator vectors, the filter vectors and the fuse vectors,
+each with one summary line.
 For a scenario vector it checks each step's events and trace, then the final
 snapshot. A failing vector prints the path of its first mismatch, for example
 `steps[1].trace[0].value: got 0.2777765689606809, want 0.2778`. The script
