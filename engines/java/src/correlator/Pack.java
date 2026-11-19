@@ -53,6 +53,11 @@ public final class Pack {
     /** Spec: Pack, `method`; false is `confirm` (correlate.md), true is `assign` (correlate-assign.md). */
     public boolean methodAssign = false;
     public double newCost, keepBonus;
+    /** correlate-assign.md, Window: {@code window <n>} and {@code hypotheses <k>}, both default 1. */
+    public long window = 1, hypotheses = 1;
+    /** correlate.md, Two-model filter: the {@code manoeuvre} line, when present. */
+    public boolean manoeuvre = false;
+    public double manoeuvreAccelVar, pEnter, pLeave;
 
     /** Spec: Tests table, the parameters of each test. */
     private static final Map<String, List<String>> TESTS = new LinkedHashMap<>();
@@ -67,9 +72,11 @@ public final class Pack {
     }
 
     private static final List<String> FILTER = List.of("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms");
+    private static final List<String> MANOEUVRE = List.of("accel_var", "p_enter", "p_leave");
     private static final Set<String> REPEATING = Set.of("gate", "confirm", "hold", "priority");
     private static final Set<String> SINGLE = Set.of("pack", "version", "method", "filter", "confirm_count",
-            "hold_failures", "stale_ms", "same_source", "output", "new_cost", "keep_bonus");
+            "hold_failures", "stale_ms", "same_source", "output", "new_cost", "keep_bonus", "manoeuvre", "window",
+            "hypotheses");
     private static final List<String> REQUIRED = List.of("pack", "version", "filter", "confirm_count",
             "hold_failures", "stale_ms");
     /** Spec: correlate-assign.md, Pack. */
@@ -77,7 +84,7 @@ public final class Pack {
             "new_cost", "keep_bonus", "stale_ms");
     private static final Set<String> ONLY_CONFIRM = Set.of("confirm", "hold", "confirm_count", "hold_failures",
             "same_source", "output", "priority");
-    private static final Set<String> ONLY_ASSIGN = Set.of("new_cost", "keep_bonus");
+    private static final Set<String> ONLY_ASSIGN = Set.of("new_cost", "keep_bonus", "window", "hypotheses");
     private static final Pattern DECIMAL = Pattern.compile("[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?");
     private static final Pattern INTEGER = Pattern.compile("[+-]?[0-9]+");
 
@@ -128,6 +135,22 @@ public final class Pack {
                     pk.unknownVel = positive(dec(kv.get("unknown_vel_ms"), ln), "unknown_vel_ms", ln);
                     break;
                 }
+                case "manoeuvre": {
+                    Map<String, String> kv = params(tok, 1, ln);
+                    if (!kv.keySet().equals(new HashSet<>(MANOEUVRE)))
+                        throw new LoadError(ln, "manoeuvre takes " + MANOEUVRE);
+                    // correlate.md, Pack: p_enter and p_leave above 0 with a sum below 1; accel_var
+                    // above filter's is checked once the whole file is read.
+                    pk.manoeuvre = true;
+                    pk.manoeuvreAccelVar = dec(kv.get("accel_var"), ln);
+                    pk.pEnter = positive(dec(kv.get("p_enter"), ln), "p_enter", ln);
+                    pk.pLeave = positive(dec(kv.get("p_leave"), ln), "p_leave", ln);
+                    if (!(pk.pEnter + pk.pLeave < 1)) throw new LoadError(ln, "p_enter + p_leave must be below 1");
+                    break;
+                }
+                // correlate-assign.md, Pack: integers, 1 or above, written as one value.
+                case "window": pk.window = atLeastOne(integer(one(tok, ln), ln), "window", ln); break;
+                case "hypotheses": pk.hypotheses = atLeastOne(integer(one(tok, ln), ln), "hypotheses", ln); break;
                 case "gate": pk.gate.add(test(tok, ln)); break;
                 case "confirm": pk.confirm.add(test(tok, ln)); break;
                 case "hold": pk.hold.add(test(tok, ln)); break;
@@ -162,6 +185,9 @@ public final class Pack {
                         + (pk.methodAssign ? "assign" : "confirm"));
         for (String r : pk.methodAssign ? REQUIRED_ASSIGN : REQUIRED)
             if (!seen.contains(r)) throw new LoadError("missing directive " + r);
+        if (pk.manoeuvre && !(pk.manoeuvreAccelVar > pk.accelVar))
+            throw new LoadError("manoeuvre accel_var must be above filter accel_var");
+        if (pk.hypotheses > 1 && pk.window <= 1) throw new LoadError("hypotheses above 1 needs window above 1");
         return pk;
     }
 
@@ -209,6 +235,11 @@ public final class Pack {
 
     private static double nonNegative(double v, String name, int ln) throws LoadError {
         if (!(v >= 0)) throw new LoadError(ln, name + " must be 0 or above");
+        return v;
+    }
+
+    private static long atLeastOne(long v, String name, int ln) throws LoadError {
+        if (v < 1) throw new LoadError(ln, name + " must be 1 or above");
         return v;
     }
 

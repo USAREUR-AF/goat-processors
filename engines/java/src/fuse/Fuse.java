@@ -1,7 +1,7 @@
 package fuse;
 
 import correlator.Engine;
-import correlator.Engine.Axis;
+import correlator.Filter.Axis;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

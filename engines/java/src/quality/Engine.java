@@ -1,6 +1,6 @@
 package quality;
 
-import correlator.Engine.Axis;
+import correlator.Filter.Axis;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -15,7 +15,7 @@ import static correlator.Engine.KEY_ORDER;
 /**
  * The quality function: load_pack, ingest, tick, snapshot (spec/quality.md).
  * The frame and the per-entity filter are the correlate engine's own
- * (correlator.Engine.toPlane and correlator.Engine.Axis), as quality.md cites them.
+ * (correlator.Engine.toPlane and correlator.Filter.Axis), as quality.md cites them.
  */
 public final class Engine {
 
