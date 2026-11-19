@@ -60,8 +60,7 @@ including replaying a benchmark run against its ground truth.
 ## Every decision is observable
 
 A function decides nothing that is not in its trace. Each test is a record of
-its stage, the two entities, the test, the value computed, the limit and the
-result.
+what it compared, the value it computed, the limit and the result.
 
 Step 3 of [`04-separation-dissolves.json`](packs/correlate-gnn/vectors/04-separation-dissolves.json) ingests a report from `radar-1/T1`. The engine's first test of it against `adsb/A7` is this record, copied from the vector:
 

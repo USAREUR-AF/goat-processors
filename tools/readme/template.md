@@ -50,8 +50,7 @@ including replaying a benchmark run against its ground truth.
 ## Every decision is observable
 
 A function decides nothing that is not in its trace. Each test is a record of
-its stage, the two entities, the test, the value computed, the limit and the
-result.
+what it compared, the value it computed, the limit and the result.
 
 {{trace_example}}
 
