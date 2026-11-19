@@ -10,7 +10,8 @@ model; goat-processors reads that model.
 |---|---|
 | correlate | Written (specification 0.4) and built in seven languages |
 | correlate, method assign | Written (specification 0.2) and built in seven languages |
-| fuse, filter, quality | Designed, not built ([spec/README.md](spec/README.md)) |
+| fuse | Written (specification 0.1), built in Python |
+| filter, quality | Designed, not built ([spec/README.md](spec/README.md)) |
 
 Every decision is explainable from the output. Each test a function runs is a
 trace record naming the inputs, the value computed, the limit and the result,

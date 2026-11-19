@@ -1,0 +1,306 @@
+{
+ "name": "12-best-and-max-min",
+ "pack": "fuse-best",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "a",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "fuse.group": "s1",
+    "ce": 20,
+    "track.simulated": 0,
+    "track.confirmed": 1,
+    "track.confidence": 0.7
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/a",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-2",
+    "uid": "b",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.000269837,
+    "fuse.group": "s1",
+    "ce": 50,
+    "hae": 500,
+    "track.simulated": 1,
+    "track.confirmed": 1,
+    "track.confidence": 0.9
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-2/b",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-3",
+    "uid": "c",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.000539674,
+    "fuse.group": "s1",
+    "ce": 20,
+    "track.simulated": true,
+    "track.confirmed": true,
+    "track.confidence": "high"
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-3/c",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "tick": 0,
+   "expect": [
+    {
+     "ev": "fused",
+     "group": "s1",
+     "members": [
+      "radar-1/a",
+      "radar-2/b",
+      "radar-3/c"
+     ],
+     "from": "radar-1/a",
+     "lat": 1.0,
+     "lon": 1.0,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 20.0,
+     "attributes": {
+      "track.simulated": {
+       "value": 1,
+       "from": "radar-2/b"
+      },
+      "track.confirmed": {
+       "value": 1,
+       "from": "radar-1/a"
+      },
+      "track.confidence": {
+       "value": 0.9,
+       "from": "radar-2/b"
+      }
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "kinematics",
+     "group": "s1",
+     "method": "best",
+     "candidates": [
+      {
+       "member": "radar-1/a",
+       "var": 800.0,
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-2/b",
+       "var": 5000.0,
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-3/c",
+       "var": 800.0,
+       "time_ms": 0,
+       "rank": null
+      }
+     ],
+     "winner": "radar-1/a"
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "track.simulated",
+     "rule": "max",
+     "candidates": [
+      {
+       "member": "radar-1/a",
+       "value": 0,
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-2/b",
+       "value": 1,
+       "time_ms": 0,
+       "rank": null
+      }
+     ],
+     "winner": "radar-2/b",
+     "value": 1
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "track.confirmed",
+     "rule": "min",
+     "candidates": [
+      {
+       "member": "radar-1/a",
+       "value": 1,
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-2/b",
+       "value": 1,
+       "time_ms": 0,
+       "rank": null
+      }
+     ],
+     "winner": "radar-1/a",
+     "value": 1
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "track.confidence",
+     "rule": "max",
+     "candidates": [
+      {
+       "member": "radar-1/a",
+       "value": 0.7,
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-2/b",
+       "value": 0.9,
+       "time_ms": 0,
+       "rank": null
+      }
+     ],
+     "winner": "radar-2/b",
+     "value": 0.9
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {
+   "radar-1/a": {
+    "last_time_ms": 0,
+    "group": "s1",
+    "filter": {
+     "east": [
+      0.0,
+      0.0,
+      400.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      400.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 20,
+     "fuse.group": "s1",
+     "lat": 1.0,
+     "lon": 1.0,
+     "time_ms": 0,
+     "track.confidence": 0.7,
+     "track.confirmed": 1,
+     "track.simulated": 0,
+     "track.source_id": "radar-1",
+     "uid": "a"
+    }
+   },
+   "radar-2/b": {
+    "last_time_ms": 0,
+    "group": "s1",
+    "filter": {
+     "east": [
+      29.999977027163613,
+      0.0,
+      2500.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      2500.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 50,
+     "fuse.group": "s1",
+     "hae": 500,
+     "lat": 1.0,
+     "lon": 1.000269837,
+     "time_ms": 0,
+     "track.confidence": 0.9,
+     "track.confirmed": 1,
+     "track.simulated": 1,
+     "track.source_id": "radar-2",
+     "uid": "b"
+    }
+   },
+   "radar-3/c": {
+    "last_time_ms": 0,
+    "group": "s1",
+    "filter": {
+     "east": [
+      59.999954054327226,
+      0.0,
+      400.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      400.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 20,
+     "fuse.group": "s1",
+     "lat": 1.0,
+     "lon": 1.000539674,
+     "time_ms": 0,
+     "track.confidence": "high",
+     "track.confirmed": true,
+     "track.simulated": true,
+     "track.source_id": "radar-3",
+     "uid": "c"
+    }
+   }
+  }
+ }
+}
