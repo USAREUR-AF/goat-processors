@@ -8,7 +8,7 @@
 <rect x="322" y="212" width="236" height="124" rx="8" fill="#132c4c" stroke="#4493f8" stroke-width="2"/>
 <text x="440" y="244" font-size="15" fill="#e6edf3" text-anchor="middle" font-weight="600" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">packs/*/vectors</text>
 <text x="440" y="270" font-size="14" fill="#e6edf3" text-anchor="middle">102 vectors · 650 steps</text>
-<text x="440" y="292" font-size="14" fill="#e6edf3" text-anchor="middle">3009 trace records</text>
+<text x="440" y="292" font-size="14" fill="#e6edf3" text-anchor="middle">3,009 trace records</text>
 <text x="440" y="314" font-size="14" fill="#9198a1" text-anchor="middle">+ 170 load vectors</text>
 <rect x="366" y="90" width="148" height="56" rx="8" fill="#12261e" stroke="#3fb950" stroke-width="1.5"/>
 <text x="440" y="113" font-size="15" fill="#e6edf3" text-anchor="middle" font-weight="600">Python</text>

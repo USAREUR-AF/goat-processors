@@ -17,14 +17,7 @@
 <text x="36" y="286.4" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">net-a</text>
 <text x="36" y="306" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">other</text>
 <text x="36" y="325.6" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">own</text>
-<text x="36" y="345.2" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">radar-1</text>
-<text x="36" y="364.8" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">radar-2</text>
-<text x="36" y="384.4" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">radar-3</text>
-<text x="36" y="404" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">range</text>
-<text x="36" y="423.6" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">sat</text>
-<text x="36" y="443.2" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">trk-a</text>
-<text x="36" y="462.8" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">trk-b</text>
-<text x="36" y="482.4" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">zz</text>
+<text x="36" y="345.2" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">+ 8 more</text>
 <rect x="166" y="92" width="128" height="274" rx="8" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="5 4"/>
 <text x="178" y="120" font-size="15" fill="#1f2328" text-anchor="start" font-weight="600">goat-</text>
 <text x="178" y="140" font-size="15" fill="#1f2328" text-anchor="start" font-weight="600">transformers</text>
@@ -46,17 +39,7 @@
 <text x="330" y="278.2" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">type</text>
 <text x="330" y="297.3" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">track.simulated</text>
 <text x="330" y="316.3" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">hae</text>
-<text x="330" y="335.4" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">course</text>
-<text x="330" y="354.4" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">speed_ms</text>
-<text x="330" y="373.4" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">mission</text>
-<text x="330" y="392.5" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">priority</text>
-<text x="330" y="411.5" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">fuse.group</text>
-<text x="330" y="430.6" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">track.confirmed</text>
-<text x="330" y="449.6" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">track.confidence</text>
-<text x="330" y="468.6" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">callsign</text>
-<text x="330" y="487.7" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">track.class</text>
-<text x="330" y="506.7" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">quality.marks</text>
-<text x="330" y="525.8" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">received_ms</text>
+<text x="330" y="335.4" font-size="14" fill="#1f2328" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">+ 12 more keys</text>
 <rect x="518" y="92" width="230" height="274" rx="8" fill="#f6f8fa" stroke="#0969da" stroke-width="2"/>
 <text x="532" y="120" font-size="15" fill="#1f2328" text-anchor="start" font-weight="600">goat-processors</text>
 <rect x="530" y="136" width="206" height="50" rx="6" fill="#dafbe1" stroke="#1a7f37" stroke-width="1"/>

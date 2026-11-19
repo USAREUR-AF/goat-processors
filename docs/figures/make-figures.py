@@ -200,6 +200,14 @@ def badge(f, x, y, label):
     f.text(x, y + 4.5, label, 13, fill="paper", anchor="middle", bold=True)
 
 
+def fit_list(items, rows, more):
+    """At most `rows` lines: the items in order, the last line '+ N more' when they do not fit."""
+    rows = int(rows)
+    if len(items) <= rows:
+        return items
+    return items[:rows - 1] + ["+ %d %s" % (len(items) - rows + 1, more)]
+
+
 # ---------------------------------------------------------------- figure 1
 def fig_pipeline():
     status = function_status()
@@ -217,7 +225,7 @@ def fig_pipeline():
     f.rect(x, top, w, hgt)
     f.text(x + 12, top + 28, "Sources", 15, bold=True)
     y = f.lines(x + 12, top + 52, ["in the", "vectors:"], 13, fill="quiet")
-    f.lines(x + 12, y + 8, sources, 14, mono=True)
+    f.lines(x + 12, y + 8, fit_list(sources, (top + hgt - 16 - (y + 8)) // (14 * 1.4) + 1, "more"), 14, mono=True)
     x, w = cols[1]
     f.rect(x, top, w, hgt, dash="5 4")
     f.text(x + 12, top + 28, "goat-", 15, bold=True)
@@ -228,7 +236,7 @@ def fig_pipeline():
     f.rect(x, top, w, hgt, fill="accent_soft", stroke="accent")
     f.text(x + 12, top + 28, "Shared model", 15, bold=True)
     f.text(x + 12, top + 48, "one report:", 13, fill="quiet")
-    f.lines(x + 12, top + 72, [k for k in keys if k != "stale_ms"], 14, lead=1.36, mono=True)
+    f.lines(x + 12, top + 72, fit_list(keys, (hgt - 72 - 16) // (14 * 1.36) + 1, "more keys"), 14, lead=1.36, mono=True)
     x, w = cols[3]
     f.rect(x, top, w, hgt, stroke="accent", sw=2)
     f.text(x + 14, top + 28, "goat-processors", 15, bold=True)
@@ -472,8 +480,8 @@ def fig_engines():
     w, h = 236, 124
     f.rect(cx - w / 2, cy - h / 2, w, h, fill="accent_soft", stroke="accent", sw=2)
     f.text(cx, cy - 30, "packs/*/vectors", 15, anchor="middle", bold=True, mono=True)
-    f.text(cx, cy - 4, "%d vectors · %d steps" % (len(vs), steps), 14, anchor="middle")
-    f.text(cx, cy + 18, "%d trace records" % traces, 14, anchor="middle")
+    f.text(cx, cy - 4, "%s vectors · %s steps" % (format(len(vs), ","), format(steps, ",")), 14, anchor="middle")
+    f.text(cx, cy + 18, "%s trace records" % format(traces, ","), 14, anchor="middle")
     f.text(cx, cy + 40, "+ %d load vectors" % loads, 14, anchor="middle", fill="quiet")
     bw, bh = 148, 56
     rx, ry = 318, 156
