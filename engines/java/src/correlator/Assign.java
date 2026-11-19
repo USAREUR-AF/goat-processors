@@ -355,23 +355,12 @@ final class Assign {
      * axis by inverse-variance weights, members in key order. pv of the result is unused and 0.
      */
     private static Filter.Axis[] fusedEstimate(List<Entity> members, long t) {
-        double[] invPP = new double[2], sumP = new double[2], invVV = new double[2], sumV = new double[2];
+        List<Filter.Axis[]> predicted = new ArrayList<>();
         for (Entity m : members) {
             Engine.Predicted pr = new Engine.Predicted(m, t);
-            Filter.Axis[] axes = {pr.east, pr.north};
-            for (int k = 0; k < 2; k++) {
-                invPP[k] += 1 / axes[k].pp;
-                sumP[k] += axes[k].p / axes[k].pp;
-                invVV[k] += 1 / axes[k].vv;
-                sumV[k] += axes[k].v / axes[k].vv;
-            }
+            predicted.add(new Filter.Axis[] {pr.east, pr.north});
         }
-        Filter.Axis[] out = new Filter.Axis[2];
-        for (int k = 0; k < 2; k++) {
-            double pp = 1 / invPP[k], vv = 1 / invVV[k];
-            out[k] = new Filter.Axis(pp * sumP[k], vv * sumV[k], pp, 0, vv);
-        }
-        return out;
+        return Engine.inverseVariance(predicted);
     }
 
     /** Cost: d² of A against the fused estimate of M at A's last_time_ms. */

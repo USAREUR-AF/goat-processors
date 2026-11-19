@@ -11,7 +11,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/** Runs every scenario vector and load vector (spec/vector-format.md). */
+/**
+ * Runs every correlate scenario vector (packs/correlate-*) and correlate load
+ * vector (spec/correlate-load-vectors) of spec/vector-format.md.
+ */
 public final class VectorTest {
 
     public static void main(String[] args) throws IOException {
@@ -23,15 +26,14 @@ public final class VectorTest {
             if (why == null) pass++;
             else { fail++; System.out.println("FAIL " + root.relativize(f) + ": " + why); }
         }
-        // Only the correlate packs: packs/correlate-*/vectors/*.json.
-        for (Path packDir : listDirs(root.resolve("packs"))) {
+        for (Path packDir : listDirs(root.resolve("packs"), "correlate-")) {
             for (Path f : list(packDir.resolve("vectors"))) {
                 String why = runScenario(root, f);
                 if (why == null) pass++;
                 else { fail++; System.out.println("FAIL " + root.relativize(f) + ": " + why); }
             }
         }
-        System.out.println(pass + " passed, " + fail + " failed");
+        System.out.println("correlate: " + pass + " passed, " + fail + " failed");
         System.exit(fail == 0 ? 0 : 1);
     }
 
@@ -72,7 +74,7 @@ public final class VectorTest {
     }
 
     /** Structural equality of vector-format.md; returns the first mismatch path, or null. */
-    static String diff(String path, Object got, Object want) {
+    public static String diff(String path, Object got, Object want) {
         if (want == null || got == null) {
             return want == null && got == null ? null : mismatch(path, got, want);
         }
@@ -111,21 +113,22 @@ public final class VectorTest {
         return path + ": got " + Json.write(got) + ", want " + Json.write(want);
     }
 
-    private static String read(Path f) throws IOException {
+    public static String read(Path f) throws IOException {
         return new String(Files.readAllBytes(f), StandardCharsets.UTF_8);
     }
 
-    private static List<Path> list(Path dir) throws IOException {
+    public static List<Path> list(Path dir) throws IOException {
         if (!Files.isDirectory(dir)) return List.of();
         try (Stream<Path> s = Files.list(dir)) {
             return s.filter(p -> p.toString().endsWith(".json")).sorted().collect(Collectors.toList());
         }
     }
 
-    private static List<Path> listDirs(Path dir) throws IOException {
+    /** The subdirectories of dir whose name starts with prefix, sorted. */
+    public static List<Path> listDirs(Path dir, String prefix) throws IOException {
         try (Stream<Path> s = Files.list(dir)) {
             return s.filter(Files::isDirectory)
-                    .filter(p -> p.getFileName().toString().startsWith("correlate-"))
+                    .filter(p -> p.getFileName().toString().startsWith(prefix))
                     .sorted().collect(Collectors.toList());
         }
     }

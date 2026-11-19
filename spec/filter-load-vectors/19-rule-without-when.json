@@ -1,0 +1,5 @@
+{
+ "name": "19-rule-without-when",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 1000\nrule r drop\n",
+ "expect_error": true
+}

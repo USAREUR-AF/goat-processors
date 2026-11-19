@@ -9,22 +9,22 @@ import java.util.Map;
  * An entity's estimate: correlate.md, Track estimate (one constant-velocity filter) and
  * Two-model filter (two such filters with shared mode probabilities).
  */
-final class Filter {
+public final class Filter {
 
     /** Track estimate: one axis of the constant-velocity filter, {@code [p, v, pp, pv, vv]}. */
-    static final class Axis {
-        double p, v, pp, pv, vv;
+    public static final class Axis {
+        public double p, v, pp, pv, vv;
 
-        Axis(double p, double v, double pp, double pv, double vv) {
+        public Axis(double p, double v, double pp, double pv, double vv) {
             this.p = p; this.v = v; this.pp = pp; this.pv = pv; this.vv = vv;
         }
 
-        Axis copy() {
+        public Axis copy() {
             return new Axis(p, v, pp, pv, vv);
         }
 
         /** Step 1, predict over dt seconds with acceleration variance q. */
-        void predict(double dt, double q) {
+        public void predict(double dt, double q) {
             double p0 = p, v0 = v, pp0 = pp, pv0 = pv, vv0 = vv;
             p = p0 + v0 * dt;
             pp = pp0 + 2 * dt * pv0 + dt * dt * vv0 + q * dt * dt * dt * dt / 4;
@@ -33,7 +33,7 @@ final class Filter {
         }
 
         /** Step 2, position update; returns the likelihood term {@code y*y/s + ln(s)} (Two-model filter step 3). */
-        double updatePosition(double z, double r) {
+        public double updatePosition(double z, double r) {
             double p0 = p, v0 = v, pp0 = pp, pv0 = pv, vv0 = vv;
             double s = pp0 + r, k1 = pp0 / s, k2 = pv0 / s, y = z - p0;
             p = p0 + k1 * y;
@@ -45,7 +45,7 @@ final class Filter {
         }
 
         /** Step 3, velocity update; returns the likelihood term {@code y*y/s + ln(s)}. */
-        double updateVelocity(double z, double r) {
+        public double updateVelocity(double z, double r) {
             double p0 = p, v0 = v, pp0 = pp, pv0 = pv, vv0 = vv;
             double s = vv0 + r, k1 = pv0 / s, k2 = vv0 / s, y = z - v0;
             p = p0 + k1 * y;
@@ -56,7 +56,7 @@ final class Filter {
             return y * y / s + Math.log(s);
         }
 
-        List<Object> toList() {
+        public List<Object> toList() {
             return List.of(p, v, pp, pv, vv);
         }
     }

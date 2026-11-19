@@ -1,0 +1,5 @@
+{
+ "name": "06-missing-filter",
+ "pack_def": "pack fuse-x\nversion 0.1.0\nkinematics inverse_variance\nstale_ms 1000\n",
+ "expect_error": true
+}
