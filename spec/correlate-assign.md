@@ -80,9 +80,11 @@ filter, prediction), then, summing over members in key order,
 
 **Cost.** For an entity A and a set M, predicted to A's `last_time_ms`:
 `d² = sum over east, north of (pa - p)² / (pp_a + pp)`, where `pa`, `pp_a` are
-A's filter and `p`, `pp` the fused estimate of M. With `bias`, each member of
-M is moved into A's frame (Sensor bias) after its prediction and before the
-fused estimate is formed.
+A's filter and `p`, `pp` the fused estimate of M. Each member's predicted
+`pp` has its timing variance added (`correlate.md`, Track estimate) before
+the fused estimate is formed, and `pp_a` is A's filter `pp` plus A's timing
+variance. With `bias`, each member of M is then moved into A's frame (Sensor
+bias), also before the fused estimate is formed.
 
 For one source S, its reported entities R (key order) and one membership:
 

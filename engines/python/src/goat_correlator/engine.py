@@ -354,6 +354,7 @@ class _Entity:
         self.models = None  # two-model filter: [[east, north] quiet, [east, north] maneuver]
         self.mode = None    # [mu_quiet, mu_maneuver]
         self.r_meas = None  # per-axis measurement variance of the last report
+        self.t_var = (0.0, 0.0)  # per-axis timing variance of the last report
 
     def ce(self, pack):
         v = self.report.get("ce")
@@ -471,8 +472,15 @@ class Engine:
         return a + "|" + b if a < b else b + "|" + a
 
     def _predict_in(self, b, t, a):
-        """B's prediction to t, in A's frame (no shift without a bias estimate)."""
-        return self._predict(b, t)
+        """B's prediction to t for a comparison with A: B's timing variance
+        added to pp (no shift without a bias estimate)."""
+        return self._with_time(self._predict(b, t), b)
+
+    @staticmethod
+    def _with_time(pr, b):
+        if b.t_var == (0.0, 0.0):
+            return pr
+        return tuple((x[0], x[1], x[2] + tv) + tuple(x[3:]) for x, tv in zip(pr, b.t_var))
 
     def _d2(self, a, b):
         be, bn = self._predict_in(b, a.last_time_ms, a)
@@ -597,6 +605,7 @@ class Engine:
             vel = (s * math.sin(c), s * math.cos(c))
         ce = f["default_ce_m"] if report.get("ce") is None else float(report["ce"])
         re_, rn_ = ce * ce, ce * ce
+        ae = an = 0.0
         te = self._time_error_ms(report, source)
         pred = self._predict(ent, t) if ent is not None else None
         if te > 0:
@@ -646,6 +655,7 @@ class Engine:
                 ent.north = _vel_update(ent.north, vel[1], r)
         ent.report = dict(report)
         ent.r_meas = (re_, rn_)
+        ent.t_var = (ae, an)
         ent.last_time_ms = t
         return ent
 
@@ -1020,7 +1030,7 @@ class AssignEngine(Engine):
         return tuple(out)
 
     def _predict_in(self, b, t, a):
-        pr = self._predict(b, t)
+        pr = self._with_time(self._predict(b, t), b)
         off = self._offset(b.source, a if isinstance(a, str) else a.source, (pr[0][1], pr[1][1]))
         if off is None:
             return pr
@@ -1049,8 +1059,8 @@ class AssignEngine(Engine):
 
     def _cost(self, a, members):
         fe, fn = self._fused(members, a.last_time_ms, a)
-        return ((a.east[0] - fe[0]) ** 2 / (a.east[2] + fe[1])
-                + (a.north[0] - fn[0]) ** 2 / (a.north[2] + fn[1]))
+        return ((a.east[0] - fe[0]) ** 2 / (a.east[2] + a.t_var[0] + fe[1])
+                + (a.north[0] - fn[0]) ** 2 / (a.north[2] + a.t_var[1] + fn[1]))
 
     def _stale(self, ent, now_ms):
         if now_ms - ent.last_time_ms > self.pack.stale_ms:

@@ -139,7 +139,12 @@ the report's time error (Reports, Time quality) in milliseconds:
   `{"stage":"filter","a":<entity>,"b":null,"test":"time","value":te,"limit":null,"pass":true,"var_east":(v_e*ts)²,"var_north":(v_n*ts)²}`,
   before any other record of that report.
 
-The entity keeps its last report's `r_east` and `r_north`.
+The entity keeps its last report's `r_east` and `r_north`, and its **timing
+variance** `(v_e*ts)²`, `(v_n*ts)²` (0 and 0 when `te` is 0). A filter's
+covariance does not hold the timing error, which displaces every report of a
+clock the same way; so wherever another entity B is predicted to be compared
+with A (Tests; `correlate-assign.md`, Cost), B's timing variance is added to
+the predicted `pp` on each axis.
 
 **First report.** Per axis: `p` = measured position, `v` = measured velocity
 or 0, `pp = r` (that axis's measurement variance), `pv = 0`, `vv = vel_sigma_ms²` when a velocity was measured,
@@ -299,9 +304,9 @@ B's predicted position.
 | `same` | `key` | — | the two values are equal, or both absent |
 
 `d² = sum over east, north of (pa - pb)² / (pp_b + r_a)`, with `pb` and
-`pp_b` from B's prediction, `pa` from A's filter and `r_a` A's measurement
-variance on that axis (Track estimate), which is `ce_a²` when A's last report
-has time error 0.
+`pp_b` from B's prediction (with B's timing variance added, Track estimate),
+`pa` from A's filter and `r_a` A's measurement variance on that axis, which is
+`ce_a²` when A's last report has time error 0.
 
 Within a stage (`gate`, `confirm`, or `hold` against one member), tests run
 in pack order and stop at the first that fails; the tests after it are not
