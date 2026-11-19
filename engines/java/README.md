@@ -2,7 +2,7 @@
 
 Implementations, in Java 17 with only the standard library, of
 
-- the correlator: `spec/correlate.md` (version 0.6) and `spec/correlate-assign.md` (version 0.4), package `correlator`;
+- the correlator: `spec/correlate.md` (version 0.7) and `spec/correlate-assign.md` (version 0.5), package `correlator`;
 - the filter: `spec/filter.md` (version 0.1), package `filter`;
 - the fuser: `spec/fuse.md` (version 0.2), package `fuse`;
 - quality: `spec/quality.md` (version 0.1), package `quality`.
@@ -13,10 +13,11 @@ All were written from the specifications and the vectors, without reading any ot
 
 | File | Spec section |
 |---|---|
-| `Pack.java` | Pack (`load_pack`, the `pack.def` parser, `method`, `maneuver`, `window`, `hypotheses` and the directives each method allows) |
+| `Pack.java` | Pack (`load_pack`, the `pack.def` parser, `method`, `maneuver`, `restart`, `bias`, `window`, `hypotheses`, `margin` and the directives each method allows) |
 | `Filter.java` | Track estimate (predict, position and velocity update, prediction; fuse and quality reuse its `Axis`) and Two-model filter (switching, mixing, per-model update, likelihood, mode probabilities, combination) |
-| `Engine.java` | Reports, Frame, Tests, Association, Events, Trace, Snapshot for method `confirm` (`ingest`, `tick`, `snapshot`); the two-model filter trace records; the `retiring` reject |
-| `Assign.java` | correlate-assign.md: Memberships, Assignment of one source (columns, entries, fused estimate, cost, apply), Ranking, Window (staleness and retiring, rows, sources over histories, commit, output), its trace and snapshot; the inverse-variance combination is `Engine.inverseVariance`, which fuse reuses |
+| `Engine.java` | Reports, Frame, Tests, Association, Events, Trace, Snapshot for method `confirm` (`ingest`, `tick`, `snapshot`); the two-model filter trace records; Restart (the `restart` test and the filter started again); the `retiring` reject; the Sensor bias move in the `distance`, `window` and `mahalanobis` tests |
+| `Assign.java` | correlate-assign.md: Memberships, Assignment of one source (columns, entries, fused estimate, cost, apply), Ranking, Window (staleness and retiring, the `restart` leave, rows, sources over histories with `margin`, commit, bias update, output), its trace and snapshot; the inverse-variance combination is `Engine.inverseVariance`, which fuse reuses |
+| `Bias.java` | correlate-assign.md, Sensor bias: the per-pair-of-sources state, moving B into A's frame, the update at each tick and its `bias` trace record, the `bias` snapshot |
 | `Json.java` | the JSON reader and writer the vector test uses |
 | `Reports.java` | Reports: required keys and their check order, the optional-key rules, the entity key and key order. The filter uses it too, as filter.md Reports cites that section |
 | `VectorTest.java` | `spec/vector-format.md` for the correlator: `spec/correlate-load-vectors/` and `packs/correlate-*` only; also holds the structural comparison the other tests use |
