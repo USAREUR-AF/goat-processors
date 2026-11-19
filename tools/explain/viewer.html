@@ -140,7 +140,7 @@ footer { padding: 12px 20px 20px; color: var(--quiet); font-size: 12px; border-t
     <div id="events"></div>
     <h2>Trace</h2>
     <p class="hint" id="tracehint"></p>
-    <div class="scroll"><table id="trace"><thead><tr><th>stage</th><th>a</th><th>b</th><th>test</th><th>value</th><th>limit</th><th>result</th></tr></thead><tbody></tbody></table></div>
+    <div class="scroll"><table id="trace"><thead><tr></tr></thead><tbody></tbody></table></div>
     <div id="diff"></div>
     <details class="sec" id="snapsec"><summary>Snapshot after this step</summary><div class="tree" id="snapshot"></div></details>
     <details class="sec"><summary>Rules (pack.def)</summary><pre class="def" id="packdef"></pre></details>
@@ -359,10 +359,12 @@ function drawPlan() {
   // selected pair: each end is an entity's estimate, a cluster's output, or its centre
   const at = k => est[k] ? [sx(est[k][0]), sy(est[k][1])] : outs[k] ? [sx(outs[k].xy[0]), sy(outs[k].xy[1])] : centre[k] || null;
   if (sel) {
-    const a = at(sel.a), b = at(sel.b) || (sel.b === "alone" && a ? [a[0], a[1] - 40] : null);
+    const ka = sel.a ?? sel.entity ?? sel.subject ?? sel.member, kb = sel.b ?? sel.group;
+    const a = at(ka), b = at(kb) || (kb === "alone" && a ? [a[0], a[1] - 40] : null);
+    if (a && !b) { el("circle", { cx: a[0], cy: a[1], r: 16, fill: "none", stroke: sel.pass === false ? "var(--crit)" : "var(--good)", "stroke-width": 3 }, svg); }
     if (a && b) {
-      el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: sel.pass ? "var(--good)" : "var(--crit)", "stroke-width": 2.5, "stroke-dasharray": "6 4" }, svg);
-      labels.push({ x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 - 10, t: (est[sel.b] ? "" : sel.b + " · ") + sel.test + " " + fmt(sel.value) + (sel.limit !== null ? " / " + fmt(sel.limit) : ""), cls: "pl-group", anchor: "middle" });
+      el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: sel.pass === false ? "var(--crit)" : "var(--good)", "stroke-width": 2.5, "stroke-dasharray": "6 4" }, svg);
+      labels.push({ x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 - 10, t: (est[kb] ? "" : kb + " · ") + (sel.test ?? sel.stage) + (typeof sel.value === "number" ? " " + fmt(sel.value) : "") + (sel.limit !== null && sel.limit !== undefined ? " / " + fmt(sel.limit) : ""), cls: "pl-group", anchor: "middle" });
     }
   }
   // labels last, nudged apart
@@ -455,7 +457,10 @@ function kvLine(o, skip) {
   Object.keys(o).filter(k => !(skip || []).includes(k) && k[0] !== "_").forEach((k, n) => {
     if (n) d.appendChild(document.createTextNode(" · "));
     d.appendChild(document.createTextNode(k + " "));
-    d.appendChild(h("b", "", Array.isArray(o[k]) ? o[k].join(", ") : fmt(o[k])));
+    const v = o[k];
+    const shown = Array.isArray(v) ? v.map(x => x !== null && typeof x === "object" ? JSON.stringify(x) : fmt(x)).join(", ")
+      : v !== null && typeof v === "object" ? "{ " + Object.keys(v).map(q => q + " " + fmt(v[q])).join(", ") + " }" : fmt(v);
+    d.appendChild(h("b", "", shown));
   });
   return d;
 }
@@ -473,19 +478,38 @@ function drawEvents(s) {
   if (!s.events || !s.events.length) { box.appendChild(h("div", "empty", "No events.")); return; }
   s.events.forEach(e => { const r = h("div", "ev"); r.appendChild(h("span", "chip " + (KIND[e.ev] || ""), e.ev)); r.appendChild(kvLine(e, ["ev"])); box.appendChild(r); });
 }
+const ORDER = ["stage", "rule", "a", "b", "entity", "subject", "group", "member", "key", "test", "measure", "sample", "method", "negated", "value", "limit"];
+function cell(v) {
+  const t = v !== null && typeof v === "object" ? JSON.stringify(v) : fmt(v);
+  return t.length > 60 ? t.slice(0, 57) + "…" : t;
+}
 function drawTrace(s) {
-  const tb = $("trace").querySelector("tbody"); tb.textContent = "";
-  const tr = s.trace || [];
+  const table = $("trace"), tr = s.trace || [];
+  const keys = [];
+  tr.forEach(t => Object.keys(t).forEach(k => { if (k !== "pass" && k !== "skipped" && !keys.includes(k)) keys.push(k); }));
+  keys.sort((x, y) => (ORDER.includes(x) ? ORDER.indexOf(x) : 99) - (ORDER.includes(y) ? ORDER.indexOf(y) : 99));
+  const hasPass = tr.some(t => "pass" in t);
+  if (hasPass) { const li = keys.indexOf("limit"); keys.splice(li < 0 ? keys.length : li + 1, 0, "\u0000result"); }
+  const head = table.querySelector("thead tr"); head.textContent = "";
+  (tr.length ? keys : ["stage", "test", "value", "limit", "result"]).forEach(k => head.appendChild(h("th", "", k.replace("\u0000", ""))));
+  const tb = table.querySelector("tbody"); tb.textContent = "";
   $("tracehint").textContent = tr.length ? tr.length + " record(s), in the order the engine ran them." : "";
-  if (!tr.length) { const r = h("tr"), c = h("td", "empty", "No trace records."); c.colSpan = 7; r.appendChild(c); tb.appendChild(r); }
+  if (!tr.length) { const r = h("tr"), c = h("td", "empty", "No trace records."); c.colSpan = 5; r.appendChild(c); tb.appendChild(r); }
   tr.forEach((t, i) => {
     const r = h("tr"); r.tabIndex = 0;
     if (i === selTrace) r.className = "sel";
-    [t.stage, t.a, t.b, t.test].forEach(v => r.appendChild(h("td", "", fmt(v))));
-    const v = h("td", "num", fmt(t.value)); v.title = String(t.value); r.appendChild(v);
-    const l = h("td", "num", fmt(t.limit)); l.title = String(t.limit); r.appendChild(l);
-    const res = t.skipped ? "skipped" : t.pass ? "pass" : "fail";
-    const c = h("td"); c.appendChild(h("span", "res " + (t.skipped ? "skip" : t.pass ? "pass" : "fail"), res)); r.appendChild(c);
+    keys.forEach(k => {
+      if (k === "\u0000result") {
+        const res = !("pass" in t) ? "" : t.skipped ? "skipped" : t.pass ? "pass" : "fail";
+        const c = h("td"); c.appendChild(h("span", "res " + (t.skipped ? "skip" : t.pass ? "pass" : "fail"), res)); r.appendChild(c);
+        return;
+      }
+      const v = t[k], numeric = typeof v === "number" || (v === null && (k === "value" || k === "limit"));
+      const c = h("td", numeric ? "num" : "", k in t ? cell(v) : "");
+      if (k in t && v !== null && typeof v === "object") c.title = JSON.stringify(v, null, 1);
+      else if (typeof v === "number") c.title = String(v);
+      r.appendChild(c);
+    });
     const pick = () => { selTrace = selTrace === i ? -1 : i; drawTrace(s); drawPlan(); };
     r.addEventListener("click", pick);
     r.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); pick(); } });

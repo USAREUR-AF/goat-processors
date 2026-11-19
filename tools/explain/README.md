@@ -20,7 +20,7 @@ python3 -I tools/explain/explain.py --all /tmp/vectors
 | Step slider and strip | one cell per step, with a dot per event (colored by kind), a bar whose height is the number of trace records, and a red mark on a step whose replay differs from the vector |
 | Input | the report or tick of the selected step, and the report's position in the plan |
 | Events | the events the step returned |
-| Trace | every trace record of the step in engine order: stage, `a`, `b`, test, value, limit and result. Clicking a row draws the tested pair on the plan |
+| Trace | every trace record of the step in engine order, one column per key the records carry (for correlate: stage, `a`, `b`, test, value, limit, result). Clicking a row marks its entity, pair or group on the plan |
 | Snapshot | the engine's whole state after the step, as an expandable tree |
 | Rules | the pack's `pack.def` |
 
@@ -31,7 +31,7 @@ entity's last report.
 ## How it gets the state after each step
 
 When `engines/python` has an engine for the vector's function (the `ENGINES`
-table in `explain.py`), the tool replays the steps through it and takes
+table in `explain.py`: correlate, filter, fuse, quality), the tool replays the steps through it and takes
 `snapshot()` after every step. It then compares each step with the vector
 under the rules of `spec/vector-format.md`:
 

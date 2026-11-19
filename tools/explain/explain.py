@@ -31,7 +31,7 @@ R = 6371008.8          # mean Earth radius, meters; the plane of spec/correlate.
 TOL = 1e-6             # spec/vector-format.md number tolerance
 
 # Function prefix of a pack name -> Python engine module under engines/python/src.
-ENGINES = {"correlate": "goat_correlator"}
+ENGINES = {"correlate": "goat_correlator", "filter": "goat_filter", "fuse": "goat_fuse", "quality": "goat_quality"}
 
 
 # ---------------------------------------------------------------- comparison
@@ -82,7 +82,8 @@ def load_engine(pack):
         m = importlib.import_module(mod)
     except ImportError as e:
         return None, None, "engine %s not importable (%s); showing the file only" % (mod, e)
-    return m.make_engine, m.load_pack, "replayed through engines/python (%s)" % mod
+    make = getattr(m, "make_engine", None) or getattr(m, "Engine")
+    return make, m.load_pack, "replayed through engines/python (%s)" % mod
 
 
 def replay(vec, pack_dir):

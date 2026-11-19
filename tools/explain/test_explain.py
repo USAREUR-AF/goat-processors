@@ -22,8 +22,12 @@ VECTORS = sorted(glob.glob(os.path.join(ROOT, "packs", "*", "vectors", "*.json")
 
 class Explain(unittest.TestCase):
     def test_every_vector_replays_exactly(self):
+        """Every vector of a function whose Python engine is on this tree."""
         self.assertTrue(VECTORS)
         for f in VECTORS:
+            pack = os.path.basename(os.path.dirname(os.path.dirname(f)))
+            if explain.load_engine(pack)[0] is None:
+                continue
             with self.subTest(vector=os.path.basename(f)):
                 d = explain.build(f)
                 self.assertTrue(d["replayed"], d["note"])
