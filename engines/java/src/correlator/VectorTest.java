@@ -18,7 +18,7 @@ public final class VectorTest {
         Path root = Paths.get(args.length > 0 ? args[0] : ".");
         int pass = 0, fail = 0;
 
-        for (Path f : list(root.resolve("spec/load-vectors"))) {
+        for (Path f : list(root.resolve("spec/correlate-load-vectors"))) {
             String why = runLoadVector(f);
             if (why == null) pass++;
             else { fail++; System.out.println("FAIL " + root.relativize(f) + ": " + why); }

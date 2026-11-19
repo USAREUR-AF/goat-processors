@@ -142,12 +142,16 @@ public final class Engine {
     public Result ingest(Map<String, Object> report) {
         Result res = new Result();
         for (String k : REQUIRED) {
-            if (report.get(k) == null) {
+            Object o = report.get(k);
+            boolean ok = k.equals("time_ms") ? o instanceof Long
+                    : k.equals("lat") || k.equals("lon") ? o instanceof Number
+                    : o instanceof String;
+            if (!ok) {
                 res.events.add(ev("reject", "reason", "missing:" + k));
                 return res;
             }
         }
-        String source = String.valueOf(report.get("track.source_id"));
+        String source = (String) report.get("track.source_id");
         String key = source + "/" + report.get("uid");
         long time = ((Number) report.get("time_ms")).longValue();
         Entity a = entities.get(key);
@@ -195,6 +199,11 @@ public final class Engine {
         }
         a.lastTime = time;
         a.last = new LinkedHashMap<>(report);
+        // Spec: Reports, an optional key of the wrong type is treated as absent.
+        for (String k : new String[] {"hae", "ce", "course", "speed_ms"})
+            if (!(a.last.get(k) instanceof Number)) a.last.remove(k);
+        if (!(a.last.get("type") instanceof String)) a.last.remove("type");
+        if (!(a.last.get("stale_ms") instanceof Long)) a.last.remove("stale_ms");
         a.ce = ce;
 
         if (a.group != null) hold(a, res);
@@ -208,7 +217,10 @@ public final class Engine {
         boolean held = false;
         for (String m : groups.get(g)) {
             if (m.equals(a.key)) continue;
-            if (runTests(pack.hold, "hold", a, entities.get(m), res)) held = true;
+            if (runTests(pack.hold, "hold", a, entities.get(m), res)) {
+                held = true;
+                break;
+            }
         }
         if (held) {
             a.holdFailures = 0;
@@ -281,6 +293,7 @@ public final class Engine {
         if (members.size() == 1) {
             Entity rest = entities.get(members.first());
             rest.group = null;
+            rest.holdFailures = 0;
             groups.remove(g);
             res.events.add(ev("dissolve", "group", g, "entity", rest.key));
         }
@@ -328,7 +341,8 @@ public final class Engine {
                 if (slow(a, b, t.p("min_speed_ms")))
                     return rec(stage, a, b, t.name, null, null, true, true);
                 double sa = a.num("speed_ms"), sb = b.num("speed_ms");
-                double v = Math.abs(1 - Math.min(sa, sb) / Math.max(sa, sb)) * 100;
+                double fast = Math.max(sa, sb);
+                double v = fast == 0 ? 0 : Math.abs(1 - Math.min(sa, sb) / fast) * 100;
                 return rec(stage, a, b, t.name, v, t.p("max_pct"), v <= t.p("max_pct"), false);
             }
             case "altitude": {
@@ -392,7 +406,7 @@ public final class Engine {
         for (Entity e : new ArrayList<>(entities.values())) {
             Object st = e.last.get("stale_ms");
             boolean stale = now - e.lastTime > pack.staleMs
-                    || (st instanceof Number && now >= ((Number) st).longValue());
+                    || (st instanceof Long && now >= (Long) st);
             if (!stale) continue;
             if (e.group != null) leave(e, "stale", res);
             entities.remove(e.key);
