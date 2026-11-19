@@ -250,6 +250,7 @@ ignored. Each line is a directive and `name=value` parameters.
 ```
 pack           <name>
 version        <semver>
+method         confirm
 filter         accel_var=<q> default_ce_m=<m> vel_sigma_ms=<m/s> unknown_vel_ms=<m/s>
 gate           <test> <param>=<value> ...
 confirm        <test> <param>=<value> ...
@@ -265,7 +266,10 @@ priority       <source_id> <n>
 `gate`, `confirm`, `hold` and `priority` repeat; their order is the order the
 tests run. Every other directive appears once, and `pack`, `version`,
 `filter`, `confirm_count`, `hold_failures`, `stale_ms` are required;
-`same_source` defaults to `forbid` and `output` to `priority`. A test name or
+`same_source` defaults to `forbid` and `output` to `priority`. `method`
+is optional and defaults to `confirm`, the method of this document;
+`method assign` selects [correlate-assign.md](correlate-assign.md), which has
+its own directives. A test name or
 parameter not in the tests table, a missing parameter, or a value that does
 not parse is a load error. Numbers are decimal; `same` takes a string.
 

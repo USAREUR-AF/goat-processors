@@ -3,7 +3,7 @@ import json
 import os
 import unittest
 
-from goat_correlator import Engine, PackError, load_pack
+from goat_correlator import PackError, load_pack, make_engine
 from goat_correlator.engine import parse_pack
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -49,7 +49,7 @@ class Vectors(unittest.TestCase):
         for f in files:
             v = json.load(open(f, encoding="utf-8"))
             with self.subTest(vector=v["name"]):
-                eng = Engine(load_pack(os.path.join(ROOT, "packs", v["pack"])))
+                eng = make_engine(load_pack(os.path.join(ROOT, "packs", v["pack"])))
                 for i, step in enumerate(v["steps"]):
                     events, trace = eng.ingest(step["ingest"]) if "ingest" in step else eng.tick(step["tick"])
                     self.assertIsNone(equal(events, step["expect"], "step%d.events" % i))
