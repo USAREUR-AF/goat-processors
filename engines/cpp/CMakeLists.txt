@@ -21,3 +21,8 @@ target_compile_options(run_vectors PRIVATE -Wall -Wextra)
 
 enable_testing()
 add_test(NAME vectors COMMAND run_vectors "${CORR_REPO_ROOT}")
+
+add_executable(assignment_test test/assignment_test.cpp)
+target_link_libraries(assignment_test PRIVATE correlator)
+target_compile_options(assignment_test PRIVATE -Wall -Wextra)
+add_test(NAME assignment COMMAND assignment_test)

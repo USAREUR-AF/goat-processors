@@ -119,7 +119,7 @@ Pack parse_pack(const std::string& text) {
 
         const std::string& d = words[0];
         bool repeats = d == "gate" || d == "confirm" || d == "hold" || d == "priority";
-        if (!repeats && !seen.insert(d).second) fail(line, "repeated directive: " + d);
+        if (!seen.insert(d).second && !repeats) fail(line, "repeated directive: " + d);
 
         if (d == "pack") {
             want_args(line, words, 1);
@@ -127,6 +127,16 @@ Pack parse_pack(const std::string& text) {
         } else if (d == "version") {
             want_args(line, words, 1);
             p.version = words[1];
+        } else if (d == "method") {
+            want_args(line, words, 1);
+            if (words[1] == "assign") p.method_assign = true;
+            else if (words[1] != "confirm") fail(line, "method is confirm or assign");
+        } else if (d == "new_cost") {
+            want_args(line, words, 1);
+            p.new_cost = parse_number(line, words[1]);
+        } else if (d == "keep_bonus") {
+            want_args(line, words, 1);
+            p.keep_bonus = parse_number(line, words[1]);
         } else if (d == "filter") {
             auto kv = parse_params(line, words, 1, {"accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms"});
             p.filter.accel_var = parse_number(line, kv["accel_var"]);
@@ -164,8 +174,21 @@ Pack parse_pack(const std::string& text) {
             fail(line, "unknown directive: " + d);
         }
     }
-    for (const char* req : {"pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms"})
+    // Each method has its own directives (correlate.md "Pack", correlate-assign.md "Pack").
+    std::vector<const char*> required, refused;
+    if (p.method_assign) {
+        required = {"pack", "version", "filter", "new_cost", "keep_bonus", "stale_ms"};
+        refused = {"confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"};
+    } else {
+        required = {"pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms"};
+        refused = {"new_cost", "keep_bonus"};
+    }
+    for (const char* req : required)
         if (!seen.count(req)) throw PackError(std::string("pack.def: missing directive ") + req);
+    for (const char* d : refused)
+        if (seen.count(d))
+            throw PackError(std::string("pack.def: directive ") + d + " is not allowed with method " +
+                            (p.method_assign ? "assign" : "confirm"));
     return p;
 }
 

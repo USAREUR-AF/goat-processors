@@ -7,6 +7,7 @@
 #include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "json.hpp"
 #include "pack.hpp"
@@ -30,6 +31,7 @@ struct Entity {
     Json last;                 // the last accepted report
     int group = 0;             // group number, 0 when ungrouped
     std::int64_t hold_failures = 0;
+    int system = 0;            // method assign: system track number, 0 when none
 };
 
 // The events and trace one call returns.
@@ -72,6 +74,14 @@ private:
     void leave_group(Entity& e, const char* reason, Output& out);
     bool group_has_source(int g, const std::string& source) const;
 
+    // Method assign (correlate-assign.md)
+    Output tick_assign(std::int64_t now_ms);
+    Filter fuse(const std::vector<const Entity*>& members, std::int64_t t) const;
+    void assign_source(const std::vector<std::string>& reported, Output& out);
+    void leave_system(Entity& e, const char* reason, Output& out);
+    Json snapshot_assign() const;
+    static std::string system_name(int s) { return "s" + std::to_string(s); }
+
     static std::string group_name(int g) { return "g" + std::to_string(g); }
     static std::pair<std::string, std::string> pair_key(const std::string& a, const std::string& b) {
         return a < b ? std::make_pair(a, b) : std::make_pair(b, a);
@@ -83,6 +93,14 @@ private:
     std::map<int, std::set<std::string>> groups_;           // creation order, members in key order
     std::map<std::pair<std::string, std::string>, std::int64_t> counts_;
     int next_group_ = 1;
+    std::map<int, std::set<std::string>> systems_;          // creation order, members in key order
+    int next_system_ = 1;
+    std::set<std::string> reported_;                        // accepted a report since the previous tick
 };
+
+// An exact minimum-cost assignment of every row to a distinct column, for
+// rows <= columns; +infinity marks a forbidden entry, and a finite assignment
+// must exist. Returns the column of each row (Hungarian method with potentials).
+std::vector<int> min_cost_assignment(const std::vector<std::vector<double>>& cost);
 
 } // namespace corr

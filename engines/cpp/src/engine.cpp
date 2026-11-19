@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 namespace corr {
@@ -407,12 +408,17 @@ Output Engine::ingest(const Json& r) {
     a.last_time_ms = time_ms;
     a.last = r;
 
+    if (pack_.method_assign) {
+        reported_.insert(a.key);    // decided at the next tick
+        return out;
+    }
     if (a.group) hold(a, out);
     else associate(a, out);
     return out;
 }
 
 Output Engine::tick(std::int64_t now_ms) {
+    if (pack_.method_assign) return tick_assign(now_ms);
     Output out;
 
     // 1. Staleness, entities in key order.
@@ -475,6 +481,7 @@ Output Engine::tick(std::int64_t now_ms) {
 }
 
 Json Engine::snapshot() const {
+    if (pack_.method_assign) return snapshot_assign();
     Json s = Json::make_object();
     if (ref_) {
         Json ref = Json::make_array();
@@ -510,6 +517,285 @@ Json Engine::snapshot() const {
         counts[kv.first.first + "|" + kv.first.second] = static_cast<long long>(kv.second);
     s["counts"] = counts;
     s["next_group"] = next_group_;
+    return s;
+}
+
+// ---- Method assign (correlate-assign.md) ---------------------------------
+
+// Hungarian method with row and column potentials (shortest augmenting paths).
+// Rows and columns are 1-based inside; column 0 is the virtual start.
+std::vector<int> min_cost_assignment(const std::vector<std::vector<double>>& cost) {
+    const double INF = std::numeric_limits<double>::infinity();
+    const size_t n = cost.size();
+    if (n == 0) return {};
+    const size_t m = cost[0].size();
+    std::vector<double> u(n + 1, 0), v(m + 1, 0);
+    std::vector<size_t> match(m + 1, 0), way(m + 1, 0);   // match[j]: row of column j
+    for (size_t i = 1; i <= n; ++i) {
+        match[0] = i;
+        size_t j0 = 0;
+        std::vector<double> minv(m + 1, INF);
+        std::vector<bool> used(m + 1, false);
+        do {
+            used[j0] = true;
+            size_t i0 = match[j0], j1 = 0;
+            double delta = INF;
+            for (size_t j = 1; j <= m; ++j) {
+                if (used[j]) continue;
+                double c = cost[i0 - 1][j - 1];
+                if (c != INF) {
+                    double cur = c - u[i0] - v[j];
+                    if (cur < minv[j]) { minv[j] = cur; way[j] = j0; }
+                }
+                if (minv[j] < delta) { delta = minv[j]; j1 = j; }
+            }
+            if (j1 == 0) return {};   // no finite assignment
+            for (size_t j = 0; j <= m; ++j) {
+                if (used[j]) { u[match[j]] += delta; v[j] -= delta; }
+                else if (minv[j] != INF) minv[j] -= delta;
+            }
+            j0 = j1;
+        } while (match[j0] != 0);
+        do {
+            size_t j1 = way[j0];
+            match[j0] = match[j1];
+            j0 = j1;
+        } while (j0 != 0);
+    }
+    std::vector<int> out(n, -1);
+    for (size_t j = 1; j <= m; ++j)
+        if (match[j]) out[match[j] - 1] = static_cast<int>(j - 1);
+    return out;
+}
+
+// "Fused estimate": per axis, inverse-variance weights of the members
+// predicted to t. Only p, v, pp and vv are meaningful.
+Filter Engine::fuse(const std::vector<const Entity*>& members, std::int64_t t) const {
+    double sp[2] = {0, 0}, spp[2] = {0, 0}, sv[2] = {0, 0}, svv[2] = {0, 0};
+    for (const Entity* e : members) {
+        Filter f = predict(*e, t);
+        const Axis* ax[2] = {&f.east, &f.north};
+        for (int k = 0; k < 2; ++k) {
+            spp[k] += 1 / ax[k]->pp;
+            sp[k] += ax[k]->p / ax[k]->pp;
+            svv[k] += 1 / ax[k]->vv;
+            sv[k] += ax[k]->v / ax[k]->vv;
+        }
+    }
+    Filter out;
+    Axis* ax[2] = {&out.east, &out.north};
+    for (int k = 0; k < 2; ++k) {
+        ax[k]->pp = 1 / spp[k];
+        ax[k]->p = ax[k]->pp * sp[k];
+        ax[k]->vv = 1 / svv[k];
+        ax[k]->v = ax[k]->vv * sv[k];
+        ax[k]->pv = 0;
+    }
+    return out;
+}
+
+// `leave`, then `end` when the system track is left empty.
+void Engine::leave_system(Entity& e, const char* reason, Output& out) {
+    int s = e.system;
+    auto& members = systems_.at(s);
+    members.erase(e.key);
+    e.system = 0;
+    Json ev = event("leave");
+    ev["system"] = system_name(s);
+    ev["entity"] = e.key;
+    ev["reason"] = reason;
+    out.events.push(ev);
+    if (members.empty()) {
+        systems_.erase(s);
+        Json end = event("end");
+        end["system"] = system_name(s);
+        out.events.push(end);
+    }
+}
+
+// "On each tick", steps 1 to 4 for one source S; `reported` is R in key order.
+void Engine::assign_source(const std::vector<std::string>& reported, Output& out) {
+    const double INF = std::numeric_limits<double>::infinity();
+    const std::string& source = entities_.at(reported.front()).source;
+    const std::set<std::string> in_r(reported.begin(), reported.end());
+
+    // 1. Columns: system tracks whose members outside R are not empty and
+    //    hold no entity of S; those members are the track's others.
+    std::vector<int> columns;
+    std::vector<std::vector<const Entity*>> others;
+    for (const auto& kv : systems_) {
+        std::vector<const Entity*> rest;
+        bool has_source = false;
+        for (const std::string& k : kv.second) {
+            if (in_r.count(k)) continue;
+            const Entity& e = entities_.at(k);
+            if (e.source == source) has_source = true;
+            rest.push_back(&e);
+        }
+        if (rest.empty() || has_source) continue;
+        columns.push_back(kv.first);
+        others.push_back(std::move(rest));
+    }
+
+    // 2. Entries: row i is reported[i]; column j < m is columns[j], column
+    //    m + i is row i's own `alone`.
+    const size_t n = reported.size(), m = columns.size();
+    std::vector<std::vector<double>> cost(n, std::vector<double>(m + n, INF));
+    for (size_t i = 0; i < n; ++i) {
+        const Entity& a = entities_.at(reported[i]);
+        for (size_t j = 0; j < m; ++j) {
+            bool ok = true;
+            for (const Entity* b : others[j]) {
+                if (!run_stage("gate", pack_.gate, a, *b, predict(*b, a.last_time_ms), out)) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (!ok) continue;
+            Filter f = fuse(others[j], a.last_time_ms);
+            double de = a.filter.east.p - f.east.p, dn = a.filter.north.p - f.north.p;
+            double d2 = de * de / (a.filter.east.pp + f.east.pp) + dn * dn / (a.filter.north.pp + f.north.pp);
+            if (a.system == columns[j]) d2 -= pack_.keep_bonus;
+            cost[i][j] = d2;
+        }
+        double alone = pack_.new_cost;
+        if (a.system && systems_.at(a.system).size() == 1) alone -= pack_.keep_bonus;
+        cost[i][m + i] = alone;
+    }
+    auto record = [&](const std::string& a, const std::string& b, const char* test, double value) {
+        Json rec = Json::make_object();
+        rec["stage"] = "assign";
+        rec["a"] = a;
+        rec["b"] = b;
+        rec["test"] = test;
+        rec["value"] = value == INF ? Json() : Json(value);
+        rec["limit"] = Json();
+        rec["pass"] = value != INF;
+        out.trace.push(rec);
+    };
+    for (size_t i = 0; i < n; ++i) {
+        for (size_t j = 0; j < m; ++j) record(reported[i], system_name(columns[j]), "cost", cost[i][j]);
+        record(reported[i], "alone", "cost", cost[i][m + i]);
+    }
+
+    // 3. Assignment with the least total cost.
+    std::vector<int> choice = min_cost_assignment(cost);
+    for (size_t i = 0; i < n; ++i) {
+        size_t j = static_cast<size_t>(choice[i]);
+        record(reported[i], j < m ? system_name(columns[j]) : "alone", "choice", cost[i][j]);
+    }
+
+    // 4. Apply, entities of R in key order.
+    for (size_t i = 0; i < n; ++i) {
+        Entity& a = entities_.at(reported[i]);
+        size_t j = static_cast<size_t>(choice[i]);
+        if (j < m && a.system == columns[j]) continue;
+        if (j >= m && a.system && systems_.at(a.system).size() == 1) continue;
+        if (a.system) leave_system(a, "assign", out);
+        Json ev;
+        if (j < m) {
+            a.system = columns[j];
+            ev = event("join");
+        } else {
+            a.system = next_system_++;
+            ev = event("start");
+        }
+        systems_[a.system].insert(a.key);
+        ev["system"] = system_name(a.system);
+        ev["entity"] = a.key;
+        out.events.push(ev);
+    }
+}
+
+Output Engine::tick_assign(std::int64_t now_ms) {
+    Output out;
+
+    // Staleness, entities in key order.
+    std::vector<std::string> keys;
+    for (const auto& kv : entities_) keys.push_back(kv.first);
+    for (const std::string& k : keys) {
+        Entity& e = entities_.at(k);
+        auto report_stale = e.last.find("stale_ms");
+        bool stale = now_ms - e.last_time_ms > pack_.stale_ms ||
+                     (is_integer(report_stale) && now_ms >= report_stale->integer);
+        if (!stale) continue;
+        if (e.system) leave_system(e, "stale", out);
+        entities_.erase(k);
+        reported_.erase(k);
+        Json ev = event("drop");
+        ev["entity"] = k;
+        out.events.push(ev);
+    }
+
+    // Assignment, sources in key order, each with its reported entities in key order.
+    std::map<std::string, std::vector<std::string>> by_source;
+    for (const std::string& k : reported_) by_source[entities_.at(k).source].push_back(k);
+    reported_.clear();
+    for (const auto& kv : by_source) assign_source(kv.second, out);
+
+    // Output, system tracks in creation order.
+    for (const auto& kv : systems_) {
+        std::vector<const Entity*> members;
+        const Entity* latest_hae = nullptr;
+        Json names = Json::make_array();
+        for (const std::string& k : kv.second) {
+            const Entity& e = entities_.at(k);
+            members.push_back(&e);
+            names.push(k);
+            if (number_at(e.last, "hae") && (!latest_hae || e.last_time_ms > latest_hae->last_time_ms))
+                latest_hae = &e;
+        }
+        Filter f = fuse(members, now_ms);
+        auto pos = to_degrees(f.east.p, f.north.p);
+        double ve = f.east.v, vn = f.north.v;
+        double course = deg(std::atan2(ve, vn));
+        if (course < 0) course += 360;
+        if (course >= 360) course -= 360;
+
+        Json ev = event("system");
+        ev["system"] = system_name(kv.first);
+        ev["members"] = names;
+        ev["lat"] = pos.first;
+        ev["lon"] = pos.second;
+        ev["course"] = course;
+        ev["speed_ms"] = std::hypot(ve, vn);
+        if (latest_hae) ev["hae"] = *number_at(latest_hae->last, "hae");
+        out.events.push(ev);
+    }
+    return out;
+}
+
+Json Engine::snapshot_assign() const {
+    Json s = Json::make_object();
+    if (ref_) {
+        Json ref = Json::make_array();
+        ref.push(ref_->first);
+        ref.push(ref_->second);
+        s["ref"] = ref;
+    } else {
+        s["ref"] = Json();
+    }
+    Json entities = Json::make_object();
+    for (const auto& kv : entities_) {
+        const Entity& e = kv.second;
+        Json j = Json::make_object();
+        j["last_time_ms"] = static_cast<long long>(e.last_time_ms);
+        j["system"] = e.system ? Json(system_name(e.system)) : Json();
+        Json f = Json::make_object();
+        f["east"] = axis_json(e.filter.east);
+        f["north"] = axis_json(e.filter.north);
+        j["filter"] = f;
+        entities[kv.first] = j;
+    }
+    s["entities"] = entities;
+    Json systems = Json::make_object();
+    for (const auto& kv : systems_) {
+        Json members = Json::make_array();
+        for (const auto& m : kv.second) members.push(m);
+        systems[system_name(kv.first)] = members;
+    }
+    s["systems"] = systems;
+    s["next_system"] = next_system_;
     return s;
 }
 
