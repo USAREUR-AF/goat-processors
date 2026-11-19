@@ -60,8 +60,8 @@ pub fn numberOf(m: json.ObjectMap, key: []const u8) ?f64 {
 pub fn integerOf(m: json.ObjectMap, key: []const u8) ?i64 {
     const v = m.get(key) orelse return null;
     return switch (v) {
+        // Spec 0.2 "Reports": `time_ms` and `stale_ms` must be integers; a float is the wrong type.
         .integer => |i| i,
-        .float => |f| if (@floor(f) == f and @abs(f) < 9.0e18) @as(i64, @intFromFloat(f)) else null,
         else => null,
     };
 }
