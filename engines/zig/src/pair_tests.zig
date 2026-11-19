@@ -33,7 +33,7 @@ pub fn mahalanobis(a: Entity, b_pred: kalman.Filter, default_ce_m: f64) f64 {
     return de * de / (b_pred.east.pp + r) + dn * dn / (b_pred.north.pp + r);
 }
 
-// Course and speed are each entity's last reported values; skipped below `min_speed_ms`.
+// Spec 0.2: every value comes from the last accepted report; skipped when absent or below `min_speed_ms`.
 fn speedsUsable(a: Entity, b: Entity, min_speed_ms: f64) ?[2]f64 {
     const sa = a.number("speed_ms") orelse return null;
     const sb = b.number("speed_ms") orelse return null;

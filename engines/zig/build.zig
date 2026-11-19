@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const packs_dir = b.option([]const u8, "packs", "packs directory") orelse b.pathFromRoot("../../packs");
-    const load_vectors_dir = b.option([]const u8, "load-vectors", "load vectors directory") orelse b.pathFromRoot("../../spec/load-vectors");
+    const load_vectors_dir = b.option([]const u8, "load-vectors", "load vectors directory") orelse b.pathFromRoot("../../spec/correlate-load-vectors");
 
     const options = b.addOptions();
     options.addOption([]const u8, "packs_dir", packs_dir);

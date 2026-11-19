@@ -264,7 +264,11 @@ pub const Engine = struct {
         var any_pass = false;
         for (others) |m| {
             if (std.mem.eql(u8, m, a_key)) continue;
-            if (try self.runTests(res, .hold, self.pack.hold, a_key, m)) any_pass = true;
+            // Spec 0.2: the hold passes at the first passing member; no later member is tested.
+            if (try self.runTests(res, .hold, self.pack.hold, a_key, m)) {
+                any_pass = true;
+                break;
+            }
         }
         const a = self.entities.getPtr(a_key).?;
         if (any_pass) {
@@ -295,7 +299,9 @@ pub const Engine = struct {
         try res.events.append(try self.object(.{ .{ "ev", "leave" }, .{ "group", name }, .{ "entity", key }, .{ "reason", reason } }));
         if (g.members.items.len == 1) {
             const last = g.members.items[0];
-            self.entities.getPtr(last).?.group = null;
+            const rest = self.entities.getPtr(last).?;
+            rest.group = null;
+            rest.hold_failures = 0;
             _ = self.groups.orderedRemove(gi);
             try res.events.append(try self.object(.{ .{ "ev", "dissolve" }, .{ "group", name }, .{ "entity", last } }));
         }
