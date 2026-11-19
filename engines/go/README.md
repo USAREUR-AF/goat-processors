@@ -1,7 +1,7 @@
 # goat-correlator: Go engine
 
-An implementation of `spec/correlate.md` (version 0.3, method `confirm`) and
-`spec/correlate-assign.md` (version 0.1, method `assign`) in Go, standard library only.
+An implementation of `spec/correlate.md` (version 0.4, method `confirm`) and
+`spec/correlate-assign.md` (version 0.2, method `assign`) in Go, standard library only.
 The pack's `method` line selects which runs.
 It was written from the specification and the vectors alone, without
 reference to any other engine.
