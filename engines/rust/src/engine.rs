@@ -231,6 +231,7 @@ impl Engine {
         for b in &others {
             if self.run_tests("hold", &tests, a, b, out) {
                 held = true;
+                break;
             }
         }
         let limit = self.pack.hold_failures;
@@ -340,13 +341,19 @@ impl Engine {
             let (pe, pn) = eb.predict(ea.last_time_ms, self.pack.filter.accel_var);
             ((ea.east.p - pe.p).powi(2) + (ea.north.p - pn.p).powi(2)).sqrt()
         };
-        // Course and speed: both present and both speeds at least min_speed_ms.
-        let motion = |min_speed_ms: f64| -> Option<(f64, f64, f64, f64)> {
-            let (ca, sa, cb, sb) = (ea.num("course")?, ea.num("speed_ms")?, eb.num("course")?, eb.num("speed_ms")?);
+        // Both speeds present and at least min_speed_ms.
+        let speeds = |min_speed_ms: f64| -> Option<(f64, f64)> {
+            let (sa, sb) = (ea.num("speed_ms")?, eb.num("speed_ms")?);
             if sa < min_speed_ms || sb < min_speed_ms {
                 return None;
             }
-            Some((ca, sa, cb, sb))
+            Some((sa, sb))
+        };
+        // Course: both courses present, and the speed condition above.
+        let courses = |min_speed_ms: f64| -> Option<(f64, f64)> {
+            let (ca, cb) = (ea.num("course")?, eb.num("course")?);
+            speeds(min_speed_ms)?;
+            Some((ca, cb))
         };
         match test {
             Test::Distance { max_m } => {
@@ -364,17 +371,17 @@ impl Engine {
                 let d2 = self.d2(a, b);
                 Outcome::ran(d2, *gate, d2 < *gate)
             }
-            Test::Course { max_deg, min_speed_ms } => match motion(*min_speed_ms) {
+            Test::Course { max_deg, min_speed_ms } => match courses(*min_speed_ms) {
                 None => Outcome::skipped(),
-                Some((ca, _, cb, _)) => {
+                Some((ca, cb)) => {
                     let diff = (ca - cb).abs();
                     let v = diff.min(360.0 - diff);
                     Outcome::ran(v, *max_deg, v <= *max_deg)
                 }
             },
-            Test::Speed { max_pct, min_speed_ms } => match motion(*min_speed_ms) {
+            Test::Speed { max_pct, min_speed_ms } => match speeds(*min_speed_ms) {
                 None => Outcome::skipped(),
-                Some((_, sa, _, sb)) => {
+                Some((sa, sb)) => {
                     let (slow, fast) = (sa.min(sb), sa.max(sb));
                     let v = if fast == 0.0 { 0.0 } else { (1.0 - slow / fast).abs() * 100.0 };
                     Outcome::ran(v, *max_pct, v <= *max_pct)
@@ -411,7 +418,9 @@ impl Engine {
         if members.len() == 1 {
             let last = members.iter().next().unwrap().clone();
             self.groups.remove(&g);
-            self.entities.get_mut(&last).unwrap().group = None;
+            let rest = self.entities.get_mut(&last).unwrap();
+            rest.group = None;
+            rest.hold_failures = 0;
             out.events.push(obj(vec![("ev", "dissolve".into()), ("group", group_name(g).into()), ("entity", last.as_str().into())]));
         }
     }

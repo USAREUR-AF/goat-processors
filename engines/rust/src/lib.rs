@@ -1,4 +1,4 @@
-//! goat-correlator, rust engine of correlator specification 0.1.
+//! goat-correlator, rust engine of correlate specification 0.2 (spec/correlate.md).
 //!
 //! `load_pack`, then `Engine::new(pack)` with `ingest`, `tick`, `snapshot`.
 

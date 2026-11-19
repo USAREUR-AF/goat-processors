@@ -1,6 +1,6 @@
 # goat-correlator, rust engine
 
-An implementation of `spec/correlator-spec.md` (version 0.1) in Rust, written
+An implementation of `spec/correlate.md` (version 0.2) in Rust, written
 from the specification and the vectors only. Standard library only; it carries
 its own small JSON reader (`src/json.rs`).
 
@@ -14,7 +14,7 @@ its own small JSON reader (`src/json.rs`).
 Use:
 
 ```rust
-let pack = goat_correlator::load_pack(std::path::Path::new("packs/gnn"))?;
+let pack = goat_correlator::load_pack(std::path::Path::new("packs/correlate-gnn"))?;
 let mut engine = goat_correlator::Engine::new(pack);
 let step = engine.ingest(&report);   // step.events, step.trace (JSON values)
 let step = engine.tick(1500);
@@ -38,11 +38,10 @@ cargo test
 
 `scenario_vectors` runs every `packs/*/vectors/*.json`: each step's events and
 trace, then the final snapshot. `load_vectors` runs every
-`spec/load-vectors/*.json`. Numbers compare within
+`spec/correlate-load-vectors/*.json`. Numbers compare within
 `1e-6 * max(1, abs(want))`; a key with `null` differs from an absent key. On a
 failure the test prints the vector and the path of the first mismatch, for
 example `steps[2].trace[6].value: got 1.0, want 2.0`. Add `-- --nocapture` to
 see one line per vector.
 
-Points where the specification is silent and the engine follows the vectors
-are in `DISAGREEMENTS.md`.
+Points still open under spec 0.2 are in `DISAGREEMENTS.md`.

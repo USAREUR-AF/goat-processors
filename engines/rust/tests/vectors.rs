@@ -116,7 +116,7 @@ fn load_vectors() {
     let root = repo_root();
     let mut ran = 0;
     let mut failures = Vec::new();
-    for path in json_files(&root.join("spec/load-vectors")) {
+    for path in json_files(&root.join("spec/correlate-load-vectors")) {
         ran += 1;
         let v = read_json(&path);
         let name = v.get("name").and_then(Json::as_str).unwrap_or("?").to_string();
@@ -137,7 +137,7 @@ fn load_vectors() {
 #[test]
 fn shipped_packs_load() {
     let root = repo_root();
-    for name in ["gnn", "window"] {
+    for name in ["correlate-gnn", "correlate-window", "correlate-distance"] {
         load_pack(&root.join("packs").join(name)).unwrap_or_else(|e| panic!("{}: {}", name, e));
     }
 }
