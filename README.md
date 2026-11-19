@@ -27,6 +27,7 @@ replaying the same input gives the same output and trace in every language.
 | `packs/<function>-<name>/vectors/` | scenarios with their exact expected events, trace and final state |
 | `engines/<language>/` | one independent engine per language: Python, Rust, Go, Java, C++, Erlang, Zig |
 | `tools/make-vectors.py` | the scenarios, with their decisions stated by hand |
+| `tools/bench/` | ground-truth scenarios and scores for every pack; results in [docs/benchmark.md](docs/benchmark.md) |
 
 ## Correlate packs
 
