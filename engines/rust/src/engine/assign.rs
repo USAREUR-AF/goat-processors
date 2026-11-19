@@ -1,4 +1,4 @@
-//! `method assign` (spec/correlate-assign.md 0.1): system tracks, a per-source
+//! `method assign` (spec/correlate-assign.md 0.2): system tracks, a per-source
 //! exact least-cost assignment at each tick, inverse-variance fused estimate.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -145,6 +145,7 @@ impl Engine {
             let current = self.entities[a].system;
             let mut row = Vec::with_capacity(columns.len());
             for (s, others) in &columns {
+                // The first failing test ends the entry: no test against later others.
                 let passed = others.iter().all(|b| self.run_tests("gate", &gate, a, b, out));
                 row.push(passed.then(|| {
                     let d2 = self.assign_cost(a, others);
@@ -245,6 +246,7 @@ impl Engine {
             ("entities", Json::Obj(entities)),
             ("systems", Json::Obj(systems)),
             ("next_system", (self.next_system as f64).into()),
+            ("reported", Json::Arr(self.reported.iter().map(|k| k.as_str().into()).collect())),
         ])
     }
 }

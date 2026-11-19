@@ -254,12 +254,22 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
             "version" => version = Some(semver(one_arg(directive, args).map_err(at)?).map_err(at)?),
             "filter" => {
                 let p = Params::parse(args, &["accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms"]).map_err(at)?;
-                filter = Some(FilterParams {
+                let f = FilterParams {
                     accel_var: p.num("accel_var").map_err(at)?,
                     default_ce_m: p.num("default_ce_m").map_err(at)?,
                     vel_sigma_ms: p.num("vel_sigma_ms").map_err(at)?,
                     unknown_vel_ms: p.num("unknown_vel_ms").map_err(at)?,
-                });
+                };
+                // correlate.md 0.4: three above 0, accel_var 0 or above.
+                for (k, v) in [("default_ce_m", f.default_ce_m), ("vel_sigma_ms", f.vel_sigma_ms), ("unknown_vel_ms", f.unknown_vel_ms)] {
+                    if !(v > 0.0) {
+                        return Err(at(format!("filter {} must be above 0", k)));
+                    }
+                }
+                if !(f.accel_var >= 0.0) {
+                    return Err(at("filter accel_var must be 0 or above".to_string()));
+                }
+                filter = Some(f);
             }
             "gate" => gate.push(parse_test(args).map_err(at)?),
             "confirm" => confirm.push(parse_test(args).map_err(at)?),
@@ -298,6 +308,17 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         return Err(format!("directive {} is not allowed with method {}", d, if method == Method::Assign { "assign" } else { "confirm" }));
     }
     if method == Method::Assign {
+        // correlate-assign.md 0.2: new_cost above 0, keep_bonus 0 or above.
+        if let Some(c) = new_cost {
+            if !(c > 0.0) {
+                return Err("new_cost must be above 0".to_string());
+            }
+        }
+        if let Some(b) = keep_bonus {
+            if !(b >= 0.0) {
+                return Err("keep_bonus must be 0 or above".to_string());
+            }
+        }
         return Ok(Pack {
             name: name.ok_or_else(|| need("pack"))?,
             method,
