@@ -1,0 +1,5 @@
+{
+ "name": "44-key-empty-eq",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 1000\nrule r drop\nwhen key name=k eq=\n",
+ "expect_error": true
+}

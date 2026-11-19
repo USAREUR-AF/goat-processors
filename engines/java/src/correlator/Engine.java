@@ -19,8 +19,7 @@ public final class Engine {
     }
 
     /** Spec: Reports, "key order" is ascending byte order; UTF-8 byte order equals code point order. */
-    public static final Comparator<String> KEY_ORDER = (x, y) -> Arrays.compare(
-            x.codePoints().toArray(), y.codePoints().toArray());
+    public static final Comparator<String> KEY_ORDER = Reports.KEY_ORDER;
 
     // Spec: Frame
     public static final double R = 6371008.8;
@@ -39,7 +38,7 @@ public final class Engine {
         return lon;
     }
 
-    /** Spec: Track estimate, one axis of the constant-velocity filter. */
+    /** Spec: Track estimate, one axis of the constant-velocity filter. Fuse reuses it. */
     public static final class Axis {
         public double p, v, pp, pv, vv;
 
@@ -143,22 +142,15 @@ public final class Engine {
 
     // ---- ingest (spec: Reports, Track estimate, Association "On each accepted report") ----
 
-    private static final String[] REQUIRED = {"track.source_id", "uid", "time_ms", "lat", "lon"};
-
     public Result ingest(Map<String, Object> report) {
         Result res = new Result();
-        for (String k : REQUIRED) {
-            Object o = report.get(k);
-            boolean ok = k.equals("time_ms") ? o instanceof Long
-                    : k.equals("lat") || k.equals("lon") ? o instanceof Number
-                    : o instanceof String;
-            if (!ok) {
-                res.events.add(ev("reject", "reason", "missing:" + k));
-                return res;
-            }
+        String missing = Reports.missingKey(report);
+        if (missing != null) {
+            res.events.add(ev("reject", "reason", "missing:" + missing));
+            return res;
         }
         String source = (String) report.get("track.source_id");
-        String key = source + "/" + report.get("uid");
+        String key = Reports.entityKey(report);
         long time = ((Number) report.get("time_ms")).longValue();
         Entity a = entities.get(key);
         if (a != null && time < a.lastTime) {
@@ -206,15 +198,8 @@ public final class Engine {
             }
         }
         a.lastTime = time;
-        a.last = new LinkedHashMap<>(report);
-        // Spec: Reports, a null value is the same as the key being absent, and an
-        // optional key of the wrong type is treated as absent.
-        a.last.values().removeIf(v -> v == null);
-        for (String k : new String[] {"hae", "ce", "course", "speed_ms"})
-            if (!(a.last.get(k) instanceof Number)) a.last.remove(k);
-        if (!ceOk) a.last.remove("ce");
-        if (!(a.last.get("type") instanceof String)) a.last.remove("type");
-        if (!(a.last.get("stale_ms") instanceof Long)) a.last.remove("stale_ms");
+        // Spec: Reports, the optional-key rules.
+        a.last = Reports.present(report);
         a.ce = ce;
 
         if (pack.methodAssign) {
@@ -498,10 +483,22 @@ public final class Engine {
      * combined per axis by inverse-variance weights; pv of the result is unused and 0.
      */
     private Axis[] fusedEstimate(Iterable<Entity> members, long t) {
-        double[] invPP = new double[2], sumP = new double[2], invVV = new double[2], sumV = new double[2];
+        List<Axis[]> predicted = new ArrayList<>();
         for (Entity m : members) {
             Predicted pr = new Predicted(m, t);
-            Axis[] axes = {pr.east, pr.north};
+            predicted.add(new Axis[] {pr.east, pr.north});
+        }
+        return inverseVariance(predicted);
+    }
+
+    /**
+     * The inverse-variance combination of correlate-assign.md, fused estimate, over filters
+     * already predicted to one time ({east, north} each, in the order given). Fuse's
+     * `inverse_variance` method is this same estimate (fuse.md, Kinematics).
+     */
+    public static Axis[] inverseVariance(List<Axis[]> predicted) {
+        double[] invPP = new double[2], sumP = new double[2], invVV = new double[2], sumV = new double[2];
+        for (Axis[] axes : predicted) {
             for (int k = 0; k < 2; k++) {
                 invPP[k] += 1 / axes[k].pp;
                 sumP[k] += axes[k].p / axes[k].pp;
@@ -766,13 +763,18 @@ public final class Engine {
         return toPlane(lat0, lon0, lat, lon);
     }
 
-    /** Spec: Frame, metres east and north of the reference (lat0, lon0). */
+    private double[] toDegrees(double east, double north) {
+        return toDegrees(lat0, lon0, east, north);
+    }
+
+    /** Spec: Frame, degrees to metres east and north of the reference (lat0, lon0). */
     public static double[] toPlane(double lat0, double lon0, double lat, double lon) {
         double dlon = wrapLon(lon - lon0);
         return new double[] {R * rad(dlon) * Math.cos(rad(lat0)), R * rad(lat - lat0)};
     }
 
-    private double[] toDegrees(double east, double north) {
+    /** Spec: Frame, back to degrees. */
+    public static double[] toDegrees(double lat0, double lon0, double east, double north) {
         double lat = lat0 + deg(north / R);
         double lon = wrapLon(lon0 + deg(east / (R * Math.cos(rad(lat0)))));
         return new double[] {lat, lon};

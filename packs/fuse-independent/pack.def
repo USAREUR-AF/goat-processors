@@ -1,0 +1,12 @@
+# Fusion of tracks whose errors are independent: separate sensors, each
+# tracked on its own. Kinematics by inverse-variance weight; attributes from
+# the most trusted source, in the source order below.
+pack        fuse-independent
+version     0.1.0
+filter      accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+kinematics  inverse_variance
+attribute   type rule=priority
+attribute   callsign rule=priority
+source      adsb
+source      radar-1
+stale_ms    120000
