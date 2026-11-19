@@ -1,0 +1,5 @@
+{
+ "name": "13-forget-ms-not-integer",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 1000.0\n",
+ "expect_error": true
+}
