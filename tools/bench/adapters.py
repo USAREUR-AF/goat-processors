@@ -18,7 +18,8 @@ from goat_correlator import load_pack, make_engine  # noqa: E402
 
 # The packs the benchmark scores, in report order. A pack added to packs/
 # is scored once it is named here.
-PACKS = ["correlate-gnn", "correlate-window", "correlate-distance", "correlate-assign"]
+PACKS = ["correlate-gnn", "correlate-window", "correlate-distance", "correlate-assign",
+         "correlate-gnn-imm", "correlate-assign-imm", "correlate-assign-window"]
 
 
 def run_pack(pack_name, vector):
