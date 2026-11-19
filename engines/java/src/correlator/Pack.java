@@ -115,15 +115,17 @@ public final class Pack {
                     else if (!v.equals("confirm")) throw new LoadError(ln, "method is confirm or assign");
                     break;
                 }
-                case "new_cost": pk.newCost = dec(one(tok, ln), ln); break;
-                case "keep_bonus": pk.keepBonus = dec(one(tok, ln), ln); break;
+                // correlate-assign.md, Pack: new_cost above 0, keep_bonus 0 or above.
+                case "new_cost": pk.newCost = positive(dec(one(tok, ln), ln), "new_cost", ln); break;
+                case "keep_bonus": pk.keepBonus = nonNegative(dec(one(tok, ln), ln), "keep_bonus", ln); break;
                 case "filter": {
                     Map<String, String> kv = params(tok, 1, ln);
                     if (!kv.keySet().equals(new HashSet<>(FILTER))) throw new LoadError(ln, "filter takes " + FILTER);
-                    pk.accelVar = dec(kv.get("accel_var"), ln);
-                    pk.defaultCe = dec(kv.get("default_ce_m"), ln);
-                    pk.velSigma = dec(kv.get("vel_sigma_ms"), ln);
-                    pk.unknownVel = dec(kv.get("unknown_vel_ms"), ln);
+                    // correlate.md, Pack: accel_var 0 or above, the others above 0.
+                    pk.accelVar = nonNegative(dec(kv.get("accel_var"), ln), "accel_var", ln);
+                    pk.defaultCe = positive(dec(kv.get("default_ce_m"), ln), "default_ce_m", ln);
+                    pk.velSigma = positive(dec(kv.get("vel_sigma_ms"), ln), "vel_sigma_ms", ln);
+                    pk.unknownVel = positive(dec(kv.get("unknown_vel_ms"), ln), "unknown_vel_ms", ln);
                     break;
                 }
                 case "gate": pk.gate.add(test(tok, ln)); break;
@@ -198,6 +200,16 @@ public final class Pack {
     private static double dec(String v, int ln) throws LoadError {
         if (!DECIMAL.matcher(v).matches()) throw new LoadError(ln, "not a number: " + v);
         return Double.parseDouble(v);
+    }
+
+    private static double positive(double v, String name, int ln) throws LoadError {
+        if (!(v > 0)) throw new LoadError(ln, name + " must be above 0");
+        return v;
+    }
+
+    private static double nonNegative(double v, String name, int ln) throws LoadError {
+        if (!(v >= 0)) throw new LoadError(ln, name + " must be 0 or above");
+        return v;
     }
 
     private static long integer(String v, int ln) throws LoadError {
