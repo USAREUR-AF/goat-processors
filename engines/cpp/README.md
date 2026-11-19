@@ -15,11 +15,11 @@ own small JSON reader.
 | File | Spec section |
 |---|---|
 | `src/track.cpp` | correlate.md Frame, Track estimate (steps 1 to 3, each update returning its likelihood term for the two-model filter); shared with fuse and quality |
-| `src/pack.cpp` | Pack (`parse_pack`, `load_pack`), with `time_default` and `time_offset` |
+| `src/pack.cpp` | Pack (`parse_pack`, `load_pack`), with `time_default` (`parse_time_default`, shared with quality) and `time_offset` |
 | `src/engine.cpp` | correlate.md: Reports "Time quality" (in `ingest`), Track estimate Measurement variance (`measurement_variance`, the `time` record, `predict_for_comparison` for the timing variance), Two-model filter (`filter_first`, `filter_update`, `predict`), Restart (`restart_test`, and its use in `ingest`), Tests, Association, Events, Trace, Snapshot |
 | `src/assign.cpp` | correlate-assign.md: Memberships, Ranking (`rank_assignments`, brute force over every assignment), Assignment of one source (`rank_source`, `apply_assignment`), Sensor bias (`bias_state`, `predict_into_frame`, `bias_update`, and Time offset in `fit_time_offset`), Window (`tick_assign`, steps 1 to 6, with `margin`), Snapshot |
 | `src/common.hpp` | helpers engine.cpp and assign.cpp both use |
-| `src/report.cpp` | correlate.md "Reports": required keys, optional-key rules, `type` elements, the time quality keys (`time_error_at`, `time_state_at`); shared by all four functions |
+| `src/report.cpp` | correlate.md "Reports": required keys, optional-key rules, `type` elements, the time quality keys (`time_error_at`, `time_state_at`) and steps 1 and 2 of their resolution (`time_quality`); shared by all four functions |
 | `src/filter_pack.cpp` | filter.md "Pack": directives, rules, `when` lines, parameter sets, values |
 | `src/filter.cpp` | filter.md Geometry (distance, polygon, reference prediction), Conditions, Rules, Tick, Events, Trace, Snapshot |
 | `src/json.cpp` | JSON values for reports, events, trace and snapshot |
@@ -67,7 +67,7 @@ build/cpp/run_quality_vectors .
 ```
 
 The build passes `-ffp-contract=off` (and `-msse2 -mfpmath=sse` on x86) to
-the correlator library, which holds the shared frame and filter, so no
+the correlator and quality libraries, which holds the shared frame and filter, so no
 `a*b + c` becomes a fused multiply-add and no intermediate is kept in
 extended precision (correlate.md "Floats").
 
@@ -97,14 +97,19 @@ prints `PASS`/`FAIL` per vector and, for a failure, the first mismatch path.
 
 ## Quality
 
-A C++17 implementation of `spec/quality.md` (version 0.1), in its own module
-(`corr::quality`). It reuses the correlate frame and filter from
-`src/track.cpp`.
+A C++17 implementation of `spec/quality.md` (version 0.2, with time quality
+per source), in its own module (`corr::quality`). It reuses the correlate
+frame and filter from `src/track.cpp`, and the time quality of correlate.md
+0.8 where quality.md says the rules are the same: the `time_error_ms` and
+`time_state` readers and steps 1 and 2 of their resolution
+(`report::time_quality` in `src/report.cpp`), and the `time_default` line
+grammar (`parse_time_default` in `src/pack.cpp`, given quality's own number
+grammar). Step 3 is quality's own: an unstated value takes no sample.
 
 | File | Spec section |
 |---|---|
-| `src/quality_pack.cpp` | quality.md Pack and Rules (`quality::parse_pack`, `quality::load_pack`) |
-| `src/quality.cpp` | quality.md Reports, Order, Frame and filter, Samples, Window, Entity measures, Source measures, Rules, Forwarding, Tick, Ingest, Events, Trace, Snapshot |
+| `src/quality_pack.cpp` | quality.md Pack (line ends, control characters and separators in `pack_lines`; `time_default`) and Rules (`quality::parse_pack`, `quality::load_pack`) |
+| `src/quality.cpp` | quality.md Reports (with Time quality), Order, Frame and filter, Input clock (`input_clock`, `source_latest`), Samples, Window, Entity measures, Source measures, Rules, Forwarding (with the overflow clamp), Tick, Ingest, Events, Trace, Snapshot |
 | `test/run_quality_vectors.cpp` | runs every vector under `packs/quality-*/vectors/` and `spec/quality-load-vectors/` |
 
 ```cpp
