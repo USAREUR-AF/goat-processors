@@ -15,7 +15,8 @@ var modelNames = [2]string{"quiet", "maneuver"}
 // Measurement is what one report gives the filter, in the plane.
 type Measurement struct {
 	East, North float64 // position, m
-	R           float64 // ce², the position variance
+	REast       float64 // r_east, the position variance east (Track estimate, Measurement variance)
+	RNorth      float64 // r_north, the position variance north
 	HasVel      bool
 	VE, VN      float64 // velocity, m/s, when HasVel
 }
@@ -27,8 +28,8 @@ func (p *Pack) firstModel(z Measurement) Model {
 		vv = p.VelSigmaMs * p.VelSigmaMs
 	}
 	return Model{
-		East:  Axis{P: z.East, V: z.VE, PP: z.R, VV: vv},
-		North: Axis{P: z.North, V: z.VN, PP: z.R, VV: vv},
+		East:  Axis{P: z.East, V: z.VE, PP: z.REast, VV: vv},
+		North: Axis{P: z.North, V: z.VN, PP: z.RNorth, VV: vv},
 	}
 }
 
@@ -42,9 +43,9 @@ func (p *Pack) step(m Model, dt, q float64, z Measurement) (Model, float64) {
 
 	e, n := m.East.predict(dt, q), m.North.predict(dt, q)
 	var y, s float64
-	e, y, s = e.updatePos(z.East, z.R)
+	e, y, s = e.updatePos(z.East, z.REast)
 	term(y, s)
-	n, y, s = n.updatePos(z.North, z.R)
+	n, y, s = n.updatePos(z.North, z.RNorth)
 	term(y, s)
 	if z.HasVel {
 		r := p.VelSigmaMs * p.VelSigmaMs
@@ -180,6 +181,9 @@ func (g *Engine) predicted(e *Entity, t int64) (Axis, Axis) {
 // filterSnapshot is the entity's filter fields of the snapshot (correlate.md: Snapshot).
 func (e *Entity) filterSnapshot(out Obj) Obj {
 	out["filter"] = Obj{"east": e.East.list(), "north": e.North.list()}
+	if e.HasTime {
+		out["time"] = Obj{"var_east": e.TimeVarEast, "var_north": e.TimeVarNorth}
+	}
 	if e.Models != nil {
 		models := Obj{}
 		for j, name := range modelNames {
@@ -200,9 +204,11 @@ func (g *Engine) restartTest(e *Entity, t int64, z Measurement, trace *[]Obj) bo
 		return true
 	}
 	pe, pn := g.predicted(e, t)
-	// z.R is ce², with ce the report's ce or default_ce_m.
+	// z.REast, z.RNorth are the report's measurement variance (Track estimate),
+	// found from this same prediction's velocity; no timing variance is added
+	// to the prediction here.
 	de, dn := z.East-pe.P, z.North-pn.P
-	d2 := de*de/(pe.PP+z.R) + dn*dn/(pn.PP+z.R)
+	d2 := de*de/(pe.PP+z.REast) + dn*dn/(pn.PP+z.RNorth)
 	pass := d2 < p.RestartGate
 	*trace = append(*trace, Obj{"stage": "filter", "a": e.Key, "b": nil, "test": "restart", "value": d2, "limit": p.RestartGate, "pass": pass})
 	return pass

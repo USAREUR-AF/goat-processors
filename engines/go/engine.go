@@ -80,6 +80,11 @@ type Entity struct {
 	Models       *[2]Model  // with the maneuver line: quiet, maneuver (spec: Two-model filter)
 	Mode         [2]float64 // with the maneuver line: mu1, mu2
 	Ce           float64
+	REast        float64        // the last report's measurement variance r_east (Track estimate)
+	RNorth       float64        // the last report's measurement variance r_north
+	HasTime      bool           // the last report's time error was above 0 (Snapshot: time)
+	TimeVarEast  float64        // timing variance (v_e*ts)², 0 when the time error is 0
+	TimeVarNorth float64        // timing variance (v_n*ts)², 0 when the time error is 0
 	Last         map[string]any // the last accepted report
 	Group        string
 	HoldFailures int64
@@ -185,7 +190,7 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 			return []Obj{{"ev": "reject", "reason": "missing:" + k}}, []Obj{}
 		}
 	}
-	report = cleanOptional(report)
+	report = cleanTimeQuality(cleanOptional(report))
 	source := report["track.source_id"].(string)
 	key := source + "/" + report["uid"].(string)
 	t, _ := toInt(report["time_ms"])
@@ -210,12 +215,26 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 	if !ok {
 		ce = p.DefaultCeM
 	}
-	z.R = ce * ce
 	course, hasC := toFloat(report["course"])
 	speed, hasS := toFloat(report["speed_ms"])
 	if z.HasVel = hasC && hasS; z.HasVel {
 		z.VE, z.VN = speed*math.Sin(rad(course)), speed*math.Cos(rad(course))
 	}
+
+	// Measurement variance (Track estimate), from the report's time error
+	// (Reports, Time quality). The velocity is the prediction's to this
+	// report's time; for a first report, the measured velocity, or 0.
+	te, _ := g.timeQuality(source, report)
+	ve, vn := z.VE, z.VN
+	if e != nil && te != 0 {
+		pe, pn := g.predicted(e, t)
+		ve, vn = pe.V, pn.V
+	}
+	varE, varN := measurementVariance(&z, ce, te, ve, vn)
+	if te > 0 {
+		trace = append(trace, timeRecord(key, te, varE, varN))
+	}
+
 	if e == nil {
 		e = &Entity{Key: key, Source: source}
 		g.startFilter(e, z)
@@ -233,6 +252,8 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 		}
 	}
 	e.LastTime, e.Ce, e.Last = t, ce, report
+	e.REast, e.RNorth = z.REast, z.RNorth
+	e.HasTime, e.TimeVarEast, e.TimeVarNorth = te > 0, varE, varN
 
 	if p.Method == "assign" {
 		// Assignment happens on the tick (spec: correlate-assign.md Events).
@@ -436,12 +457,13 @@ func record(stage string, a, b *Entity, test string, value, limit any, pass bool
 	return Obj{"stage": stage, "a": a.Key, "b": b.Key, "test": test, "value": value, "limit": limit, "pass": pass}
 }
 
-// d2 is the squared statistical distance of A's filter from B's prediction (spec: Tests).
+// d2 is the squared statistical distance of A's filter from B's prediction
+// (spec: Tests): B's predicted pp holds B's timing variance, and r_a is A's
+// last measurement variance on each axis (ce_a² when its time error was 0).
 func (g *Engine) d2(a, b *Entity) float64 {
 	be, bn := g.predictedFor(b, a)
-	r := a.Ce * a.Ce
 	de, dn := a.East.P-be.P, a.North.P-bn.P
-	return de*de/(be.PP+r) + dn*dn/(bn.PP+r)
+	return de*de/(be.PP+a.REast) + dn*dn/(bn.PP+a.RNorth)
 }
 
 // runTests runs tests in order, stopping at the first failure, and reports whether all passed.

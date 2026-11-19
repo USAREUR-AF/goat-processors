@@ -133,14 +133,16 @@ func sameChoices(a, b []Choice) bool {
 
 // fused returns the fused estimate of a set of entities at time t, per axis
 // (Fused estimate). Only P, V, PP and VV are meaningful. With a non-nil frame
-// entity A and the pack's bias line, each member's prediction is first moved
-// into A's frame (Cost; Sensor bias); for output, frame is nil and no member
-// is moved.
+// entity A (Cost), each member's predicted pp first gets the member's timing
+// variance (correlate.md Track estimate) and then, with the pack's bias line,
+// the member is moved into A's frame (Sensor bias); for output, frame is nil
+// and neither happens.
 func (g *Engine) fused(members []string, t int64, frame *Entity) (Axis, Axis) {
 	var se, sn [4]float64 // sum 1/pp, sum p/pp, sum 1/vv, sum v/vv
 	for _, k := range members {
 		e, n := g.predicted(g.entities[k], t)
 		if frame != nil {
+			e, n = withTimingVariance(g.entities[k], e, n)
 			e, n = g.moveInto(g.entities[k], frame, e, n)
 		}
 		for _, x := range []struct {
@@ -160,11 +162,13 @@ func (g *Engine) fused(members []string, t int64, frame *Entity) (Axis, Axis) {
 	return mk(se), mk(sn)
 }
 
-// cost is d² of entity A against the fused estimate of M at A's time (Cost).
+// cost is d² of entity A against the fused estimate of M at A's time (Cost);
+// pp_a is A's filter pp plus A's timing variance.
 func (g *Engine) cost(a *Entity, members []string) float64 {
 	fe, fn := g.fused(members, a.LastTime, a)
-	de, dn := a.East.P-fe.P, a.North.P-fn.P
-	return de*de/(a.East.PP+fe.PP) + dn*dn/(a.North.PP+fn.PP)
+	ae, an := withTimingVariance(a, a.East, a.North)
+	de, dn := ae.P-fe.P, an.P-fn.P
+	return de*de/(ae.PP+fe.PP) + dn*dn/(an.PP+fn.PP)
 }
 
 // entry is one cell of the table: its cost, or forbidden.
