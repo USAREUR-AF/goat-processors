@@ -527,14 +527,9 @@ Output Engine::ingest(const Json& r) {
     // correlate.md "Reports", "Time quality": per key, the report's own
     // value, else the pack's time_default for this source, else error 0 and
     // state coherent.
-    const auto td = pack_.time_default.find(source);
-    const TimeDefault* defaults = td == pack_.time_default.end() ? nullptr : &td->second;
-    double te = 0;
-    if (auto own = report::time_error_at(r)) te = *own;
-    else if (defaults && defaults->error_ms) te = *defaults->error_ms;
-    std::string time_state = "coherent";
-    if (auto own = report::time_state_at(r)) time_state = *own;
-    else if (defaults && defaults->state) time_state = *defaults->state;
+    const report::TimeQuality tq = report::time_quality(r, source, pack_.time_default);
+    const double te = tq.error_ms().value_or(0);
+    const std::string time_state = tq.state().value_or("coherent");
 
     // correlate.md "Track estimate", Measurement variance, and its `time`
     // record before any other record of this report.

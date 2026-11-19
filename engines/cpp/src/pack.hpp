@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <optional>
 #include <stdexcept>
@@ -78,5 +79,16 @@ Pack parse_pack(const std::string& text);
 
 // Reads <dir>/pack.def; throws PackError.
 Pack load_pack(const std::string& dir);
+
+// correlate.md "Pack": one `time_default` line, `words` its tokens with the
+// directive first. The source id (a token without '='), then `error_ms`,
+// `state` or both, each at most once; `error_ms` 0 or above, `state` one of
+// the three time states; at most one line per source id. `number` reads the
+// `error_ms` text in the calling pack's number grammar and throws PackError
+// when it is not a number (quality.md "Pack" keeps its own grammar). Adds the
+// line to `into`; throws PackError on any load error.
+void parse_time_default(int line, const std::vector<std::string>& words,
+                        const std::function<double(const std::string&)>& number,
+                        std::map<std::string, TimeDefault>& into);
 
 } // namespace corr

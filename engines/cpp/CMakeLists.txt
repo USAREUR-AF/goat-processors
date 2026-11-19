@@ -23,10 +23,11 @@ target_include_directories(correlator PUBLIC src)
 target_compile_options(correlator PRIVATE -Wall -Wextra ${CORR_FLOAT_FLAGS})
 
 # quality.md: its own module beside correlate, reusing the shared filter and
-# frame in track.cpp.
+# frame in track.cpp and the report and time_default reading of report.cpp and
+# pack.cpp. quality.md "Floats": the same no-FMA, no-extended-precision flags.
 add_library(quality src/quality_pack.cpp src/quality.cpp)
 target_link_libraries(quality PUBLIC correlator)
-target_compile_options(quality PRIVATE -Wall -Wextra)
+target_compile_options(quality PRIVATE -Wall -Wextra ${CORR_FLOAT_FLAGS})
 
 # fuse.md: its own module beside correlate, reusing the shared filter in
 # track.cpp and the report reading in report.cpp.
