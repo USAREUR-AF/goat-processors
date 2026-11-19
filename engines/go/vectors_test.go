@@ -130,9 +130,9 @@ func TestScenarioVectors(t *testing.T) {
 	}
 }
 
-// TestLoadVectors runs spec/load-vectors/*.json.
+// TestLoadVectors runs spec/correlate-load-vectors/*.json.
 func TestLoadVectors(t *testing.T) {
-	files, _ := filepath.Glob(filepath.Join(root, "spec", "load-vectors", "*.json"))
+	files, _ := filepath.Glob(filepath.Join(root, "spec", "correlate-load-vectors", "*.json"))
 	sort.Strings(files)
 	if len(files) == 0 {
 		t.Fatal("no load vectors found")
