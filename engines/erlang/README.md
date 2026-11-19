@@ -1,6 +1,6 @@
 # goat-correlator: Erlang engine
 
-An implementation of `spec/correlator-spec.md` in Erlang/OTP, standard library
+An implementation of `spec/correlate.md` (version 0.2) in Erlang/OTP, standard library
 only. JSON is read with OTP 27's `json` module.
 
 | File | Contents |
@@ -9,7 +9,7 @@ only. JSON is read with OTP 27's `json` module.
 | `src/correlator_filter.erl` | the local plane frame and the two-axis constant-velocity Kalman filter |
 | `src/correlator_pack.erl` | `pack.def` parsing and validation |
 | `src/correlator_vectors.erl` | the vector runner |
-| `DISAGREEMENTS.md` | vector/spec disagreements, and how open points are resolved |
+| `DISAGREEMENTS.md` | vector/spec disagreements, and how points still open under 0.2 are resolved |
 
 The engine state is a value: `ingest(Report, State)` and `tick(NowMs, State)`
 return `{Events, Trace, NewState}`.
@@ -30,9 +30,10 @@ Compiles `src/*.erl` into `engines/erlang/ebin/`.
 engines/erlang/run_tests
 ```
 
-Builds, then runs every scenario vector under `packs/*/vectors/` (each step's
+Builds, then runs every scenario vector under `packs/*/vectors/` (`correlate-gnn`,
+`correlate-window`, `correlate-distance`) (each step's
 events and trace, then the final snapshot) and every load vector under
-`spec/load-vectors/`, using the structural comparison of
+`spec/correlate-load-vectors/`, using the structural comparison of
 `spec/vector-format.md`. It prints `PASS` or `FAIL` per vector, the path of the
 first mismatch for a failing vector, and a summary line, and exits non-zero if
 any vector fails.

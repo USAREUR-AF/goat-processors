@@ -6,7 +6,12 @@
 -module(correlator).
 -export([load_pack/1, new/1, ingest/2, tick/2, snapshot/1]).
 
--define(REQUIRED, [<<"track.source_id">>, <<"uid">>, <<"time_ms">>, <<"lat">>, <<"lon">>]).
+%% Reports: required keys in table order with their type; optional keys with
+%% their type. A key of the wrong type is missing (required) or absent (optional).
+-define(REQUIRED, [{<<"track.source_id">>, string}, {<<"uid">>, string},
+                   {<<"time_ms">>, integer}, {<<"lat">>, number}, {<<"lon">>, number}]).
+-define(OPTIONAL, [{<<"hae">>, number}, {<<"ce">>, number}, {<<"course">>, number},
+                   {<<"speed_ms">>, number}, {<<"type">>, string}, {<<"stale_ms">>, integer}]).
 
 load_pack(Dir) -> correlator_pack:load_pack(Dir).
 
@@ -25,12 +30,18 @@ finish(St = #{events := Es, trace := Ts}) ->
 %% ---------------------------------------------------------------- reports
 
 %% Reports: reject missing keys in table order, then out-of-order.
-ingest(Report, St) ->
-    case [K || K <- ?REQUIRED, maps:get(K, Report, null) =:= null] of
+ingest(Report0, St) ->
+    case [K || {K, Type} <- ?REQUIRED, not typed(Type, maps:get(K, Report0, null))] of
         [Missing | _] ->
             finish(emit(#{<<"ev">> => <<"reject">>,
                           <<"reason">> => <<"missing:", Missing/binary>>}, St));
         [] ->
+            Report = maps:filter(fun(K, V) ->
+                                         case lists:keyfind(K, 1, ?OPTIONAL) of
+                                             {K, Type} -> typed(Type, V);
+                                             false -> true
+                                         end
+                                 end, Report0),
             Key = entity_key(Report),
             T = maps:get(<<"time_ms">>, Report),
             case maps:find(Key, maps:get(entities, St)) of
@@ -41,6 +52,10 @@ ingest(Report, St) ->
                     finish(accept(Key, Report, St))
             end
     end.
+
+typed(string, V) -> is_binary(V);
+typed(integer, V) -> is_integer(V);
+typed(number, V) -> is_number(V).
 
 entity_key(R) ->
     <<(maps:get(<<"track.source_id">>, R))/binary, "/", (maps:get(<<"uid">>, R))/binary>>.
@@ -163,7 +178,7 @@ run_test({<<"mahalanobis">>, #{<<"gate">> := Gate}}, {EA, _EB, PredB}, _St) ->
     V = d2(EA, PredB),
     result(<<"mahalanobis">>, V, Gate, V < Gate);
 run_test({<<"course">>, #{<<"max_deg">> := Max, <<"min_speed_ms">> := Min}}, {EA, EB, _}, _St) ->
-    case moving([EA, EB], Min) of
+    case moving([EA, EB], Min, true) of
         [{CA, _}, {CB, _}] ->
             D = abs(CA - CB),
             V = min(D, 360 - D),
@@ -171,11 +186,14 @@ run_test({<<"course">>, #{<<"max_deg">> := Max, <<"min_speed_ms">> := Min}}, {EA
         skip -> skipped(<<"course">>)
     end;
 run_test({<<"speed">>, #{<<"max_pct">> := Max, <<"min_speed_ms">> := Min}}, {EA, EB, _}, _St) ->
-    case moving([EA, EB], Min) of
+    case moving([EA, EB], Min, false) of
         [{_, SA}, {_, SB}] ->
             Slow = min(SA, SB),
             Fast = max(SA, SB),
-            V = abs(1 - Slow / Fast) * 100,
+            V = case Fast == 0 of
+                    true -> 0;
+                    false -> abs(1 - Slow / Fast) * 100
+                end,
             result(<<"speed">>, V, Max, V =< Max);
         skip -> skipped(<<"speed">>)
     end;
@@ -191,11 +209,12 @@ run_test({<<"same">>, #{<<"key">> := K}}, {EA, EB, _}, _St) ->
     VB = value(K, EB),
     result(<<"same">>, VA, VB, VA == VB).
 
-%% Course and speed tests: skipped unless both entities have course and
-%% speed_ms with speed at least min_speed_ms.
-moving(Ents, Min) ->
+%% Course and speed tests: skipped unless both entities have speed_ms (and,
+%% for course, course) with speed at least min_speed_ms.
+moving(Ents, Min, NeedCourse) ->
     CS = [{value(<<"course">>, E), value(<<"speed_ms">>, E)} || E <- Ents],
-    case lists:all(fun({C, S}) -> is_number(C) andalso is_number(S) andalso S >= Min end, CS) of
+    case lists:all(fun({C, S}) -> (is_number(C) orelse not NeedCourse)
+                                      andalso is_number(S) andalso S >= Min end, CS) of
         true -> CS;
         false -> skip
     end.
@@ -217,9 +236,9 @@ group_name(G) -> <<"g", (integer_to_binary(G))/binary>>.
 hold(A, G, St0) ->
     Pack = maps:get(pack, St0),
     Others = [B || B <- members(G, St0), B =/= A],
-    {Passes, St1} = hold_members(maps:get(hold, Pack), A, Others, [], St0),
+    {Passed, St1} = hold_members(maps:get(hold, Pack), A, Others, St0),
     Ent = entity(A, St1),
-    case lists:member(true, Passes) of
+    case Passed of
         true -> put_entity(A, Ent#{hold_failures := 0}, St1);
         false ->
             Fails = maps:get(hold_failures, Ent) + 1,
@@ -230,10 +249,13 @@ hold(A, G, St0) ->
             end
     end.
 
-hold_members(_Tests, _A, [], Acc, St) -> {lists:reverse(Acc), St};
-hold_members(Tests, A, [B | Bs], Acc, St0) ->
-    {Pass, St1} = run_tests(Tests, <<"hold">>, A, B, St0),
-    hold_members(Tests, A, Bs, [Pass | Acc], St1).
+%% Hold against each other member in key order; stops at the first pass.
+hold_members(_Tests, _A, [], St) -> {false, St};
+hold_members(Tests, A, [B | Bs], St0) ->
+    case run_tests(Tests, <<"hold">>, A, B, St0) of
+        {true, St1} -> {true, St1};
+        {false, St1} -> hold_members(Tests, A, Bs, St1)
+    end.
 
 %% Leave a group (count reset); dissolve it when one member is left.
 leave(A, G, Reason, St0) ->
@@ -244,7 +266,7 @@ leave(A, G, Reason, St0) ->
     case [M || M <- members(G, St2), M =/= A] of
         [Last] ->
             LastEnt = entity(Last, St2),
-            St3 = put_entity(Last, LastEnt#{group := none}, St2),
+            St3 = put_entity(Last, LastEnt#{group := none, hold_failures := 0}, St2),
             St4 = St3#{groups := maps:remove(G, maps:get(groups, St3))},
             emit(#{<<"ev">> => <<"dissolve">>, <<"group">> => group_name(G),
                    <<"entity">> => Last}, St4);
