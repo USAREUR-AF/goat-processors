@@ -126,13 +126,15 @@ the offset `o` and the weight sum `w`; one variance `var` for both axes; and
 `o = 0`, `w = 0`, `var = s²`, `n = 0`; its state is stored when its first
 pair is accepted.
 
-**Moving B into A's frame.** When A's source is `T` and B's source is `S`, and
-the two differ, B's predicted position on each axis becomes `p + o` with
-`pp + var`, from pair `"<S>|<T>"`, when `S` is before `T` in key order; or
-`p - o` with `pp + var`, from pair `"<T>|<S>"`, when `T` is before `S`. Two
+**Moving B into A's frame.** Let `a_src` be A's source and `b_src` B's, and
+let them differ. B's predicted position on each axis becomes `p + o` with
+`pp + var`, from pair `"<b_src>|<a_src>"`, when `b_src` is before `a_src` in
+key order; or `p - o` with `pp + var`, from pair `"<a_src>|<b_src>"`, when
+`a_src` is before `b_src`. Two
 entities of one source are never moved. This applies wherever B is
 predicted to be compared with A: the `distance`, `window` and `mahalanobis`
-tests of `correlate.md` (to B's prediction, before the test formula), and
+tests of `correlate.md` (to B's prediction, before the test formula;
+`distance` and `window` read no `pp`, so only the offset changes them), and
 each member of M in Cost. A system track's estimate for output moves no
 member.
 
@@ -153,6 +155,9 @@ step 2):
 4. Trace:
    `{"stage":"bias","a":<X>,"b":<Y>,"test":"offset","value":d²,"limit":g,"pass":<accepted>,"east":<o>,"north":<o>,"var":<var>,"pairs":<n>}`,
    with the state after step 3.
+
+The update reads the committed membership, also with `margin`: an offset is
+learned only from memberships the window has committed.
 
 The offset is the mean of the observed offsets weighted by `1/r`. Only the
 ratio of weights matters, so a sensor that understates its error does not
@@ -243,7 +248,8 @@ best, and makes `system` report the best history's latest membership.
    degrees, with `course = deg(atan2(v_east, v_north))` in [0, 360) and
    `speed_ms = hypot(v_east, v_north)`, plus `hae` from the member with the
    greatest `last_time_ms` whose last report has `hae` (ties to key order),
-   when there is one. Retiring members are included. Then, when `n` is above
+   when there is one. Retiring members of the committed membership are included; with `margin`,
+   the best history's latest membership holds none. Then, when `n` is above
    1, one event `provisional` per system track of the best history's latest
    membership, in creation order.
 
@@ -298,7 +304,7 @@ A report gives only `new` or `reject`. A tick gives, in order: the committed
 record's events, when a record is committed (per stale entity `leave`,
 `end`, `drop`; per restarted entity `leave`, `end`; then per source the
 assignment events); then one `system` per committed system track (with
-`margin`, per system track of the best history); then, when `window` is above 1, one `provisional`
+`margin`, per system track of the best history's latest membership); then, when `window` is above 1, one `provisional`
 per system track of the best history.
 
 ## Trace

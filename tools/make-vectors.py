@@ -639,6 +639,39 @@ scenario("51-full-equal-totals-within-margin", "correlate-assign-full", TIE + [
     ["start", "start"] + JUMP_P, [], [], ["join", "join"] + JUMP_P])
 
 
+# 52. Method confirm, one model, with restart: the pair correlates; then the
+#     radar's report lands 3 km off, far above the restart gate. Its filter
+#     starts again from that report (no `new`); it keeps its group, which then
+#     fails the hold test on two reports in a row and dissolves.
+scenario("52-confirm-restart-keeps-group", "correlate-gnn-restart", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 2000, 3000, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 3000, 3000, 0, ce=30, **AIR)),
+    ("tick", 3500),
+], [["new"], ["new"], ["correlate"], [], ["leave", "dissolve"], []])
+
+# 53. Restart and staleness at one tick: T1 restarts at 2 s, then neither it
+#     nor A7 reports for 20 s; A7 reports again at 22 s. At the tick T1 is
+#     stale, so it leaves for staleness (not restart) and retires; the bias
+#     update skips the retiring T1, so the adsb|radar-1 pair gets no record.
+scenario("53-full-restart-then-stale", "correlate-assign-full", [
+    ("ingest", rep("adsb", "A7", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 0, 15, 0, ce=30, **AIR)),
+    ("tick", 500),
+    ("ingest", rep("adsb", "A7", 1000, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 1000, 15, 0, ce=30, **AIR)),
+    ("tick", 1500),
+    ("ingest", rep("adsb", "A7", 2000, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 2000, 3000, 0, ce=30, **AIR)),
+    ("ingest", rep("adsb", "A7", 22000, 0, 0, ce=30, **AIR)),
+    ("tick", 22500),
+    ("tick", 23500),
+], [["new"], ["new"], ["system", "provisional"], [], [], ["start", "join", "system", "provisional"],
+    [], [], [], ["system", "provisional"], ["leave", "drop", "system", "provisional"]])
+
+
 NEAR = 1e-6
 
 

@@ -225,7 +225,7 @@ When `pass` is true the report updates the filter as in Track estimate (or
 Two-model filter). Otherwise the filter starts again from this report as a
 first report: one filter, or both models and the mode probabilities `b / s`,
 `a / s`, as in First report. No `new` event is given and the entity keeps
-its key, its group and its counts. With method `assign` the entity is also
+its key, its group, its pair counts and its hold failure count. With method `assign` the entity is also
 *restarted* until the next tick ([correlate-assign.md](correlate-assign.md),
 Window). The first report of an entity runs no restart test.
 
