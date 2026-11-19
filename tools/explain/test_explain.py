@@ -66,6 +66,30 @@ class Explain(unittest.TestCase):
         self.assertFalse(d["has_expect"])
         self.assertEqual(d["steps"][-1]["snapshot"], v["snapshot"])
 
+    def test_bench_run_with_pack_truth_and_events(self):
+        """The shapes tools/bench writes: steps only, no pack; truth per tick; events per tick."""
+        v = json.load(open(VECTORS[0], encoding="utf-8"))
+        steps = [{k: s[k] for k in ("ingest", "tick") if k in s} for s in v["steps"]]
+        ticks = [s["tick"] for s in steps if "tick" in s] or [0]
+        first = next(s["ingest"] for s in steps if "ingest" in s)
+        truth = {"ticks": ticks, "labels": ["o1" if "ingest" in s else None for s in steps],
+                 "objects": {"o1": {"env": "A", "pos": [[first["lat"], first["lon"]] for _ in ticks]}}}
+        events = {"engine": "x", "scenario": "s", "ticks": [{"now_ms": t, "tracks": [
+            {"system": "s9", "members": [], "lat": first["lat"], "lon": first["lon"]}]} for t in ticks]}
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = []
+            for name, obj in (("run.json", {"name": "run", "pack": None, "steps": steps}),
+                              ("run.truth.json", truth), ("run.events.json", events)):
+                paths.append(os.path.join(tmp, name))
+                json.dump(obj, open(paths[-1], "w", encoding="utf-8"))
+            d = explain.build(paths[0], paths[1], paths[2], pack=v["pack"])
+        self.assertTrue(d["replayed"])
+        self.assertEqual(list(d["truth"]), ["o1"])
+        self.assertEqual(d["steps"][0]["truth"], "o1")
+        tick_steps = [s for s in d["steps"] if s["kind"] == "tick"]
+        if tick_steps:
+            self.assertEqual(tick_steps[0]["events"][0]["system"], "s9")
+
     def test_unknown_function_shows_the_file(self):
         v = json.load(open(VECTORS[0], encoding="utf-8"))
         v["pack"] = "nofunction-x"

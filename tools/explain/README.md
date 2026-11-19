@@ -47,8 +47,17 @@ under the rules of `spec/vector-format.md`:
 |---|---|
 | `-o FILE` | output path |
 | `--all DIR` | a page for every vector under `packs/` and an index page; exit 1 if any replay differs |
-| `--truth FILE` | draw ground truth as dashed lines. Accepted shapes: `{"objects": {id: [{time_ms, lat, lon}, ...]}}`, `{"objects": [{"id", "states": [...]}]}`, or a list of `{id, time_ms, lat, lon}` |
-| `--events FILE` | show events from another engine instead of the replay: a list with one entry per step, each a list of events or `{"events": [...]}` |
+| `--pack NAME` | the pack to replay with, for input that names none (a `tools/bench` scenario) |
+| `--truth FILE` | draw ground truth as dotted lines, and show each report's truth object. Reads the `<name>.truth.json` of `tools/bench`, `{"objects": {id: [{time_ms, lat, lon}, ...]}}`, `{"objects": [{"id", "states": [...]}]}`, or a list of `{id, time_ms, lat, lon}` |
+| `--events FILE` | show another engine's output instead of the replay's events: the `<name>.events.json` of `tools/bench` (each tick's tracks become `system` events), or a list with one entry per step, each a list of events or `{"events": [...]}` |
+
+A bench run, replayed with one pack, its truth and a private engine's events:
+
+```sh
+python3 -I tools/bench/bench.py generate --out build/bench/scenarios --only split
+python3 -I tools/explain/explain.py build/bench/scenarios/split.json --pack correlate-assign \
+    --truth build/bench/scenarios/split.truth.json
+```
 
 ## Tests
 

@@ -157,10 +157,17 @@ def clusters(snap):
 def load_truth(path, ref):
     """Truth as {object: [[t, east, north], ...]}; accepts the shapes listed in README.md."""
     if not path:
-        return None, None
+        return None, None, None
     d = json.load(open(path, encoding="utf-8"))
     rows = []
-    if isinstance(d, dict) and isinstance(d.get("objects"), dict):
+    if (isinstance(d, dict) and isinstance(d.get("objects"), dict) and isinstance(d.get("ticks"), list)
+            and all(isinstance(o, dict) and "pos" in o for o in d["objects"].values())):
+        # tools/bench: per object a position [lat, lon] (or null) at each tick
+        for oid, o in d["objects"].items():
+            for t, pos in zip(d["ticks"], o["pos"]):
+                if pos:
+                    rows.append((oid, {"time_ms": t, "lat": pos[0], "lon": pos[1]}))
+    elif isinstance(d, dict) and isinstance(d.get("objects"), dict):
         for oid, pts in d["objects"].items():
             for p in pts:
                 rows.append((oid, p))
@@ -177,17 +184,21 @@ def load_truth(path, ref):
         e, n = to_plane(ref, p["lat"], p["lon"])
         out.setdefault(str(oid), []).append([p.get("time_ms", p.get("t_ms")), e, n])
     if not out:
-        return None, "truth file %s has no object positions in a known shape; not drawn" % path
+        return None, "truth file %s has no object positions in a known shape; not drawn" % path, None
     for v in out.values():
         v.sort(key=lambda r: (r[0] is None, r[0]))
-    return out, "truth from %s" % os.path.relpath(path)
+    labels = d.get("labels") if isinstance(d, dict) and isinstance(d.get("labels"), list) else None
+    return out, "truth from %s" % os.path.basename(path), labels
 
 
 # ---------------------------------------------------------------- build
-def build(vec_path, truth_path=None, events_path=None):
+def build(vec_path, truth_path=None, events_path=None, pack=None):
     vec = json.load(open(vec_path, encoding="utf-8"))
-    vec.setdefault("name", os.path.splitext(os.path.basename(vec_path))[0])
-    pack = vec.get("pack", "")
+    if not vec.get("name"):
+        vec["name"] = os.path.splitext(os.path.basename(vec_path))[0]
+    if pack:
+        vec["pack"] = pack
+    pack = vec.get("pack") or ""
     pack_dir = os.path.join(ROOT, "packs", pack)
     pack_def = None
     pdf = os.path.join(pack_dir, "pack.def")
@@ -198,7 +209,13 @@ def build(vec_path, truth_path=None, events_path=None):
     ext = None
     if events_path:
         ext = json.load(open(events_path, encoding="utf-8"))
-        ext = ext.get("steps", ext) if isinstance(ext, dict) else ext
+        if isinstance(ext, dict) and isinstance(ext.get("ticks"), list):
+            # tools/bench events file: the whole output picture at each tick
+            by_t = {tk.get("now_ms"): tk.get("tracks", []) for tk in ext["ticks"]}
+            ext = [[dict({"ev": "system"}, **tr) for tr in by_t.get(st["tick"], [])] if "tick" in st else []
+                   for st in vec["steps"]]
+        else:
+            ext = ext.get("steps", ext) if isinstance(ext, dict) else ext
 
     snaps = [r[2] for r in rep] if rep else [None] * len(vec["steps"])
     ref = first_ref(vec, snaps)
@@ -234,7 +251,7 @@ def build(vec_path, truth_path=None, events_path=None):
         if ext is not None and i < len(ext):
             e = ext[i]
             s["events"] = e.get("events", e.get("expect", e)) if isinstance(e, dict) else e
-            s["events_source"] = os.path.relpath(events_path)
+            s["events_source"] = os.path.basename(events_path)
         for e in s["events"]:
             if isinstance(e, dict) and isinstance(e.get("lat"), (int, float)) and isinstance(e.get("lon"), (int, float)):
                 e["_xy"] = list(to_plane(ref, e["lat"], e["lon"]))
@@ -252,7 +269,11 @@ def build(vec_path, truth_path=None, events_path=None):
         steps[-1]["est"] = estimates(final)
         steps[-1]["cluster_kind"], steps[-1]["clusters"] = clusters(final)
 
-    truth, tnote = load_truth(truth_path, ref)
+    truth, tnote, labels = load_truth(truth_path, ref)
+    if labels and len(labels) == len(steps):
+        for st, lab in zip(steps, labels):
+            if st["kind"] == "ingest":
+                st["truth"] = lab
     return {
         "name": vec["name"],
         "pack": pack,
@@ -335,13 +356,14 @@ def main(argv=None):
     ap.add_argument("--all", metavar="DIR", help="write a page for every vector in packs/ and an index.html into DIR")
     ap.add_argument("-o", "--out", help="output HTML (default: <input name>.html in the current directory)")
     ap.add_argument("--truth", help="bench truth file: object positions over time")
+    ap.add_argument("--pack", help="pack to replay with, for input that names none (a bench scenario)")
     ap.add_argument("--events", help="events file to show instead of the replayed events (another engine's output)")
     a = ap.parse_args(argv)
     if a.all:
         return write_all(a.all)
     if not a.input:
         ap.error("give an input file or --all DIR")
-    data = build(a.input, a.truth, a.events)
+    data = build(a.input, a.truth, a.events, a.pack)
     out = a.out or os.path.splitext(os.path.basename(a.input))[0] + ".html"
     with open(out, "w", encoding="utf-8") as f:
         f.write(render(data))

@@ -438,7 +438,11 @@ function drawStrip() {
     }
     if (s.trace && s.trace.length) { const t = el("rect", { x: x + cw / 2 - 1, y: 40 - Math.min(18, 2 + s.trace.length), width: 2, height: Math.min(18, 2 + s.trace.length), fill: "var(--line)" }, svg); t.style.pointerEvents = "none"; }
     if (s.match_events === false || s.match_trace === false) el("rect", { x: x + 1, y: 44, width: Math.max(cw - 2, 1), height: 4, fill: "var(--crit)" }, svg);
-    if (cw > 26 || i === 0 || i === N - 1) { const t = el("text", { x: x + cw / 2, y: 56, "text-anchor": "middle", class: "pl-scale" }, svg, String(i + 1)); t.style.pointerEvents = "none"; }
+    if (cw > 26 || i === 0 || i === N - 1) {
+      const edge = cw <= 26 ? (i === 0 ? "start" : "end") : "middle";
+      const tx = edge === "start" ? x + 1 : edge === "end" ? x + cw - 1 : x + cw / 2;
+      const t = el("text", { x: tx, y: 56, "text-anchor": edge, class: "pl-scale" }, svg, String(i + 1)); t.style.pointerEvents = "none";
+    }
   });
 }
 
@@ -469,6 +473,7 @@ function drawInput(s) {
   if (s.kind === "tick") { box.appendChild(h("div", "kv", "tick: now_ms = " + fmt(s.t))); return; }
   const t = h("table"), tb = h("tbody");
   Object.keys(s.report).forEach(k => { const tr = h("tr"); tr.appendChild(h("th", "", k)); tr.appendChild(h("td", "mono", fmt(s.report[k]))); tb.appendChild(tr); });
+  if ("truth" in s) { const tr = h("tr"); tr.appendChild(h("th", "", "truth object")); tr.appendChild(h("td", "mono", s.truth === null ? "none (false track)" : s.truth)); tb.appendChild(tr); }
   if (s.xy) { const tr = h("tr"); tr.appendChild(h("th", "", "plan (m)")); tr.appendChild(h("td", "mono", "east " + fmt(s.xy[0]) + ", north " + fmt(s.xy[1]))); tb.appendChild(tr); }
   t.appendChild(tb); box.appendChild(t);
 }
