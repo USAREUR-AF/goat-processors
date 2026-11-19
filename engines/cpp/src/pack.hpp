@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -27,11 +28,19 @@ struct FilterParams {
     double unknown_vel_ms = 0;
 };
 
+// correlate.md "Two-model filter": the `manoeuvre` line.
+struct ManoeuvreParams {
+    double accel_var = 0;   // q2
+    double p_enter = 0;     // a, per second
+    double p_leave = 0;     // b, per second
+};
+
 struct Pack {
     std::string name;
     std::string version;
     bool method_assign = false;                // method, default confirm (spec correlate-assign.md)
     FilterParams filter;
+    std::optional<ManoeuvreParams> manoeuvre;  // optional, either method
     std::vector<TestSpec> gate, confirm, hold;
     std::int64_t confirm_count = 0;
     std::int64_t hold_failures = 0;
@@ -41,6 +50,8 @@ struct Pack {
     std::map<std::string, std::int64_t> priority;
     double new_cost = 0;                       // method assign only
     double keep_bonus = 0;                     // method assign only
+    std::int64_t window = 1;                   // method assign only (correlate-assign.md "Window")
+    std::int64_t hypotheses = 1;               // method assign only
 };
 
 // Parses the text of a pack.def; throws PackError on any load error.
