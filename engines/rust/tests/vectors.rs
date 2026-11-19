@@ -1,4 +1,5 @@
 //! Runs every scenario vector and every load vector (spec/vector-format.md).
+//! Reads only `packs/correlate-*` and `spec/correlate-load-vectors/`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -17,6 +18,17 @@ fn json_files(dir: &Path) -> Vec<PathBuf> {
         .collect();
     files.sort();
     files
+}
+
+/// The correlate packs, `packs/correlate-*`, in name order.
+fn correlate_packs(root: &Path) -> Vec<PathBuf> {
+    let mut packs: Vec<PathBuf> = fs::read_dir(root.join("packs"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.is_dir() && p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("correlate-")))
+        .collect();
+    packs.sort();
+    packs
 }
 
 fn read_json(path: &Path) -> Json {
@@ -91,11 +103,9 @@ fn run_scenario(root: &Path, path: &Path) -> Result<(), String> {
 #[test]
 fn scenario_vectors() {
     let root = repo_root();
-    let mut packs: Vec<PathBuf> = fs::read_dir(root.join("packs")).unwrap().map(|e| e.unwrap().path()).collect();
-    packs.sort();
     let mut ran = 0;
     let mut failures = Vec::new();
-    for pack in packs {
+    for pack in correlate_packs(&root) {
         for path in json_files(&pack.join("vectors")) {
             ran += 1;
             let name = path.strip_prefix(&root).unwrap().display().to_string();
@@ -138,8 +148,10 @@ fn load_vectors() {
 #[test]
 fn shipped_packs_load() {
     let root = repo_root();
-    for name in ["correlate-gnn", "correlate-window", "correlate-distance", "correlate-assign"] {
-        load_pack(&root.join("packs").join(name)).unwrap_or_else(|e| panic!("{}: {}", name, e));
+    let packs = correlate_packs(&root);
+    assert!(!packs.is_empty(), "no correlate packs found");
+    for dir in packs {
+        load_pack(&dir).unwrap_or_else(|e| panic!("{}: {}", dir.display(), e));
     }
 }
 

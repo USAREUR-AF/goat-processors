@@ -2,6 +2,6 @@
 name = "goat_correlator"
 version = "0.1.0"
 edition = "2021"
-description = "Rust engine of the goat-correlator correlate specification 0.4 and correlate-assign 0.2"
+description = "Rust engine of the goat-correlator correlate specification 0.5 and correlate-assign 0.3"
 
 [dependencies]
