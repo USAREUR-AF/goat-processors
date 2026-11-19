@@ -1,8 +1,9 @@
 # goat-processors, zig engine
 
-An implementation of `spec/correlate.md` (version 0.6, method `confirm`, with
-the two-model filter), `spec/correlate-assign.md` (version 0.4, method
-`assign`, with the multi-frame window), `spec/filter.md` (version 0.1) and
+An implementation of `spec/correlate.md` (version 0.7, method `confirm`, with
+the two-model filter and the filter restart), `spec/correlate-assign.md`
+(version 0.5, method `assign`, with the multi-frame window and its margin,
+the filter restart and the sensor bias), `spec/filter.md` (version 0.1) and
 `spec/quality.md` (version 0.1) in Zig 0.13.0, standard library only. It also
 implements `spec/fuse.md` (version 0.2), the function fuse, as its own module
 that reuses the correlate Frame, Track estimate and report helpers. It was
@@ -18,8 +19,9 @@ engine decides them, are in `DISAGREEMENTS.md`.
 | `src/imm.zig` | Two-model filter: switching, mixing, likelihood, mode probabilities, combination, prediction |
 | `src/entity.zig` | Reports (entity state, `@env`) |
 | `src/pair_tests.zig` | Tests |
-| `src/engine.zig` | Association, Events, Trace, Snapshot (`ingest`, `tick`, `snapshot`); dispatches on the pack's `method` |
-| `src/assign.zig` | `correlate-assign.md`: Memberships, Assignment of one source, Ranking (brute-force enumeration, sorted by total then choice vector), Window, Events, Trace, Snapshot |
+| `src/engine.zig` | Restart, Association, Events, Trace, Snapshot (`ingest`, `tick`, `snapshot`); dispatches on the pack's `method` |
+| `src/assign.zig` | `correlate-assign.md`: Memberships, Assignment of one source, Ranking (brute-force enumeration, sorted by total then choice vector), Window (with `margin` and the leave of a restarted entity), Events, Trace, Snapshot |
+| `src/bias.zig` | `correlate-assign.md` Sensor bias: State, Moving B into A's frame, Update steps 1 to 3 (called from `engine.zig`'s tests, `assign.zig`'s Cost and Window step 5) |
 | `src/fuse_pack.zig` | `fuse.md` Pack (fuse `pack.def` parsing and load errors) |
 | `src/fuse_kinematics.zig` | `fuse.md` Kinematics (inverse variance, covariance-intersection weight and fold, position variance) |
 | `src/fuse.zig` | `fuse.md` Reports (normalized report), Groups, On each tick, Fused event, Attributes, Events, Trace, Snapshot |
