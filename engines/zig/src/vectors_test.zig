@@ -6,15 +6,15 @@ const paths = @import("paths");
 const pack_mod = @import("pack.zig");
 const engine_mod = @import("engine.zig");
 const compare = @import("compare.zig");
-const files_mod = @import("vector_files.zig");
+const vector_files = @import("vector_files.zig");
+const sortedJsonFiles = vector_files.sortedJsonFiles;
+const readJson = vector_files.readJson;
+const packDirs = vector_files.packDirs;
 
 test {
     _ = compare;
     _ = @import("hungarian.zig");
 }
-
-const sortedJsonFiles = files_mod.sortedJsonFiles;
-const readJson = files_mod.readJson;
 
 // Load vectors: parsing `pack_def` fails exactly when `expect_error` is true.
 test "load vectors" {
@@ -69,10 +69,7 @@ test "scenario vectors" {
     var run: usize = 0;
     var failed: usize = 0;
 
-    // Only the correlate packs; the quality packs run in quality_vectors_test.zig.
-    const pack_names = try files_mod.sortedPackNames(alloc, paths.packs_dir, "correlate-");
-
-    for (pack_names) |pn| {
+    for (try packDirs(alloc, "correlate-")) |pn| {
         const vdir = try std.fs.path.join(alloc, &.{ paths.packs_dir, pn, "vectors" });
         for (try sortedJsonFiles(alloc, vdir)) |path| {
             run += 1;
