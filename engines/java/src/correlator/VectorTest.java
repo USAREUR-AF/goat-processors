@@ -72,7 +72,7 @@ public final class VectorTest {
     }
 
     /** Structural equality of vector-format.md; returns the first mismatch path, or null. */
-    static String diff(String path, Object got, Object want) {
+    public static String diff(String path, Object got, Object want) {
         if (want == null || got == null) {
             return want == null && got == null ? null : mismatch(path, got, want);
         }
