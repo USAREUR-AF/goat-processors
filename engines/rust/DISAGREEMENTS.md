@@ -1,8 +1,8 @@
-# Open points under correlate 0.6 and correlate-assign 0.4
+# Open points under correlate 0.7 and correlate-assign 0.5
 
-No vector contradicts `spec/correlate.md` (version 0.6) or
-`spec/correlate-assign.md` (version 0.4) as this engine reads them: scenario
-vectors 01 to 44 and load vectors 01 to 42 pass.
+No vector contradicts `spec/correlate.md` (version 0.7) or
+`spec/correlate-assign.md` (version 0.5) as this engine reads them: scenario
+vectors 01 to 53 (there is no vector 46) and load vectors 01 to 60 pass.
 
 ## Readings the engine takes
 
@@ -15,6 +15,11 @@ down because the text could be read another way.
 | 2 | correlate-assign.md Window, step 4 | Histories are pruned by comparing only the `choices` of their oldest record with the committed record's. Staleness events are the same in every history, so equal choices from the same committed membership give the same membership. |
 | 3 | correlate-assign.md Window, step 4 | The entities removed at a commit are those named by a `drop` event in the committed record. They are also taken out of the retiring set, so a later report for that key is a new entity (vector 44, step 8). |
 | 4 | correlate-assign.md Ranking | Ranked assignments come from brute-force enumeration of every assignment, sorted by total and then by choice vector. This is exact, but its cost grows with the number of assignments, so it suits vector sizes only. |
+| 5 | correlate.md Restart; correlate-assign.md Snapshot | The set of restarted entities is kept only with `method assign`, where Window step 1 reads it, and is in the snapshot (`restarted`) only when the pack has `restart`. With `method confirm` a restart leaves no state beyond the filter (vector 52 has no `restarted` key). |
+| 6 | correlate-assign.md Window, step 1 | A restarted entity found stale at the same tick gets only the stale events (`leave` reason `stale`, `drop`), not a second `leave` reason `restart`; the restarted set is emptied at every tick (vector 53, step 9). |
+| 7 | correlate-assign.md Sensor bias, Update | The update runs at every tick, also when nothing is committed, and always on the committed membership; with no pair from the tick's rows it adds no trace record (vector 45, step 9). |
+| 8 | correlate-assign.md Window, step 3 | With `margin`, a candidate is kept when it is among the first `k` and its total is at most `cut`; its `total` record has `pass` true exactly then, and `limit` `cut` (vectors 49 to 53). |
+| 9 | correlate-assign.md Sensor bias | Only the `distance`, `window` and `mahalanobis` tests and the Cost move B; the Restart test compares an entity with its own prediction and moves nothing, and so does the fused estimate for output. |
 
 ## Points the spec leaves open
 

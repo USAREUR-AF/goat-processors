@@ -1,7 +1,7 @@
 # goat-processors, rust engine
 
-An implementation of `spec/correlate.md` (version 0.4),
-`spec/correlate-assign.md` (version 0.4), `spec/fuse.md` (version 0.2), the filter
+An implementation of `spec/correlate.md` (version 0.7),
+`spec/correlate-assign.md` (version 0.5), `spec/fuse.md` (version 0.2), the filter
 function `spec/filter.md` (version 0.1) and `spec/quality.md` (version 0.1) in Rust,
 written from the
 specifications and the vectors only. The pack's `method` line selects which
@@ -11,9 +11,9 @@ its own small JSON reader (`src/json.rs`).
 | File | Spec section |
 |---|---|
 | `src/pack.rs` | Pack: `load_pack(dir)` and `parse_pack(text)` |
-| `src/filter.rs` | Frame; Track estimate (the per-axis Kalman steps) |
-| `src/engine.rs` | Reports, Tests, Association, Events, Trace, Snapshot: `Engine::ingest`, `Engine::tick`, `Engine::snapshot` |
-| `src/engine/assign.rs` | `correlate-assign.md`: system tracks, fused estimate, cost, per-source assignment (Hungarian method with potentials), its events, trace and snapshot |
+| `src/filter.rs` | Frame; Track estimate (the per-axis Kalman steps); Two-model filter |
+| `src/engine.rs` | Reports, Restart (the test in `Engine::ingest`), Tests, Association, Events, Trace, Snapshot: `Engine::ingest`, `Engine::tick`, `Engine::snapshot` |
+| `src/engine/assign.rs` | `correlate-assign.md`: Memberships, Assignment of one source, Sensor bias (moving into a frame, the update), Ranking (exhaustive enumeration), Window (with restarted entities and `margin`), Events, Trace, Snapshot |
 | `src/report.rs` | `correlate.md` Reports: required keys, reject event, optional-key rules (used by correlate and filter) |
 | `src/filter_fn/pack.rs` | `filter.md` Pack: `filter_fn::load_pack(dir)` and `filter_fn::parse_pack(text)` |
 | `src/filter_fn/geometry.rs` | `filter.md` Geometry: distance, polygon, reference prediction |
@@ -78,5 +78,5 @@ and `fuse_load_vectors` do the same for `packs/fuse-*/vectors/*.json` and
 `spec/fuse-load-vectors/*.json`. Add `-- --nocapture` to
 see one line per vector.
 
-Points still open under correlate 0.4, correlate-assign 0.2, filter 0.1,
+Points still open under correlate 0.7, correlate-assign 0.5, filter 0.1,
 fuse 0.2 and quality 0.1 are in `DISAGREEMENTS.md`.

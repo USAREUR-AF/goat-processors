@@ -1,5 +1,6 @@
-//! The four operations' engine: ingest, tick, snapshot (spec: Reports,
-//! Tests, Association, Events, Trace, Snapshot).
+//! The four operations' engine: ingest, tick, snapshot (spec/correlate.md 0.7:
+//! Reports, Track estimate, Two-model filter, Restart, Tests, Association,
+//! Events, Trace, Snapshot).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -141,6 +142,12 @@ pub struct Engine {
     retiring: BTreeSet<String>,
     /// `method assign`: entities with an accepted report since the previous tick.
     reported: BTreeSet<String>,
+    /// `method assign` with `restart`: entities whose filter started again
+    /// since the previous tick (correlate.md Restart).
+    restarted: BTreeSet<String>,
+    /// `method assign` with `bias`: the stored offset per pair key `"<S>|<T>"`
+    /// (correlate-assign.md Sensor bias, State).
+    bias: BTreeMap<String, assign::PairBias>,
 }
 
 impl Engine {
@@ -156,6 +163,8 @@ impl Engine {
             histories: vec![assign::History::default()],
             retiring: BTreeSet::new(),
             reported: BTreeSet::new(),
+            restarted: BTreeSet::new(),
+            bias: BTreeMap::new(),
         }
     }
 
@@ -211,12 +220,18 @@ impl Engine {
         let meas = Measurement { pos: (ze, zn), r_pos: ce * ce, vel, r_vel: f.vel_sigma_ms * f.vel_sigma_ms };
         let maneuver = self.pack.maneuver.clone();
 
-        match self.entities.get_mut(&key) {
+        // Track estimate, first report; Two-model filter, first report. Also
+        // the filter a Restart starts again from.
+        let first_filter = || {
+            let east = Axis::first(ze, vel.map(|v| v.0), ce, f.vel_sigma_ms, f.unknown_vel_ms);
+            let north = Axis::first(zn, vel.map(|v| v.1), ce, f.vel_sigma_ms, f.unknown_vel_ms);
+            let imm = maneuver.as_ref().map(|m| TwoModel::first(Model { east, north }, m.p_enter, m.p_leave));
+            (east, north, imm)
+        };
+
+        match self.entities.get(&key) {
             None => {
-                // Track estimate, first report; Two-model filter, first report.
-                let east = Axis::first(ze, vel.map(|v| v.0), ce, f.vel_sigma_ms, f.unknown_vel_ms);
-                let north = Axis::first(zn, vel.map(|v| v.1), ce, f.vel_sigma_ms, f.unknown_vel_ms);
-                let imm = maneuver.as_ref().map(|m| TwoModel::first(Model { east, north }, m.p_enter, m.p_leave));
+                let (east, north, imm) = first_filter();
                 self.entities.insert(
                     key.clone(),
                     Entity {
@@ -234,30 +249,64 @@ impl Engine {
                 out.events.push(obj(vec![("ev", "new".into()), ("entity", key.as_str().into())]));
             }
             Some(e) => {
-                let dt = (time_ms - e.last_time_ms) as f64 / 1000.0;
-                match (&e.imm, &maneuver) {
-                    (Some(two), Some(m)) => {
-                        // Two-model filter, later reports, steps 1 to 5.
-                        let (next, mode) = two.step(dt, [f.accel_var, m.accel_var], m.p_enter, m.p_leave, &meas);
-                        let combined = next.combined();
-                        e.east = combined.east;
-                        e.north = combined.north;
-                        e.imm = Some(next);
-                        for (test, values) in [("likelihood", mode.lambda), ("mode", mode.mu)] {
-                            for (model, value) in ["quiet", "maneuver"].into_iter().zip(values) {
-                                out.trace.push(record("filter", &key, model, test, value.into(), Json::Null, true, false));
+                // Restart (correlate.md): before the filter update, d² of the
+                // report against the entity predicted to its time.
+                let mut restart = false;
+                if let Some(g) = self.pack.restart {
+                    let (pe, pn) = e.predict(time_ms, &self.pack);
+                    let r = ce * ce;
+                    let d2 = (ze - pe.p) * (ze - pe.p) / (pe.pp + r) + (zn - pn.p) * (zn - pn.p) / (pn.pp + r);
+                    let pass = d2 < g;
+                    out.trace.push(obj(vec![
+                        ("stage", "filter".into()),
+                        ("a", key.as_str().into()),
+                        ("b", Json::Null),
+                        ("test", "restart".into()),
+                        ("value", d2.into()),
+                        ("limit", g.into()),
+                        ("pass", pass.into()),
+                    ]));
+                    restart = !pass;
+                }
+
+                let e = self.entities.get_mut(&key).expect("checked above");
+                if restart {
+                    // The filter starts again from this report as a first
+                    // report; key, group, pair counts and hold failures stay.
+                    let (east, north, imm) = first_filter();
+                    e.east = east;
+                    e.north = north;
+                    e.imm = imm;
+                } else {
+                    let dt = (time_ms - e.last_time_ms) as f64 / 1000.0;
+                    match (&e.imm, &maneuver) {
+                        (Some(two), Some(m)) => {
+                            // Two-model filter, later reports, steps 1 to 5.
+                            let (next, mode) = two.step(dt, [f.accel_var, m.accel_var], m.p_enter, m.p_leave, &meas);
+                            let combined = next.combined();
+                            e.east = combined.east;
+                            e.north = combined.north;
+                            e.imm = Some(next);
+                            for (test, values) in [("likelihood", mode.lambda), ("mode", mode.mu)] {
+                                for (model, value) in ["quiet", "maneuver"].into_iter().zip(values) {
+                                    out.trace.push(record("filter", &key, model, test, value.into(), Json::Null, true, false));
+                                }
                             }
                         }
-                    }
-                    _ => {
-                        // Track estimate, later reports, steps 1 to 3.
-                        let (next, _) = Model { east: e.east, north: e.north }.step(dt, f.accel_var, &meas);
-                        e.east = next.east;
-                        e.north = next.north;
+                        _ => {
+                            // Track estimate, later reports, steps 1 to 3.
+                            let (next, _) = Model { east: e.east, north: e.north }.step(dt, f.accel_var, &meas);
+                            e.east = next.east;
+                            e.north = next.north;
+                        }
                     }
                 }
                 e.last_time_ms = time_ms;
                 e.report = fields.clone();
+                // With method assign the entity is restarted until the next tick.
+                if restart && self.pack.method == Method::Assign {
+                    self.restarted.insert(key.clone());
+                }
             }
         }
 
@@ -374,10 +423,18 @@ impl Engine {
         true
     }
 
+    /// B predicted to A's `time_ms`, and with `bias` moved into A's frame
+    /// (correlate-assign.md Sensor bias, Moving B into A's frame).
+    fn predict_seen_by(&self, a: &str, b: &str) -> (Axis, Axis) {
+        let ea = &self.entities[a];
+        let eb = &self.entities[b];
+        self.move_into_frame(&ea.source, &eb.source, eb.predict(ea.last_time_ms, &self.pack))
+    }
+
     /// `d²` between A's filter and B predicted to A's time.
     fn d2(&self, a: &str, b: &str) -> f64 {
         let ea = &self.entities[a];
-        let (pe, pn) = self.entities[b].predict(ea.last_time_ms, &self.pack);
+        let (pe, pn) = self.predict_seen_by(a, b);
         let r = ea.ce(self.pack.filter.default_ce_m).powi(2);
         (ea.east.p - pe.p).powi(2) / (pe.pp + r) + (ea.north.p - pn.p).powi(2) / (pn.pp + r)
     }
@@ -388,7 +445,7 @@ impl Engine {
         let eb = &self.entities[b];
         let dce = self.pack.filter.default_ce_m;
         let distance = || {
-            let (pe, pn) = eb.predict(ea.last_time_ms, &self.pack);
+            let (pe, pn) = self.predict_seen_by(a, b);
             ((ea.east.p - pe.p).powi(2) + (ea.north.p - pn.p).powi(2)).sqrt()
         };
         // Both speeds present and at least min_speed_ms.
