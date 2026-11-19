@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 390" width="880" height="390" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, &apos;Segoe UI&apos;, &apos;Noto Sans&apos;, Helvetica, Arial, sans-serif">
 <title id="t">goat-processors works on the model goat-transformers writes</title>
-<desc id="d">Message formats are translated by goat-transformers into one shared report model. goat-processors reads that model and runs filter, correlate, fuse and quality on it (filter: designed; correlate: built; fuse: designed; quality: designed). Each function returns events, a trace record for every test, and a snapshot of its whole state.</desc>
+<desc id="d">Message formats are translated by goat-transformers into one shared report model. goat-processors reads that model and runs filter, correlate, fuse and quality on it (filter: built; correlate: built; fuse: built; quality: built). Each function returns events, a trace record for every test, and a snapshot of its whole state.</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#7d8590"/></marker></defs>
 <rect width="100%" height="100%" rx="12" fill="#0d1117"/>
 <text x="24" y="38" font-size="20" fill="#e6edf3" text-anchor="start" font-weight="600">goat-processors works on the model goat-transformers writes</text>
@@ -12,9 +12,12 @@
 <text x="36" y="188.4" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">adsb</text>
 <text x="36" y="208" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">ais</text>
 <text x="36" y="227.6" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">eo-2</text>
-<text x="36" y="247.2" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">net-a</text>
-<text x="36" y="266.8" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">radar-1</text>
-<text x="36" y="286.4" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">radar-2</text>
+<text x="36" y="247.2" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">m</text>
+<text x="36" y="266.8" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">net</text>
+<text x="36" y="286.4" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">net-a</text>
+<text x="36" y="306" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">other</text>
+<text x="36" y="325.6" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">own</text>
+<text x="36" y="345.2" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">+ 8 more</text>
 <rect x="166" y="92" width="128" height="274" rx="8" fill="#161b22" stroke="#3d444d" stroke-width="1" stroke-dasharray="5 4"/>
 <text x="178" y="120" font-size="15" fill="#e6edf3" text-anchor="start" font-weight="600">goat-</text>
 <text x="178" y="140" font-size="15" fill="#e6edf3" text-anchor="start" font-weight="600">transformers</text>
@@ -33,29 +36,28 @@
 <text x="330" y="221.1" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">lat</text>
 <text x="330" y="240.2" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">lon</text>
 <text x="330" y="259.2" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">ce</text>
-<text x="330" y="278.2" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">hae</text>
-<text x="330" y="297.3" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">type</text>
-<text x="330" y="316.3" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">track.simulated</text>
-<text x="330" y="335.4" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">course</text>
-<text x="330" y="354.4" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">speed_ms</text>
+<text x="330" y="278.2" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">type</text>
+<text x="330" y="297.3" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">track.simulated</text>
+<text x="330" y="316.3" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">hae</text>
+<text x="330" y="335.4" font-size="14" fill="#e6edf3" text-anchor="start" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">+ 12 more keys</text>
 <rect x="518" y="92" width="230" height="274" rx="8" fill="#161b22" stroke="#4493f8" stroke-width="2"/>
 <text x="532" y="120" font-size="15" fill="#e6edf3" text-anchor="start" font-weight="600">goat-processors</text>
-<rect x="530" y="136" width="206" height="50" rx="6" fill="#161b22" stroke="#3d444d" stroke-width="1"/>
+<rect x="530" y="136" width="206" height="50" rx="6" fill="#12261e" stroke="#3fb950" stroke-width="1"/>
 <text x="542" y="157" font-size="15" fill="#e6edf3" text-anchor="start" font-weight="600" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">filter</text>
-<text x="724" y="157" font-size="13" fill="#9198a1" text-anchor="end">Designed</text>
-<text x="542" y="176" font-size="13" fill="#9198a1" text-anchor="start">not built</text>
+<text x="724" y="157" font-size="13" fill="#3fb950" text-anchor="end" font-weight="600">Built</text>
+<text x="542" y="176" font-size="13" fill="#9198a1" text-anchor="start">3 packs, 27 vectors</text>
 <rect x="530" y="194" width="206" height="50" rx="6" fill="#12261e" stroke="#3fb950" stroke-width="1"/>
 <text x="542" y="215" font-size="15" fill="#e6edf3" text-anchor="start" font-weight="600" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">correlate</text>
 <text x="724" y="215" font-size="13" fill="#3fb950" text-anchor="end" font-weight="600">Built</text>
-<text x="542" y="234" font-size="13" fill="#9198a1" text-anchor="start">4 packs, 32 vectors</text>
-<rect x="530" y="252" width="206" height="50" rx="6" fill="#161b22" stroke="#3d444d" stroke-width="1"/>
+<text x="542" y="234" font-size="13" fill="#9198a1" text-anchor="start">7 packs, 44 vectors</text>
+<rect x="530" y="252" width="206" height="50" rx="6" fill="#12261e" stroke="#3fb950" stroke-width="1"/>
 <text x="542" y="273" font-size="15" fill="#e6edf3" text-anchor="start" font-weight="600" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">fuse</text>
-<text x="724" y="273" font-size="13" fill="#9198a1" text-anchor="end">Designed</text>
-<text x="542" y="292" font-size="13" fill="#9198a1" text-anchor="start">not built</text>
-<rect x="530" y="310" width="206" height="50" rx="6" fill="#161b22" stroke="#3d444d" stroke-width="1"/>
+<text x="724" y="273" font-size="13" fill="#3fb950" text-anchor="end" font-weight="600">Built</text>
+<text x="542" y="292" font-size="13" fill="#9198a1" text-anchor="start">5 packs, 16 vectors</text>
+<rect x="530" y="310" width="206" height="50" rx="6" fill="#12261e" stroke="#3fb950" stroke-width="1"/>
 <text x="542" y="331" font-size="15" fill="#e6edf3" text-anchor="start" font-weight="600" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">quality</text>
-<text x="724" y="331" font-size="13" fill="#9198a1" text-anchor="end">Designed</text>
-<text x="542" y="350" font-size="13" fill="#9198a1" text-anchor="start">not built</text>
+<text x="724" y="331" font-size="13" fill="#3fb950" text-anchor="end" font-weight="600">Built</text>
+<text x="542" y="350" font-size="13" fill="#9198a1" text-anchor="start">2 packs, 15 vectors</text>
 <rect x="772" y="92" width="84" height="274" rx="8" fill="#161b22" stroke="#3d444d" stroke-width="1"/>
 <text x="784" y="120" font-size="15" fill="#e6edf3" text-anchor="start" font-weight="600">Outputs</text>
 <text x="784" y="150" font-size="14" fill="#e6edf3" text-anchor="start">events</text>
