@@ -4,7 +4,10 @@
 Each scenario below states its inputs and, in `decide`, the association
 events it must produce. The script runs the Python engine, refuses to write a
 vector whose events differ from `decide`, and records the full events, trace
-and final snapshot as the vector. The decisions are stated by hand here; the
+and final snapshot as the vector. It also refuses a vector that places a
+decision within the comparison tolerance (check_margins): a test value that
+close to its limit, or two ranked assignment or history totals that close
+without being equal. The decisions are stated by hand here; the
 numbers come from the engine and are checked by the other six engines.
 
 Run: python3 -I tools/make-vectors.py
@@ -355,6 +358,250 @@ scenario("32-assign-snapshot-holds-reported", "correlate-assign", [
 ], [["new"], ["start", "system"], ["new"], []])
 
 
+# --- two-model filter (spec/correlate.md, Two-model filter) ---
+
+def turn_truth(t_s):
+    """East at 200 m/s for 6 s, then a level left turn at 6 deg/s for 30 s."""
+    v, rate, t0 = 200.0, math.radians(6.0), 6.0
+    if t_s <= t0:
+        return v * t_s, 0.0
+    a = rate * (t_s - t0)
+    rr = v / rate
+    return v * t0 + rr * math.sin(a), rr * (1 - math.cos(a))
+
+
+def turn_reports(rounds):
+    """radar-1 every 4 s from 0, adsb every 4 s from 2 s, 10 m east of radar."""
+    out = []
+    for i in range(rounds):
+        for src, uid, t, off in (("radar-1", "T1", 4000 * i, 0.0), ("adsb", "A7", 4000 * i + 2000, 10.0)):
+            e, n = turn_truth(t / 1000.0)
+            out.append(("ingest", rep(src, uid, t, round(e + off, 1), round(n, 1), ce=30, **AIR)))
+    return out
+
+
+TURN = turn_reports(6) + [turn_reports(7)[12], ("tick", 25000)]
+TURN_DECIDED = [["new"], ["new"], ["correlate"]] + [[]] * 8
+
+# 33. One constant-velocity model: the turning target leaves the hold region of
+#     its partner on two reports in a row and the group dissolves.
+scenario("33-turn-one-model-dissolves", "correlate-gnn", TURN,
+         TURN_DECIDED + [["leave", "dissolve"], [], []])
+
+# 34. The same reports with the two-model filter: the manoeuvre model takes
+#     the mode probability, the prediction keeps up, the group holds.
+scenario("34-turn-two-models-hold", "correlate-gnn-imm", TURN,
+         TURN_DECIDED + [[], [], ["fused"]])
+
+
+def turn_assign(rounds):
+    out = []
+    rep_steps = turn_reports(rounds)
+    for i in range(rounds):
+        out += rep_steps[2 * i:2 * i + 2] + [("tick", 4000 * i + 2500)]
+    return out
+
+
+# 35. Method assign, one model: the turn splits the system track.
+scenario("35-assign-turn-one-model-splits", "correlate-assign", turn_assign(5),
+         [["new"], ["new"], ["start", "join", "system"]]
+         + [[], [], ["system"]] * 2
+         + [[], [], ["leave", "start", "system", "system"]]
+         + [[], [], ["system", "system"]])
+
+# 36. Method assign, two models: one system track through the turn.
+scenario("36-assign-turn-two-models-one-system", "correlate-assign-imm", turn_assign(5),
+         [["new"], ["new"], ["start", "join", "system"]] + [[], [], ["system"]] * 4)
+
+# 37. A straight track with reported velocity: the velocity innovations enter
+#     the likelihood and the manoeuvre probability falls (trace, snapshot).
+st = dict(course=90, speed_ms=100, ce=30, **AIR)
+scenario("37-two-models-straight-goes-quiet", "correlate-gnn-imm", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, **st)),
+    ("ingest", rep("radar-1", "T1", 1000, 100, 0, **st)),
+    ("ingest", rep("radar-1", "T1", 2000, 200, 0, **st)),
+    ("ingest", rep("radar-1", "T1", 3000, 300, 0, **st)),
+], [["new"], [], [], []])
+
+# 38. A 100 km jump: the quiet model's weight underflows to exactly 0; a second
+#     report at the same time (dt = 0) finds its predicted mode probability 0
+#     and keeps its own state; the next report (dt above 0) mixes it again,
+#     from the manoeuvre model alone (snapshot).
+scenario("38-two-models-underflow-and-zero-dt", "correlate-gnn-imm", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 1000, 100000, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 1000, 100000, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 2000, 100100, 0, ce=30, **AIR)),
+    ("tick", 2000),
+], [["new"], [], [], [], []])
+
+
+# --- multi-frame window (spec/correlate-assign.md, Window) ---
+
+def crossing(rounds=8, swap_round=5, sep=100.0, swap_ce=15):
+    """Two aircraft cross 100 m apart: O1 east at 100 m/s, O2 west at 90 m/s.
+    radar-1 reports both every 2 s; adsb every 4 s. At swap_round the radar's
+    two plots are each other's, with ce 15. Radar plots sit a fixed few metres
+    off the aircraft (R1 +12 east -8 north, R2 -9 east +14 north)."""
+    out = []
+    for i in range(rounds):
+        t = 2000 * i
+        ts = t / 1000.0
+        p1 = (-1000 + 100 * ts, 0.0)
+        p2 = (900 - 90 * ts, sep)
+        if i % 2 == 0:
+            for uid, p in (("A1", p1), ("A2", p2)):
+                out.append(("ingest", rep("adsb", uid, t, round(p[0], 1), round(p[1], 1), ce=30, **AIR)))
+        for uid, p, q in (("R1", p1, p2), ("R2", p2, p1)):
+            ce = 30
+            if i == swap_round:
+                p, ce = q, swap_ce
+            p = (p[0] + 12, p[1] - 8) if uid == "R1" else (p[0] - 9, p[1] + 14)
+            out.append(("ingest", rep("radar-1", uid, t, round(p[0], 1), round(p[1], 1), ce=ce, **AIR)))
+        out.append(("tick", t + 500))
+    return out
+
+
+def per_round(steps, decided_ticks):
+    """A track's first report decides `new`, later reports nothing; each tick
+    decides the given events."""
+    out, seen = [], set()
+    ticks = iter(decided_ticks)
+    for kind, arg in steps:
+        if kind == "tick":
+            out.append(next(ticks))
+        else:
+            key = (arg["track.source_id"], arg["uid"])
+            out.append([] if key in seen else ["new"])
+            seen.add(key)
+    return out
+
+
+S2 = ["system", "system"]
+# 39. One frame: the swapped radar plots move R1 to s2 and R2 to s1; at the
+#     next adsb reports the adsb tracks follow them, and s1 now holds the other
+#     aircraft.
+scenario("39-assign-crossing-one-frame-swaps", "correlate-assign", crossing(), per_round(crossing(), [
+    ["start", "start", "join", "join"] + S2, S2, S2, S2, S2,
+    ["leave", "join", "leave", "join"] + S2,
+    ["leave", "join", "leave", "join"] + S2,
+    S2]))
+P2 = ["provisional", "provisional"]
+# 40. Window 2: the swap is the best history at the crossing tick, but the next
+#     reports make the history without it cheaper; the swap is never committed.
+scenario("40-assign-crossing-window-resolves", "correlate-assign-window", crossing(), per_round(crossing(), [
+    P2, ["start", "start", "join", "join"] + S2 + P2] + [S2 + P2] * 6))
+
+# 41. Window 2: a tick is committed one tick later; provisional events give
+#     the best history's memberships meanwhile (snapshot holds the histories).
+scenario("41-assign-window-commits-one-tick-late", "correlate-assign-window", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("tick", 500),
+    ("ingest", rep("adsb", "A7", 1000, 10, 0, ce=30, **AIR)),
+    ("tick", 1500),
+    ("tick", 2500),
+    ("ingest", rep("adsb", "A7", 3000, 10, 0, ce=30, **AIR)),
+], [["new"], ["provisional"], ["new"], ["start", "system", "provisional"],
+    ["join", "system", "provisional"], []])
+
+TIE = [
+    ("ingest", rep("adsb", "A1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("adsb", "A2", 0, 40, 0, ce=30, **AIR)),
+    ("tick", 0),
+    ("ingest", rep("radar-1", "R1", 0, 15, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "R2", 0, 15, 0, ce=30, **AIR)),
+    ("tick", 0),
+]
+# 42. Two radar tracks with identical reports: both ways of joining them to s1
+#     and s2 have the same total; the smaller choice vector wins (R1 to s1).
+scenario("42-assign-equal-totals-smaller-choice-wins", "correlate-assign", TIE,
+         [["new"], ["new"], ["start", "start", "system", "system"], ["new"], ["new"],
+          ["join", "join", "system", "system"]])
+
+# 43. Window 2: the equal-total assignments are ranked 0 and 1 and kept in that
+#     order; the next reports separate them and the rank-0 history commits.
+scenario("43-assign-window-equal-totals-keep-rank-order", "correlate-assign-window", TIE + [
+    ("ingest", rep("radar-1", "R1", 1000, 3, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "R2", 1000, 45, 0, ce=30, **AIR)),
+    ("tick", 1000),
+], [["new"], ["new"], ["provisional", "provisional"], ["new"], ["new"],
+    ["start", "start", "system", "system", "provisional", "provisional"],
+    [], [], ["join", "join", "system", "system", "provisional", "provisional"]])
+
+# 44. Window 2: a stale entity is dropped from every history at once and
+#     retires; its drop is committed one tick later; a report for it meanwhile
+#     is rejected; after the drop the key is new again.
+scenario("44-assign-window-stale-retires", "correlate-assign-window", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
+    ("tick", 500),
+    ("tick", 1000),
+    ("ingest", rep("adsb", "A7", 100000, 10, 0, ce=30, **AIR)),
+    ("tick", 121000),
+    ("ingest", rep("radar-1", "T1", 121500, 0, 0, ce=30, **AIR)),
+    ("tick", 122000),
+    ("ingest", rep("radar-1", "T1", 122500, 0, 0, ce=30, **AIR)),
+], [["new"], ["new"], ["provisional"], ["start", "join", "system", "provisional"], [],
+    ["system", "provisional"], ["reject"], ["leave", "drop", "system", "provisional"], ["new"]])
+
+
+NEAR = 1e-6
+
+
+def near(a, b):
+    return a != b and abs(a - b) <= NEAR * max(1.0, abs(b))
+
+
+def check_margins(name, step_no, trace):
+    """Refuse a vector that places a decision within the comparison tolerance:
+    a test value near its limit, or two ranked totals near but not equal."""
+    bad = []
+    for r in trace:
+        if r["stage"] in ("gate", "confirm", "hold") and r["test"] != "count" \
+                and isinstance(r["value"], float) and isinstance(r["limit"], float):
+            if abs(r["value"] - r["limit"]) <= NEAR * max(1.0, abs(r["limit"])):
+                bad.append("test %s value %r at limit %r" % (r["test"], r["value"], r["limit"]))
+    totals = [r["value"] for r in trace if r["stage"] == "history" and r["test"] == "total"]
+    for a, b in zip(totals, totals[1:]):
+        if near(a, b):
+            bad.append("history totals %r and %r" % (a, b))
+    blocks, order = {}, []
+    for r in trace:
+        if r["stage"] != "assign":
+            continue
+        h = r.get("h", 0)
+        if r["test"] == "cost":
+            if h not in blocks:
+                blocks[h] = []
+                order.append(h)
+            blocks[h].append(r)
+        elif r["test"] == "choice" and blocks.get(h):
+            bad += _rank_margin(blocks.pop(h))
+    for b in bad:
+        print("%s step %d: decision within tolerance: %s" % (name, step_no, b))
+    return not bad
+
+
+def _rank_margin(recs):
+    from goat_correlator.engine import INF, assignment_total, ranked_assignments
+    rows = []
+    cols = []
+    for r in recs:
+        if r["a"] not in rows:
+            rows.append(r["a"])
+        if r["b"] != "alone" and r["b"] not in cols:
+            cols.append(r["b"])
+    c = len(cols)
+    m = [[INF] * (c + len(rows)) for _ in rows]
+    for r in recs:
+        i = rows.index(r["a"])
+        j = c + i if r["b"] == "alone" else cols.index(r["b"])
+        m[i][j] = INF if r["value"] is None else r["value"]
+    ranked = ranked_assignments(m, c, 4)
+    tots = [assignment_total(m, x) for x in ranked]
+    return ["assignment totals %r and %r" % (a, b) for a, b in zip(tots, tots[1:]) if near(a, b)]
+
+
 def clean(x):
     """Write negative zero as zero."""
     if isinstance(x, float):
@@ -375,6 +622,8 @@ def main():
         for (kind, arg), want in zip(steps, decide):
             events, trace = eng.ingest(arg) if kind == "ingest" else eng.tick(arg)
             got = [e["ev"] for e in events]
+            if not check_margins(name, len(out_steps), trace):
+                ok = False
             if got != want:
                 print("%s step %d: events %s, decided %s" % (name, len(out_steps), got, want))
                 ok = False

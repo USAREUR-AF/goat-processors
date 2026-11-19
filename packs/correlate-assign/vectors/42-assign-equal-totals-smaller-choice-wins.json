@@ -1,0 +1,478 @@
+{
+ "name": "42-assign-equal-totals-smaller-choice-wins",
+ "pack": "correlate-assign",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "adsb",
+    "uid": "A1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "adsb/A1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "adsb",
+    "uid": "A2",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.000359783,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "adsb/A2"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "tick": 0,
+   "expect": [
+    {
+     "ev": "start",
+     "system": "s1",
+     "entity": "adsb/A1"
+    },
+    {
+     "ev": "start",
+     "system": "s2",
+     "entity": "adsb/A2"
+    },
+    {
+     "ev": "system",
+     "system": "s1",
+     "members": [
+      "adsb/A1"
+     ],
+     "lat": 1.0,
+     "lon": 1.0,
+     "course": 0.0,
+     "speed_ms": 0.0
+    },
+    {
+     "ev": "system",
+     "system": "s2",
+     "members": [
+      "adsb/A2"
+     ],
+     "lat": 1.0,
+     "lon": 1.000359783,
+     "course": 0.0,
+     "speed_ms": 0.0
+    }
+   ],
+   "trace": [
+    {
+     "stage": "assign",
+     "a": "adsb/A1",
+     "b": "alone",
+     "test": "cost",
+     "value": 9.21,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "adsb/A2",
+     "b": "alone",
+     "test": "cost",
+     "value": 9.21,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "adsb/A1",
+     "b": "alone",
+     "test": "choice",
+     "value": 9.21,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "adsb/A2",
+     "b": "alone",
+     "test": "choice",
+     "value": 9.21,
+     "limit": null,
+     "pass": true
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "R1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.000134919,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/R1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "R2",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.000134919,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/R2"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "tick": 0,
+   "expect": [
+    {
+     "ev": "join",
+     "system": "s1",
+     "entity": "radar-1/R1"
+    },
+    {
+     "ev": "join",
+     "system": "s2",
+     "entity": "radar-1/R2"
+    },
+    {
+     "ev": "system",
+     "system": "s1",
+     "members": [
+      "adsb/A1",
+      "radar-1/R1"
+     ],
+     "lat": 1.0,
+     "lon": 1.0000674594999999,
+     "course": 0.0,
+     "speed_ms": 0.0
+    },
+    {
+     "ev": "system",
+     "system": "s2",
+     "members": [
+      "adsb/A2",
+      "radar-1/R2"
+     ],
+     "lat": 1.0,
+     "lon": 1.000247351,
+     "course": 0.0,
+     "speed_ms": 0.0
+    }
+   ],
+   "trace": [
+    {
+     "stage": "gate",
+     "a": "radar-1/R1",
+     "b": "adsb/A1",
+     "test": "mahalanobis",
+     "value": 0.12500073504518736,
+     "limit": 18.42,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-1/R1",
+     "b": "adsb/A1",
+     "test": "same",
+     "value": 0,
+     "limit": 0,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-1/R1",
+     "b": "adsb/A1",
+     "test": "same",
+     "value": "A",
+     "limit": "A",
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-1/R1",
+     "b": "adsb/A2",
+     "test": "mahalanobis",
+     "value": 0.34722117573060096,
+     "limit": 18.42,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-1/R1",
+     "b": "adsb/A2",
+     "test": "same",
+     "value": 0,
+     "limit": 0,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-1/R1",
+     "b": "adsb/A2",
+     "test": "same",
+     "value": "A",
+     "limit": "A",
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-1/R2",
+     "b": "adsb/A1",
+     "test": "mahalanobis",
+     "value": 0.12500073504518736,
+     "limit": 18.42,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-1/R2",
+     "b": "adsb/A1",
+     "test": "same",
+     "value": 0,
+     "limit": 0,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-1/R2",
+     "b": "adsb/A1",
+     "test": "same",
+     "value": "A",
+     "limit": "A",
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-1/R2",
+     "b": "adsb/A2",
+     "test": "mahalanobis",
+     "value": 0.34722117573060096,
+     "limit": 18.42,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-1/R2",
+     "b": "adsb/A2",
+     "test": "same",
+     "value": 0,
+     "limit": 0,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-1/R2",
+     "b": "adsb/A2",
+     "test": "same",
+     "value": "A",
+     "limit": "A",
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-1/R1",
+     "b": "s1",
+     "test": "cost",
+     "value": 0.12500073504518736,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-1/R1",
+     "b": "s2",
+     "test": "cost",
+     "value": 0.34722117573060096,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-1/R1",
+     "b": "alone",
+     "test": "cost",
+     "value": 9.21,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-1/R2",
+     "b": "s1",
+     "test": "cost",
+     "value": 0.12500073504518736,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-1/R2",
+     "b": "s2",
+     "test": "cost",
+     "value": 0.34722117573060096,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-1/R2",
+     "b": "alone",
+     "test": "cost",
+     "value": 9.21,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-1/R1",
+     "b": "s1",
+     "test": "choice",
+     "value": 0.12500073504518736,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-1/R2",
+     "b": "s2",
+     "test": "choice",
+     "value": 0.34722117573060096,
+     "limit": null,
+     "pass": true
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {
+   "adsb/A1": {
+    "last_time_ms": 0,
+    "system": "s1",
+    "filter": {
+     "east": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    }
+   },
+   "adsb/A2": {
+    "last_time_ms": 0,
+    "system": "s2",
+    "filter": {
+     "east": [
+      40.000006428919654,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    }
+   },
+   "radar-1/R1": {
+    "last_time_ms": 0,
+    "system": "s1",
+    "filter": {
+     "east": [
+      15.000044102646406,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    }
+   },
+   "radar-1/R2": {
+    "last_time_ms": 0,
+    "system": "s2",
+    "filter": {
+     "east": [
+      15.000044102646406,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    }
+   }
+  },
+  "systems": {
+   "s1": [
+    "adsb/A1",
+    "radar-1/R1"
+   ],
+   "s2": [
+    "adsb/A2",
+    "radar-1/R2"
+   ]
+  },
+  "next_system": 3,
+  "reported": []
+ }
+}
