@@ -1,6 +1,6 @@
 # goat-correlator: Go engine
 
-An implementation of `spec/correlate.md` (version 0.2) in Go, standard library only.
+An implementation of `spec/correlate.md` (version 0.3) in Go, standard library only.
 It was written from the specification and the vectors alone, without
 reference to any other engine.
 
