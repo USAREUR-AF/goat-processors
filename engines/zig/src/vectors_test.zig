@@ -1,4 +1,5 @@
-// spec/vector-format.md: runs every load vector and every scenario vector.
+// spec/vector-format.md: runs every correlate load vector and every scenario
+// vector of the packs/correlate-* packs.
 const std = @import("std");
 const json = std.json;
 const paths = @import("paths");
@@ -31,7 +32,7 @@ test "load vectors" {
             std.debug.print("FAIL load vector {s}: expect_error={} got_error={}\n", .{ path, expect_error, got_error });
         }
     }
-    std.debug.print("load vectors: {d} run, {d} failed\n", .{ files.len, failed });
+    std.debug.print("correlate load vectors: {d} run, {d} failed\n", .{ files.len, failed });
     try std.testing.expect(files.len > 0);
     try std.testing.expectEqual(@as(usize, 0), failed);
 }
@@ -78,7 +79,7 @@ test "scenario vectors" {
             }
         }
     }
-    std.debug.print("scenario vectors: {d} run, {d} failed\n", .{ run, failed });
+    std.debug.print("correlate scenario vectors: {d} run, {d} failed\n", .{ run, failed });
     try std.testing.expect(run > 0);
     try std.testing.expectEqual(@as(usize, 0), failed);
 }
