@@ -6,8 +6,9 @@ events it must produce. The script runs the Python engine, refuses to write a
 vector whose events differ from `decide`, and records the full events, trace
 and final snapshot as the vector. It also refuses a vector that places a
 decision within the comparison tolerance (check_margins): a test value that
-close to its limit, or two ranked assignment or history totals that close
-without being equal. The decisions are stated by hand here; the
+close to its limit (gate, confirm, hold, the bias residual, the filter
+restart, a history total against the margin cut), or two ranked assignment
+or history totals that close without being equal. The decisions are stated by hand here; the
 numbers come from the engine and are checked by the other six engines.
 
 Run: python3 -I tools/make-vectors.py
@@ -546,6 +547,131 @@ scenario("44-assign-window-stale-retires", "correlate-assign-window", [
     ["system", "provisional"], ["reject"], ["leave", "drop", "system", "provisional"], ["new"]])
 
 
+# --- sensor bias (spec/correlate-assign.md, Sensor bias) ---
+
+def offset_pair(rounds, dt=1000, radar_east=400.0, **kw):
+    """adsb A7 at the origin and radar-1 T1 at radar_east, both stationary,
+    each round at t = dt * i, then a tick 500 ms later."""
+    out = []
+    for i in range(rounds):
+        t = dt * i
+        out.append(("ingest", rep("adsb", "A7", t, 0, 0, ce=30, **AIR)))
+        out.append(("ingest", rep("radar-1", "T1", t, radar_east, 0, ce=30, **AIR)))
+        out.append(("tick", t + 500))
+    return out
+
+
+OFFSET = offset_pair(3) + [("tick", 3500)]
+# 45. A radar 400 m east of the adsb: with no estimate yet the prior (300 m per
+#     axis) lets T1 join A7's system track; each tick the pair refines the
+#     adsb|radar-1 offset toward +400 m east (trace, snapshot). The last tick
+#     has no report, so no pair updates.
+scenario("45-assign-bias-offset-pair-joins", "correlate-assign-bias", OFFSET,
+         per_round(OFFSET, [["start", "join", "system"], ["system"], ["system"], ["system"]]))
+
+# 46. The same reports without bias estimation: T1 is 400 m from A7 with no
+#     added uncertainty and starts its own system track.
+scenario("46-assign-offset-pair-splits-without-bias", "correlate-assign-imm", OFFSET,
+         per_round(OFFSET, [["start", "start", "system", "system"]] + [["system", "system"]] * 3))
+
+# 47. The residual is measured at the tick: two tracks at one spot join, but
+#     their reported velocities (300 m/s east and north) carry them 4.2 km apart
+#     by the tick 10 s later; the pair is refused and no estimate is stored.
+scenario("47-assign-bias-residual-refused", "correlate-assign-bias", [
+    ("ingest", rep("adsb", "A7", 0, 0, 0, ce=30, course=90, speed_ms=300, **AIR)),
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, course=0, speed_ms=300, **AIR)),
+    ("tick", 10000),
+], [["new"], ["new"], ["start", "join", "system"]])
+
+THREE = []
+for i in range(2):
+    t = 1000 * i
+    THREE += [("ingest", rep("adsb", "A7", t, 0, 0, ce=30, **AIR)),
+              ("ingest", rep("eo-2", "E3", t, -20, 10, ce=40, **AIR)),
+              ("ingest", rep("radar-1", "T1", t, 400, 0, ce=30, **AIR)),
+              ("tick", t + 500)]
+# 48. Three sources: each pair of sources has its own offset, keyed by the two
+#     source names in order; eo-2|radar-1 is the radar's offset seen from eo-2.
+scenario("48-assign-bias-three-sources", "correlate-assign-bias", THREE,
+         per_round(THREE, [["start", "join", "join", "system"], ["system"]]))
+
+
+# --- filter restart, margin (correlate.md, Track estimate; correlate-assign.md, Window) ---
+
+JUMP = []
+for i in range(4):
+    t = 1000 * i
+    JUMP += [("ingest", rep("adsb", "A1", t, 0, 0, ce=30, **AIR)),
+             ("ingest", rep("adsb", "A2", t, 3000, 0, ce=30, **AIR)),
+             ("ingest", rep("radar-1", "R1", t, 3000 if i == 2 else 15, 0, ce=30, **AIR)),
+             ("tick", t + 500)]
+JUMP_P = ["system", "system", "provisional", "provisional"]
+# 49. R1 follows A1, then at 2 s reports at A2's place, 3 km off (a sensor's
+#     track number now on another object): the innovation is far above the
+#     restart gate and R1's filter starts again from that report. At the tick
+#     R1 first leaves its system track (reason restart), then the adsb tracks
+#     keep theirs and R1 joins A2's, in the best history at once (reported by
+#     `system`); both are committed one tick later. At 3 s R1 is back at A1
+#     and restarts again.
+scenario("49-full-restart-and-move", "correlate-assign-full", JUMP, per_round(JUMP, [
+    JUMP_P, ["start", "start", "join"] + JUMP_P, JUMP_P, ["leave", "join"] + JUMP_P]))
+
+# 50. Window 2 with a margin: the alone candidate is more than 0.5 behind the
+#     best and is not kept (trace `limit` is the cut); `system` reports the
+#     best history's latest membership, so A7 shows in T1's system track at
+#     the tick it reported, one tick before its join is committed.
+scenario("50-full-margin-reports-best", "correlate-assign-full", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("tick", 500),
+    ("ingest", rep("adsb", "A7", 1000, 10, 0, ce=30, **AIR)),
+    ("tick", 1500),
+    ("tick", 2500),
+], [["new"], ["system", "provisional"], ["new"], ["start", "system", "provisional"],
+    ["join", "system", "provisional"]])
+
+# 51. Equal totals are within the margin, so both histories are kept in rank
+#     order; the next reports separate them and the rank-0 history commits.
+scenario("51-full-equal-totals-within-margin", "correlate-assign-full", TIE + [
+    ("ingest", rep("radar-1", "R1", 1000, 3, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "R2", 1000, 45, 0, ce=30, **AIR)),
+    ("tick", 1000),
+], [["new"], ["new"], JUMP_P, ["new"], ["new"],
+    ["start", "start"] + JUMP_P, [], [], ["join", "join"] + JUMP_P])
+
+
+# 52. Method confirm, one model, with restart: the pair correlates; then the
+#     radar's report lands 3 km off, far above the restart gate. Its filter
+#     starts again from that report (no `new`); it keeps its group, which then
+#     fails the hold test on two reports in a row and dissolves.
+scenario("52-confirm-restart-keeps-group", "correlate-gnn-restart", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 2000, 3000, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 3000, 3000, 0, ce=30, **AIR)),
+    ("tick", 3500),
+], [["new"], ["new"], ["correlate"], [], ["leave", "dissolve"], []])
+
+# 53. Restart and staleness at one tick: T1 restarts at 2 s, then neither it
+#     nor A7 reports for 20 s; A7 reports again at 22 s. At the tick T1 is
+#     stale, so it leaves for staleness (not restart) and retires; the bias
+#     update skips the retiring T1, so the adsb|radar-1 pair gets no record.
+scenario("53-full-restart-then-stale", "correlate-assign-full", [
+    ("ingest", rep("adsb", "A7", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 0, 15, 0, ce=30, **AIR)),
+    ("tick", 500),
+    ("ingest", rep("adsb", "A7", 1000, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 1000, 15, 0, ce=30, **AIR)),
+    ("tick", 1500),
+    ("ingest", rep("adsb", "A7", 2000, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 2000, 3000, 0, ce=30, **AIR)),
+    ("ingest", rep("adsb", "A7", 22000, 0, 0, ce=30, **AIR)),
+    ("tick", 22500),
+    ("tick", 23500),
+], [["new"], ["new"], ["system", "provisional"], [], [], ["start", "join", "system", "provisional"],
+    [], [], [], ["system", "provisional"], ["leave", "drop", "system", "provisional"]])
+
+
 NEAR = 1e-6
 
 
@@ -558,7 +684,9 @@ def check_margins(name, step_no, trace):
     a test value near its limit, or two ranked totals near but not equal."""
     bad = []
     for r in trace:
-        if r["stage"] in ("gate", "confirm", "hold") and r["test"] != "count" \
+        tested = r["stage"] in ("gate", "confirm", "hold", "bias", "history") \
+            or (r["stage"] == "filter" and r["test"] == "restart")
+        if tested and r["test"] not in ("count", "commit") \
                 and isinstance(r["value"], float) and isinstance(r["limit"], float):
             if abs(r["value"] - r["limit"]) <= NEAR * max(1.0, abs(r["limit"])):
                 bad.append("test %s value %r at limit %r" % (r["test"], r["value"], r["limit"]))

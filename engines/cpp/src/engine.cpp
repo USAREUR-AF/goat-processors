@@ -192,6 +192,28 @@ Filter Engine::predict(const Entity& e, std::int64_t t) const {
                  step1(e.models[1], pack_.maneuver->accel_var));
 }
 
+// correlate.md "Restart": for a later report, before the filter update.
+// Returns true when the report updates the filter (no `restart` directive, or
+// d² < g); writes the `restart` record first of the report's records.
+bool Engine::restart_test(const Entity& e, std::int64_t time_ms, const Point& z, double ce, Output& out) const {
+    if (!pack_.restart_gate) return true;
+    const double g = *pack_.restart_gate;
+    Filter p = predict(e, time_ms);
+    double r = ce * ce;
+    double de = z.east - p.east.p, dn = z.north - p.north.p;
+    double d2 = de * de / (p.east.pp + r) + dn * dn / (p.north.pp + r);
+    Json rec = Json::make_object();
+    rec["stage"] = "filter";
+    rec["a"] = e.key;
+    rec["b"] = Json();
+    rec["test"] = "restart";
+    rec["value"] = d2;
+    rec["limit"] = g;
+    rec["pass"] = d2 < g;
+    out.trace.push(rec);
+    return d2 < g;
+}
+
 // Snapshot: `filter`, and with `maneuver` also `models` and `mode`.
 void Engine::filter_json(const Entity& e, Json& into) const {
     into["filter"] = filter_json_of(e.filter);
@@ -461,9 +483,16 @@ Output Engine::ingest(const Json& r) {
         Json ev = event("new");
         ev["entity"] = key;
         out.events.push(ev);
-    } else {
+    } else if (restart_test(it->second, time_ms, z, ce, out)) {
         double dt = static_cast<double>(time_ms - it->second.last_time_ms) / 1000;
         filter_update(it->second, z, vel, ce, dt, out);
+    } else {
+        // correlate.md "Restart": the filter starts again from this report as
+        // a first report; the entity keeps its key, group, pair counts and
+        // hold failure count. With method assign it is restarted until the
+        // next tick.
+        filter_first(it->second, z, vel, ce);
+        if (pack_.method_assign) restarted_.insert(key);
     }
     Entity& a = it->second;
     a.last_time_ms = time_ms;

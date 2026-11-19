@@ -115,6 +115,8 @@ final class Assign {
     private List<History> histories = new ArrayList<>(List.of(new History(new ArrayList<>())));
     /** The entities with an accepted report since the previous tick. */
     private final TreeSet<String> reported = new TreeSet<>(Engine.KEY_ORDER);
+    /** correlate.md, Restart: the entities whose filter started again since the previous tick. */
+    private final TreeSet<String> restarted = new TreeSet<>(Engine.KEY_ORDER);
 
     Assign(Engine engine, Pack pack) {
         this.engine = engine;
@@ -124,6 +126,10 @@ final class Assign {
 
     void reported(String key) {
         reported.add(key);
+    }
+
+    void restarted(String key) {
+        restarted.add(key);
     }
 
     /** A history's latest membership: its newest record's, or the committed one. */
@@ -146,15 +152,23 @@ final class Assign {
                 if (r.membership.systemOf(e.key) != null) r.membership.leave(e.key, "stale", r.events);
                 r.events.add(Engine.ev("drop", "entity", e.key));
             }
+            // Then each restarted entity that is not stale leaves its system track.
+            for (String k : restarted) {
+                if (stale.contains(engine.entities.get(k))) continue;
+                if (r.membership.systemOf(k) != null) r.membership.leave(k, "restart", r.events);
+            }
             h.records.add(r);
         }
+        restarted.clear();
         for (Entity e : stale) e.retiring = true;
 
         // 2. Rows: reported since the previous tick, not stale, grouped by source.
         TreeMap<String, List<Entity>> bySource = new TreeMap<>(Engine.KEY_ORDER);
+        TreeSet<String> rows = new TreeSet<>(Engine.KEY_ORDER);
         for (String k : reported) {
             Entity e = engine.entities.get(k);
             if (e.retiring) continue;
+            rows.add(k);
             bySource.computeIfAbsent(e.source, s -> new ArrayList<>()).add(e);
         }
         reported.clear();
@@ -166,8 +180,13 @@ final class Assign {
         // 4. Commit, when the best history has n records.
         if (histories.get(0).records.size() == pack.window) commit(res);
 
-        // 5. Output.
-        for (Map.Entry<String, TreeSet<String>> st : committed.systems.entrySet())
+        // 5. Bias: the update of Sensor bias, from the committed membership (also with margin).
+        if (engine.bias != null) engine.bias.update(committed.systems, engine.entities, rows, now, res.trace);
+
+        // 6. Output: per committed system track, or with margin per track of the best history's
+        //    latest membership; then the provisional tracks.
+        Membership reportedSystems = pack.margin ? latest(histories.get(0)) : committed;
+        for (Map.Entry<String, TreeSet<String>> st : reportedSystems.systems.entrySet())
             res.events.add(systemEvent(st.getKey(), st.getValue(), now));
         if (windowed)
             for (Map.Entry<String, TreeSet<String>> st : latest(histories.get(0)).systems.entrySet())
@@ -183,7 +202,7 @@ final class Assign {
         for (int i = 0; i < histories.size(); i++) {
             History h = histories.get(i);
             boolean keep = h.records.get(0).choices.equals(oldest.choices);
-            if (windowed) res.trace.add(historyRec(i, null, "commit", h.total(), keep));
+            if (windowed) res.trace.add(historyRec(i, null, "commit", h.total(), null, keep));
             if (keep) kept.add(h);
         }
         res.events.addAll(oldest.events);
@@ -195,11 +214,11 @@ final class Assign {
         histories = kept;
     }
 
-    /** Window step 5: one event {@code system}, the fused estimate of all members at now. */
+    /** Window step 6: one event {@code system}, the fused estimate of all members at now. */
     private Map<String, Object> systemEvent(String name, TreeSet<String> keys, long now) {
         List<Entity> members = new ArrayList<>();
         for (String k : keys) members.add(engine.entities.get(k));
-        Filter.Axis[] f = fusedEstimate(members, now);
+        Filter.Axis[] f = fusedEstimate(members, now, null);
         double[] ll = engine.toDegrees(f[0].p, f[1].p);
         double ve = f[0].v, vn = f[1].v;
         Map<String, Object> o = Engine.ev("system", "system", name, "members", new ArrayList<Object>(keys),
@@ -254,11 +273,13 @@ final class Assign {
         }
         // Ordered by total, then h, then r: candidates are built in (h, r) order and the sort is stable.
         cands.sort((x, y) -> x.total < y.total ? -1 : x.total > y.total ? 1 : 0);
+        // The first k are kept; with margin, of those only the ones with total at most cut = best + m.
+        Double cut = pack.margin ? cands.get(0).total + pack.marginValue : null;
         List<History> next = new ArrayList<>();
         for (int c = 0; c < cands.size(); c++) {
             Candidate cd = cands.get(c);
-            boolean kept = c < k;
-            if (windowed) res.trace.add(historyRec(cd.h, cd.r, "total", cd.total, kept));
+            boolean kept = c < k && (cut == null || cd.total <= cut);
+            if (windowed) res.trace.add(historyRec(cd.h, cd.r, "total", cd.total, cut, kept));
             if (kept) next.add(cd.history);
         }
         return next;
@@ -353,19 +374,23 @@ final class Assign {
     /**
      * Fused estimate of a set of entities at t: each member's filter predicted to t, combined per
      * axis by inverse-variance weights, members in key order. pv of the result is unused and 0.
+     * With {@code frameOf} (Cost with bias), each member is moved into that entity's frame
+     * (Sensor bias) after its prediction; the estimate for output moves no member.
      */
-    private static Filter.Axis[] fusedEstimate(List<Entity> members, long t) {
+    private Filter.Axis[] fusedEstimate(List<Entity> members, long t, Entity frameOf) {
         List<Filter.Axis[]> predicted = new ArrayList<>();
         for (Entity m : members) {
             Engine.Predicted pr = new Engine.Predicted(m, t);
-            predicted.add(new Filter.Axis[] {pr.east, pr.north});
+            Filter.Axis[] ax = {pr.east, pr.north};
+            if (frameOf != null && engine.bias != null) engine.bias.moveInto(frameOf.source, m.source, ax);
+            predicted.add(ax);
         }
         return Engine.inverseVariance(predicted);
     }
 
     /** Cost: d² of A against the fused estimate of M at A's last_time_ms. */
-    private static double cost(Entity a, List<Entity> m) {
-        Filter.Axis[] f = fusedEstimate(m, a.lastTime);
+    private double cost(Entity a, List<Entity> m) {
+        Filter.Axis[] f = fusedEstimate(m, a.lastTime, a);
         Filter.Axis[] own = {a.filter.east(), a.filter.north()};
         double d2 = 0;
         for (int k = 0; k < 2; k++) {
@@ -465,14 +490,15 @@ final class Assign {
         return m;
     }
 
-    private static Map<String, Object> historyRec(int a, Integer b, String test, double value, boolean pass) {
+    private static Map<String, Object> historyRec(int a, Integer b, String test, double value, Double limit,
+                                                  boolean pass) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("stage", "history");
         m.put("a", a);
         m.put("b", b);
         m.put("test", test);
         m.put("value", value);
-        m.put("limit", null);
+        m.put("limit", limit);
         m.put("pass", pass);
         return m;
     }
@@ -494,6 +520,8 @@ final class Assign {
         s.put("systems", committed.systemsMap());
         s.put("next_system", committed.nextSystem);
         s.put("reported", new ArrayList<Object>(reported));
+        if (pack.restart) s.put("restarted", new ArrayList<Object>(restarted));
+        if (engine.bias != null) s.put("bias", engine.bias.snapshot());
         if (!windowed) return s;
         s.put("retiring", retiring);
         List<Object> hs = new ArrayList<>();

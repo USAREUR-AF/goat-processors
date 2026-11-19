@@ -17,6 +17,7 @@ TESTS = {
 FILTER_PARAMS = ("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms")
 MANEUVER_PARAMS = ("accel_var", "p_enter", "p_leave")
 MODELS = ("quiet", "maneuver")
+BIAS_PARAMS = ("sigma_m", "floor_m", "gate")
 REQUIRED = (("track.source_id", "str"), ("uid", "str"), ("time_ms", "int"),
             ("lat", "num"), ("lon", "num"))
 OPTIONAL = {"hae": "num", "ce": "num", "course": "num", "speed_ms": "num",
@@ -71,6 +72,9 @@ class Pack:
         self.maneuver = None
         self.window = 1
         self.hypotheses = 1
+        self.bias = None
+        self.restart = None
+        self.margin = None
 
 
 def _params(args, line_no):
@@ -113,7 +117,7 @@ def parse_pack(text):
         d, args = parts[0], parts[1:]
         if d in ("pack", "version", "filter", "confirm_count", "hold_failures",
                  "stale_ms", "same_source", "output", "method", "new_cost", "keep_bonus",
-                 "maneuver", "window", "hypotheses"):
+                 "maneuver", "window", "hypotheses", "bias", "restart", "margin"):
             if d in seen:
                 raise PackError("line %d: repeated directive %s" % (i, d))
             seen.add(d)
@@ -147,6 +151,28 @@ def parse_pack(text):
             if m["p_enter"] <= 0 or m["p_leave"] <= 0 or m["p_enter"] + m["p_leave"] >= 1:
                 raise PackError("line %d: p_enter and p_leave must be above 0 with a sum below 1" % i)
             p.maneuver = m
+        elif d == "margin":
+            if len(args) != 1:
+                raise PackError("line %d: margin takes one value" % i)
+            p.margin = _num(args[0], i)
+            if p.margin <= 0:
+                raise PackError("line %d: margin must be above 0" % i)
+        elif d == "restart":
+            kv = _params(args, i)
+            if set(kv) != {"gate"}:
+                raise PackError("line %d: restart needs exactly gate" % i)
+            g = _num(kv["gate"], i)
+            if g <= 0:
+                raise PackError("line %d: restart gate must be above 0" % i)
+            p.restart = g
+        elif d == "bias":
+            kv = _params(args, i)
+            if set(kv) != set(BIAS_PARAMS):
+                raise PackError("line %d: bias needs exactly %s" % (i, ", ".join(BIAS_PARAMS)))
+            b = {k: _num(v, i) for k, v in kv.items()}
+            if b["sigma_m"] <= 0 or b["floor_m"] <= 0 or b["floor_m"] > b["sigma_m"] or b["gate"] <= 0:
+                raise PackError("line %d: bias needs sigma_m above 0, floor_m above 0 and at most sigma_m, gate above 0" % i)
+            p.bias = b
         elif d in ("window", "hypotheses"):
             if len(args) != 1:
                 raise PackError("line %d: %s takes one value" % (i, d))
@@ -188,11 +214,11 @@ def parse_pack(text):
         refused = ("confirm_count", "hold_failures", "same_source", "output", "priority")
         if p.confirm or p.hold or any(d in seen for d in refused):
             raise PackError("method assign takes only pack, version, method, filter, maneuver, gate, "
-                            "new_cost, keep_bonus, stale_ms, window, hypotheses")
+                            "new_cost, keep_bonus, stale_ms, window, hypotheses, margin, bias, restart")
     else:
         required = ("pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms")
-        if any(d in seen for d in ("new_cost", "keep_bonus", "window", "hypotheses")):
-            raise PackError("new_cost, keep_bonus, window and hypotheses need method assign")
+        if any(d in seen for d in ("new_cost", "keep_bonus", "window", "hypotheses", "bias", "margin")):
+            raise PackError("new_cost, keep_bonus, window, hypotheses, margin and bias need method assign")
     for d in required:
         if d not in seen:
             raise PackError("missing directive %s" % d)
@@ -200,6 +226,8 @@ def parse_pack(text):
         raise PackError("maneuver accel_var must be above the filter's accel_var")
     if p.window == 1 and p.hypotheses > 1:
         raise PackError("hypotheses above 1 needs a window above 1")
+    if p.margin is not None and p.hypotheses == 1:
+        raise PackError("margin needs hypotheses above 1")
     return p
 
 
@@ -323,6 +351,7 @@ class Engine:
         self.counts = {}
         self.next_group = 1
         self.retiring = set()
+        self.restarted = set()
 
     # frame -------------------------------------------------------------
     def _to_plane(self, lat, lon):
@@ -405,14 +434,18 @@ class Engine:
     def _pair(a, b):
         return a + "|" + b if a < b else b + "|" + a
 
+    def _predict_in(self, b, t, a):
+        """B's prediction to t, in A's frame (no shift without a bias estimate)."""
+        return self._predict(b, t)
+
     def _d2(self, a, b):
-        be, bn = self._predict(b, a.last_time_ms)
+        be, bn = self._predict_in(b, a.last_time_ms, a)
         ce2 = a.ce(self.pack) ** 2
         return ((a.east[0] - be[0]) ** 2 / (be[2] + ce2)
                 + (a.north[0] - bn[0]) ** 2 / (bn[2] + ce2))
 
     def _dist(self, a, b):
-        be, bn = self._predict(b, a.last_time_ms)
+        be, bn = self._predict_in(b, a.last_time_ms, a)
         return math.hypot(a.east[0] - be[0], a.north[0] - bn[0])
 
     def _run_test(self, stage, name, prm, a, b, trace):
@@ -527,9 +560,21 @@ class Engine:
             c, s = math.radians(float(report["course"])), float(report["speed_ms"])
             vel = (s * math.sin(c), s * math.cos(c))
         ce = f["default_ce_m"] if report.get("ce") is None else float(report["ce"])
-        if ent is None:
-            ent = _Entity(key, source)
-            self.entities[key] = ent
+        fresh = ent is None
+        if ent is not None and self.pack.restart is not None:
+            pe, pn = self._predict(ent, t)
+            d2 = (e - pe[0]) ** 2 / (pe[2] + ce * ce) + (n - pn[0]) ** 2 / (pn[2] + ce * ce)
+            ok = d2 < self.pack.restart
+            trace.append({"stage": "filter", "a": key, "b": None, "test": "restart",
+                          "value": d2, "limit": self.pack.restart, "pass": ok})
+            fresh = not ok
+            if fresh and self.pack.method == "assign":
+                self.restarted.add(key)
+        if fresh:
+            if ent is None:
+                ent = _Entity(key, source)
+                self.entities[key] = ent
+                events.append({"ev": "new", "entity": key})
             vv = (f["vel_sigma_ms"] if vel else f["unknown_vel_ms"]) ** 2
             ent.east = [e, vel[0] if vel else 0.0, ce * ce, 0.0, vv]
             ent.north = [n, vel[1] if vel else 0.0, ce * ce, 0.0, vv]
@@ -537,7 +582,6 @@ class Engine:
                 a, b = self.pack.maneuver["p_enter"], self.pack.maneuver["p_leave"]
                 ent.models = [[list(ent.east), list(ent.north)], [list(ent.east), list(ent.north)]]
                 ent.mode = [b / (a + b), a / (a + b)]
-            events.append({"ev": "new", "entity": key})
         elif ent.models is not None:
             dt = (t - ent.last_time_ms) / 1000.0
             self._two_model_update(ent, dt, e, n, ce * ce, vel, f["vel_sigma_ms"] ** 2, trace)
@@ -887,6 +931,7 @@ class AssignEngine(Engine):
         self.committed = _Members()
         self.histories = [_History([])]
         self.reported = set()
+        self.bias = {}
 
     def ingest(self, report):
         events, trace = [], []
@@ -895,11 +940,33 @@ class AssignEngine(Engine):
             self.reported.add(ent.key)
         return events, trace
 
-    def _fused(self, members, t):
-        """Fused estimate: per axis (p, pp, v, vv) at time t."""
+    def _offset(self, src, dst):
+        """Per axis (shift, variance) that moves a position of source src into
+        the frame of source dst: the pair estimate, or 0 with the prior."""
+        if self.pack.bias is None or src == dst:
+            return None
+        key = self._pair(src, dst)
+        st = self.bias.get(key)
+        if st is None:
+            v = self.pack.bias["sigma_m"] ** 2
+            return ((0.0, v), (0.0, v))
+        sign = 1.0 if src < dst else -1.0
+        return ((sign * st[0][0], st[0][1]), (sign * st[1][0], st[1][1]))
+
+    def _predict_in(self, b, t, a):
+        pr = self._predict(b, t)
+        off = self._offset(b.source, a if isinstance(a, str) else a.source)
+        if off is None:
+            return pr
+        return tuple((x[0] + o[0], x[1], x[2] + o[1]) + tuple(x[3:]) for x, o in zip(pr, off))
+
+    def _fused(self, members, t, frame=None):
+        """Fused estimate: per axis (p, pp, v, vv) at time t; with `frame` (an
+        entity), each member is first moved into that entity's frame."""
         out = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]
         for k in members:
-            pr = self._predict(self.entities[k], t)
+            pr = self._predict(self.entities[k], t) if frame is None \
+                else self._predict_in(self.entities[k], t, frame)
             for x in (0, 1):
                 a = pr[x]
                 o = out[x]
@@ -915,7 +982,7 @@ class AssignEngine(Engine):
         return res
 
     def _cost(self, a, members):
-        fe, fn = self._fused(members, a.last_time_ms)
+        fe, fn = self._fused(members, a.last_time_ms, a)
         return ((a.east[0] - fe[0]) ** 2 / (a.east[2] + fe[1])
                 + (a.north[0] - fn[0]) ** 2 / (a.north[2] + fn[1]))
 
@@ -1013,6 +1080,8 @@ class AssignEngine(Engine):
         # Staleness: one decision for every history, recorded in each.
         stale = [k for k in sorted(self.entities)
                  if k not in self.retiring and self._stale(self.entities[k], now_ms)]
+        moved = sorted(k for k in self.restarted if k not in stale)
+        self.restarted = set()
         for h in self.histories:
             mem = self._latest(h).copy()
             evs = []
@@ -1020,11 +1089,15 @@ class AssignEngine(Engine):
                 if mem.system_of(k) is not None:
                     mem.leave(k, "stale", evs)
                 evs.append({"ev": "drop", "entity": k})
+            for k in moved:
+                if mem.system_of(k) is not None:
+                    mem.leave(k, "restart", evs)
             h.records = h.records + [_Record(0.0, [], evs, mem)]
         self.retiring.update(stale)
         self.reported.difference_update(stale)
 
         # Assignment, per source in key order, extending every history.
+        tick_rows = set(self.reported)
         by_source = {}
         for k in sorted(self.reported):
             by_source.setdefault(self.entities[k].source, []).append(k)
@@ -1054,11 +1127,14 @@ class AssignEngine(Engine):
                                                             choices, evs, mem)])
                     cands.append((nh.total(), hi, r, nh))
             cands.sort(key=lambda e: (e[0], e[1], e[2]))
+            cut = None if self.pack.margin is None else cands[0][0] + self.pack.margin
+            kept = [pos < k_max and (cut is None or e[0] <= cut) for pos, e in enumerate(cands)]
             if multi:
                 for pos, (tot, hi, r, _) in enumerate(cands):
-                    trace.append({"stage": "history", "a": hi, "b": r, "test": "total",
-                                  "value": tot, "limit": None, "pass": pos < k_max})
-            self.histories = [e[3] for e in cands[:k_max]]
+                    rec = {"stage": "history", "a": hi, "b": r, "test": "total",
+                           "value": tot, "limit": cut, "pass": kept[pos]}
+                    trace.append(rec)
+            self.histories = [e[3] for e, k in zip(cands, kept) if k]
 
         # Commit the oldest tick of the best history once the window is full.
         best = self.histories[0]
@@ -1082,9 +1158,14 @@ class AssignEngine(Engine):
             for key, ent in self.entities.items():
                 ent.system = self.committed.system_of(key)
 
-        # Output: committed system tracks, then the best history's memberships.
-        for s in self.committed.order:
-            members = self.committed.systems[s]
+        if self.pack.bias is not None:
+            self._bias_update(now_ms, tick_rows, trace)
+
+        # Output: committed system tracks (with a margin, the best history's
+        # latest membership), then the best history's memberships.
+        shown = self._latest(self.histories[0]) if self.pack.margin is not None else self.committed
+        for s in shown.order:
+            members = shown.systems[s]
             fe, fn = self._fused(members, now_ms)
             lat, lon = self._to_deg(fe[0], fn[0])
             course = math.degrees(math.atan2(fe[2], fn[2]))
@@ -1108,6 +1189,51 @@ class AssignEngine(Engine):
                 events.append({"ev": "provisional", "system": s, "members": list(mem.systems[s])})
         return events, trace
 
+    def _bias_update(self, now_ms, rows, trace):
+        """correlate-assign.md, Sensor bias: every pair of members of one
+        committed system track, from two sources, one of which reported."""
+        prm = self.pack.bias
+        floor2 = prm["floor_m"] ** 2
+        for s in self.committed.order:
+            members = [m for m in self.committed.systems[s] if m not in self.retiring]
+            for i in range(len(members)):
+                for j in range(i + 1, len(members)):
+                    a, b = self.entities[members[i]], self.entities[members[j]]
+                    if a.source == b.source or (a.key not in rows and b.key not in rows):
+                        continue
+                    lo, hi = (a, b) if a.source < b.source else (b, a)
+                    key = self._pair(a.source, b.source)
+                    st = self.bias.get(key)
+                    if st is None:
+                        v = prm["sigma_m"] ** 2
+                        st = [[0.0, v, 0.0], [0.0, v, 0.0], 0]
+                    pl, ph = self._predict(lo, now_ms), self._predict(hi, now_ms)
+                    ys, rs = [], []
+                    d2 = 0.0
+                    for x in (0, 1):
+                        y = ph[x][0] - pl[x][0]
+                        r = pl[x][2] + ph[x][2]
+                        ys.append(y)
+                        rs.append(r)
+                        d2 += (y - st[x][0]) ** 2 / (st[x][1] + r)
+                    ok = d2 < prm["gate"]
+                    if ok:
+                        n = st[2] + 1
+                        pv = prm["sigma_m"] ** 2 / (n + 1)
+                        if pv < floor2:
+                            pv = floor2
+                        new = []
+                        for x in (0, 1):
+                            w = 1.0 / rs[x]
+                            ws = st[x][2] + w
+                            new.append([st[x][0] + (w / ws) * (ys[x] - st[x][0]), pv, ws])
+                        st = [new[0], new[1], n]
+                        self.bias[key] = st
+                    trace.append({"stage": "bias", "a": lo.key, "b": hi.key, "test": "offset",
+                                  "value": d2, "limit": prm["gate"], "pass": ok,
+                                  "east": st[0][0], "north": st[1][0], "var": st[0][1],
+                                  "pairs": st[2]})
+
     def snapshot(self):
         out = {
             "ref": list(self.ref) if self.ref else None,
@@ -1117,6 +1243,12 @@ class AssignEngine(Engine):
             "next_system": self.committed.next,
             "reported": sorted(self.reported),
         }
+        if self.pack.restart is not None:
+            out["restarted"] = sorted(self.restarted)
+        if self.pack.bias is not None:
+            out["bias"] = {k: {"east": v[0][0], "weight_east": v[0][2], "north": v[1][0],
+                               "weight_north": v[1][2], "var": v[0][1], "pairs": v[2]}
+                           for k, v in sorted(self.bias.items())}
         if self.pack.window > 1:
             out["retiring"] = sorted(self.retiring)
             out["histories"] = [

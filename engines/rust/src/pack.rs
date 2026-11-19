@@ -22,6 +22,17 @@ pub struct Maneuver {
     pub p_leave: f64,
 }
 
+/// The `bias` directive (spec: correlate-assign.md Sensor bias).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Bias {
+    /// `s`: the offset's standard deviation before any accepted pair, m.
+    pub sigma_m: f64,
+    /// `f`: the least standard deviation the offset's variance falls to, m.
+    pub floor_m: f64,
+    /// `g`: a pair is accepted while its `d²` is below this.
+    pub gate: f64,
+}
+
 /// One named test with its parameters (spec: Tests).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Test {
@@ -69,6 +80,8 @@ pub struct Pack {
     pub filter: FilterParams,
     /// Present when the pack has the `maneuver` directive.
     pub maneuver: Option<Maneuver>,
+    /// `restart gate=<g>` (spec: correlate.md Restart), with either method.
+    pub restart: Option<f64>,
     pub gate: Vec<Test>,
     pub confirm: Vec<Test>,
     pub hold: Vec<Test>,
@@ -87,6 +100,10 @@ pub struct Pack {
     pub window: usize,
     /// `method assign` only: `hypotheses <k>`, histories kept (default 1).
     pub hypotheses: usize,
+    /// `method assign` only: `bias` (correlate-assign.md Sensor bias).
+    pub bias: Option<Bias>,
+    /// `method assign` only: `margin <m>` (correlate-assign.md Window).
+    pub margin: Option<f64>,
 }
 
 impl Pack {
@@ -255,6 +272,9 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
     let mut maneuver = None;
     let mut window = None;
     let mut hypotheses = None;
+    let mut restart = None;
+    let mut bias = None;
+    let mut margin = None;
 
     for (lineno, raw) in text.lines().enumerate() {
         let line = raw.split('#').next().unwrap_or("");
@@ -309,6 +329,33 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
                 }
                 maneuver = Some(m);
             }
+            "restart" => {
+                // correlate.md 0.7 Restart: exactly `gate`, above 0.
+                let p = Params::parse(args, &["gate"]).map_err(at)?;
+                let g = p.num("gate").map_err(at)?;
+                if !(g > 0.0) {
+                    return Err(at("restart gate must be above 0".to_string()));
+                }
+                restart = Some(g);
+            }
+            "bias" => {
+                // correlate-assign.md 0.5 Sensor bias: sigma_m and gate above 0,
+                // floor_m above 0 and at most sigma_m.
+                let p = Params::parse(args, &["sigma_m", "floor_m", "gate"]).map_err(at)?;
+                let b = Bias { sigma_m: p.num("sigma_m").map_err(at)?, floor_m: p.num("floor_m").map_err(at)?, gate: p.num("gate").map_err(at)? };
+                if !(b.sigma_m > 0.0 && b.gate > 0.0 && b.floor_m > 0.0 && b.floor_m <= b.sigma_m) {
+                    return Err(at("bias needs sigma_m and gate above 0, floor_m above 0 and at most sigma_m".to_string()));
+                }
+                bias = Some(b);
+            }
+            "margin" => {
+                // correlate-assign.md 0.5 Window: one number above 0.
+                let m = decimal(one_arg(directive, args).map_err(at)?).map_err(at)?;
+                if !(m > 0.0) {
+                    return Err(at("margin must be above 0".to_string()));
+                }
+                margin = Some(m);
+            }
             "window" => window = Some(positive(one_arg(directive, args).map_err(at)?).map_err(at)?),
             "hypotheses" => hypotheses = Some(positive(one_arg(directive, args).map_err(at)?).map_err(at)?),
             "gate" => gate.push(parse_test(args).map_err(at)?),
@@ -347,7 +394,7 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         }
     }
     let refused: &[&str] = match method {
-        Method::Confirm => &["new_cost", "keep_bonus", "window", "hypotheses"],
+        Method::Confirm => &["new_cost", "keep_bonus", "window", "hypotheses", "margin", "bias"],
         Method::Assign => &["confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"],
     };
     if let Some(d) = refused.iter().find(|d| seen.contains(**d)) {
@@ -365,6 +412,10 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         if hypotheses > 1 && window == 1 {
             return Err("hypotheses above 1 needs window above 1".to_string());
         }
+        // correlate-assign.md 0.5: margin needs hypotheses above 1.
+        if margin.is_some() && hypotheses == 1 {
+            return Err("margin needs hypotheses above 1".to_string());
+        }
         if let Some(b) = keep_bonus {
             if !(b >= 0.0) {
                 return Err("keep_bonus must be 0 or above".to_string());
@@ -376,6 +427,7 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
             version: version.ok_or_else(|| need("version"))?,
             filter,
             maneuver,
+            restart,
             gate,
             confirm,
             hold,
@@ -389,6 +441,8 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
             keep_bonus: keep_bonus.ok_or_else(|| need("keep_bonus"))?,
             window,
             hypotheses,
+            bias,
+            margin,
         });
     }
     Ok(Pack {
@@ -397,10 +451,13 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         keep_bonus: 0.0,
         window: 1,
         hypotheses: 1,
+        bias: None,
+        margin: None,
         name: name.ok_or_else(|| need("pack"))?,
         version: version.ok_or_else(|| need("version"))?,
         filter,
         maneuver,
+        restart,
         gate,
         confirm,
         hold,

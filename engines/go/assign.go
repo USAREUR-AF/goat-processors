@@ -132,11 +132,17 @@ func sameChoices(a, b []Choice) bool {
 // Assignment of one source (spec: Assignment of one source)
 
 // fused returns the fused estimate of a set of entities at time t, per axis
-// (Fused estimate). Only P, V, PP and VV are meaningful.
-func (g *Engine) fused(members []string, t int64) (Axis, Axis) {
+// (Fused estimate). Only P, V, PP and VV are meaningful. With a non-nil frame
+// entity A and the pack's bias line, each member's prediction is first moved
+// into A's frame (Cost; Sensor bias); for output, frame is nil and no member
+// is moved.
+func (g *Engine) fused(members []string, t int64, frame *Entity) (Axis, Axis) {
 	var se, sn [4]float64 // sum 1/pp, sum p/pp, sum 1/vv, sum v/vv
 	for _, k := range members {
 		e, n := g.predicted(g.entities[k], t)
+		if frame != nil {
+			e, n = g.moveInto(g.entities[k], frame, e, n)
+		}
 		for _, x := range []struct {
 			a Axis
 			s *[4]float64
@@ -156,7 +162,7 @@ func (g *Engine) fused(members []string, t int64) (Axis, Axis) {
 
 // cost is d² of entity A against the fused estimate of M at A's time (Cost).
 func (g *Engine) cost(a *Entity, members []string) float64 {
-	fe, fn := g.fused(members, a.LastTime)
+	fe, fn := g.fused(members, a.LastTime, a)
 	de, dn := a.East.P-fe.P, a.North.P-fn.P
 	return de*de/(a.East.PP+fe.PP) + dn*dn/(a.North.PP+fn.PP)
 }
@@ -375,7 +381,7 @@ type candidate struct {
 	total float64
 }
 
-// tickAssign runs one tick, steps 1 to 5 of Window.
+// tickAssign runs one tick, steps 1 to 6 of Window.
 func (g *Engine) tickAssign(now int64) (events, trace []Obj) {
 	events, trace = []Obj{}, []Obj{}
 	p := g.pack
@@ -388,6 +394,16 @@ func (g *Engine) tickAssign(now int64) (events, trace []Obj) {
 			stale = append(stale, k)
 		}
 	}
+	isStale := map[string]bool{}
+	for _, k := range stale {
+		isStale[k] = true
+	}
+	var restarted []string
+	for _, k := range sortedKeys(g.restarted) {
+		if !isStale[k] {
+			restarted = append(restarted, k)
+		}
+	}
 	for i, h := range g.histories {
 		rec := Record{Choices: []Choice{}, Events: []Obj{}, M: h.latest(g.committed).copy()}
 		for _, k := range stale {
@@ -396,18 +412,27 @@ func (g *Engine) tickAssign(now int64) (events, trace []Obj) {
 			}
 			rec.Events = append(rec.Events, Obj{"ev": "drop", "entity": k})
 		}
+		// Each restarted entity that is not stale leaves its system track.
+		for _, k := range restarted {
+			if rec.M.systemOf(k) != "" {
+				rec.Events = rec.M.leave(k, "restart", rec.Events)
+			}
+		}
 		g.histories[i] = History{append(append([]Record(nil), h.Records...), rec)}
 	}
 	for _, k := range stale {
 		g.entities[k].Retiring = true
 		delete(g.reported, k)
 	}
+	g.restarted = map[string]bool{} // no entity is restarted after this step
 
 	// 2. Rows: entities reported since the previous tick, grouped by source.
 	bySource := map[string][]string{}
+	rows := map[string]bool{}
 	for _, k := range sortedKeys(g.reported) {
 		src := g.entities[k].Source
 		bySource[src] = append(bySource[src], k)
+		rows[k] = true
 	}
 	g.reported = map[string]bool{}
 
@@ -443,14 +468,24 @@ func (g *Engine) tickAssign(now int64) (events, trace []Obj) {
 		}
 		// Candidates were built in (h, r) order; a stable sort by total gives total, h, r.
 		sort.SliceStable(cands, func(a, b int) bool { return cands[a].total < cands[b].total })
+		// The first k are kept; with margin, only those within cut = best + m.
+		var cut any
+		if p.HasMargin {
+			cut = cands[0].total + p.Margin
+		}
 		g.histories = g.histories[:0:0]
 		for i, c := range cands {
 			kept := i < int(p.Hypotheses)
+			if p.HasMargin {
+				kept = kept && c.total <= cut.(float64)
+			}
 			if kept {
 				g.histories = append(g.histories, c.hist)
 			}
 			if windowed {
-				trace = append(trace, historyRecord(c.h, c.r, "total", c.total, kept))
+				rec := historyRecord(c.h, c.r, "total", c.total, kept)
+				rec["limit"] = cut
+				trace = append(trace, rec)
 			}
 		}
 	}
@@ -481,12 +516,23 @@ func (g *Engine) tickAssign(now int64) (events, trace []Obj) {
 		}
 	}
 
-	// 5. Output: committed system tracks, then the best history's provisional ones.
-	for _, name := range g.committed.order() {
-		events = append(events, g.systemEvent(name, g.committed.Systems[name], now))
+	// 5. Bias: the update of Sensor bias, over the committed membership.
+	if p.HasBias {
+		trace = append(trace, g.updateBias(now, rows)...)
+	}
+
+	// 6. Output: the committed system tracks (with margin, the best history's
+	// latest ones), then the best history's provisional ones.
+	best := g.histories[0].latest(g.committed)
+	reported := g.committed
+	if p.HasMargin {
+		reported = best
+	}
+	for _, name := range reported.order() {
+		events = append(events, g.systemEvent(name, reported.Systems[name], now))
 	}
 	if windowed {
-		m := g.histories[0].latest(g.committed)
+		m := best
 		for _, name := range m.order() {
 			events = append(events, Obj{"ev": "provisional", "system": name, "members": strList(m.Systems[name])})
 		}
@@ -494,9 +540,9 @@ func (g *Engine) tickAssign(now int64) (events, trace []Obj) {
 	return events, trace
 }
 
-// systemEvent is the fused estimate of all a committed track's members at now (step 5).
+// systemEvent is the fused estimate of all a system track's members at now (step 6).
 func (g *Engine) systemEvent(name string, members []string, now int64) Obj {
-	fe, fn := g.fused(members, now)
+	fe, fn := g.fused(members, now, nil)
 	lat, lon := g.toDegrees(fe.P, fn.P)
 	course := deg(math.Atan2(fe.V, fn.V))
 	if course < 0 {
@@ -546,6 +592,12 @@ func (g *Engine) snapshotAssign() Obj {
 	}
 	snap := Obj{"ref": ref, "entities": ents, "systems": systemsObj(g.committed),
 		"next_system": int64(g.committed.Next), "reported": strList(sortedKeys(g.reported))}
+	if g.pack.HasRestart {
+		snap["restarted"] = strList(sortedKeys(g.restarted))
+	}
+	if g.pack.HasBias {
+		snap["bias"] = g.biasSnapshot()
+	}
 	if g.pack.Window == 1 {
 		return snap
 	}

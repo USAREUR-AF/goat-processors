@@ -61,6 +61,14 @@ struct RankedAssignment {
     double total = 0;
 };
 
+// correlate-assign.md "Sensor bias": the stored state of one pair of sources.
+struct BiasState {
+    double o[2] = {0, 0};   // offset, east and north
+    double w[2] = {0, 0};   // weight sum, east and north
+    double var = 0;         // one variance for both axes
+    std::int64_t n = 0;     // count of accepted pairs
+};
+
 class Engine {
 public:
     explicit Engine(Pack pack);
@@ -81,6 +89,7 @@ private:
     void filter_update(Entity& e, const Point& z, const std::optional<Point>& vel, double ce, double dt,
                        Output& out) const;
     Filter predict(const Entity& e, std::int64_t t) const;
+    bool restart_test(const Entity& e, std::int64_t time_ms, const Point& z, double ce, Output& out) const;
 
     // Tests
     double ce_of(const Entity& e) const;
@@ -98,13 +107,16 @@ private:
 
     // Method assign (correlate-assign.md), in assign.cpp
     Output tick_assign(std::int64_t now_ms);
-    Filter fuse(const std::set<std::string>& members, std::int64_t t) const;
+    Filter fuse(const std::set<std::string>& members, std::int64_t t, const Entity* frame = nullptr) const;
+    BiasState bias_state(const std::string& pair) const;
+    Filter predict_into_frame(const Entity& a, const Entity& b, std::int64_t t) const;
+    void bias_update(std::int64_t now_ms, const std::set<std::string>& rows, Output& out);
     std::vector<RankedAssignment> rank_source(const std::vector<std::string>& rows, const Membership& m,
                                               int h, std::vector<int>& columns,
                                               std::vector<std::vector<double>>& entries, Output& out) const;
     void apply_assignment(const std::vector<std::string>& rows, const std::vector<int>& columns,
                           const RankedAssignment& r, Record& rec) const;
-    void system_output(std::int64_t now_ms, Output& out) const;
+    void system_output(std::int64_t now_ms, const Membership& reported, Output& out) const;
     Json snapshot_assign() const;
 
     static std::string group_name(int g) { return "g" + std::to_string(g); }
@@ -125,6 +137,8 @@ private:
     std::vector<History> histories_ = {History{}};           // rank order
     std::set<std::string> retiring_;
     std::set<std::string> reported_;                        // accepted a report since the previous tick
+    std::set<std::string> restarted_;                       // filter started again since the previous tick
+    std::map<std::string, BiasState> bias_;                 // stored pair states, by "<S>|<T>"
 };
 
 // correlate-assign.md "Ranking": the first k assignments of rows to columns,

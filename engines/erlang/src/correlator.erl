@@ -1,5 +1,5 @@
-%% The correlator engine: load_pack, ingest, tick, snapshot (spec sections
-%% "Reports", "Tests", "Association", "Events", "Trace", "Snapshot").
+%% The correlator engine: load_pack, ingest, tick, snapshot (spec/correlate.md 0.7,
+%% sections "Reports", "Restart", "Tests", "Association", "Events", "Trace", "Snapshot").
 %% State is a value; ingest and tick return {Events, Trace, NewState}.
 %% Explicit recursion stands in for lists:mapfoldl, which OTP 27.3 miscompiles
 %% when a case on its result follows.
@@ -108,16 +108,31 @@ accept(Key, Report, St0) ->
                                 correlator_estimate:init(Z, Vel, Ce, Pack)),
                 {E0, emit(#{<<"ev">> => <<"new">>, <<"entity">> => Key}, St1)};
             {ok, E0 = #{time := Last}} ->
-                Dt = (T - Last) / 1000,
-                {Est, Records} = correlator_estimate:update(E0, Dt, Z, Vel, Ce, Pack),
-                %% Two-model filter, Trace: four filter records first.
-                {maps:merge(E0, Est),
-                 lists:foldl(fun({Test, Model, Value}, S) ->
-                                     record(#{<<"stage">> => <<"filter">>, <<"a">> => Key,
-                                              <<"b">> => Model, <<"test">> => Test,
-                                              <<"value">> => Value, <<"limit">> => null,
-                                              <<"pass">> => true}, S)
-                             end, St1, Records)}
+                case restart_test(Key, E0, T, Z, Ce, St1) of
+                    {true, StR} ->
+                        Dt = (T - Last) / 1000,
+                        {Est, Records} = correlator_estimate:update(E0, Dt, Z, Vel, Ce, Pack),
+                        %% Two-model filter, Trace: four filter records first.
+                        {maps:merge(E0, Est),
+                         lists:foldl(fun({Test, Model, Value}, S) ->
+                                             record(#{<<"stage">> => <<"filter">>,
+                                                      <<"a">> => Key, <<"b">> => Model,
+                                                      <<"test">> => Test, <<"value">> => Value,
+                                                      <<"limit">> => null, <<"pass">> => true},
+                                                    S)
+                                     end, StR, Records)};
+                    {false, StR} ->
+                        %% Restart: the filter starts again as on a first
+                        %% report; key, group, pair counts and hold failure
+                        %% count are kept, and no new event is given. With
+                        %% method assign the entity is restarted until the
+                        %% next tick.
+                        StR1 = case maps:get(method, Pack) of
+                                   assign -> StR#{restarted := (maps:get(restarted, StR))#{Key => true}};
+                                   confirm -> StR
+                               end,
+                        {maps:merge(E0, correlator_estimate:init(Z, Vel, Ce, Pack)), StR1}
+                end
         end,
     Ent1 = Ent#{time => T, report => Report, ce => Ce},
     St3 = put_entity(Key, Ent1, St2),
@@ -126,6 +141,25 @@ accept(Key, Report, St0) ->
         {assign, _} -> St3#{reported := (maps:get(reported, St3))#{Key => true}};
         {confirm, #{group := none}} -> associate(Key, St3);
         {confirm, #{group := G}} -> hold(Key, G, St3)
+    end.
+
+%% Restart (correlate.md "Restart"), for a later report of an entity: with
+%% the pack's restart line, predict the entity to the report's time and
+%% d² = sum over east, north of (z - p)² / (pp + ce²); one filter record
+%% before any other record of the report; passes when d² < gate. Without the
+%% line the report always updates the filter.
+restart_test(Key, Ent, T, {E, N}, Ce, St) ->
+    case maps:find(restart, maps:get(pack, St)) of
+        error -> {true, St};
+        {ok, #{<<"gate">> := Gate}} ->
+            Pred = predict(Ent, T, St),
+            {PE, _, PPE, _, _} = maps:get(east, Pred),
+            {PN, _, PPN, _, _} = maps:get(north, Pred),
+            D2 = (E - PE) * (E - PE) / (PPE + Ce * Ce) + (N - PN) * (N - PN) / (PPN + Ce * Ce),
+            Pass = D2 < Gate,
+            {Pass, record(#{<<"stage">> => <<"filter">>, <<"a">> => Key, <<"b">> => null,
+                            <<"test">> => <<"restart">>, <<"value">> => D2,
+                            <<"limit">> => Gate, <<"pass">> => Pass}, St)}
     end.
 
 report_ce(Report, F) ->
@@ -151,11 +185,14 @@ value(K, Ent) -> maps:get(K, maps:get(report, Ent), null).
 
 %% ---------------------------------------------------------------- tests
 
-%% Tests: A is the entity just reported, B predicted to A's time_ms.
+%% Tests: A is the entity just reported, B predicted to A's time_ms; with the
+%% pack line bias (method assign), B's prediction moved into A's frame
+%% (correlate-assign.md "Sensor bias").
 pair_view(A, B, St) ->
     EA = entity(A, St),
     EB = entity(B, St),
-    {EA, EB, predict(EB, maps:get(time, EA), St)}.
+    PredB = predict(EB, maps:get(time, EA), St),
+    {EA, EB, correlator_assign:move(PredB, maps:get(source, EA), maps:get(source, EB), St)}.
 
 %% Prediction of an entity to time T (ms): a copy of its filter.
 predict(Ent, T, St) ->

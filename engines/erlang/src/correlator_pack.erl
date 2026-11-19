@@ -1,4 +1,4 @@
-%% Pack: load and parse pack.def (correlate.md "Pack", correlate-assign.md "Pack").
+%% Pack: load and parse pack.def (correlate.md 0.7 "Pack", correlate-assign.md 0.5 "Pack").
 -module(correlator_pack).
 -export([load_pack/1, parse/1]).
 %% Shared with filter_pack (filter.md "Pack": the same line syntax).
@@ -10,17 +10,19 @@
                    <<"hold_failures">>, <<"stale_ms">>],
                   [<<"gate">>, <<"confirm">>, <<"hold">>, <<"priority">>],
                   [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"maneuver">>,
-                   <<"confirm_count">>, <<"hold_failures">>, <<"stale_ms">>, <<"same_source">>,
+                   <<"restart">>, <<"confirm_count">>, <<"hold_failures">>, <<"stale_ms">>, <<"same_source">>,
                    <<"output">>]}).
 -define(ASSIGN, {[<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"new_cost">>,
                   <<"keep_bonus">>, <<"stale_ms">>],
                  [<<"gate">>],
                  [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"maneuver">>,
-                  <<"new_cost">>, <<"keep_bonus">>, <<"stale_ms">>, <<"window">>,
-                  <<"hypotheses">>]}).
+                  <<"restart">>, <<"new_cost">>, <<"keep_bonus">>, <<"stale_ms">>,
+                  <<"bias">>, <<"window">>, <<"hypotheses">>, <<"margin">>]}).
 -define(FILTER_PARAMS, [<<"accel_var">>, <<"default_ce_m">>, <<"vel_sigma_ms">>,
                         <<"unknown_vel_ms">>]).
 -define(MANEUVER_PARAMS, [<<"accel_var">>, <<"p_enter">>, <<"p_leave">>]).
+-define(RESTART_PARAMS, [<<"gate">>]).
+-define(BIAS_PARAMS, [<<"sigma_m">>, <<"floor_m">>, <<"gate">>]).
 
 load_pack(Dir) ->
     case file:read_file(filename:join(Dir, "pack.def")) of
@@ -72,8 +74,8 @@ build(Directives) ->
                 [K || K <- [gate, confirm, hold, priority], maps:is_key(K, P)]).
 
 %% Ranges, checked once the whole file is read: filter and maneuver
-%% (correlate.md "Pack"); new_cost, keep_bonus, window, hypotheses
-%% (correlate-assign.md "Pack").
+%% (correlate.md "Pack"); restart; new_cost, keep_bonus, window, hypotheses,
+%% bias, margin (correlate-assign.md "Pack").
 check_ranges(P) ->
     F = maps:get(filter, P),
     [fail({not_above_zero, K}) || K <- [default_ce_m, vel_sigma_ms, unknown_vel_ms],
@@ -85,6 +87,28 @@ check_ranges(P) ->
             B > 0 orelse fail({not_above_zero, p_leave}),
             A + B < 1 orelse fail({not_below_one, switching}),
             Q2 > maps:get(<<"accel_var">>, F) orelse fail({not_above_filter, accel_var});
+        _ -> ok
+    end,
+    %% restart: gate above 0 (correlate.md "Pack").
+    case P of
+        #{restart := #{<<"gate">> := RG}} -> RG > 0 orelse fail({not_above_zero, restart_gate});
+        _ -> ok
+    end,
+    %% bias: sigma_m and gate above 0, floor_m above 0 and at most sigma_m
+    %% (correlate-assign.md "Pack").
+    case P of
+        #{bias := #{<<"sigma_m">> := Sig, <<"floor_m">> := Floor, <<"gate">> := BG}} ->
+            Sig > 0 orelse fail({not_above_zero, sigma_m}),
+            BG > 0 orelse fail({not_above_zero, bias_gate}),
+            Floor > 0 orelse fail({not_above_zero, floor_m}),
+            Floor =< Sig orelse fail({above_sigma, floor_m});
+        _ -> ok
+    end,
+    %% margin: above 0, and needs hypotheses above 1 (correlate-assign.md "Pack").
+    case P of
+        #{margin := M, hypotheses := HK} ->
+            M > 0 orelse fail({not_above_zero, margin}),
+            HK > 1 orelse fail({margin_without_hypotheses, HK});
         _ -> ok
     end,
     case P of
@@ -108,6 +132,11 @@ directive([<<"window">>, N], P) -> P#{window := integer(N)};
 directive([<<"hypotheses">>, N], P) -> P#{hypotheses := integer(N)};
 directive([<<"filter">> | Params], P) ->
     P#{filter => number_params(params(Params, ?FILTER_PARAMS))};
+directive([<<"restart">> | Params], P) ->
+    P#{restart => number_params(params(Params, ?RESTART_PARAMS))};
+directive([<<"bias">> | Params], P) ->
+    P#{bias => number_params(params(Params, ?BIAS_PARAMS))};
+directive([<<"margin">>, M], P) -> P#{margin => number(M)};
 directive([<<"maneuver">> | Params], P) ->
     P#{maneuver => number_params(params(Params, ?MANEUVER_PARAMS))};
 directive([Stage, Test | Params], P)

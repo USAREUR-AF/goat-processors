@@ -1,10 +1,11 @@
-//! `method assign` (spec/correlate-assign.md 0.4): system tracks, ranked
-//! per-source assignments at each tick, a window of histories, and the
-//! inverse-variance fused estimate.
+//! `method assign` (spec/correlate-assign.md 0.5): system tracks, ranked
+//! per-source assignments at each tick, a window of histories (with an
+//! optional margin), sensor bias, and the inverse-variance fused estimate.
 //!
 //! The sections of the spec map onto this file as follows:
 //! Memberships -> `Membership`, `Record`, `History`;
 //! Assignment of one source -> `Engine::entries`, `Membership::apply`;
+//! Sensor bias -> `PairBias`, `Engine::move_into_frame`, `Engine::update_bias`;
 //! Ranking -> `ranked_assignments`; Window -> `Engine::tick_assign` and its
 //! steps; Snapshot -> `Engine::snapshot_assign`.
 
@@ -138,6 +139,124 @@ impl History {
     }
 }
 
+// ---- Sensor bias
+
+/// The stored state of one pair of sources `"<S>|<T>"`: per axis the offset
+/// `o` of T's positions from S's and the weight sum `w`; `var` for both axes;
+/// `n`, the count of accepted pairs.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PairBias {
+    east: f64,
+    weight_east: f64,
+    north: f64,
+    weight_north: f64,
+    var: f64,
+    pairs: u64,
+}
+
+impl PairBias {
+    fn json(&self) -> Json {
+        obj(vec![
+            ("east", self.east.into()),
+            ("weight_east", self.weight_east.into()),
+            ("north", self.north.into()),
+            ("weight_north", self.weight_north.into()),
+            ("var", self.var.into()),
+            ("pairs", Json::Int(self.pairs as i64)),
+        ])
+    }
+}
+
+fn bias_key(first: &str, second: &str) -> String {
+    format!("{}|{}", first, second)
+}
+
+impl Engine {
+    /// A pair's state; with none stored, `o = 0`, `w = 0`, `var = s²`, `n = 0`.
+    fn pair_bias(&self, key: &str) -> PairBias {
+        let s = self.pack.bias.as_ref().expect("bias state needs the bias directive").sigma_m;
+        self.bias.get(key).cloned().unwrap_or(PairBias { east: 0.0, weight_east: 0.0, north: 0.0, weight_north: 0.0, var: s * s, pairs: 0 })
+    }
+
+    /// Moving B into A's frame: B's prediction `(east, north)` becomes `p + o`
+    /// (pair `"<b_src>|<a_src>"`, when `b_src` is first) or `p - o` (pair
+    /// `"<a_src>|<b_src>"`, when `a_src` is first), with `pp + var` on each
+    /// axis. Two entities of one source, or a pack without `bias`, move nothing.
+    pub(super) fn move_into_frame(&self, a_src: &str, b_src: &str, (east, north): (Axis, Axis)) -> (Axis, Axis) {
+        if self.pack.bias.is_none() || a_src == b_src {
+            return (east, north);
+        }
+        let b_first = b_src < a_src;
+        let state = if b_first { self.pair_bias(&bias_key(b_src, a_src)) } else { self.pair_bias(&bias_key(a_src, b_src)) };
+        let moved = |axis: Axis, o: f64| Axis { p: if b_first { axis.p + o } else { axis.p - o }, pp: axis.pp + state.var, ..axis };
+        (moved(east, state.east), moved(north, state.north))
+    }
+
+    /// Sensor bias, Update: after the commit, for each committed system track
+    /// in creation order, each pair of its members that are not retiring
+    /// (key order, `X` before `Y`) from two sources, at least one among the
+    /// tick's `rows`.
+    fn update_bias(&mut self, now_ms: i64, rows: &BTreeSet<String>, trace: &mut Vec<Json>) {
+        let Some(params) = self.pack.bias.clone() else { return };
+        let (s2, f2) = (params.sigma_m * params.sigma_m, params.floor_m * params.floor_m);
+        let mut pairs: Vec<(String, String)> = Vec::new();
+        for members in self.committed.systems.values() {
+            let live: Vec<&String> = members.iter().filter(|m| !self.retiring.contains(*m)).collect();
+            for (i, x) in live.iter().enumerate() {
+                for y in &live[i + 1..] {
+                    let different = self.entities[*x].source != self.entities[*y].source;
+                    if different && (rows.contains(*x) || rows.contains(*y)) {
+                        pairs.push(((*x).clone(), (*y).clone()));
+                    }
+                }
+            }
+        }
+        for (x, y) in pairs {
+            // 1. ES is the entity whose source is first in key order, ET the other.
+            let (es, et) = if self.entities[&x].source < self.entities[&y].source { (&x, &y) } else { (&y, &x) };
+            let key = bias_key(&self.entities[es].source, &self.entities[et].source);
+            let (s_e, s_n) = self.entities[es].predict(now_ms, &self.pack);
+            let (t_e, t_n) = self.entities[et].predict(now_ms, &self.pack);
+            let (y_e, r_e) = (t_e.p - s_e.p, s_e.pp + t_e.pp);
+            let (y_n, r_n) = (t_n.p - s_n.p, s_n.pp + t_n.pp);
+
+            // 2. d² against the pair's state.
+            let mut st = self.pair_bias(&key);
+            let d2 = (y_e - st.east) * (y_e - st.east) / (st.var + r_e) + (y_n - st.north) * (y_n - st.north) / (st.var + r_n);
+
+            // 3. Accepted below the gate: count, variance, weighted mean per axis.
+            let accepted = d2 < params.gate;
+            if accepted {
+                st.pairs += 1;
+                st.var = s2 / (st.pairs + 1) as f64;
+                if st.var < f2 {
+                    st.var = f2;
+                }
+                st.weight_east += 1.0 / r_e;
+                st.east += ((1.0 / r_e) / st.weight_east) * (y_e - st.east);
+                st.weight_north += 1.0 / r_n;
+                st.north += ((1.0 / r_n) / st.weight_north) * (y_n - st.north);
+                self.bias.insert(key, st.clone());
+            }
+
+            // 4. Trace, with the state after step 3.
+            trace.push(obj(vec![
+                ("stage", "bias".into()),
+                ("a", x.as_str().into()),
+                ("b", y.as_str().into()),
+                ("test", "offset".into()),
+                ("value", d2.into()),
+                ("limit", params.gate.into()),
+                ("pass", accepted.into()),
+                ("east", st.east.into()),
+                ("north", st.north.into()),
+                ("var", st.var.into()),
+                ("pairs", Json::Int(st.pairs as i64)),
+            ]));
+        }
+    }
+}
+
 // ---- Assignment of one source
 
 /// What one entity of R chooses.
@@ -213,12 +332,19 @@ fn ranked_assignments(e: &Entries, k: usize) -> Vec<Assignment> {
 
 impl Engine {
     /// Fused estimate of `members` at time `t`, per axis (spec: Fused estimate).
-    /// `pv` of the result is not defined by the spec and is left 0.
-    fn fused<'a>(&self, members: impl IntoIterator<Item = &'a String>, t: i64) -> (Axis, Axis) {
+    /// With `seen_by`, A's source, each member is moved into A's frame after
+    /// its prediction (Cost, with `bias`). `pv` of the result is not defined
+    /// by the spec and is left 0.
+    fn fused<'a>(&self, members: impl IntoIterator<Item = &'a String>, t: i64, seen_by: Option<&str>) -> (Axis, Axis) {
         // Per axis: sum 1/pp, sum p/pp, sum 1/vv, sum v/vv.
         let mut sums = [[0.0f64; 4]; 2];
         for m in members {
-            let (pe, pn) = self.entities[m].predict(t, &self.pack);
+            let e = &self.entities[m];
+            let predicted = e.predict(t, &self.pack);
+            let (pe, pn) = match seen_by {
+                Some(a_src) => self.move_into_frame(a_src, &e.source, predicted),
+                None => predicted,
+            };
             for (s, a) in sums.iter_mut().zip([pe, pn]) {
                 s[0] += 1.0 / a.pp;
                 s[1] += a.p / a.pp;
@@ -237,7 +363,7 @@ impl Engine {
     /// Cost `d²` of entity A against the set `others`, predicted to A's time.
     fn assign_cost(&self, a: &str, others: &[String]) -> f64 {
         let ea = &self.entities[a];
-        let (fe, fn_) = self.fused(others, ea.last_time_ms);
+        let (fe, fn_) = self.fused(others, ea.last_time_ms, Some(&ea.source));
         (ea.east.p - fe.p).powi(2) / (ea.east.pp + fe.pp) + (ea.north.p - fn_.p).powi(2) / (ea.north.pp + fn_.pp)
     }
 
@@ -306,6 +432,15 @@ impl Engine {
             }
             h.records.push(rec);
         }
+        // Each restarted entity that is not stale, in key order, leaves its
+        // system track; no entity is restarted after this step.
+        let restarted: Vec<String> = std::mem::take(&mut self.restarted).into_iter().filter(|k| !stale.contains(k)).collect();
+        for h in &mut self.histories {
+            let rec = h.records.last_mut().expect("just pushed");
+            for k in &restarted {
+                rec.membership.leave(k, "restart", &mut rec.events);
+            }
+        }
         self.retiring.extend(stale.iter().cloned());
 
         // 2. Rows: entities reported since the previous tick, not found stale,
@@ -317,6 +452,8 @@ impl Engine {
             }
         }
 
+        let rows: BTreeSet<String> = by_source.values().flatten().cloned().collect();
+
         // 3. Sources, in key order.
         for (source, r) in &by_source {
             self.assign_source(source, r, &mut out.trace);
@@ -327,7 +464,10 @@ impl Engine {
             self.commit(&mut out);
         }
 
-        // 5. Output.
+        // 5. Bias, from the committed membership.
+        self.update_bias(now_ms, &rows, &mut out.trace);
+
+        // 6. Output.
         self.output(now_ms, &mut out);
         out
     }
@@ -374,20 +514,25 @@ impl Engine {
         // h, then r: a stable sort of the generation order.
         let mut candidates: Vec<(f64, usize, usize, History)> = candidates.into_iter().map(|(h, ri, c)| (c.total(), h, ri, c)).collect();
         candidates.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap_or(Ordering::Equal));
-        for (i, (total, h, ri, _)) in candidates.iter().enumerate() {
-            if windowed {
+
+        // The first `k` are kept; with `margin`, only those with a total at
+        // most `cut = best + m`, `best` the first candidate's total.
+        let cut = self.pack.margin.map(|m| candidates[0].0 + m);
+        let kept = |i: usize, total: f64| i < k && cut.is_none_or(|c| total <= c);
+        if windowed {
+            for (i, (total, h, ri, _)) in candidates.iter().enumerate() {
                 trace.push(obj(vec![
                     ("stage", "history".into()),
                     ("a", Json::Int(*h as i64)),
                     ("b", Json::Int(*ri as i64)),
                     ("test", "total".into()),
                     ("value", (*total).into()),
-                    ("limit", Json::Null),
-                    ("pass", (i < k).into()),
+                    ("limit", cut.map_or(Json::Null, Json::from)),
+                    ("pass", kept(i, *total).into()),
                 ]));
             }
         }
-        self.histories = candidates.into_iter().take(k).map(|(_, _, _, c)| c).collect();
+        self.histories = candidates.into_iter().enumerate().filter(|(i, c)| kept(*i, c.0)).map(|(_, (_, _, _, c))| c).collect();
     }
 
     /// Window step 4: commit the best history's oldest record.
@@ -428,11 +573,17 @@ impl Engine {
         }
     }
 
-    /// Window step 5: `system` per committed system track, then `provisional`
-    /// per system track of the best history when the window is above 1.
+    /// Window step 6: `system` per committed system track (with `margin`, per
+    /// system track of the best history's latest membership), then
+    /// `provisional` per system track of the best history when the window is
+    /// above 1.
     fn output(&self, now_ms: i64, out: &mut StepResult) {
-        for (s, members) in &self.committed.systems {
-            let (fe, fn_) = self.fused(members, now_ms);
+        let reported = match self.pack.margin {
+            Some(_) => self.histories[0].latest(&self.committed),
+            None => &self.committed,
+        };
+        for (s, members) in &reported.systems {
+            let (fe, fn_) = self.fused(members, now_ms, None);
             let (lat, lon) = self.frame.expect("a system track implies a reference").to_degrees(fe.p, fn_.p);
             let (course, speed) = course_speed(&fe, &fn_);
             let mut pairs = vec![
@@ -484,6 +635,12 @@ impl Engine {
             ("next_system", Json::Int(self.committed.next_system as i64)),
             ("reported", Json::Arr(self.reported.iter().map(|k| k.as_str().into()).collect())),
         ];
+        if self.pack.restart.is_some() {
+            pairs.push(("restarted", Json::Arr(self.restarted.iter().map(|k| k.as_str().into()).collect())));
+        }
+        if self.pack.bias.is_some() {
+            pairs.push(("bias", Json::Obj(self.bias.iter().map(|(k, b)| (k.clone(), b.json())).collect())));
+        }
         if self.pack.window > 1 {
             let histories = self
                 .histories

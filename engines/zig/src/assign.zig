@@ -1,12 +1,15 @@
-// spec/correlate-assign.md (version 0.4): system tracks, per-source ranked
-// assignments at each tick, a window of `n` ticks over the best `k` histories,
-// and the inverse-variance fused estimate.
+// spec/correlate-assign.md (version 0.5): system tracks, per-source ranked
+// assignments at each tick, a window of `n` ticks over the best `k` histories
+// (kept within `margin` of the best), the inverse-variance fused estimate, the
+// leave of a restarted entity (correlate.md 0.7 "Restart") and the update of
+// the sensor bias offsets (`bias.zig`).
 const std = @import("std");
 const json = std.json;
 const Allocator = std.mem.Allocator;
 const engine_mod = @import("engine.zig");
 const frame = @import("frame.zig");
 const kalman = @import("kalman.zig");
+const bias_mod = @import("bias.zig");
 const Engine = engine_mod.Engine;
 const Result = engine_mod.Result;
 const lessKey = engine_mod.lessKey;
@@ -134,12 +137,19 @@ pub const State = struct {
     committed: Membership,
     histories: std.ArrayList(History),
     retiring: std.StringArrayHashMap(void),
+    // "Sensor bias": the stored offsets, used only with `bias`.
+    bias: bias_mod.State,
 
     pub fn init(alloc: Allocator) !State {
         // At the start there is one history with no records.
         var histories = std.ArrayList(History).init(alloc);
         try histories.append(.{ .records = std.ArrayList(Record).init(alloc) });
-        return .{ .committed = Membership.init(alloc), .histories = histories, .retiring = std.StringArrayHashMap(void).init(alloc) };
+        return .{
+            .committed = Membership.init(alloc),
+            .histories = histories,
+            .retiring = std.StringArrayHashMap(void).init(alloc),
+            .bias = bias_mod.State.init(alloc),
+        };
     }
 
     // A history's latest membership: its newest record's, or the committed one.
@@ -174,13 +184,19 @@ fn fuseAxis(axes: []const kalman.Axis) FusedAxis {
     return .{ .p = pp * sp, .v = vv * sv, .pp = pp, .vv = vv };
 }
 
-// Members in key order, each predicted to `t_ms`.
-fn fused(eng: *Engine, members: []const []const u8, t_ms: i64) !Fused {
+// Members in key order, each predicted to `t_ms`. With `frame_of` (an entity's
+// source) and the pack's `bias`, each member is moved into that source's frame
+// ("Sensor bias") after its prediction; an estimate for output moves no member.
+fn fused(eng: *Engine, members: []const []const u8, t_ms: i64, frame_of: ?[]const u8) !Fused {
     const a = eng.alloc();
     const east = try a.alloc(kalman.Axis, members.len);
     const north = try a.alloc(kalman.Axis, members.len);
     for (members, 0..) |m, i| {
-        const f = eng.entities.get(m).?.predictedTo(t_ms, eng.pack);
+        const e = eng.entities.get(m).?;
+        var f = e.predictedTo(t_ms, eng.pack);
+        if (eng.pack.bias) |bp| {
+            if (frame_of) |src| f = try bias_mod.moveInto(a, &eng.assign_state.bias, bp, src, e.source, f);
+        }
         east[i] = f.east;
         north[i] = f.north;
     }
@@ -190,7 +206,7 @@ fn fused(eng: *Engine, members: []const []const u8, t_ms: i64) !Fused {
 // "Cost": d² of A against the fused estimate of M, both at A's `last_time_ms`.
 fn cost(eng: *Engine, a_key: []const u8, members: []const []const u8) !f64 {
     const a = eng.entities.get(a_key).?;
-    const m = try fused(eng, members, a.last_time_ms);
+    const m = try fused(eng, members, a.last_time_ms, a.source);
     const de = a.filter.east.p - m.east.p;
     const dn = a.filter.north.p - m.north.p;
     return de * de / (a.filter.east.pp + m.east.pp) + dn * dn / (a.filter.north.pp + m.north.pp);
@@ -408,24 +424,27 @@ fn assignSource(eng: *Engine, res: *Result, source: []const u8, rows: []const []
         }
     }
 
-    // Candidates by total, then h, then r; the first k are the histories.
+    // Candidates by total, then h, then r; the first k are the histories. With
+    // `margin`, of those only the ones with total at most `cut = best + margin`.
     std.mem.sort(Candidate, candidates.items, {}, candidateBefore);
+    const cut: ?f64 = if (eng.pack.margin) |m| candidates.items[0].total + m else null;
     st.histories.clearRetainingCapacity();
     for (candidates.items, 0..) |c, i| {
-        const kept = i < k;
+        var kept = i < k;
+        if (cut) |limit| kept = kept and c.total <= limit;
         if (kept) try st.histories.append(c.history);
-        if (windowed) try historyRecord(eng, res, .{ .integer = @intCast(c.h) }, .{ .integer = @intCast(c.r) }, "total", c.total, kept);
+        if (windowed) try historyRecord(eng, res, .{ .integer = @intCast(c.h) }, .{ .integer = @intCast(c.r) }, "total", c.total, if (cut) |x| json.Value{ .float = x } else .null, kept);
     }
 }
 
-fn historyRecord(eng: *Engine, res: *Result, a: json.Value, b: json.Value, test_name: []const u8, value: f64, pass: bool) !void {
+fn historyRecord(eng: *Engine, res: *Result, a: json.Value, b: json.Value, test_name: []const u8, value: f64, limit: json.Value, pass: bool) !void {
     try res.trace.append(try eng.object(.{
         .{ "stage", "history" },
         .{ "a", a },
         .{ "b", b },
         .{ "test", test_name },
         .{ "value", value },
-        .{ "limit", json.Value{ .null = {} } },
+        .{ "limit", limit },
         .{ "pass", pass },
     }));
 }
@@ -444,6 +463,8 @@ pub fn tick(eng: *Engine, now_ms: i64) !Result {
     var res = Result{ .events = json.Array.init(a), .trace = json.Array.init(a) };
 
     // 1. Staleness, among entities not retiring, in key order.
+    const restarted = try a.dupe([]const u8, eng.restarted.keys());
+    std.mem.sort([]const u8, restarted, {}, lessKey);
     var stale = std.ArrayList([]const u8).init(a);
     for (try eng.sortedKeys()) |key| {
         if (!st.retiring.contains(key) and isStale(eng, key, now_ms)) try stale.append(key);
@@ -459,8 +480,15 @@ pub fn tick(eng: *Engine, now_ms: i64) !Result {
             if (rec.membership.systemOf(key) != null) try leave(eng, &rec.membership, &rec.events, key, "stale");
             try rec.events.append(try eng.object(.{ .{ "ev", "drop" }, .{ "entity", key } }));
         }
+        // Each restarted entity that is not stale leaves its system track.
+        for (restarted) |key| {
+            if (contains(stale.items, key)) continue;
+            if (rec.membership.systemOf(key) != null) try leave(eng, &rec.membership, &rec.events, key, "restart");
+        }
         try hist.records.append(rec);
     }
+    // No entity is restarted after this step.
+    eng.restarted.clearRetainingCapacity();
     for (stale.items) |key| {
         try st.retiring.put(key, {});
         _ = eng.reported.orderedRemove(key);
@@ -491,7 +519,7 @@ pub fn tick(eng: *Engine, now_ms: i64) !Result {
         var kept = std.ArrayList(History).init(a);
         for (st.histories.items, 0..) |hist, rank| {
             const keep = choicesEqual(hist.records.items[0].choices.items, done.choices.items);
-            if (windowed) try historyRecord(eng, &res, .{ .integer = @intCast(rank) }, .null, "commit", hist.total(), keep);
+            if (windowed) try historyRecord(eng, &res, .{ .integer = @intCast(rank) }, .null, "commit", hist.total(), .null, keep);
             if (!keep) continue;
             var records = std.ArrayList(Record).init(a);
             try records.appendSlice(hist.records.items[1..]);
@@ -508,8 +536,13 @@ pub fn tick(eng: *Engine, now_ms: i64) !Result {
         st.histories = kept;
     }
 
-    // 5. Output: one `system` per committed system track, retiring members included.
-    for (st.committed.systems.items) |s| try res.events.append(try systemEvent(eng, s, now_ms));
+    // 5. Bias: the update of Sensor bias, from the committed membership.
+    if (eng.pack.bias) |bp| try updateBias(eng, &res, bp, reported, now_ms);
+
+    // 6. Output: one `system` per committed system track, retiring members
+    // included; with `margin`, per system track of the best history's latest membership.
+    const reported_systems = if (eng.pack.margin != null) st.latest(st.histories.items[0]) else st.committed;
+    for (reported_systems.systems.items) |s| try res.events.append(try systemEvent(eng, s, now_ms));
     // Then, with a window, one `provisional` per system track of the best history.
     if (windowed) {
         for (st.latest(st.histories.items[0]).systems.items) |s| {
@@ -523,8 +556,47 @@ pub fn tick(eng: *Engine, now_ms: i64) !Result {
     return res;
 }
 
+// "Sensor bias", Update: committed system tracks in creation order, their members
+// not retiring in key order, each pair X before Y of two sources with at least
+// one of them among the tick's rows.
+fn updateBias(eng: *Engine, res: *Result, bp: @import("pack.zig").Bias, rows: []const []const u8, now_ms: i64) !void {
+    const a = eng.alloc();
+    const st = &eng.assign_state;
+    for (st.committed.systems.items) |s| {
+        var members = std.ArrayList([]const u8).init(a);
+        for (s.members.items) |m| if (!st.retiring.contains(m)) try members.append(m);
+        for (members.items, 0..) |x, i| {
+            for (members.items[i + 1 ..]) |y| {
+                const ex = eng.entities.get(x).?;
+                const ey = eng.entities.get(y).?;
+                if (std.mem.eql(u8, ex.source, ey.source)) continue;
+                if (!contains(rows, x) and !contains(rows, y)) continue;
+                // 1. ES is the entity whose source is first in key order, ET the other.
+                const es, const et = if (lessKey({}, ex.source, ey.source)) .{ ex, ey } else .{ ey, ex };
+                const key = try bias_mod.pairKey(a, es.source, et.source);
+                // 2 and 3.
+                const o = try bias_mod.update(a, &st.bias, bp, key, es.predictedTo(now_ms, eng.pack), et.predictedTo(now_ms, eng.pack));
+                // 4. Trace, with the state after step 3.
+                try res.trace.append(try eng.object(.{
+                    .{ "stage", "bias" },
+                    .{ "a", x },
+                    .{ "b", y },
+                    .{ "test", "offset" },
+                    .{ "value", o.d2 },
+                    .{ "limit", bp.gate },
+                    .{ "pass", o.accepted },
+                    .{ "east", o.after.east },
+                    .{ "north", o.after.north },
+                    .{ "var", o.after.variance },
+                    .{ "pairs", o.after.pairs },
+                }));
+            }
+        }
+    }
+}
+
 fn systemEvent(eng: *Engine, s: System, now_ms: i64) !json.Value {
-    const f = try fused(eng, s.members.items, now_ms);
+    const f = try fused(eng, s.members.items, now_ms, null);
     const pos = eng.ref.?.toDegrees(.{ .east = f.east.p, .north = f.north.p });
     var course = frame.deg(std.math.atan2(f.east.v, f.north.v));
     if (course < 0) course += 360.0;
@@ -612,6 +684,25 @@ pub fn snapshot(eng: *Engine) !json.Value {
         .{ "next_system", st.committed.next_system },
         .{ "reported", try sortedList(eng, eng.reported.keys()) },
     });
+    // With `restart`: the restarted entities. With `bias`: the stored pairs, keys in order.
+    if (eng.pack.restart != null) try out.object.put("restarted", try sortedList(eng, eng.restarted.keys()));
+    if (eng.pack.bias != null) {
+        var pairs = json.ObjectMap.init(a);
+        const keys = try a.dupe([]const u8, st.bias.pairs.keys());
+        std.mem.sort([]const u8, keys, {}, lessKey);
+        for (keys) |key| {
+            const p = st.bias.pairs.get(key).?;
+            try pairs.put(key, try eng.object(.{
+                .{ "east", p.east },
+                .{ "weight_east", p.weight_east },
+                .{ "north", p.north },
+                .{ "weight_north", p.weight_north },
+                .{ "var", p.variance },
+                .{ "pairs", p.pairs },
+            }));
+        }
+        try out.object.put("bias", .{ .object = pairs });
+    }
     // With a window: the retiring entities and the histories in rank order.
     if (eng.pack.window > 1) {
         try out.object.put("retiring", try sortedList(eng, st.retiring.keys()));

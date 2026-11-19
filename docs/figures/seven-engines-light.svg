@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 500" width="880" height="500" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, &apos;Segoe UI&apos;, &apos;Noto Sans&apos;, Helvetica, Arial, sans-serif">
 <title id="t">Seven engines, written apart, must give the same answer on every vector</title>
-<desc id="d">102 scenario vectors (650 steps, 3009 trace records) and 170 load vectors sit at the center. each generator under tools/ states its decisions by hand and the Python engine computes the numbers; the Rust, Go, Java, C++, Erlang, Zig engines are written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot.</desc>
+<desc id="d">111 scenario vectors (728 steps, 3479 trace records) and 188 load vectors sit at the center. each generator under tools/ states its decisions by hand and the Python engine computes the numbers; the Rust, Go, Java, C++, Erlang, Zig engines are written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot.</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#818b98"/></marker></defs>
 <rect width="100%" height="100%" rx="12" fill="#ffffff"/>
 <text x="24" y="38" font-size="20" fill="#1f2328" text-anchor="start" font-weight="600">Seven engines, written apart, must give the same answer on every vector</text>
 <text x="24" y="62" font-size="14" fill="#59636e" text-anchor="start">Each engine reads the specification and the vectors only. A disagreement is filed, not patched.</text>
 <rect x="322" y="212" width="236" height="124" rx="8" fill="#ddf4ff" stroke="#0969da" stroke-width="2"/>
 <text x="440" y="244" font-size="15" fill="#1f2328" text-anchor="middle" font-weight="600" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">packs/*/vectors</text>
-<text x="440" y="270" font-size="14" fill="#1f2328" text-anchor="middle">102 vectors · 650 steps</text>
-<text x="440" y="292" font-size="14" fill="#1f2328" text-anchor="middle">3,009 trace records</text>
-<text x="440" y="314" font-size="14" fill="#59636e" text-anchor="middle">+ 170 load vectors</text>
+<text x="440" y="270" font-size="14" fill="#1f2328" text-anchor="middle">111 vectors · 728 steps</text>
+<text x="440" y="292" font-size="14" fill="#1f2328" text-anchor="middle">3,479 trace records</text>
+<text x="440" y="314" font-size="14" fill="#59636e" text-anchor="middle">+ 188 load vectors</text>
 <rect x="366" y="90" width="148" height="56" rx="8" fill="#dafbe1" stroke="#1a7f37" stroke-width="1.5"/>
 <text x="440" y="113" font-size="15" fill="#1f2328" text-anchor="middle" font-weight="600">Python</text>
 <text x="440" y="134" font-size="13" fill="#59636e" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">engines/python</text>
