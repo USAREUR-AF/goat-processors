@@ -1,4 +1,5 @@
 #include "engine.hpp"
+#include "kalman.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -8,17 +9,6 @@
 namespace corr {
 
 namespace {
-
-// Spec "Frame".
-constexpr double R = 6371008.8;
-constexpr double PI = 3.141592653589793;
-double rad(double x) { return x * PI / 180; }
-double deg(double x) { return x * 180 / PI; }
-double wrap180(double lon) {
-    while (lon > 180) lon -= 360;
-    while (lon <= -180) lon += 360;
-    return lon;
-}
 
 // Report values; a null value counts as absent.
 std::optional<double> number_at(const Json& r, const std::string& key) {
@@ -57,43 +47,6 @@ std::optional<Json> same_value(const Json& r, const std::string& key) {
     return *v;
 }
 
-// Spec "Track estimate", step 1.
-void axis_predict(Axis& a, double dt, double q) {
-    const Axis b = a;
-    a.p = b.p + b.v * dt;
-    a.pp = b.pp + 2 * dt * b.pv + dt * dt * b.vv + q * (dt * dt * dt * dt) / 4;
-    a.pv = b.pv + dt * b.vv + q * (dt * dt * dt) / 2;
-    a.vv = b.vv + q * (dt * dt);
-}
-
-// Spec "Track estimate", step 2.
-void axis_position_update(Axis& a, double z, double r) {
-    const Axis b = a;
-    double s = b.pp + r, k1 = b.pp / s, k2 = b.pv / s, y = z - b.p;
-    a.p = b.p + k1 * y;
-    a.v = b.v + k2 * y;
-    a.pp = (1 - k1) * b.pp;
-    a.pv = (1 - k1) * b.pv;
-    a.vv = b.vv - k2 * b.pv;
-}
-
-// Spec "Track estimate", step 3.
-void axis_velocity_update(Axis& a, double z, double r) {
-    const Axis b = a;
-    double s = b.vv + r, k1 = b.pv / s, k2 = b.vv / s, y = z - b.v;
-    a.p = b.p + k1 * y;
-    a.v = b.v + k2 * y;
-    a.pp = b.pp - k1 * b.pv;
-    a.pv = (1 - k2) * b.pv;
-    a.vv = (1 - k2) * b.vv;
-}
-
-Json axis_json(const Axis& a) {
-    Json j = Json::make_array();
-    for (double x : {a.p, a.v, a.pp, a.pv, a.vv}) j.push(x);
-    return j;
-}
-
 Json event(const char* ev) {
     Json e = Json::make_object();
     e["ev"] = ev;
@@ -107,45 +60,31 @@ Engine::Engine(Pack pack) : pack_(std::move(pack)) {}
 // ---- Frame -----------------------------------------------------------------
 
 Engine::Point Engine::to_plane(double lat, double lon) const {
-    const double lat0 = ref_->first, lon0 = ref_->second;
-    double dlon = wrap180(lon - lon0);
-    return {R * rad(dlon) * std::cos(rad(lat0)), R * rad(lat - lat0)};
+    return corr::to_plane(ref_->first, ref_->second, lat, lon);
 }
 
 std::pair<double, double> Engine::to_degrees(double east, double north) const {
     const double lat0 = ref_->first, lon0 = ref_->second;
-    double lat = lat0 + deg(north / R);
-    double lon = lon0 + deg(east / (R * std::cos(rad(lat0))));
+    double lat = lat0 + deg(north / EARTH_R);
+    double lon = lon0 + deg(east / (EARTH_R * std::cos(rad(lat0))));
     return {lat, wrap180(lon)};
 }
 
 // ---- Track estimate --------------------------------------------------------
 
 void Engine::filter_first(Entity& e, const Point& z, const std::optional<Point>& vel, double ce) const {
-    const auto& f = pack_.filter;
-    double vv = vel ? f.vel_sigma_ms * f.vel_sigma_ms : f.unknown_vel_ms * f.unknown_vel_ms;
-    e.filter.east = {z.east, vel ? vel->east : 0.0, ce * ce, 0.0, vv};
-    e.filter.north = {z.north, vel ? vel->north : 0.0, ce * ce, 0.0, vv};
+    corr::filter_first(e.filter, z, vel, ce, pack_.filter);
 }
 
 void Engine::filter_update(Entity& e, const Point& z, const std::optional<Point>& vel, double ce,
                            double dt) const {
-    const auto& f = pack_.filter;
-    for (int axis = 0; axis < 2; ++axis) {
-        Axis& a = axis == 0 ? e.filter.east : e.filter.north;
-        axis_predict(a, dt, f.accel_var);
-        axis_position_update(a, axis == 0 ? z.east : z.north, ce * ce);
-        if (vel) axis_velocity_update(a, axis == 0 ? vel->east : vel->north, f.vel_sigma_ms * f.vel_sigma_ms);
-    }
+    corr::filter_update(e.filter, z, vel, ce, dt, pack_.filter);
 }
 
 // Spec "Track estimate", Prediction: step 1 on a copy.
 Filter Engine::predict(const Entity& e, std::int64_t t) const {
-    Filter f = e.filter;
     double dt = static_cast<double>(t - e.last_time_ms) / 1000;
-    axis_predict(f.east, dt, pack_.filter.accel_var);
-    axis_predict(f.north, dt, pack_.filter.accel_var);
-    return f;
+    return filter_predict(e.filter, dt, pack_.filter.accel_var);
 }
 
 // ---- Tests -----------------------------------------------------------------
@@ -388,7 +327,7 @@ Output Engine::ingest(const Json& r) {
     Point z = to_plane(lat, lon);
     std::optional<Point> vel;
     auto course = number_at(r, "course"), speed = number_at(r, "speed_ms");
-    if (course && speed) vel = Point{*speed * std::sin(rad(*course)), *speed * std::cos(rad(*course))};
+    if (course && speed) vel = velocity_of(*course, *speed);
     double ce = ce_at(r).value_or(pack_.filter.default_ce_m);
 
     if (it == entities_.end()) {
