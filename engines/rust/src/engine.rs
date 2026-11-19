@@ -5,7 +5,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::filter::{deg, rad, Axis, Frame};
 use crate::json::{obj, Json};
-use crate::pack::{Output, Pack, Test};
+use crate::pack::{Method, Output, Pack, Test};
+
+mod assign;
 
 /// What `ingest` and `tick` return.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -19,6 +21,8 @@ struct Entity {
     source: String,
     last_time_ms: i64,
     group: Option<u64>,
+    /// `method assign`: the entity's system track.
+    system: Option<u64>,
     hold_failures: u64,
     east: Axis,
     north: Axis,
@@ -117,6 +121,11 @@ pub struct Engine {
     groups: BTreeMap<u64, BTreeSet<String>>,
     counts: BTreeMap<(String, String), u64>,
     next_group: u64,
+    /// `method assign`: system tracks by number, members in key order.
+    systems: BTreeMap<u64, BTreeSet<String>>,
+    next_system: u64,
+    /// `method assign`: entities with an accepted report since the previous tick.
+    reported: BTreeSet<String>,
 }
 
 impl Engine {
@@ -128,6 +137,9 @@ impl Engine {
             groups: BTreeMap::new(),
             counts: BTreeMap::new(),
             next_group: 1,
+            systems: BTreeMap::new(),
+            next_system: 1,
+            reported: BTreeSet::new(),
         }
     }
 
@@ -195,6 +207,7 @@ impl Engine {
                         source: source.to_string(),
                         last_time_ms: time_ms,
                         group: None,
+                        system: None,
                         hold_failures: 0,
                         east,
                         north,
@@ -220,7 +233,10 @@ impl Engine {
             }
         }
 
-        if self.entities[&key].group.is_some() {
+        if self.pack.method == Method::Assign {
+            // Assignment waits for the next tick.
+            self.reported.insert(key);
+        } else if self.entities[&key].group.is_some() {
             self.hold(&key, &mut out);
         } else {
             self.associate(&key, &mut out);
@@ -437,20 +453,27 @@ impl Engine {
 
     // ---- tick (spec: Association "On each tick")
 
-    pub fn tick(&mut self, now_ms: i64) -> StepResult {
-        let mut out = StepResult::default();
-
-        // 1. Staleness, entities in key order.
+    /// Entities stale at `now_ms`, in key order (spec: On each tick, Staleness).
+    fn stale_entities(&self, now_ms: i64) -> Vec<String> {
         let pack_stale = self.pack.stale_ms;
-        let stale: Vec<String> = self
-            .entities
+        self.entities
             .iter()
             .filter(|(_, e)| {
                 now_ms - e.last_time_ms > pack_stale
                     || e.report.get("stale_ms").and_then(Json::as_i64).is_some_and(|s| now_ms >= s)
             })
             .map(|(k, _)| k.clone())
-            .collect();
+            .collect()
+    }
+
+    pub fn tick(&mut self, now_ms: i64) -> StepResult {
+        if self.pack.method == Method::Assign {
+            return self.tick_assign(now_ms);
+        }
+        let mut out = StepResult::default();
+
+        // 1. Staleness, entities in key order.
+        let stale = self.stale_entities(now_ms);
         for k in &stale {
             self.leave(k, "stale", &mut out);
             self.entities.remove(k);
@@ -466,14 +489,7 @@ impl Engine {
             let (pe, pn) = e.predict(now_ms, q);
             let frame = self.frame.expect("a group implies a reference");
             let (lat, lon) = frame.to_degrees(pe.p, pn.p);
-            let mut course = deg(pe.v.atan2(pn.v));
-            if course < 0.0 {
-                course += 360.0;
-            }
-            if course >= 360.0 {
-                course -= 360.0;
-            }
-            let speed = pe.v.hypot(pn.v);
+            let (course, speed) = course_speed(&pe, &pn);
             let mut pairs = vec![
                 ("ev", Json::from("fused")),
                 ("group", group_name(*g).into()),
@@ -490,6 +506,13 @@ impl Engine {
             out.events.push(obj(pairs));
         }
         out
+    }
+
+    fn reference_json(&self) -> Json {
+        match self.frame {
+            Some(f) => Json::Arr(vec![f.lat0.into(), f.lon0.into()]),
+            None => Json::Null,
+        }
     }
 
     /// The primary member by the pack's `output` line, ties to key order.
@@ -513,6 +536,9 @@ impl Engine {
     // ---- snapshot (spec: Snapshot)
 
     pub fn snapshot(&self) -> Json {
+        if self.pack.method == Method::Assign {
+            return self.snapshot_assign();
+        }
         let reference = match self.frame {
             Some(f) => Json::Arr(vec![f.lat0.into(), f.lon0.into()]),
             None => Json::Null,
@@ -545,4 +571,20 @@ impl Engine {
             ("next_group", (self.next_group as f64).into()),
         ])
     }
+}
+
+/// `course = deg(atan2(ve, vn))` in [0, 360) and `speed_ms = hypot(ve, vn)`.
+fn course_speed(east: &Axis, north: &Axis) -> (f64, f64) {
+    let mut course = deg(east.v.atan2(north.v));
+    if course < 0.0 {
+        course += 360.0;
+    }
+    if course >= 360.0 {
+        course -= 360.0;
+    }
+    (course, east.v.hypot(north.v))
+}
+
+fn axis_json(a: &Axis) -> Json {
+    Json::Arr(a.as_list().iter().map(|x| Json::Num(*x)).collect())
 }

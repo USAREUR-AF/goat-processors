@@ -23,11 +23,15 @@ pub const Filter = struct {
 
 pub const Output = enum { priority, latest };
 
+// Spec "Pack": `method confirm` (correlate.md) or `method assign` (correlate-assign.md).
+pub const Method = enum { confirm, assign };
+
 pub const Priority = struct { source: []const u8, n: f64 };
 
 pub const Pack = struct {
     name: []const u8,
     version: []const u8,
+    method: Method,
     filter: Filter,
     gate: []const Test,
     confirm: []const Test,
@@ -38,6 +42,9 @@ pub const Pack = struct {
     same_source_allow: bool,
     output: Output,
     priority: []const Priority,
+    // correlate-assign.md "Pack".
+    new_cost: f64,
+    keep_bonus: f64,
 
     // Spec "Fused output": 100 for a source the pack does not list.
     pub fn priorityOf(self: Pack, source: []const u8) f64 {
@@ -52,6 +59,7 @@ pub const Error = error{
     UnknownDirective,
     RepeatedDirective,
     MissingDirective,
+    DirectiveNotForMethod,
     WrongArgumentCount,
     UnknownTest,
     UnknownParam,
@@ -65,6 +73,7 @@ pub const Error = error{
 const Directive = enum {
     pack,
     version,
+    method,
     filter,
     gate,
     confirm,
@@ -75,6 +84,8 @@ const Directive = enum {
     same_source,
     output,
     priority,
+    new_cost,
+    keep_bonus,
 };
 
 // Spec "Pack": `gate`, `confirm`, `hold` and `priority` repeat.
@@ -183,6 +194,7 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
     var pack: Pack = .{
         .name = "",
         .version = "",
+        .method = .confirm,
         .filter = undefined,
         .gate = &.{},
         .confirm = &.{},
@@ -193,6 +205,8 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
         .same_source_allow = false,
         .output = .priority,
         .priority = &.{},
+        .new_cost = 0,
+        .keep_bonus = 0,
     };
 
     var lines = std.mem.splitScalar(u8, text, '\n');
@@ -215,6 +229,9 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
                 if (!isSemver(v)) return error.BadValue;
                 pack.version = try alloc.dupe(u8, v);
             },
+            .method => pack.method = std.meta.stringToEnum(Method, try one(args)) orelse return error.BadValue,
+            .new_cost => pack.new_cost = try parseDecimal(try one(args)),
+            .keep_bonus => pack.keep_bonus = try parseDecimal(try one(args)),
             .filter => pack.filter = try parseParams(Filter, alloc, args),
             .gate => try gate.append(try parseTest(alloc, args)),
             .confirm => try confirm.append(try parseTest(alloc, args)),
@@ -238,8 +255,30 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
         }
     }
 
-    const required = [_]Directive{ .pack, .version, .filter, .confirm_count, .hold_failures, .stale_ms };
-    for (required) |r| if (!seen.contains(r)) return error.MissingDirective;
+    // correlate.md 0.4 "Pack": ranges of the `filter` parameters.
+    if (seen.contains(.filter)) {
+        const f = pack.filter;
+        if (!(f.default_ce_m > 0 and f.vel_sigma_ms > 0 and f.unknown_vel_ms > 0 and f.accel_var >= 0)) return error.BadValue;
+    }
+
+    switch (pack.method) {
+        .confirm => {
+            const required = [_]Directive{ .pack, .version, .filter, .confirm_count, .hold_failures, .stale_ms };
+            for (required) |r| if (!seen.contains(r)) return error.MissingDirective;
+            // correlate-assign.md directives are not directives of correlate.md.
+            const refused = [_]Directive{ .new_cost, .keep_bonus };
+            for (refused) |r| if (seen.contains(r)) return error.DirectiveNotForMethod;
+        },
+        .assign => {
+            // correlate-assign.md "Pack": all but `gate` are required.
+            const required = [_]Directive{ .pack, .version, .filter, .new_cost, .keep_bonus, .stale_ms };
+            for (required) |r| if (!seen.contains(r)) return error.MissingDirective;
+            const refused = [_]Directive{ .confirm, .hold, .confirm_count, .hold_failures, .same_source, .output, .priority };
+            for (refused) |r| if (seen.contains(r)) return error.DirectiveNotForMethod;
+            // correlate-assign.md 0.2 "Pack": ranges of `new_cost` and `keep_bonus`.
+            if (!(pack.new_cost > 0 and pack.keep_bonus >= 0)) return error.BadValue;
+        },
+    }
 
     pack.gate = try gate.toOwnedSlice();
     pack.confirm = try confirm.toOwnedSlice();

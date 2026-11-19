@@ -50,6 +50,9 @@ public final class Pack {
     public boolean sameSourceAllow = false;
     public boolean outputLatest = false;
     public final Map<String, Long> priority = new LinkedHashMap<>();
+    /** Spec: Pack, `method`; false is `confirm` (correlate.md), true is `assign` (correlate-assign.md). */
+    public boolean methodAssign = false;
+    public double newCost, keepBonus;
 
     /** Spec: Tests table, the parameters of each test. */
     private static final Map<String, List<String>> TESTS = new LinkedHashMap<>();
@@ -65,10 +68,16 @@ public final class Pack {
 
     private static final List<String> FILTER = List.of("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms");
     private static final Set<String> REPEATING = Set.of("gate", "confirm", "hold", "priority");
-    private static final Set<String> SINGLE = Set.of("pack", "version", "filter", "confirm_count",
-            "hold_failures", "stale_ms", "same_source", "output");
+    private static final Set<String> SINGLE = Set.of("pack", "version", "method", "filter", "confirm_count",
+            "hold_failures", "stale_ms", "same_source", "output", "new_cost", "keep_bonus");
     private static final List<String> REQUIRED = List.of("pack", "version", "filter", "confirm_count",
             "hold_failures", "stale_ms");
+    /** Spec: correlate-assign.md, Pack. */
+    private static final List<String> REQUIRED_ASSIGN = List.of("pack", "version", "method", "filter",
+            "new_cost", "keep_bonus", "stale_ms");
+    private static final Set<String> ONLY_CONFIRM = Set.of("confirm", "hold", "confirm_count", "hold_failures",
+            "same_source", "output", "priority");
+    private static final Set<String> ONLY_ASSIGN = Set.of("new_cost", "keep_bonus");
     private static final Pattern DECIMAL = Pattern.compile("[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?");
     private static final Pattern INTEGER = Pattern.compile("[+-]?[0-9]+");
 
@@ -83,6 +92,7 @@ public final class Pack {
     public static Pack parse(String text) throws LoadError {
         Pack pk = new Pack();
         Set<String> seen = new HashSet<>();
+        Map<String, Integer> firstLine = new LinkedHashMap<>();
         String[] lines = text.split("\n", -1);
         for (int n = 0; n < lines.length; n++) {
             int ln = n + 1;
@@ -95,16 +105,27 @@ public final class Pack {
             String dir = tok[0];
             if (!REPEATING.contains(dir) && !SINGLE.contains(dir)) throw new LoadError(ln, "unknown directive " + dir);
             if (SINGLE.contains(dir) && !seen.add(dir)) throw new LoadError(ln, "repeated directive " + dir);
+            firstLine.putIfAbsent(dir, ln);
             switch (dir) {
                 case "pack": pk.name = one(tok, ln); break;
                 case "version": pk.version = one(tok, ln); break;
+                case "method": {
+                    String v = one(tok, ln);
+                    if (v.equals("assign")) pk.methodAssign = true;
+                    else if (!v.equals("confirm")) throw new LoadError(ln, "method is confirm or assign");
+                    break;
+                }
+                // correlate-assign.md, Pack: new_cost above 0, keep_bonus 0 or above.
+                case "new_cost": pk.newCost = positive(dec(one(tok, ln), ln), "new_cost", ln); break;
+                case "keep_bonus": pk.keepBonus = nonNegative(dec(one(tok, ln), ln), "keep_bonus", ln); break;
                 case "filter": {
                     Map<String, String> kv = params(tok, 1, ln);
                     if (!kv.keySet().equals(new HashSet<>(FILTER))) throw new LoadError(ln, "filter takes " + FILTER);
-                    pk.accelVar = dec(kv.get("accel_var"), ln);
-                    pk.defaultCe = dec(kv.get("default_ce_m"), ln);
-                    pk.velSigma = dec(kv.get("vel_sigma_ms"), ln);
-                    pk.unknownVel = dec(kv.get("unknown_vel_ms"), ln);
+                    // correlate.md, Pack: accel_var 0 or above, the others above 0.
+                    pk.accelVar = nonNegative(dec(kv.get("accel_var"), ln), "accel_var", ln);
+                    pk.defaultCe = positive(dec(kv.get("default_ce_m"), ln), "default_ce_m", ln);
+                    pk.velSigma = positive(dec(kv.get("vel_sigma_ms"), ln), "vel_sigma_ms", ln);
+                    pk.unknownVel = positive(dec(kv.get("unknown_vel_ms"), ln), "unknown_vel_ms", ln);
                     break;
                 }
                 case "gate": pk.gate.add(test(tok, ln)); break;
@@ -134,7 +155,13 @@ public final class Pack {
                 default: throw new LoadError(ln, "unknown directive " + dir);
             }
         }
-        for (String r : REQUIRED) if (!seen.contains(r)) throw new LoadError("missing directive " + r);
+        Set<String> refused = pk.methodAssign ? ONLY_CONFIRM : ONLY_ASSIGN;
+        for (Map.Entry<String, Integer> d : firstLine.entrySet())
+            if (refused.contains(d.getKey()))
+                throw new LoadError(d.getValue(), d.getKey() + " is not a directive of method "
+                        + (pk.methodAssign ? "assign" : "confirm"));
+        for (String r : pk.methodAssign ? REQUIRED_ASSIGN : REQUIRED)
+            if (!seen.contains(r)) throw new LoadError("missing directive " + r);
         return pk;
     }
 
@@ -173,6 +200,16 @@ public final class Pack {
     private static double dec(String v, int ln) throws LoadError {
         if (!DECIMAL.matcher(v).matches()) throw new LoadError(ln, "not a number: " + v);
         return Double.parseDouble(v);
+    }
+
+    private static double positive(double v, String name, int ln) throws LoadError {
+        if (!(v > 0)) throw new LoadError(ln, name + " must be above 0");
+        return v;
+    }
+
+    private static double nonNegative(double v, String name, int ln) throws LoadError {
+        if (!(v >= 0)) throw new LoadError(ln, name + " must be 0 or above");
+        return v;
     }
 
     private static long integer(String v, int ln) throws LoadError {

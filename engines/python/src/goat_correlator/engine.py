@@ -1,4 +1,4 @@
-"""Correlate engine (spec/correlate.md, version 0.3). Standard library only."""
+"""Correlate engine (spec/correlate.md 0.4, spec/correlate-assign.md 0.2). Standard library only."""
 
 import math
 import os
@@ -63,6 +63,9 @@ class Pack:
         self.same_source = "forbid"
         self.output = "priority"
         self.priority = {}
+        self.method = "confirm"
+        self.new_cost = None
+        self.keep_bonus = None
 
 
 def _params(args, line_no):
@@ -104,7 +107,7 @@ def parse_pack(text):
         parts = line.split()
         d, args = parts[0], parts[1:]
         if d in ("pack", "version", "filter", "confirm_count", "hold_failures",
-                 "stale_ms", "same_source", "output"):
+                 "stale_ms", "same_source", "output", "method", "new_cost", "keep_bonus"):
             if d in seen:
                 raise PackError("line %d: repeated directive %s" % (i, d))
             seen.add(d)
@@ -117,6 +120,8 @@ def parse_pack(text):
             if set(kv) != set(FILTER_PARAMS):
                 raise PackError("line %d: filter needs exactly %s" % (i, ", ".join(FILTER_PARAMS)))
             p.filter = {k: _num(v, i) for k, v in kv.items()}
+            if p.filter["accel_var"] < 0 or min(p.filter[k] for k in ("default_ce_m", "vel_sigma_ms", "unknown_vel_ms")) <= 0:
+                raise PackError("line %d: filter variances must be above 0 (accel_var 0 or above)" % i)
         elif d in ("gate", "confirm", "hold"):
             if not args:
                 raise PackError("line %d: %s needs a test" % (i, d))
@@ -144,9 +149,29 @@ def parse_pack(text):
             if len(args) != 2:
                 raise PackError("line %d: priority takes a source and a number" % i)
             p.priority[args[0]] = _int(args[1], i)
+            seen.add("priority")
+        elif d == "method":
+            if args not in (["confirm"], ["assign"]):
+                raise PackError("line %d: method is confirm or assign" % i)
+            p.method = args[0]
+        elif d in ("new_cost", "keep_bonus"):
+            if len(args) != 1:
+                raise PackError("line %d: %s takes one value" % (i, d))
+            setattr(p, d, _num(args[0], i))
+            if (d == "new_cost" and p.new_cost <= 0) or (d == "keep_bonus" and p.keep_bonus < 0):
+                raise PackError("line %d: new_cost must be above 0 and keep_bonus 0 or above" % i)
         else:
             raise PackError("line %d: unknown directive %s" % (i, d))
-    for d in ("pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms"):
+    if p.method == "assign":
+        required = ("pack", "version", "filter", "new_cost", "keep_bonus", "stale_ms")
+        refused = ("confirm_count", "hold_failures", "same_source", "output", "priority")
+        if p.confirm or p.hold or any(d in seen for d in refused):
+            raise PackError("method assign takes only pack, version, method, filter, gate, new_cost, keep_bonus, stale_ms")
+    else:
+        required = ("pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms")
+        if "new_cost" in seen or "keep_bonus" in seen:
+            raise PackError("new_cost and keep_bonus need method assign")
+    for d in required:
         if d not in seen:
             raise PackError("missing directive %s" % d)
     return p
@@ -200,6 +225,7 @@ class _Entity:
         self.last_time_ms = None
         self.group = None
         self.hold_failures = 0
+        self.system = None
         self.east = None
         self.north = None
 
@@ -343,12 +369,13 @@ class Engine:
         return any(self.entities[k].source == source for k in self.groups[g])
 
     # operations --------------------------------------------------------
-    def ingest(self, report):
-        events, trace = [], []
+    def _accept(self, report, events):
+        """Spec, Reports and Track estimate: validate, then update the filter.
+        Returns the entity, or None when the report is rejected."""
         for k, kind in REQUIRED:
             if not _is(report.get(k), kind):
                 events.append({"ev": "reject", "reason": "missing:" + k})
-                return events, trace
+                return None
         report = _normalise(report)
         source = str(report["track.source_id"])
         key = source + "/" + str(report["uid"])
@@ -356,7 +383,7 @@ class Engine:
         ent = self.entities.get(key)
         if ent is not None and t < ent.last_time_ms:
             events.append({"ev": "reject", "entity": key, "reason": "out-of-order"})
-            return events, trace
+            return None
         lat, lon = float(report["lat"]), float(report["lon"])
         if self.ref is None:
             self.ref = (lat, lon)
@@ -385,6 +412,14 @@ class Engine:
                 ent.north = _vel_update(ent.north, vel[1], r)
         ent.report = dict(report)
         ent.last_time_ms = t
+        return ent
+
+    def ingest(self, report):
+        events, trace = [], []
+        ent = self._accept(report, events)
+        if ent is None:
+            return events, trace
+        key, source = ent.key, ent.source
 
         if ent.group is not None:
             ok = False
@@ -494,3 +529,244 @@ class Engine:
             "counts": dict(sorted(self.counts.items())),
             "next_group": self.next_group,
         }
+
+
+INF = float("inf")
+
+
+def min_cost_assignment(cost):
+    """Exact minimum-cost assignment of every row to a distinct column.
+
+    `cost` is a list of rows, each a list of column costs (INF = forbidden),
+    with at least as many columns as rows and a finite assignment existing.
+    Shortest augmenting path (Hungarian, potentials). Returns the column of
+    each row."""
+    n = len(cost)
+    if n == 0:
+        return []
+    m = len(cost[0])
+    u = [0.0] * (n + 1)
+    v = [0.0] * (m + 1)
+    p = [0] * (m + 1)
+    way = [0] * (m + 1)
+    for i in range(1, n + 1):
+        p[0] = i
+        j0 = 0
+        minv = [INF] * (m + 1)
+        used = [False] * (m + 1)
+        while True:
+            used[j0] = True
+            i0 = p[j0]
+            delta = INF
+            j1 = -1
+            for j in range(1, m + 1):
+                if not used[j]:
+                    c = cost[i0 - 1][j - 1]
+                    cur = INF if c == INF else c - u[i0] - v[j]
+                    if cur < minv[j]:
+                        minv[j] = cur
+                        way[j] = j0
+                    if minv[j] < delta:
+                        delta = minv[j]
+                        j1 = j
+            for j in range(m + 1):
+                if used[j]:
+                    u[p[j]] += delta
+                    v[j] -= delta
+                else:
+                    minv[j] -= delta
+            j0 = j1
+            if p[j0] == 0:
+                break
+        while True:
+            j1 = way[j0]
+            p[j0] = p[j1]
+            j0 = j1
+            if j0 == 0:
+                break
+    out = [None] * n
+    for j in range(1, m + 1):
+        if p[j]:
+            out[p[j] - 1] = j - 1
+    return out
+
+
+class AssignEngine(Engine):
+    """spec/correlate-assign.md: every track in one system track; per-source
+    exact assignment at each tick; fused estimate by inverse-variance weights."""
+
+    def __init__(self, pack):
+        super().__init__(pack)
+        self.systems = {}
+        self.system_order = []
+        self.next_system = 1
+        self.reported = set()
+
+    def ingest(self, report):
+        events, trace = [], []
+        ent = self._accept(report, events)
+        if ent is not None:
+            self.reported.add(ent.key)
+        return events, trace
+
+    def _fused(self, members, t):
+        """Fused estimate: per axis (p, pp, v, vv) at time t."""
+        out = []
+        for axis in ("east", "north"):
+            ip = sp = iv = sv = 0.0
+            for k in members:
+                e = self.entities[k]
+                a = _predict_axis(getattr(e, axis), (t - e.last_time_ms) / 1000.0, self.pack.filter["accel_var"])
+                ip += 1.0 / a[2]
+                sp += a[0] / a[2]
+                iv += 1.0 / a[4]
+                sv += a[1] / a[4]
+            pp = 1.0 / ip
+            vv = 1.0 / iv
+            out.append((pp * sp, pp, vv * sv, vv))
+        return out
+
+    def _cost(self, a, members):
+        fe, fn = self._fused(members, a.last_time_ms)
+        return ((a.east[0] - fe[0]) ** 2 / (a.east[2] + fe[1])
+                + (a.north[0] - fn[0]) ** 2 / (a.north[2] + fn[1]))
+
+    def _leave_system(self, ent, reason, events):
+        s = ent.system
+        self.systems[s].remove(ent.key)
+        ent.system = None
+        events.append({"ev": "leave", "system": s, "entity": ent.key, "reason": reason})
+        if not self.systems[s]:
+            del self.systems[s]
+            self.system_order.remove(s)
+            events.append({"ev": "end", "system": s})
+
+    def tick(self, now_ms):
+        events, trace = [], []
+        # Staleness
+        for k in sorted(self.entities):
+            ent = self.entities[k]
+            stale = now_ms - ent.last_time_ms > self.pack.stale_ms
+            sm = ent.report.get("stale_ms")
+            if sm is not None and now_ms >= int(sm):
+                stale = True
+            if not stale:
+                continue
+            if ent.system is not None:
+                self._leave_system(ent, "stale", events)
+            del self.entities[k]
+            self.reported.discard(k)
+            events.append({"ev": "drop", "entity": k})
+        # Assignment, per source in key order
+        by_source = {}
+        for k in sorted(self.reported):
+            by_source.setdefault(self.entities[k].source, []).append(k)
+        self.reported = set()
+        for source in sorted(by_source):
+            rows = by_source[source]
+            rowset = set(rows)
+            columns = []
+            for s in self.system_order:
+                others = [m for m in self.systems[s] if m not in rowset]
+                if others and all(self.entities[m].source != source for m in others):
+                    columns.append((s, sorted(others)))
+            n, c = len(rows), len(columns)
+            matrix = []
+            entries = []
+            for i, k in enumerate(rows):
+                a = self.entities[k]
+                row = []
+                rec = []
+                for s, others in columns:
+                    ok = True
+                    for m in others:
+                        if not self._run_stage("gate", a, self.entities[m], trace):
+                            ok = False
+                            break
+                    if ok:
+                        cost = self._cost(a, others)
+                        if a.system == s:
+                            cost -= self.pack.keep_bonus
+                        row.append(cost)
+                        rec.append((s, cost))
+                    else:
+                        row.append(INF)
+                        rec.append((s, None))
+                alone = self.pack.new_cost
+                if a.system is not None and self.systems[a.system] == [k]:
+                    alone -= self.pack.keep_bonus
+                row.extend(alone if j == i else INF for j in range(n))
+                rec.append(("alone", alone))
+                matrix.append(row)
+                entries.append(rec)
+            for k, rec in zip(rows, entries):
+                for b, cost in rec:
+                    trace.append({"stage": "assign", "a": k, "b": b, "test": "cost",
+                                  "value": cost, "limit": None, "pass": cost is not None})
+            choice = min_cost_assignment(matrix)
+            for i, k in enumerate(rows):
+                j = choice[i]
+                b = columns[j][0] if j < c else "alone"
+                trace.append({"stage": "assign", "a": k, "b": b, "test": "choice",
+                              "value": matrix[i][j], "limit": None, "pass": True})
+            for i, k in enumerate(rows):
+                a = self.entities[k]
+                j = choice[i]
+                if j < c:
+                    target = columns[j][0]
+                    if a.system == target:
+                        continue
+                    if a.system is not None:
+                        self._leave_system(a, "assign", events)
+                    self.systems[target].append(k)
+                    self.systems[target].sort()
+                    a.system = target
+                    events.append({"ev": "join", "system": target, "entity": k})
+                else:
+                    if a.system is not None and self.systems[a.system] == [k]:
+                        continue
+                    if a.system is not None:
+                        self._leave_system(a, "assign", events)
+                    s = "s%d" % self.next_system
+                    self.next_system += 1
+                    self.systems[s] = [k]
+                    self.system_order.append(s)
+                    a.system = s
+                    events.append({"ev": "start", "system": s, "entity": k})
+        # Output
+        for s in self.system_order:
+            members = self.systems[s]
+            fe, fn = self._fused(members, now_ms)
+            lat, lon = self._to_deg(fe[0], fn[0])
+            course = math.degrees(math.atan2(fe[2], fn[2]))
+            if course < 0:
+                course += 360.0
+            if course >= 360.0:
+                course -= 360.0
+            ev = {"ev": "system", "system": s, "members": list(members),
+                  "lat": lat, "lon": lon, "course": course, "speed_ms": math.hypot(fe[2], fn[2])}
+            best = None
+            for m in members:
+                e = self.entities[m]
+                if e.report.get("hae") is not None and (best is None or e.last_time_ms > best.last_time_ms):
+                    best = e
+            if best is not None:
+                ev["hae"] = float(best.report["hae"])
+            events.append(ev)
+        return events, trace
+
+    def snapshot(self):
+        return {
+            "ref": list(self.ref) if self.ref else None,
+            "entities": {k: {"last_time_ms": e.last_time_ms, "system": e.system,
+                             "filter": {"east": list(e.east), "north": list(e.north)}}
+                         for k, e in sorted(self.entities.items())},
+            "systems": {s: list(self.systems[s]) for s in self.system_order},
+            "next_system": self.next_system,
+            "reported": sorted(self.reported),
+        }
+
+
+def make_engine(pack):
+    """The engine for a pack's method."""
+    return AssignEngine(pack) if pack.method == "assign" else Engine(pack)

@@ -1,11 +1,13 @@
-# Open points under spec 0.3
+# Open points under correlate 0.4 and correlate-assign 0.2
 
-No vector contradicts `spec/correlate.md` (version 0.3) as this engine reads
-it. The point this file listed under 0.2 (whether `1000.0` is an integer) is
-settled by 0.3: an integer is a number written without a fraction or an
-exponent, and the engine's JSON reader keeps that distinction.
+No vector contradicts `spec/correlate.md` (version 0.4) or
+`spec/correlate-assign.md` (version 0.2) as this engine reads them: scenario
+vectors 01 to 32 and load vectors 01 to 21 pass. Correlate-assign 0.2 settles
+every point this file listed under 0.1 (gate failure ends the entry, ties
+undefined, the set R, zero `gate` lines, `new_cost` and `keep_bonus` ranges).
 
-Two points are still open. No vector decides either one.
+Two points remain open. `spec/correlate.md` lists both under "Open points",
+and no vector decides either.
 
 | # | Spec section | What the spec says | What the engine does |
 |---|---|---|---|

@@ -81,6 +81,7 @@ type Entity struct {
 	Last         map[string]any // the last accepted report
 	Group        string
 	HoldFailures int64
+	System       string // method assign: the entity's system track, "" for none
 }
 
 // predicted returns copies of both axes predicted to t (spec: Prediction).
@@ -100,11 +101,18 @@ type Engine struct {
 	groupOrder []string
 	counts     map[string]int64
 	nextGroup  int
+
+	// method assign (spec: correlate-assign.md)
+	systems     map[string][]string
+	systemOrder []string
+	nextSystem  int
+	reported    map[string]bool // entities with an accepted report since the previous tick
 }
 
 // New returns an engine for a loaded pack.
 func New(p *Pack) *Engine {
-	return &Engine{pack: p, entities: map[string]*Entity{}, groups: map[string][]string{}, counts: map[string]int64{}, nextGroup: 1}
+	return &Engine{pack: p, entities: map[string]*Entity{}, groups: map[string][]string{}, counts: map[string]int64{}, nextGroup: 1,
+		systems: map[string][]string{}, nextSystem: 1, reported: map[string]bool{}}
 }
 
 func toFloat(v any) (float64, bool) {
@@ -227,6 +235,11 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 	}
 	e.LastTime, e.Ce, e.Last = t, ce, report
 
+	if p.Method == "assign" {
+		// Assignment happens on the tick (spec: correlate-assign.md Events).
+		g.reported[key] = true
+		return events, trace
+	}
 	if e.Group != "" {
 		events = g.hold(e, events, &trace)
 	} else {
@@ -544,6 +557,9 @@ func (g *Engine) runTest(stage string, t Test, a, b *Entity) Obj {
 
 // Tick advances time: staleness, then fused output (spec: Association, On each tick).
 func (g *Engine) Tick(now int64) (events, trace []Obj) {
+	if g.pack.Method == "assign" {
+		return g.tickAssign(now)
+	}
 	events, trace = []Obj{}, []Obj{}
 	for _, k := range sortedKeys(g.entities) {
 		e := g.entities[k]
@@ -612,6 +628,9 @@ func (g *Engine) priority(e *Entity) int64 {
 
 // Snapshot returns the whole state (spec: Snapshot).
 func (g *Engine) Snapshot() Obj {
+	if g.pack.Method == "assign" {
+		return g.snapshotAssign()
+	}
 	var ref any
 	if g.ref != nil {
 		ref = []any{g.ref[0], g.ref[1]}

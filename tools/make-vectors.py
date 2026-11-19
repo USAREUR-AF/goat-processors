@@ -17,7 +17,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "engines", "python", "src"))
-from goat_correlator import Engine, load_pack  # noqa: E402
+from goat_correlator import load_pack, make_engine  # noqa: E402
 
 R = 6371008.8
 LAT0, LON0 = 1.0, 1.0  # notional: open ocean near 0 N 0 E
@@ -254,6 +254,107 @@ scenario("22-edge-values", "correlate-gnn", [
 ], [["reject"], ["new"], ["new"], ["correlate"], ["fused"]])
 
 
+# --- correlate-assign (spec/correlate-assign.md) ---
+
+# 23. Two sources, one object: one system track.
+scenario("23-assign-two-sources-one-object", "correlate-assign", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, hae=3000, **AIR)),
+    ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, hae=3050, **AIR)),
+    ("tick", 500),
+    ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, hae=3000, **AIR)),
+    ("tick", 1500),
+], [["new"], ["new"], ["start", "join", "system"], [], ["system"]])
+
+# 24. Two objects 10 km apart, and two tracks of one source side by side:
+#     three system tracks.
+scenario("24-assign-separate-objects-and-same-source", "correlate-assign", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T2", 0, 10, 0, ce=30, **AIR)),
+    ("ingest", rep("adsb", "A7", 0, 10000, 0, ce=30, **AIR)),
+    ("tick", 500),
+], [["new"], ["new"], ["new"], ["start", "start", "start", "system", "system", "system"]])
+
+# 25. The least total cost, not nearest first: radar-2 R1 is nearest to s1, but
+#     giving s1 to R2 and s2 to R1 costs less in total (3.50 against 3.69).
+scenario("25-assign-least-total-not-nearest-first", "correlate-assign", [
+    ("ingest", rep("adsb", "A1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("adsb", "A2", 0, -17.6, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-2", "R1", 0, 42.4, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-2", "R2", 0, 52.0, 0, ce=30, **AIR)),
+    ("tick", 0),
+], [["new"], ["new"], ["new"], ["new"], ["start", "start", "join", "join", "system", "system"]])
+
+# 26. A moving pair is one system track until one turns away; it then leaves
+#     and starts its own.
+mva = dict(course=90, speed_ms=100, ce=30, **AIR)
+scenario("26-assign-separation-starts-new", "correlate-assign", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, **mva)),
+    ("ingest", rep("adsb", "A7", 0, 10, 10, **mva)),
+    ("tick", 500),
+    ("ingest", rep("radar-1", "T1", 1000, 100, 0, **mva)),
+    ("ingest", rep("adsb", "A7", 1000, 110, 10, **mva)),
+    ("tick", 1500),
+    ("ingest", rep("adsb", "A7", 3000, 300, 2000, ce=30, course=0, speed_ms=100, **AIR)),
+    ("tick", 3500),
+], [["new"], ["new"], ["start", "join", "system"], [], [], ["system"], [], ["leave", "start", "system", "system"]])
+
+# 27. Members go stale one by one; the system track ends with the last.
+scenario("27-assign-stale-members", "correlate-assign", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
+    ("tick", 500),
+    ("ingest", rep("radar-1", "T1", 60000, 0, 0, ce=30, **AIR)),
+    ("tick", 120001),
+    ("tick", 180001),
+], [["new"], ["new"], ["start", "join", "system"], [], ["leave", "drop", "system"], ["leave", "end", "drop"]])
+
+# 28. An air and a surface track at one spot fail the gate: two system tracks.
+scenario("28-assign-environment-gate", "correlate-assign", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("ais", "M1", 0, 5, 0, ce=30, **SEA)),
+    ("tick", 500),
+], [["new"], ["new"], ["start", "start", "system", "system"]])
+
+# 29. keep_bonus: a track a little closer to another system track than to its
+#     own stays where it is.
+scenario("29-assign-keep-bonus-holds", "correlate-assign", [
+    ("ingest", rep("adsb", "A1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("eo-2", "E1", 0, 200, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 0, 60, 0, ce=30, **AIR)),
+    ("tick", 0),
+    ("ingest", rep("radar-1", "T1", 0, 146, 0, ce=30, **AIR)),
+    ("tick", 0),
+], [["new"], ["new"], ["new"], ["start", "start", "join", "system", "system"], [], ["system", "system"]])
+
+# 30. A track that reported no new report since the last tick is not re-decided.
+scenario("30-assign-only-reported-tracks-decide", "correlate-assign", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("tick", 500),
+    ("ingest", rep("adsb", "A7", 1000, 10, 0, ce=30, **AIR)),
+    ("tick", 1500),
+    ("tick", 2500),
+], [["new"], ["start", "system"], ["new"], ["join", "system"], ["system"]])
+
+
+# 31. A failed gate test against one of a system track's others ends that
+#     entry: no test runs against its later others (trace).
+scenario("31-assign-gate-failure-ends-entry", "correlate-assign", [
+    ("ingest", rep("adsb", "A1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("eo-2", "E1", 0, 10, 0, ce=30, **AIR)),
+    ("tick", 0),
+    ("ingest", rep("radar-1", "T1", 0, 5, 0, ce=30, **SEA)),
+    ("tick", 0),
+], [["new"], ["new"], ["start", "join", "system"], ["new"], ["start", "system", "system"]])
+
+# 32. The snapshot lists the entities that reported since the previous tick.
+scenario("32-assign-snapshot-holds-reported", "correlate-assign", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("tick", 500),
+    ("ingest", rep("adsb", "A7", 1000, 10, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
+], [["new"], ["start", "system"], ["new"], []])
+
+
 def clean(x):
     """Write negative zero as zero."""
     if isinstance(x, float):
@@ -269,7 +370,7 @@ def main():
     ok = True
     for name, pack_name, steps, decide in SCENARIOS:
         pack = load_pack(os.path.join(ROOT, "packs", pack_name))
-        eng = Engine(pack)
+        eng = make_engine(pack)
         out_steps = []
         for (kind, arg), want in zip(steps, decide):
             events, trace = eng.ingest(arg) if kind == "ingest" else eng.tick(arg)

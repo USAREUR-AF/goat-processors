@@ -1,0 +1,449 @@
+{
+ "name": "25-assign-least-total-not-nearest-first",
+ "pack": "correlate-assign",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "adsb",
+    "uid": "A1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "adsb/A1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "adsb",
+    "uid": "A2",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 0.999841696,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "adsb/A2"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-2",
+    "uid": "R1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.00038137,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-2/R1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-2",
+    "uid": "R2",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.000467718,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-2/R2"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "tick": 0,
+   "expect": [
+    {
+     "ev": "start",
+     "system": "s1",
+     "entity": "adsb/A1"
+    },
+    {
+     "ev": "start",
+     "system": "s2",
+     "entity": "adsb/A2"
+    },
+    {
+     "ev": "join",
+     "system": "s2",
+     "entity": "radar-2/R1"
+    },
+    {
+     "ev": "join",
+     "system": "s1",
+     "entity": "radar-2/R2"
+    },
+    {
+     "ev": "system",
+     "system": "s1",
+     "members": [
+      "adsb/A1",
+      "radar-2/R2"
+     ],
+     "lat": 1.0,
+     "lon": 1.000233859,
+     "course": 0.0,
+     "speed_ms": 0.0
+    },
+    {
+     "ev": "system",
+     "system": "s2",
+     "members": [
+      "adsb/A2",
+      "radar-2/R1"
+     ],
+     "lat": 1.0,
+     "lon": 1.0001115329999999,
+     "course": 0.0,
+     "speed_ms": 0.0
+    }
+   ],
+   "trace": [
+    {
+     "stage": "assign",
+     "a": "adsb/A1",
+     "b": "alone",
+     "test": "cost",
+     "value": 9.21,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "adsb/A2",
+     "b": "alone",
+     "test": "cost",
+     "value": 9.21,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "adsb/A1",
+     "b": "alone",
+     "test": "choice",
+     "value": 9.21,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "adsb/A2",
+     "b": "alone",
+     "test": "choice",
+     "value": 9.21,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-2/R1",
+     "b": "adsb/A1",
+     "test": "mahalanobis",
+     "value": 0.9987559813560426,
+     "limit": 18.42,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-2/R1",
+     "b": "adsb/A1",
+     "test": "same",
+     "value": 0,
+     "limit": 0,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-2/R1",
+     "b": "adsb/A1",
+     "test": "same",
+     "value": "A",
+     "limit": "A",
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-2/R1",
+     "b": "adsb/A2",
+     "test": "mahalanobis",
+     "value": 1.9999969369554984,
+     "limit": 18.42,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-2/R1",
+     "b": "adsb/A2",
+     "test": "same",
+     "value": 0,
+     "limit": 0,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-2/R1",
+     "b": "adsb/A2",
+     "test": "same",
+     "value": "A",
+     "limit": "A",
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-2/R2",
+     "b": "adsb/A1",
+     "test": "mahalanobis",
+     "value": 1.5022233474681133,
+     "limit": 18.42,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-2/R2",
+     "b": "adsb/A1",
+     "test": "same",
+     "value": 0,
+     "limit": 0,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-2/R2",
+     "b": "adsb/A1",
+     "test": "same",
+     "value": "A",
+     "limit": "A",
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-2/R2",
+     "b": "adsb/A2",
+     "test": "mahalanobis",
+     "value": 2.6911972540103406,
+     "limit": 18.42,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-2/R2",
+     "b": "adsb/A2",
+     "test": "same",
+     "value": 0,
+     "limit": 0,
+     "pass": true
+    },
+    {
+     "stage": "gate",
+     "a": "radar-2/R2",
+     "b": "adsb/A2",
+     "test": "same",
+     "value": "A",
+     "limit": "A",
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-2/R1",
+     "b": "s1",
+     "test": "cost",
+     "value": 0.9987559813560426,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-2/R1",
+     "b": "s2",
+     "test": "cost",
+     "value": 1.9999969369554984,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-2/R1",
+     "b": "alone",
+     "test": "cost",
+     "value": 9.21,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-2/R2",
+     "b": "s1",
+     "test": "cost",
+     "value": 1.5022233474681133,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-2/R2",
+     "b": "s2",
+     "test": "cost",
+     "value": 2.6911972540103406,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-2/R2",
+     "b": "alone",
+     "test": "cost",
+     "value": 9.21,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-2/R1",
+     "b": "s2",
+     "test": "choice",
+     "value": 1.9999969369554984,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "assign",
+     "a": "radar-2/R2",
+     "b": "s1",
+     "test": "choice",
+     "value": 1.5022233474681133,
+     "limit": null,
+     "pass": true
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {
+   "adsb/A1": {
+    "last_time_ms": 0,
+    "system": "s1",
+    "filter": {
+     "east": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    }
+   },
+   "adsb/A2": {
+    "last_time_ms": 0,
+    "system": "s2",
+    "filter": {
+     "east": [
+      -17.599945016097962,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    }
+   },
+   "radar-2/R1": {
+    "last_time_ms": 0,
+    "system": "s2",
+    "filter": {
+     "east": [
+      42.40000903821692,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    }
+   },
+   "radar-2/R2": {
+    "last_time_ms": 0,
+    "system": "s1",
+    "filter": {
+     "east": [
+      52.000019475406006,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    }
+   }
+  },
+  "systems": {
+   "s1": [
+    "adsb/A1",
+    "radar-2/R2"
+   ],
+   "s2": [
+    "adsb/A2",
+    "radar-2/R1"
+   ]
+  },
+  "next_system": 3,
+  "reported": []
+ }
+}

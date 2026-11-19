@@ -43,9 +43,17 @@ pub enum Output {
     Latest,
 }
 
+/// The pack's `method` (spec: correlate.md Pack; correlate-assign.md).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Method {
+    Confirm,
+    Assign,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Pack {
     pub name: String,
+    pub method: Method,
     pub version: String,
     pub filter: FilterParams,
     pub gate: Vec<Test>,
@@ -58,6 +66,10 @@ pub struct Pack {
     pub output: Output,
     /// `(source_id, priority)` in pack order.
     pub priority: Vec<(String, i64)>,
+    /// `method assign` only: cost of a track's own *alone* entry.
+    pub new_cost: f64,
+    /// `method assign` only: subtracted from the entry of the current choice.
+    pub keep_bonus: f64,
 }
 
 impl Pack {
@@ -212,6 +224,9 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
     let mut same_source_allow = false;
     let mut output = Output::Priority;
     let mut priority: Vec<(String, i64)> = Vec::new();
+    let mut method = Method::Confirm;
+    let mut new_cost = None;
+    let mut keep_bonus = None;
 
     for (lineno, raw) in text.lines().enumerate() {
         let line = raw.split('#').next().unwrap_or("");
@@ -224,17 +239,37 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         if !repeats && !seen.insert(directive.to_string()) {
             return Err(at(format!("repeated directive: {}", directive)));
         }
+        seen.insert(directive.to_string());
         match directive {
+            "method" => {
+                method = match one_arg(directive, args).map_err(at)? {
+                    "confirm" => Method::Confirm,
+                    "assign" => Method::Assign,
+                    v => return Err(at(format!("method must be confirm or assign, not {:?}", v))),
+                }
+            }
+            "new_cost" => new_cost = Some(decimal(one_arg(directive, args).map_err(at)?).map_err(at)?),
+            "keep_bonus" => keep_bonus = Some(decimal(one_arg(directive, args).map_err(at)?).map_err(at)?),
             "pack" => name = Some(one_arg(directive, args).map_err(at)?.to_string()),
             "version" => version = Some(semver(one_arg(directive, args).map_err(at)?).map_err(at)?),
             "filter" => {
                 let p = Params::parse(args, &["accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms"]).map_err(at)?;
-                filter = Some(FilterParams {
+                let f = FilterParams {
                     accel_var: p.num("accel_var").map_err(at)?,
                     default_ce_m: p.num("default_ce_m").map_err(at)?,
                     vel_sigma_ms: p.num("vel_sigma_ms").map_err(at)?,
                     unknown_vel_ms: p.num("unknown_vel_ms").map_err(at)?,
-                });
+                };
+                // correlate.md 0.4: three above 0, accel_var 0 or above.
+                for (k, v) in [("default_ce_m", f.default_ce_m), ("vel_sigma_ms", f.vel_sigma_ms), ("unknown_vel_ms", f.unknown_vel_ms)] {
+                    if !(v > 0.0) {
+                        return Err(at(format!("filter {} must be above 0", k)));
+                    }
+                }
+                if !(f.accel_var >= 0.0) {
+                    return Err(at("filter accel_var must be 0 or above".to_string()));
+                }
+                filter = Some(f);
             }
             "gate" => gate.push(parse_test(args).map_err(at)?),
             "confirm" => confirm.push(parse_test(args).map_err(at)?),
@@ -265,7 +300,47 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
     }
 
     let need = |what: &str| format!("missing required directive: {}", what);
+    let refused: &[&str] = match method {
+        Method::Confirm => &["new_cost", "keep_bonus"],
+        Method::Assign => &["confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"],
+    };
+    if let Some(d) = refused.iter().find(|d| seen.contains(**d)) {
+        return Err(format!("directive {} is not allowed with method {}", d, if method == Method::Assign { "assign" } else { "confirm" }));
+    }
+    if method == Method::Assign {
+        // correlate-assign.md 0.2: new_cost above 0, keep_bonus 0 or above.
+        if let Some(c) = new_cost {
+            if !(c > 0.0) {
+                return Err("new_cost must be above 0".to_string());
+            }
+        }
+        if let Some(b) = keep_bonus {
+            if !(b >= 0.0) {
+                return Err("keep_bonus must be 0 or above".to_string());
+            }
+        }
+        return Ok(Pack {
+            name: name.ok_or_else(|| need("pack"))?,
+            method,
+            version: version.ok_or_else(|| need("version"))?,
+            filter: filter.ok_or_else(|| need("filter"))?,
+            gate,
+            confirm,
+            hold,
+            confirm_count: 0,
+            hold_failures: 0,
+            stale_ms: stale_ms.ok_or_else(|| need("stale_ms"))?,
+            same_source_allow,
+            output,
+            priority,
+            new_cost: new_cost.ok_or_else(|| need("new_cost"))?,
+            keep_bonus: keep_bonus.ok_or_else(|| need("keep_bonus"))?,
+        });
+    }
     Ok(Pack {
+        method,
+        new_cost: 0.0,
+        keep_bonus: 0.0,
         name: name.ok_or_else(|| need("pack"))?,
         version: version.ok_or_else(|| need("version"))?,
         filter: filter.ok_or_else(|| need("filter"))?,

@@ -8,7 +8,8 @@ model; goat-processors reads that model.
 
 | Function | Status |
 |---|---|
-| correlate | Written (specification 0.3) and built in seven languages |
+| correlate | Written (specification 0.4) and built in seven languages |
+| correlate, method assign | Written (specification 0.2) and built in seven languages |
 | fuse, filter, quality | Designed, not built ([spec/README.md](spec/README.md)) |
 
 Every decision is explainable from the output. Each test a function runs is a
@@ -31,9 +32,10 @@ replaying the same input gives the same output and trace in every language.
 
 | Pack | Gate | Use |
 |---|---|---|
-| `correlate-gnn` | the reported track inside the other track's predicted 99 % uncertainty region | sources that report position error |
+| `correlate-gnn` | method confirm: the reported track inside the other track's predicted 99 % uncertainty region | sources that report position error |
 | `correlate-window` | distance below a window that grows with both tracks' error, in the shape of the Link 16 correlation window | sources with coarse or fixed error |
 | `correlate-distance` | plain distance; same-source pairs allowed; output follows the latest report | feeds that report no error |
+| `correlate-assign` | method assign: least-cost assignment to system tracks, fused by uncertainty weight | a complete picture, one track per object |
 
 ## Running the vectors
 

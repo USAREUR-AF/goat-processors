@@ -1,7 +1,9 @@
 # goat-correlator, rust engine
 
-An implementation of `spec/correlate.md` (version 0.3) in Rust, written
-from the specification and the vectors only. Standard library only; it carries
+An implementation of `spec/correlate.md` (version 0.4) and
+`spec/correlate-assign.md` (version 0.2) in Rust, written from the
+specifications and the vectors only. The pack's `method` line selects which
+runs: `confirm` (the default) or `assign`. Standard library only; it carries
 its own small JSON reader (`src/json.rs`).
 
 | File | Spec section |
@@ -9,6 +11,7 @@ its own small JSON reader (`src/json.rs`).
 | `src/pack.rs` | Pack: `load_pack(dir)` and `parse_pack(text)` |
 | `src/filter.rs` | Frame; Track estimate (the per-axis Kalman steps) |
 | `src/engine.rs` | Reports, Tests, Association, Events, Trace, Snapshot: `Engine::ingest`, `Engine::tick`, `Engine::snapshot` |
+| `src/engine/assign.rs` | `correlate-assign.md`: system tracks, fused estimate, cost, per-source assignment (Hungarian method with potentials), its events, trace and snapshot |
 | `tests/vectors.rs` | `spec/vector-format.md`: runs the vectors with the structural comparison |
 
 Use:
@@ -44,4 +47,5 @@ failure the test prints the vector and the path of the first mismatch, for
 example `steps[2].trace[6].value: got 1.0, want 2.0`. Add `-- --nocapture` to
 see one line per vector.
 
-Points still open under spec 0.3 are in `DISAGREEMENTS.md`.
+Points still open under correlate 0.4 and correlate-assign 0.2 are in
+`DISAGREEMENTS.md`.

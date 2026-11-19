@@ -32,6 +32,9 @@ type Pack struct {
 	SameSource   string // "forbid" or "allow"
 	Output       string // "priority" or "latest"
 	Priority     map[string]int64
+	Method       string // "confirm" or "assign"
+	NewCost      float64
+	KeepBonus    float64
 }
 
 // testParams lists every test and its parameters (spec: Tests table).
@@ -138,7 +141,7 @@ func oneValue(d string, rest []string) (string, error) {
 
 // ParsePack parses the text of a pack.def (spec: Pack).
 func ParsePack(text string) (*Pack, error) {
-	p := &Pack{SameSource: "forbid", Output: "priority", Priority: map[string]int64{}}
+	p := &Pack{SameSource: "forbid", Output: "priority", Priority: map[string]int64{}, Method: "confirm"}
 	seen := map[string]bool{}
 	for n, line := range strings.Split(text, "\n") {
 		if i := strings.IndexByte(line, '#'); i >= 0 {
@@ -150,12 +153,10 @@ func ParsePack(text string) (*Pack, error) {
 		}
 		d, rest := fields[0], fields[1:]
 		repeats := d == "gate" || d == "confirm" || d == "hold" || d == "priority"
-		if !repeats {
-			if seen[d] {
-				return nil, fmt.Errorf("line %d: repeated directive %q", n+1, d)
-			}
-			seen[d] = true
+		if !repeats && seen[d] {
+			return nil, fmt.Errorf("line %d: repeated directive %q", n+1, d)
 		}
+		seen[d] = true
 		var err error
 		var v string
 		switch d {
@@ -202,6 +203,24 @@ func ParsePack(text string) (*Pack, error) {
 					}
 				}
 			}
+		case "method":
+			if v, err = oneValue(d, rest); err == nil {
+				if v != "confirm" && v != "assign" {
+					err = fmt.Errorf("method must be confirm or assign")
+				}
+				p.Method = v
+			}
+		case "new_cost", "keep_bonus":
+			if v, err = oneValue(d, rest); err == nil {
+				var f float64
+				if f, err = parseFloat(v); err == nil {
+					if d == "new_cost" {
+						p.NewCost = f
+					} else {
+						p.KeepBonus = f
+					}
+				}
+			}
 		case "same_source":
 			if v, err = oneValue(d, rest); err == nil {
 				if v != "forbid" && v != "allow" {
@@ -232,10 +251,29 @@ func ParsePack(text string) (*Pack, error) {
 			return nil, fmt.Errorf("line %d: %w", n+1, err)
 		}
 	}
-	for _, d := range []string{"pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms"} {
+	// Each method has its own directives (spec: correlate.md Pack, correlate-assign.md Pack).
+	required := []string{"pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms"}
+	refused := []string{"new_cost", "keep_bonus"}
+	if p.Method == "assign" {
+		required = []string{"pack", "version", "method", "filter", "new_cost", "keep_bonus", "stale_ms"}
+		refused = []string{"confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"}
+	}
+	for _, d := range refused {
+		if seen[d] {
+			return nil, fmt.Errorf("directive %q not allowed with method %s", d, p.Method)
+		}
+	}
+	for _, d := range required {
 		if !seen[d] {
 			return nil, fmt.Errorf("missing directive %q", d)
 		}
+	}
+	// Value ranges (spec: correlate.md 0.4 Pack, correlate-assign.md 0.2 Pack).
+	if !(p.DefaultCeM > 0 && p.VelSigmaMs > 0 && p.UnknownVelMs > 0 && p.AccelVar >= 0) {
+		return nil, fmt.Errorf("filter: default_ce_m, vel_sigma_ms, unknown_vel_ms must be above 0 and accel_var 0 or above")
+	}
+	if p.Method == "assign" && !(p.NewCost > 0 && p.KeepBonus >= 0) {
+		return nil, fmt.Errorf("new_cost must be above 0 and keep_bonus 0 or above")
 	}
 	return p, nil
 }

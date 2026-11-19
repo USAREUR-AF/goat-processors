@@ -95,6 +95,8 @@ public final class Engine {
         double ce;
         String group;
         long holdFailures;
+        /** Method assign: the entity's system track. */
+        String system;
 
         Entity(String key, String source) {
             this.key = key;
@@ -126,6 +128,10 @@ public final class Engine {
     private final LinkedHashMap<String, TreeSet<String>> groups = new LinkedHashMap<>();
     private final TreeMap<String, Long> counts = new TreeMap<>(KEY_ORDER);
     private long nextGroup = 1;
+    // Method assign (spec: correlate-assign.md)
+    private final LinkedHashMap<String, TreeSet<String>> systems = new LinkedHashMap<>();
+    private final TreeSet<String> reported = new TreeSet<>(KEY_ORDER);
+    private long nextSystem = 1;
 
     public Engine(Pack pack) {
         this.pack = pack;
@@ -211,6 +217,11 @@ public final class Engine {
         if (!(a.last.get("stale_ms") instanceof Long)) a.last.remove("stale_ms");
         a.ce = ce;
 
+        if (pack.methodAssign) {
+            // correlate-assign.md: a report gives only `new` or `reject`; the tick decides.
+            reported.add(key);
+            return res;
+        }
         if (a.group != null) hold(a, res);
         else associate(a, res);
         return res;
@@ -406,13 +417,11 @@ public final class Engine {
     // ---- tick (spec: Association "On each tick") ----
 
     public Result tick(long now) {
+        if (pack.methodAssign) return assignTick(now);
         Result res = new Result();
         // 1. Staleness
         for (Entity e : new ArrayList<>(entities.values())) {
-            Object st = e.last.get("stale_ms");
-            boolean stale = now - e.lastTime > pack.staleMs
-                    || (st instanceof Long && now >= (Long) st);
-            if (!stale) continue;
+            if (!isStale(e, now)) continue;
             if (e.group != null) leave(e, "stale", res);
             entities.remove(e.key);
             counts.keySet().removeIf(k -> {
@@ -457,6 +466,7 @@ public final class Engine {
     // ---- snapshot (spec: Snapshot) ----
 
     public Map<String, Object> snapshot() {
+        if (pack.methodAssign) return assignSnapshot();
         Map<String, Object> s = new LinkedHashMap<>();
         s.put("ref", lat0 == null ? null : List.of(lat0, lon0));
         Map<String, Object> ents = new LinkedHashMap<>();
@@ -478,6 +488,275 @@ public final class Engine {
         s.put("groups", gs);
         s.put("counts", new LinkedHashMap<String, Object>(counts));
         s.put("next_group", nextGroup);
+        return s;
+    }
+
+    // ---- method assign (spec: correlate-assign.md) ----
+
+    /**
+     * Spec: correlate-assign.md, Assignment, fused estimate. The members predicted to t and
+     * combined per axis by inverse-variance weights; pv of the result is unused and 0.
+     */
+    private Axis[] fusedEstimate(Iterable<Entity> members, long t) {
+        double[] invPP = new double[2], sumP = new double[2], invVV = new double[2], sumV = new double[2];
+        for (Entity m : members) {
+            Predicted pr = new Predicted(m, t);
+            Axis[] axes = {pr.east, pr.north};
+            for (int k = 0; k < 2; k++) {
+                invPP[k] += 1 / axes[k].pp;
+                sumP[k] += axes[k].p / axes[k].pp;
+                invVV[k] += 1 / axes[k].vv;
+                sumV[k] += axes[k].v / axes[k].vv;
+            }
+        }
+        Axis[] out = new Axis[2];
+        for (int k = 0; k < 2; k++) {
+            double pp = 1 / invPP[k], vv = 1 / invVV[k];
+            out[k] = new Axis(pp * sumP[k], vv * sumV[k], pp, 0, vv);
+        }
+        return out;
+    }
+
+    /** Spec: correlate-assign.md, Cost: d² of A against the fused estimate of M at A's time. */
+    private double assignCost(Entity a, List<Entity> m) {
+        Axis[] f = fusedEstimate(m, a.lastTime);
+        Axis[] own = {a.east, a.north};
+        double d2 = 0;
+        for (int k = 0; k < 2; k++) {
+            double d = own[k].p - f[k].p;
+            d2 += d * d / (own[k].pp + f[k].pp);
+        }
+        return d2;
+    }
+
+    private Result assignTick(long now) {
+        Result res = new Result();
+        // Staleness
+        for (Entity e : new ArrayList<>(entities.values())) {
+            if (!isStale(e, now)) continue;
+            if (e.system != null) leaveSystem(e, "stale", res);
+            entities.remove(e.key);
+            reported.remove(e.key);
+            res.events.add(ev("drop", "entity", e.key));
+        }
+        // Per source, in key order, its reported entities in key order
+        TreeMap<String, List<Entity>> bySource = new TreeMap<>(KEY_ORDER);
+        for (String k : reported) {
+            Entity e = entities.get(k);
+            bySource.computeIfAbsent(e.source, s -> new ArrayList<>()).add(e);
+        }
+        reported.clear();
+        for (Map.Entry<String, List<Entity>> s : bySource.entrySet()) assignSource(s.getKey(), s.getValue(), res);
+        // Output
+        for (Map.Entry<String, TreeSet<String>> st : systems.entrySet()) {
+            List<Entity> members = new ArrayList<>();
+            for (String k : st.getValue()) members.add(entities.get(k));
+            Axis[] f = fusedEstimate(members, now);
+            double[] ll = toDegrees(f[0].p, f[1].p);
+            double ve = f[0].v, vn = f[1].v;
+            double course = deg(Math.atan2(ve, vn));
+            if (course < 0) course += 360;
+            if (course >= 360) course -= 360;
+            Map<String, Object> o = ev("system", "system", st.getKey(),
+                    "members", new ArrayList<Object>(st.getValue()), "lat", ll[0], "lon", ll[1],
+                    "course", course, "speed_ms", Math.hypot(ve, vn));
+            Entity haeFrom = null;
+            for (Entity m : members)
+                if (m.num("hae") != null && (haeFrom == null || m.lastTime > haeFrom.lastTime)) haeFrom = m;
+            if (haeFrom != null) o.put("hae", haeFrom.num("hae"));
+            res.events.add(o);
+        }
+        return res;
+    }
+
+    /** Spec: correlate.md, On each tick, Staleness, the rule. */
+    private boolean isStale(Entity e, long now) {
+        Object st = e.last.get("stale_ms");
+        return now - e.lastTime > pack.staleMs || (st instanceof Long && now >= (Long) st);
+    }
+
+    /** Spec: correlate-assign.md, Assignment steps 1 to 4 for one source. */
+    private void assignSource(String source, List<Entity> r, Result res) {
+        java.util.Set<String> rKeys = new java.util.HashSet<>();
+        for (Entity a : r) rKeys.add(a.key);
+        // 1. Columns
+        List<String> colNames = new ArrayList<>();
+        List<List<Entity>> colOthers = new ArrayList<>();
+        for (Map.Entry<String, TreeSet<String>> st : systems.entrySet()) {
+            List<Entity> others = new ArrayList<>();
+            boolean sameSource = false;
+            for (String k : st.getValue()) {
+                if (rKeys.contains(k)) continue;
+                Entity o = entities.get(k);
+                if (o.source.equals(source)) sameSource = true;
+                others.add(o);
+            }
+            if (others.isEmpty() || sameSource) continue;
+            colNames.add(st.getKey());
+            colOthers.add(others);
+        }
+        // 2. Entries; columns 0..k-1 are system tracks, column k+i is row i's alone
+        int n = r.size(), k = colNames.size(), m = k + n;
+        double[][] cost = new double[n][m];
+        for (double[] row : cost) Arrays.fill(row, Double.POSITIVE_INFINITY);
+        Double[][] entry = new Double[n][k];
+        double[] alone = new double[n];
+        for (int i = 0; i < n; i++) {
+            Entity a = r.get(i);
+            for (int j = 0; j < k; j++) {
+                boolean pass = true;
+                for (Entity o : colOthers.get(j)) {
+                    if (!runTests(pack.gate, "gate", a, o, res)) {
+                        pass = false;
+                        break;
+                    }
+                }
+                if (!pass) continue;
+                double c = assignCost(a, colOthers.get(j));
+                if (colNames.get(j).equals(a.system)) c -= pack.keepBonus;
+                entry[i][j] = c;
+                cost[i][j] = c;
+            }
+            alone[i] = pack.newCost - (isAlone(a) ? pack.keepBonus : 0);
+            cost[i][k + i] = alone[i];
+        }
+        for (int i = 0; i < n; i++) {
+            Entity a = r.get(i);
+            for (int j = 0; j < k; j++)
+                res.trace.add(assignRec(a, colNames.get(j), "cost", entry[i][j], entry[i][j] != null));
+            res.trace.add(assignRec(a, "alone", "cost", alone[i], true));
+        }
+        // 3. Assignment
+        int[] choice = minCostAssignment(cost, n, m);
+        for (int i = 0; i < n; i++) {
+            int j = choice[i];
+            res.trace.add(assignRec(r.get(i), j < k ? colNames.get(j) : "alone", "choice", cost[i][j], true));
+        }
+        // 4. Apply
+        for (int i = 0; i < n; i++) {
+            Entity a = r.get(i);
+            int j = choice[i];
+            if (j < k ? colNames.get(j).equals(a.system) : isAlone(a)) continue;
+            if (a.system != null) leaveSystem(a, "assign", res);
+            if (j < k) {
+                String s = colNames.get(j);
+                systems.get(s).add(a.key);
+                a.system = s;
+                res.events.add(ev("join", "system", s, "entity", a.key));
+            } else {
+                String s = "s" + nextSystem++;
+                TreeSet<String> members = new TreeSet<>(KEY_ORDER);
+                members.add(a.key);
+                systems.put(s, members);
+                a.system = s;
+                res.events.add(ev("start", "system", s, "entity", a.key));
+            }
+        }
+    }
+
+    /** A is the only member of its system track. */
+    private boolean isAlone(Entity a) {
+        return a.system != null && systems.get(a.system).size() == 1;
+    }
+
+    /** Leaves its system track; a system track left empty ends. */
+    private void leaveSystem(Entity e, String reason, Result res) {
+        String s = e.system;
+        TreeSet<String> members = systems.get(s);
+        members.remove(e.key);
+        e.system = null;
+        res.events.add(ev("leave", "system", s, "entity", e.key, "reason", reason));
+        if (members.isEmpty()) {
+            systems.remove(s);
+            res.events.add(ev("end", "system", s));
+        }
+    }
+
+    /**
+     * Exact minimum-cost assignment of n rows to distinct columns among m >= n (the Hungarian
+     * method with potentials). Forbidden entries are +infinity; every row has a finite column of
+     * its own (its alone entry), so a finite assignment always exists. Returns each row's column.
+     */
+    static int[] minCostAssignment(double[][] a, int n, int m) {
+        final double inf = Double.POSITIVE_INFINITY;
+        double[] u = new double[n + 1], v = new double[m + 1];
+        int[] p = new int[m + 1], way = new int[m + 1];
+        for (int i = 1; i <= n; i++) {
+            p[0] = i;
+            int j0 = 0;
+            double[] minv = new double[m + 1];
+            Arrays.fill(minv, inf);
+            boolean[] used = new boolean[m + 1];
+            do {
+                used[j0] = true;
+                int i0 = p[j0], j1 = -1;
+                double delta = inf;
+                for (int j = 1; j <= m; j++) {
+                    if (used[j]) continue;
+                    double cur = a[i0 - 1][j - 1] - u[i0] - v[j];
+                    if (cur < minv[j]) {
+                        minv[j] = cur;
+                        way[j] = j0;
+                    }
+                    if (j1 < 0 || minv[j] < delta) {
+                        delta = minv[j];
+                        j1 = j;
+                    }
+                }
+                if (delta == inf) throw new IllegalStateException("no finite assignment");
+                for (int j = 0; j <= m; j++) {
+                    if (used[j]) {
+                        u[p[j]] += delta;
+                        v[j] -= delta;
+                    } else minv[j] -= delta;
+                }
+                j0 = j1;
+            } while (p[j0] != 0);
+            do {
+                int j1 = way[j0];
+                p[j0] = p[j1];
+                j0 = j1;
+            } while (j0 != 0);
+        }
+        int[] row = new int[n];
+        for (int j = 1; j <= m; j++) if (p[j] != 0) row[p[j] - 1] = j - 1;
+        return row;
+    }
+
+    private static Map<String, Object> assignRec(Entity a, String b, String test, Double value, boolean pass) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("stage", "assign");
+        m.put("a", a.key);
+        m.put("b", b);
+        m.put("test", test);
+        m.put("value", value);
+        m.put("limit", null);
+        m.put("pass", pass);
+        return m;
+    }
+
+    private Map<String, Object> assignSnapshot() {
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("ref", lat0 == null ? null : List.of(lat0, lon0));
+        Map<String, Object> ents = new LinkedHashMap<>();
+        for (Entity e : entities.values()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("last_time_ms", e.lastTime);
+            m.put("system", e.system);
+            Map<String, Object> f = new LinkedHashMap<>();
+            f.put("east", e.east.toList());
+            f.put("north", e.north.toList());
+            m.put("filter", f);
+            ents.put(e.key, m);
+        }
+        s.put("entities", ents);
+        Map<String, Object> ss = new LinkedHashMap<>();
+        for (Map.Entry<String, TreeSet<String>> st : systems.entrySet())
+            ss.put(st.getKey(), new ArrayList<Object>(st.getValue()));
+        s.put("systems", ss);
+        s.put("next_system", nextSystem);
+        // correlate-assign.md 0.2, Snapshot: the entities reported since the previous tick.
+        s.put("reported", new ArrayList<Object>(reported));
         return s;
     }
 

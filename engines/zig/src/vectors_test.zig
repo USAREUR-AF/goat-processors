@@ -8,6 +8,7 @@ const compare = @import("compare.zig");
 
 test {
     _ = compare;
+    _ = @import("hungarian.zig");
 }
 
 fn sortedJsonFiles(alloc: std.mem.Allocator, dir_path: []const u8) ![][]const u8 {
