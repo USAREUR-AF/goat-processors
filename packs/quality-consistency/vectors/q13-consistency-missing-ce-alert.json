@@ -1,0 +1,670 @@
+{
+ "name": "q13-consistency-missing-ce-alert",
+ "pack": "quality-consistency",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "ais",
+    "uid": "M1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "ce": 20
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "ais/M1"
+    },
+    {
+     "ev": "pass",
+     "entity": "ais/M1",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "ais",
+      "uid": "M1",
+      "time_ms": 0,
+      "lat": 1.0,
+      "lon": 1.0,
+      "ce": 20
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
+     "sample": "order",
+     "value": "first",
+     "inputs": [
+      0,
+      null
+     ]
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "ais",
+    "uid": "M2",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.004497287
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "ais/M2"
+    },
+    {
+     "ev": "pass",
+     "entity": "ais/M2",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "ais",
+      "uid": "M2",
+      "time_ms": 0,
+      "lat": 1.0,
+      "lon": 1.004497287
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "ais/M2",
+     "sample": "order",
+     "value": "first",
+     "inputs": [
+      0,
+      null
+     ]
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "ais",
+    "uid": "M1",
+    "time_ms": 10000,
+    "lat": 1.0,
+    "lon": 1.0
+   },
+   "expect": [
+    {
+     "ev": "pass",
+     "entity": "ais/M1",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "ais",
+      "uid": "M1",
+      "time_ms": 10000,
+      "lat": 1.0,
+      "lon": 1.0
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
+     "sample": "order",
+     "value": "advance",
+     "inputs": [
+      10000,
+      0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
+     "sample": "interval",
+     "value": 10000,
+     "inputs": [
+      10000,
+      0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
+     "sample": "nis",
+     "value": 0.0,
+     "inputs": [
+      0.0,
+      0.0,
+      1005400.0,
+      1005400.0
+     ]
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "ais",
+    "uid": "M2",
+    "time_ms": 10000,
+    "lat": 1.0,
+    "lon": 1.004497287
+   },
+   "expect": [
+    {
+     "ev": "pass",
+     "entity": "ais/M2",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "ais",
+      "uid": "M2",
+      "time_ms": 10000,
+      "lat": 1.0,
+      "lon": 1.004497287
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "ais/M2",
+     "sample": "order",
+     "value": "advance",
+     "inputs": [
+      10000,
+      0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M2",
+     "sample": "interval",
+     "value": 10000,
+     "inputs": [
+      10000,
+      0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M2",
+     "sample": "nis",
+     "value": 0.0,
+     "inputs": [
+      0.0,
+      0.0,
+      1007500.0,
+      1007500.0
+     ]
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "ais",
+    "uid": "M1",
+    "time_ms": 20000,
+    "lat": 1.0,
+    "lon": 1.0
+   },
+   "expect": [
+    {
+     "ev": "pass",
+     "entity": "ais/M1",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "ais",
+      "uid": "M1",
+      "time_ms": 20000,
+      "lat": 1.0,
+      "lon": 1.0
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
+     "sample": "order",
+     "value": "advance",
+     "inputs": [
+      20000,
+      10000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
+     "sample": "interval",
+     "value": 10000,
+     "inputs": [
+      20000,
+      10000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
+     "sample": "nis",
+     "value": 0.0,
+     "inputs": [
+      0.0,
+      0.0,
+      17891.635170081532,
+      17891.635170081532
+     ]
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "ais",
+    "uid": "M2",
+    "time_ms": 20000,
+    "lat": 1.0,
+    "lon": 1.004497287
+   },
+   "expect": [
+    {
+     "ev": "pass",
+     "entity": "ais/M2",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "ais",
+      "uid": "M2",
+      "time_ms": 20000,
+      "lat": 1.0,
+      "lon": 1.004497287
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "ais/M2",
+     "sample": "order",
+     "value": "advance",
+     "inputs": [
+      20000,
+      10000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M2",
+     "sample": "interval",
+     "value": 10000,
+     "inputs": [
+      20000,
+      10000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M2",
+     "sample": "nis",
+     "value": 0.0,
+     "inputs": [
+      0.0,
+      0.0,
+      19975.186104218417,
+      19975.186104218417
+     ]
+    }
+   ]
+  },
+  {
+   "tick": 20000,
+   "expect": [
+    {
+     "ev": "quality",
+     "scope": "entity",
+     "subject": "ais/M1",
+     "measures": {
+      "reports": 3,
+      "interval_last": null,
+      "interval_mean": null,
+      "interval_max": null,
+      "age": 0,
+      "latency_mean": null,
+      "latency_max": null,
+      "nis_mean": null,
+      "speed_err_mean": null,
+      "out_of_order": 0,
+      "duplicate": 0,
+      "missing_ce": 0.6666666666666666,
+      "missing_vel": 1.0,
+      "missing_hae": 1.0
+     }
+    },
+    {
+     "ev": "quality",
+     "scope": "entity",
+     "subject": "ais/M2",
+     "measures": {
+      "reports": 3,
+      "interval_last": null,
+      "interval_mean": null,
+      "interval_max": null,
+      "age": 0,
+      "latency_mean": null,
+      "latency_max": null,
+      "nis_mean": null,
+      "speed_err_mean": null,
+      "out_of_order": 0,
+      "duplicate": 0,
+      "missing_ce": 1.0,
+      "missing_vel": 1.0,
+      "missing_hae": 1.0
+     }
+    },
+    {
+     "ev": "quality",
+     "scope": "source",
+     "subject": "ais",
+     "measures": {
+      "reports": 6,
+      "interval_last": null,
+      "interval_mean": null,
+      "interval_max": null,
+      "age": 0,
+      "latency_mean": null,
+      "latency_max": null,
+      "nis_mean": null,
+      "speed_err_mean": null,
+      "out_of_order": 0,
+      "duplicate": 0,
+      "missing_ce": 0.8333333333333333,
+      "missing_vel": 1.0,
+      "missing_hae": 1.0,
+      "entities": 2
+     }
+    },
+    {
+     "ev": "action-start",
+     "rule": "no-error",
+     "scope": "source",
+     "subject": "ais",
+     "action": "alert",
+     "value": 0.8333333333333333
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "speed-mismatch",
+     "subject": "ais/M1",
+     "measure": "speed_err_mean",
+     "value": null,
+     "limit": 20.0,
+     "pass": false,
+     "count": 0,
+     "active": false
+    },
+    {
+     "stage": "rule",
+     "rule": "speed-mismatch",
+     "subject": "ais/M2",
+     "measure": "speed_err_mean",
+     "value": null,
+     "limit": 20.0,
+     "pass": false,
+     "count": 0,
+     "active": false
+    },
+    {
+     "stage": "rule",
+     "rule": "overconfident",
+     "subject": "ais",
+     "measure": "nis_mean",
+     "value": null,
+     "limit": 6.0,
+     "pass": false,
+     "count": 0,
+     "active": false
+    },
+    {
+     "stage": "rule",
+     "rule": "no-error",
+     "subject": "ais",
+     "measure": "missing_ce",
+     "value": 0.8333333333333333,
+     "limit": 0.5,
+     "pass": true,
+     "count": 0,
+     "active": true
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "ais",
+    "uid": "M1",
+    "time_ms": 30000,
+    "lat": 1.0,
+    "lon": 1.0
+   },
+   "expect": [
+    {
+     "ev": "pass",
+     "entity": "ais/M1",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "ais",
+      "uid": "M1",
+      "time_ms": 30000,
+      "lat": 1.0,
+      "lon": 1.0
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
+     "sample": "order",
+     "value": "advance",
+     "inputs": [
+      30000,
+      20000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
+     "sample": "interval",
+     "value": 10000,
+     "inputs": [
+      30000,
+      20000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
+     "sample": "nis",
+     "value": 0.0,
+     "inputs": [
+      0.0,
+      0.0,
+      16855.898989618254,
+      16855.898989618254
+     ]
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "last_tick": 20000,
+  "entities": {
+   "ais/M1": {
+    "source": "ais",
+    "last_time_ms": 30000,
+    "last_pos": [
+     0.0,
+     0.0
+    ],
+    "filter": {
+     "east": [
+      0.0,
+      0.0,
+      2129.209927999128,
+      191.37020157358918,
+      62.236129061515044
+     ],
+     "north": [
+      0.0,
+      0.0,
+      2129.209927999128,
+      191.37020157358918,
+      62.236129061515044
+     ]
+    },
+    "window": [
+     {
+      "wt": 0,
+      "time_ms": 0,
+      "order": "first",
+      "interval": null,
+      "latency": null,
+      "nis": null,
+      "speed_err": null,
+      "ce": true,
+      "vel": false,
+      "hae": false
+     },
+     {
+      "wt": 10000,
+      "time_ms": 10000,
+      "order": "advance",
+      "interval": 10000,
+      "latency": null,
+      "nis": 0.0,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     },
+     {
+      "wt": 20000,
+      "time_ms": 20000,
+      "order": "advance",
+      "interval": 10000,
+      "latency": null,
+      "nis": 0.0,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     },
+     {
+      "wt": 30000,
+      "time_ms": 30000,
+      "order": "advance",
+      "interval": 10000,
+      "latency": null,
+      "nis": 0.0,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     }
+    ]
+   },
+   "ais/M2": {
+    "source": "ais",
+    "last_time_ms": 20000,
+    "last_pos": [
+     500.0000247724928,
+     0.0
+    ],
+    "filter": {
+     "east": [
+      500.0000247724928,
+      0.0,
+      2187.1118012422367,
+      187.57763975155237,
+      62.48447204968947
+     ],
+     "north": [
+      0.0,
+      0.0,
+      2187.1118012422367,
+      187.57763975155237,
+      62.48447204968947
+     ]
+    },
+    "window": [
+     {
+      "wt": 0,
+      "time_ms": 0,
+      "order": "first",
+      "interval": null,
+      "latency": null,
+      "nis": null,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     },
+     {
+      "wt": 10000,
+      "time_ms": 10000,
+      "order": "advance",
+      "interval": 10000,
+      "latency": null,
+      "nis": 0.0,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     },
+     {
+      "wt": 20000,
+      "time_ms": 20000,
+      "order": "advance",
+      "interval": 10000,
+      "latency": null,
+      "nis": 0.0,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     }
+    ]
+   }
+  },
+  "rules": {
+   "overconfident": {
+    "ais": {
+     "count": 0,
+     "active": false
+    }
+   },
+   "no-error": {
+    "ais": {
+     "count": 0,
+     "active": true
+    }
+   },
+   "speed-mismatch": {
+    "ais/M1": {
+     "count": 0,
+     "active": false
+    },
+    "ais/M2": {
+     "count": 0,
+     "active": false
+    }
+   }
+  }
+ }
+}

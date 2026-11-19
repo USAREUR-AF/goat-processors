@@ -1,0 +1,79 @@
+{
+ "name": "01-area-own-ship-first-rule",
+ "pack": "filter-area",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "own",
+    "uid": "OS1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 0.9
+   },
+   "expect": [
+    {
+     "ev": "keep",
+     "entity": "own/OS1",
+     "rule": "own-ship"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "own-ship",
+     "entity": "own/OS1",
+     "test": "source",
+     "negated": false,
+     "value": "own",
+     "limit": [
+      "own"
+     ],
+     "pass": true
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "own",
+    "uid": "OS1",
+    "time_ms": 1000,
+    "lat": 3.0,
+    "lon": 0.7
+   },
+   "expect": [
+    {
+     "ev": "keep",
+     "entity": "own/OS1",
+     "rule": "own-ship"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "own-ship",
+     "entity": "own/OS1",
+     "test": "source",
+     "negated": false,
+     "value": "own",
+     "limit": [
+      "own"
+     ],
+     "pass": true
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "entities": {
+   "own/OS1": {
+    "time_ms": 1000,
+    "lat": 3.0,
+    "lon": 0.7,
+    "course": null,
+    "speed_ms": null,
+    "stale_ms": null,
+    "kept_ms": 1000
+   }
+  }
+ }
+}

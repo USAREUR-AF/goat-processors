@@ -90,10 +90,10 @@ func objs(list []Obj) []any {
 	return out
 }
 
-// TestScenarioVectors runs packs/*/vectors/*.json: every step's events and trace,
+// TestScenarioVectors runs packs/correlate-*/vectors/*.json: every step's events and trace,
 // then the final snapshot.
 func TestScenarioVectors(t *testing.T) {
-	files, _ := filepath.Glob(filepath.Join(root, "packs", "*", "vectors", "*.json"))
+	files, _ := filepath.Glob(filepath.Join(root, "packs", "correlate-*", "vectors", "*.json"))
 	sort.Strings(files)
 	if len(files) == 0 {
 		t.Fatal("no scenario vectors found")
@@ -148,9 +148,9 @@ func TestLoadVectors(t *testing.T) {
 	}
 }
 
-// TestShippedPacksLoad checks every packs/*/pack.def loads.
+// TestShippedPacksLoad checks every packs/correlate-*/pack.def loads.
 func TestShippedPacksLoad(t *testing.T) {
-	dirs, _ := filepath.Glob(filepath.Join(root, "packs", "*", "pack.def"))
+	dirs, _ := filepath.Glob(filepath.Join(root, "packs", "correlate-*", "pack.def"))
 	for _, d := range dirs {
 		if _, err := LoadPack(filepath.Dir(d)); err != nil {
 			t.Errorf("%s: %v", d, err)

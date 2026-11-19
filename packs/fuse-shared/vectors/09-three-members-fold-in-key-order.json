@@ -1,0 +1,305 @@
+{
+ "name": "09-three-members-fold-in-key-order",
+ "pack": "fuse-shared",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "eo-2",
+    "uid": "E1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "fuse.group": "s1",
+    "ce": 30,
+    "type": "a-f-A",
+    "track.class": "uas"
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "eo-2/E1",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.000179891,
+    "fuse.group": "s1",
+    "ce": 30,
+    "type": "a-h-A",
+    "track.class": "uas"
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/T1",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-2",
+    "uid": "T4",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.000809512,
+    "fuse.group": "s1",
+    "ce": 40,
+    "type": "a-h-A",
+    "track.class": "bird"
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-2/T4",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "tick": 0,
+   "expect": [
+    {
+     "ev": "fused",
+     "group": "s1",
+     "members": [
+      "eo-2/E1",
+      "radar-1/T1",
+      "radar-2/T4"
+     ],
+     "from": null,
+     "lat": 1.0,
+     "lon": 1.0000899455,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 30.0,
+     "attributes": {
+      "type": {
+       "value": "a-h-A",
+       "from": "radar-1/T1"
+      },
+      "track.class": {
+       "value": "uas",
+       "from": "eo-2/E1"
+      }
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "intersect",
+     "group": "s1",
+     "member": "radar-1/T1",
+     "value": 0.5
+    },
+    {
+     "stage": "intersect",
+     "group": "s1",
+     "member": "radar-2/T4",
+     "value": 1.0
+    },
+    {
+     "stage": "kinematics",
+     "group": "s1",
+     "method": "covariance_intersection",
+     "candidates": [
+      {
+       "member": "eo-2/E1",
+       "var": 1800.0,
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-1/T1",
+       "var": 1800.0,
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-2/T4",
+       "var": 3200.0,
+       "time_ms": 0,
+       "rank": null
+      }
+     ],
+     "winner": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "callsign",
+     "rule": "latest",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "type",
+     "rule": "majority",
+     "candidates": [
+      {
+       "member": "eo-2/E1",
+       "value": "a-f-A",
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-1/T1",
+       "value": "a-h-A",
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-2/T4",
+       "value": "a-h-A",
+       "time_ms": 0,
+       "rank": null
+      }
+     ],
+     "winner": "radar-1/T1",
+     "value": "a-h-A"
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "track.class",
+     "rule": "majority",
+     "candidates": [
+      {
+       "member": "eo-2/E1",
+       "value": "uas",
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-1/T1",
+       "value": "uas",
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-2/T4",
+       "value": "bird",
+       "time_ms": 0,
+       "rank": null
+      }
+     ],
+     "winner": "eo-2/E1",
+     "value": "uas"
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {
+   "eo-2/E1": {
+    "last_time_ms": 0,
+    "group": "s1",
+    "filter": {
+     "east": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 30,
+     "fuse.group": "s1",
+     "lat": 1.0,
+     "lon": 1.0,
+     "time_ms": 0,
+     "track.class": "uas",
+     "track.source_id": "eo-2",
+     "type": "a-f-A",
+     "uid": "E1"
+    }
+   },
+   "radar-1/T1": {
+    "last_time_ms": 0,
+    "group": "s1",
+    "filter": {
+     "east": [
+      19.999947625382884,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 30,
+     "fuse.group": "s1",
+     "lat": 1.0,
+     "lon": 1.000179891,
+     "time_ms": 0,
+     "track.class": "uas",
+     "track.source_id": "radar-1",
+     "type": "a-h-A",
+     "uid": "T1"
+    }
+   },
+   "radar-2/T4": {
+    "last_time_ms": 0,
+    "group": "s1",
+    "filter": {
+     "east": [
+      90.00004225962003,
+      0.0,
+      1600.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      1600.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 40,
+     "fuse.group": "s1",
+     "lat": 1.0,
+     "lon": 1.000809512,
+     "time_ms": 0,
+     "track.class": "bird",
+     "track.source_id": "radar-2",
+     "type": "a-h-A",
+     "uid": "T4"
+    }
+   }
+  }
+ }
+}

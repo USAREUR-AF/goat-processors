@@ -1,85 +1,12 @@
-//! Runs every scenario vector and every load vector (spec/vector-format.md).
-//! Reads only `packs/correlate-*` and `spec/correlate-load-vectors/`.
+//! Runs every correlate scenario vector (packs/correlate-*) and every correlate
+//! load vector (spec/correlate-load-vectors) (spec/vector-format.md).
 
-use std::fs;
-use std::path::{Path, PathBuf};
+mod common;
 
+use std::path::Path;
+
+use common::{compare, json_files, packs_with_prefix, read_json, repo_root};
 use goat_correlator::{json, load_pack, parse_pack, Engine, Json};
-
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap()
-}
-
-fn json_files(dir: &Path) -> Vec<PathBuf> {
-    let mut files: Vec<PathBuf> = fs::read_dir(dir)
-        .unwrap_or_else(|e| panic!("{}: {}", dir.display(), e))
-        .map(|e| e.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|x| x == "json"))
-        .collect();
-    files.sort();
-    files
-}
-
-/// The correlate packs, `packs/correlate-*`, in name order.
-fn correlate_packs(root: &Path) -> Vec<PathBuf> {
-    let mut packs: Vec<PathBuf> = fs::read_dir(root.join("packs"))
-        .unwrap()
-        .map(|e| e.unwrap().path())
-        .filter(|p| p.is_dir() && p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("correlate-")))
-        .collect();
-    packs.sort();
-    packs
-}
-
-fn read_json(path: &Path) -> Json {
-    let text = fs::read_to_string(path).unwrap();
-    json::parse(&text).unwrap_or_else(|e| panic!("{}: {}", path.display(), e))
-}
-
-/// Structural equality; floats within 1e-6 * max(1, |want|); null differs from
-/// absent. Returns the path of the first mismatch.
-fn compare(got: &Json, want: &Json, path: &str) -> Result<(), String> {
-    let mismatch = || Err(format!("{}: got {}, want {}", path, got, want));
-    match (got, want) {
-        (Json::Num(_) | Json::Int(_), Json::Num(_) | Json::Int(_)) => {
-            let (g, w) = (got.as_f64().unwrap(), want.as_f64().unwrap());
-            if (g - w).abs() <= 1e-6 * w.abs().max(1.0) {
-                Ok(())
-            } else {
-                mismatch()
-            }
-        }
-        (Json::Arr(g), Json::Arr(w)) => {
-            if g.len() != w.len() {
-                return Err(format!("{}: length {} != {}; got {}, want {}", path, g.len(), w.len(), got, want));
-            }
-            for (i, (gi, wi)) in g.iter().zip(w).enumerate() {
-                compare(gi, wi, &format!("{}[{}]", path, i))?;
-            }
-            Ok(())
-        }
-        (Json::Obj(g), Json::Obj(w)) => {
-            for k in w.keys() {
-                if !g.contains_key(k) {
-                    return Err(format!("{}.{}: absent, want {}", path, k, w[k]));
-                }
-            }
-            for k in g.keys() {
-                if !w.contains_key(k) {
-                    return Err(format!("{}.{}: got {}, want absent", path, k, g[k]));
-                }
-            }
-            for (k, wv) in w {
-                compare(&g[k], wv, &format!("{}.{}", path, k))?;
-            }
-            Ok(())
-        }
-        (Json::Str(g), Json::Str(w)) if g == w => Ok(()),
-        (Json::Bool(g), Json::Bool(w)) if g == w => Ok(()),
-        (Json::Null, Json::Null) => Ok(()),
-        _ => mismatch(),
-    }
-}
 
 /// Runs one scenario vector; the first mismatch, if any.
 fn run_scenario(root: &Path, path: &Path) -> Result<(), String> {
@@ -103,9 +30,11 @@ fn run_scenario(root: &Path, path: &Path) -> Result<(), String> {
 #[test]
 fn scenario_vectors() {
     let root = repo_root();
+    // Correlate vectors only: packs/correlate-*.
+    let packs = packs_with_prefix(&root, "correlate-");
     let mut ran = 0;
     let mut failures = Vec::new();
-    for pack in correlate_packs(&root) {
+    for pack in packs {
         for path in json_files(&pack.join("vectors")) {
             ran += 1;
             let name = path.strip_prefix(&root).unwrap().display().to_string();
@@ -148,7 +77,7 @@ fn load_vectors() {
 #[test]
 fn shipped_packs_load() {
     let root = repo_root();
-    let packs = correlate_packs(&root);
+    let packs = packs_with_prefix(&root, "correlate-");
     assert!(!packs.is_empty(), "no correlate packs found");
     for dir in packs {
         load_pack(&dir).unwrap_or_else(|e| panic!("{}: {}", dir.display(), e));

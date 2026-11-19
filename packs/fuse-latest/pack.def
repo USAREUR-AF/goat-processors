@@ -1,0 +1,8 @@
+# The most recent report is the most useful: the member reported last gives
+# the kinematics and the height.
+pack        fuse-latest
+version     0.1.0
+filter      accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+kinematics  latest
+attribute   callsign rule=latest
+stale_ms    120000

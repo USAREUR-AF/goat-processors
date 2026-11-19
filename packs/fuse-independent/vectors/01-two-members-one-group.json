@@ -1,0 +1,219 @@
+{
+ "name": "01-two-members-one-group",
+ "pack": "fuse-independent",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "fuse.group": "s1",
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "callsign": "R-17",
+    "hae": 3000
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/T1",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "adsb",
+    "uid": "A7",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.000089946,
+    "fuse.group": "s1",
+    "ce": 30,
+    "type": "a-n-A-C-F",
+    "callsign": "DLH4",
+    "hae": 3050
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "adsb/A7",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "tick": 0,
+   "expect": [
+    {
+     "ev": "fused",
+     "group": "s1",
+     "members": [
+      "adsb/A7",
+      "radar-1/T1"
+     ],
+     "from": null,
+     "lat": 1.0,
+     "lon": 1.000044973,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 21.213203435596427,
+     "hae": 3050.0,
+     "hae_from": "adsb/A7",
+     "attributes": {
+      "type": {
+       "value": "a-n-A-C-F",
+       "from": "adsb/A7"
+      },
+      "callsign": {
+       "value": "DLH4",
+       "from": "adsb/A7"
+      }
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "kinematics",
+     "group": "s1",
+     "method": "inverse_variance",
+     "candidates": [
+      {
+       "member": "adsb/A7",
+       "var": 1800.0,
+       "time_ms": 0,
+       "rank": 0
+      },
+      {
+       "member": "radar-1/T1",
+       "var": 1800.0,
+       "time_ms": 0,
+       "rank": 1
+      }
+     ],
+     "winner": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "type",
+     "rule": "priority",
+     "candidates": [
+      {
+       "member": "adsb/A7",
+       "value": "a-n-A-C-F",
+       "time_ms": 0,
+       "rank": 0
+      },
+      {
+       "member": "radar-1/T1",
+       "value": "a-f-A-M-F",
+       "time_ms": 0,
+       "rank": 1
+      }
+     ],
+     "winner": "adsb/A7",
+     "value": "a-n-A-C-F"
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "callsign",
+     "rule": "priority",
+     "candidates": [
+      {
+       "member": "adsb/A7",
+       "value": "DLH4",
+       "time_ms": 0,
+       "rank": 0
+      },
+      {
+       "member": "radar-1/T1",
+       "value": "R-17",
+       "time_ms": 0,
+       "rank": 1
+      }
+     ],
+     "winner": "adsb/A7",
+     "value": "DLH4"
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {
+   "adsb/A7": {
+    "last_time_ms": 0,
+    "group": "s1",
+    "filter": {
+     "east": [
+      10.000029401756041,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "callsign": "DLH4",
+     "ce": 30,
+     "fuse.group": "s1",
+     "hae": 3050,
+     "lat": 1.0,
+     "lon": 1.000089946,
+     "time_ms": 0,
+     "track.source_id": "adsb",
+     "type": "a-n-A-C-F",
+     "uid": "A7"
+    }
+   },
+   "radar-1/T1": {
+    "last_time_ms": 0,
+    "group": "s1",
+    "filter": {
+     "east": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "callsign": "R-17",
+     "ce": 30,
+     "fuse.group": "s1",
+     "hae": 3000,
+     "lat": 1.0,
+     "lon": 1.0,
+     "time_ms": 0,
+     "track.source_id": "radar-1",
+     "type": "a-f-A-M-F",
+     "uid": "T1"
+    }
+   }
+  }
+ }
+}

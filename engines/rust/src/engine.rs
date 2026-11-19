@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::filter::{deg, rad, Axis, Frame, Measurement, Model, TwoModel};
 use crate::json::{obj, Json};
 use crate::pack::{Method, Output, Pack, Test};
+use crate::report;
 
 mod assign;
 
@@ -76,7 +77,7 @@ impl Entity {
 
 /// A report's `ce`; absent when not a number or 0 or below (spec: Reports).
 fn report_ce(report: &BTreeMap<String, Json>) -> Option<f64> {
-    report.get("ce").and_then(Json::as_f64).filter(|c| *c > 0.0)
+    report::optional_f64(report, "ce")
 }
 
 /// The result of one test (spec: Tests).
@@ -165,27 +166,16 @@ impl Engine {
         let empty = BTreeMap::new();
         let fields = report.as_object().unwrap_or(&empty);
 
-        // Reports: required keys, checked in table order.
-        let source = fields.get("track.source_id").and_then(Json::as_str);
-        let uid = fields.get("uid").and_then(Json::as_str);
-        let time_ms = fields.get("time_ms").and_then(Json::as_i64);
-        let lat = fields.get("lat").and_then(Json::as_f64);
-        let lon = fields.get("lon").and_then(Json::as_f64);
-        let missing = [
-            ("track.source_id", source.is_none()),
-            ("uid", uid.is_none()),
-            ("time_ms", time_ms.is_none()),
-            ("lat", lat.is_none()),
-            ("lon", lon.is_none()),
-        ]
-        .into_iter()
-        .find(|(_, absent)| *absent);
-        if let Some((key, _)) = missing {
-            out.events.push(obj(vec![("ev", "reject".into()), ("reason", format!("missing:{}", key).into())]));
-            return out;
-        }
-        let (source, uid, time_ms, lat, lon) = (source.unwrap(), uid.unwrap(), time_ms.unwrap(), lat.unwrap(), lon.unwrap());
-        let key = format!("{}/{}", source, uid);
+        // Reports: required keys, checked in table order (src/report.rs).
+        let required = match report::required(fields) {
+            Ok(r) => r,
+            Err(missing) => {
+                out.events.push(report::reject_missing(missing));
+                return out;
+            }
+        };
+        let report::Required { source, time_ms, lat, lon, .. } = required;
+        let key = required.key();
 
         // correlate-assign.md Window: a retiring entity's reports are refused.
         if self.retiring.contains(&key) {
