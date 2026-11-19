@@ -1,6 +1,6 @@
 # goat-correlator: Go engine
 
-An implementation of `spec/correlator-spec.md` in Go, standard library only.
+An implementation of `spec/correlate.md` (version 0.2) in Go, standard library only.
 It was written from the specification and the vectors alone, without
 reference to any other engine.
 
@@ -28,6 +28,6 @@ go test -count=1 -v ./...
 
 `TestScenarioVectors` loads each `packs/<pack>/vectors/*.json`, runs its steps
 on one engine, compares each step's events and trace, then compares the final
-snapshot. `TestLoadVectors` parses each `spec/load-vectors/*.json` and checks
+snapshot. `TestLoadVectors` parses each `spec/correlate-load-vectors/*.json` and checks
 that it fails or succeeds as `expect_error` says. A failure prints the path of
 the first mismatch, for example `steps[2].trace[0].value: got ..., want ...`.

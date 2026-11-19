@@ -174,12 +174,13 @@ func (g *Engine) toDegrees(east, north float64) (float64, float64) {
 // Ingest takes one report (spec: Reports, Track estimate, Association).
 func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 	for _, k := range []string{"track.source_id", "uid", "time_ms", "lat", "lon"} {
-		if v, ok := report[k]; !ok || v == nil {
+		if !validKey(k, report[k]) {
 			return []Obj{{"ev": "reject", "reason": "missing:" + k}}, []Obj{}
 		}
 	}
-	source := fmt.Sprint(report["track.source_id"])
-	key := source + "/" + fmt.Sprint(report["uid"])
+	report = cleanOptional(report)
+	source := report["track.source_id"].(string)
+	key := source + "/" + report["uid"].(string)
 	t, _ := toInt(report["time_ms"])
 	lat, _ := toFloat(report["lat"])
 	lon, _ := toFloat(report["lon"])
@@ -234,6 +235,52 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 	return events, trace
 }
 
+// isInt reports whether v is a JSON integer (spec: Reports).
+func isInt(v any) bool {
+	switch x := v.(type) {
+	case json.Number:
+		_, err := x.Int64()
+		return err == nil
+	case int, int64:
+		return true
+	case float64:
+		return x == math.Trunc(x) && !math.IsInf(x, 0)
+	}
+	return false
+}
+
+func isNum(v any) bool { _, ok := toFloat(v); return ok }
+
+// validKey reports whether a report key holds a value of its type (spec: Reports).
+func validKey(k string, v any) bool {
+	switch k {
+	case "track.source_id", "uid", "type":
+		_, ok := v.(string)
+		return ok
+	case "time_ms", "stale_ms":
+		return isInt(v)
+	case "lat", "lon", "hae", "ce", "course", "speed_ms":
+		return isNum(v)
+	}
+	return true
+}
+
+// cleanOptional returns a copy of the report without optional keys that are null
+// or of the wrong type, which are treated as absent (spec: Reports).
+func cleanOptional(r map[string]any) map[string]any {
+	out := make(map[string]any, len(r))
+	for k, v := range r {
+		switch k {
+		case "hae", "ce", "course", "speed_ms", "type", "stale_ms":
+			if v == nil || !validKey(k, v) {
+				continue
+			}
+		}
+		out[k] = v
+	}
+	return out
+}
+
 // hold runs the hold tests for an entity in a group (spec: Association, hold).
 func (g *Engine) hold(a *Entity, events []Obj, trace *[]Obj) []Obj {
 	name := a.Group
@@ -244,6 +291,7 @@ func (g *Engine) hold(a *Entity, events []Obj, trace *[]Obj) []Obj {
 		}
 		if g.runTests("hold", g.pack.Hold, a, g.entities[bk], trace) {
 			passed = true
+			break
 		}
 	}
 	if passed {
