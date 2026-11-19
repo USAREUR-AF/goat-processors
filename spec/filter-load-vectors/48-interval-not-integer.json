@@ -1,0 +1,5 @@
+{
+ "name": "48-interval-not-integer",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 1000\nrule r drop\nwhen interval min_ms=1.5\n",
+ "expect_error": true
+}

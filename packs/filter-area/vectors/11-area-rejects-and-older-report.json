@@ -1,0 +1,126 @@
+{
+ "name": "11-area-rejects-and-older-report",
+ "pack": "filter-area",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "own",
+    "uid": "OS1",
+    "time_ms": 0,
+    "lat": 1.0
+   },
+   "expect": [
+    {
+     "ev": "reject",
+     "reason": "missing:lon"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "own",
+    "uid": 7,
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0
+   },
+   "expect": [
+    {
+     "ev": "reject",
+     "reason": "missing:uid"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "own",
+    "uid": "OS1",
+    "time_ms": 1.5,
+    "lat": 1.0,
+    "lon": 1.0
+   },
+   "expect": [
+    {
+     "ev": "reject",
+     "reason": "missing:time_ms"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "own",
+    "uid": "OS1",
+    "time_ms": 5000,
+    "lat": 1.0,
+    "lon": 0.9
+   },
+   "expect": [
+    {
+     "ev": "keep",
+     "entity": "own/OS1",
+     "rule": "own-ship"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "own-ship",
+     "entity": "own/OS1",
+     "test": "source",
+     "negated": false,
+     "value": "own",
+     "limit": [
+      "own"
+     ],
+     "pass": true
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "own",
+    "uid": "OS1",
+    "time_ms": 4000,
+    "lat": 1.0,
+    "lon": 0.926983721
+   },
+   "expect": [
+    {
+     "ev": "keep",
+     "entity": "own/OS1",
+     "rule": "own-ship"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "own-ship",
+     "entity": "own/OS1",
+     "test": "source",
+     "negated": false,
+     "value": "own",
+     "limit": [
+      "own"
+     ],
+     "pass": true
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "entities": {
+   "own/OS1": {
+    "time_ms": 5000,
+    "lat": 1.0,
+    "lon": 0.9,
+    "course": null,
+    "speed_ms": null,
+    "stale_ms": null,
+    "kept_ms": 5000
+   }
+  }
+ }
+}

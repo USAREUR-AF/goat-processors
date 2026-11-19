@@ -1,0 +1,5 @@
+{
+ "name": "14-forget-ms-above-int64",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 9223372036854775808\n",
+ "expect_error": true
+}

@@ -1,0 +1,487 @@
+{
+ "name": "02-no-group-is-own-group",
+ "pack": "fuse-independent",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T9",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "ce": 30
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/T9",
+     "group": null
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T2",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.044972868,
+    "fuse.group": "",
+    "ce": 30
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/T2",
+     "group": null
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "adsb",
+    "uid": "A1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.080951162,
+    "ce": 30,
+    "fuse.group": 5
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "adsb/A1",
+     "group": null
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T5",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.179891471,
+    "fuse.group": "z9",
+    "ce": 30
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/T5",
+     "group": "z9"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "adsb",
+    "uid": "A4",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.179981417,
+    "fuse.group": "b2",
+    "ce": 30
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "adsb/A4",
+     "group": "b2"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "tick": 0,
+   "expect": [
+    {
+     "ev": "fused",
+     "group": "b2",
+     "members": [
+      "adsb/A4"
+     ],
+     "from": null,
+     "lat": 1.0,
+     "lon": 1.179981417,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 30.0,
+     "attributes": {}
+    },
+    {
+     "ev": "fused",
+     "group": "z9",
+     "members": [
+      "radar-1/T5"
+     ],
+     "from": null,
+     "lat": 1.0,
+     "lon": 1.179891471,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 30.0,
+     "attributes": {}
+    },
+    {
+     "ev": "fused",
+     "group": null,
+     "members": [
+      "adsb/A1"
+     ],
+     "from": null,
+     "lat": 1.0,
+     "lon": 1.080951162,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 30.0,
+     "attributes": {}
+    },
+    {
+     "ev": "fused",
+     "group": null,
+     "members": [
+      "radar-1/T2"
+     ],
+     "from": null,
+     "lat": 1.0,
+     "lon": 1.044972868,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 30.0,
+     "attributes": {}
+    },
+    {
+     "ev": "fused",
+     "group": null,
+     "members": [
+      "radar-1/T9"
+     ],
+     "from": null,
+     "lat": 1.0,
+     "lon": 1.0,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 30.0,
+     "attributes": {}
+    }
+   ],
+   "trace": [
+    {
+     "stage": "kinematics",
+     "group": "b2",
+     "method": "inverse_variance",
+     "candidates": [
+      {
+       "member": "adsb/A4",
+       "var": 1800.0,
+       "time_ms": 0,
+       "rank": 0
+      }
+     ],
+     "winner": null
+    },
+    {
+     "stage": "attribute",
+     "group": "b2",
+     "key": "type",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "attribute",
+     "group": "b2",
+     "key": "callsign",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "kinematics",
+     "group": "z9",
+     "method": "inverse_variance",
+     "candidates": [
+      {
+       "member": "radar-1/T5",
+       "var": 1800.0,
+       "time_ms": 0,
+       "rank": 1
+      }
+     ],
+     "winner": null
+    },
+    {
+     "stage": "attribute",
+     "group": "z9",
+     "key": "type",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "attribute",
+     "group": "z9",
+     "key": "callsign",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "kinematics",
+     "group": null,
+     "method": "inverse_variance",
+     "candidates": [
+      {
+       "member": "adsb/A1",
+       "var": 1800.0,
+       "time_ms": 0,
+       "rank": 0
+      }
+     ],
+     "winner": null
+    },
+    {
+     "stage": "attribute",
+     "group": null,
+     "key": "type",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "attribute",
+     "group": null,
+     "key": "callsign",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "kinematics",
+     "group": null,
+     "method": "inverse_variance",
+     "candidates": [
+      {
+       "member": "radar-1/T2",
+       "var": 1800.0,
+       "time_ms": 0,
+       "rank": 1
+      }
+     ],
+     "winner": null
+    },
+    {
+     "stage": "attribute",
+     "group": null,
+     "key": "type",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "attribute",
+     "group": null,
+     "key": "callsign",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "kinematics",
+     "group": null,
+     "method": "inverse_variance",
+     "candidates": [
+      {
+       "member": "radar-1/T9",
+       "var": 1800.0,
+       "time_ms": 0,
+       "rank": 1
+      }
+     ],
+     "winner": null
+    },
+    {
+     "stage": "attribute",
+     "group": null,
+     "key": "type",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "attribute",
+     "group": null,
+     "key": "callsign",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {
+   "adsb/A1": {
+    "last_time_ms": 0,
+    "group": null,
+    "filter": {
+     "east": [
+      9000.000001192378,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 30,
+     "lat": 1.0,
+     "lon": 1.080951162,
+     "time_ms": 0,
+     "track.source_id": "adsb",
+     "uid": "A1"
+    }
+   },
+   "adsb/A4": {
+    "last_time_ms": 0,
+    "group": "b2",
+    "filter": {
+     "east": [
+      20010.000019698353,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 30,
+     "fuse.group": "b2",
+     "lat": 1.0,
+     "lon": 1.179981417,
+     "time_ms": 0,
+     "track.source_id": "adsb",
+     "uid": "A4"
+    }
+   },
+   "radar-1/T2": {
+    "last_time_ms": 0,
+    "group": null,
+    "filter": {
+     "east": [
+      5000.000025368694,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 30,
+     "lat": 1.0,
+     "lon": 1.044972868,
+     "time_ms": 0,
+     "track.source_id": "radar-1",
+     "uid": "T2"
+    }
+   },
+   "radar-1/T5": {
+    "last_time_ms": 0,
+    "group": "z9",
+    "filter": {
+     "east": [
+      19999.999990296576,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 30,
+     "fuse.group": "z9",
+     "lat": 1.0,
+     "lon": 1.179891471,
+     "time_ms": 0,
+     "track.source_id": "radar-1",
+     "uid": "T5"
+    }
+   },
+   "radar-1/T9": {
+    "last_time_ms": 0,
+    "group": null,
+    "filter": {
+     "east": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      900.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 30,
+     "lat": 1.0,
+     "lon": 1.0,
+     "time_ms": 0,
+     "track.source_id": "radar-1",
+     "uid": "T9"
+    }
+   }
+  }
+ }
+}
