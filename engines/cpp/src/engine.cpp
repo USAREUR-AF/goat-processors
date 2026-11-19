@@ -26,6 +26,13 @@ std::optional<double> number_at(const Json& r, const std::string& key) {
     return v->number;
 }
 
+// Spec "Reports": a `ce` of 0 or below is absent.
+std::optional<double> ce_at(const Json& r) {
+    auto ce = number_at(r, "ce");
+    if (ce && *ce <= 0) return std::nullopt;
+    return ce;
+}
+
 // Spec "Reports": `time_ms` and `stale_ms` must be integers.
 bool is_integer(const Json* v) { return v && v->is_number() && v->is_int; }
 
@@ -143,7 +150,7 @@ Filter Engine::predict(const Entity& e, std::int64_t t) const {
 // ---- Tests -----------------------------------------------------------------
 
 double Engine::ce_of(const Entity& e) const {
-    return number_at(e.last, "ce").value_or(pack_.filter.default_ce_m);
+    return ce_at(e.last).value_or(pack_.filter.default_ce_m);
 }
 
 // Spec "Tests": d² = sum over east, north of (pa - pb)² / (pp_b + ce_a²).
@@ -381,7 +388,7 @@ Output Engine::ingest(const Json& r) {
     std::optional<Point> vel;
     auto course = number_at(r, "course"), speed = number_at(r, "speed_ms");
     if (course && speed) vel = Point{*speed * std::sin(rad(*course)), *speed * std::cos(rad(*course))};
-    double ce = number_at(r, "ce").value_or(pack_.filter.default_ce_m);
+    double ce = ce_at(r).value_or(pack_.filter.default_ce_m);
 
     if (it == entities_.end()) {
         Entity e;
