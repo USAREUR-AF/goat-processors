@@ -12,6 +12,9 @@ import (
 // timeStates are the values time_state and a time_default's state may take.
 var timeStates = []string{"coherent", "drifting", "free-running"}
 
+// IsTimeState reports whether s is one of the three time states.
+func IsTimeState(s string) bool { return isTimeState(s) }
+
 func isTimeState(s string) bool {
 	for _, t := range timeStates {
 		if s == t {
@@ -30,9 +33,17 @@ type TimeDefault struct {
 	State    string
 }
 
-// parseTimeDefault reads the fields after `time_default`: the source id, a
-// first token without '=', then error_ms, state or both, each at most once.
+// parseTimeDefault reads the fields after `time_default` with correlate's
+// number grammar (Pack).
 func parseTimeDefault(rest []string) (string, TimeDefault, error) {
+	return ParseTimeDefault(rest, parseFloat)
+}
+
+// ParseTimeDefault reads the fields after `time_default`: the source id, a
+// first token without '=', then error_ms, state or both, each at most once.
+// number reads error_ms with the grammar of the calling function's pack (the
+// quality package passes its own; spec/quality.md, Pack).
+func ParseTimeDefault(rest []string, number func(string) (float64, error)) (string, TimeDefault, error) {
 	var d TimeDefault
 	if len(rest) < 2 || strings.Contains(rest[0], "=") {
 		return "", d, fmt.Errorf("time_default takes <source_id> and error_ms=, state= or both")
@@ -43,7 +54,7 @@ func parseTimeDefault(rest []string) (string, TimeDefault, error) {
 		case !ok:
 			return "", d, fmt.Errorf("time_default: parameter without '=': %q", f)
 		case k == "error_ms" && !d.HasError:
-			x, err := parseFloat(v)
+			x, err := number(v)
 			if err != nil || !(x >= 0) {
 				return "", d, fmt.Errorf("time_default: error_ms must be a number 0 or above")
 			}
@@ -66,17 +77,36 @@ func parseTimeDefault(rest []string) (string, TimeDefault, error) {
 // three states. Neither causes a reject.
 func cleanTimeQuality(r map[string]any) map[string]any {
 	if v, ok := r["time_error_ms"]; ok {
-		x, isNum := toFloat(v)
-		if !isNum || math.IsNaN(x) || math.IsInf(x, 0) || x < 0 {
+		if _, valid := ValidTimeError(v); !valid {
 			delete(r, "time_error_ms")
 		}
 	}
 	if v, ok := r["time_state"]; ok {
-		if s, isStr := v.(string); !isStr || !isTimeState(s) {
+		if _, valid := ValidTimeState(v); !valid {
 			delete(r, "time_state")
 		}
 	}
 	return r
+}
+
+// ValidTimeError reads a report's time_error_ms value: a number, finite and 0
+// or above. false when it is absent by those rules (null included).
+func ValidTimeError(v any) (float64, bool) {
+	x, isNum := toFloat(v)
+	if !isNum || math.IsNaN(x) || math.IsInf(x, 0) || x < 0 {
+		return 0, false
+	}
+	return x, true
+}
+
+// ValidTimeState reads a report's time_state value: one of the three states,
+// compared byte for byte. false when it is absent by that rule.
+func ValidTimeState(v any) (string, bool) {
+	s, isStr := v.(string)
+	if !isStr || !isTimeState(s) {
+		return "", false
+	}
+	return s, true
 }
 
 // timeQuality returns a report's time error (ms) and time state, each found

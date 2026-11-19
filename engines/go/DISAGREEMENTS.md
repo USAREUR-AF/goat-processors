@@ -32,26 +32,25 @@ No vector covers any of them; each is listed with what this engine does.
 | A repeated parameter within one `time_offset` line | `correlate-assign.md` Pack | load error, as for `bias` |
 | `time_default` `error_ms` spelled with an exponent, `+` or `.5` | `correlate.md` Pack | read as the other pack numbers above; `inf` and `nan` do not load |
 
-## Quality (`quality/`, `spec/quality.md` 0.1)
+## Quality (`quality/`, `spec/quality.md` 0.2)
 
 ### Vectors that contradict the specification
 
 None. Every vector in `packs/quality-*/vectors/` and `spec/quality-load-vectors/`
-agrees with `spec/quality.md` 0.1 as this engine reads it.
+(q01-q22, load 01-62) agrees with `spec/quality.md` 0.2 and, for the time
+quality keys and `time_default` it cites, `spec/correlate.md` 0.8, as this
+engine reads them.
 
 ### Points still open
 
 | Point | Section | This engine |
 |---|---|---|
 | An integer literal outside the signed 64-bit range | Reports | not an integer: `time_ms` is missing (reject); `received_ms` is absent |
-| Two sources whose key strings collide (`a/b` + `c` and `a` + `b/c`) | Reports | one entity `a/b/c`; its source is the `track.source_id` of its first accepted report |
-| A forwarded `ce` that overflows binary64 after many `downgrade` factors | Forwarding | the forwarded `ce` is +Inf (binary64 arithmetic, no check) |
-| Whitespace other than space and tab inside a `pack.def` line | Pack | a carriage return also separates tokens (CRLF files load); any other whitespace is part of a token, which then fails its check |
 
 ### Readings where the text allows a choice (no vector depends on them)
 
 | Point | Section | This engine |
 |---|---|---|
-| `#` inside a line | Pack | starts a comment wherever it appears |
+| Lateness max or min over equal values, one integer and one binary64 | Entity measures, Source measures | the first in window (or key) order, in its own type |
 | A source forgotten that never had a rule evaluated | Tick, step 3 | still gives its `forget` event |
 | A tick that runs with no entities | Tick | gives no events but sets `last_tick` |

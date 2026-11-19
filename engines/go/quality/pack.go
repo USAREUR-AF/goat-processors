@@ -1,24 +1,29 @@
-// Package quality is the Go engine of spec/quality.md (version 0.1).
+// Package quality is the Go engine of spec/quality.md (version 0.2).
 //
 // Each file implements named sections of the specification:
 //
 //	pack.go      Pack (the pack.def reader)
 //	engine.go    Reports, Order, Frame and filter, Samples, Ingest, Forwarding
+//	time.go      Reports, Time quality; Input clock
 //	measures.go  Window, Entity measures, Source measures
 //	tick.go      Tick, Rules
 //	snapshot.go  Snapshot
 //
-// The frame, the filter and the report type checks are those of the correlate
-// engine (package correlator), as spec/quality.md cites correlate.md for them.
+// The frame, the filter, the report type checks and the time quality keys and
+// time_default line are those of the correlate engine (package correlator,
+// spec/correlate.md 0.8), as spec/quality.md cites correlate.md for them.
 package quality
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	correlator "goat-correlator/engines/go"
 )
 
 // Rule is one rule line (spec: Rules, Pack).
@@ -45,14 +50,19 @@ type Pack struct {
 	WindowMs, MinSamples, ForgetMs int64
 
 	Rules []Rule // pack order
+
+	// time_default lines by source id (spec: Reports, Time quality)
+	TimeDefaults map[string]correlator.TimeDefault
 }
 
 // entityMeasures and sourceMeasures are the measures tables, in table order
 // (spec: Entity measures, Source measures).
 var entityMeasures = []string{
 	"reports", "interval_last", "interval_mean", "interval_max", "age",
-	"latency_mean", "latency_max", "nis_mean", "speed_err_mean",
-	"out_of_order", "duplicate", "missing_ce", "missing_vel", "missing_hae",
+	"latency_mean", "latency_max", "lateness_mean", "lateness_max", "lateness_min",
+	"nis_mean", "speed_err_mean", "out_of_order", "duplicate", "source_out_of_order",
+	"missing_ce", "missing_vel", "missing_hae",
+	"time_error_mean", "time_error_max", "time_state_last", "time_state_worst", "missing_time",
 }
 
 var sourceMeasures = append(append([]string{}, entityMeasures...), "entities")
@@ -68,7 +78,11 @@ func parseNumber(s string) (float64, error) {
 	if !numberRe.MatchString(s) {
 		return 0, fmt.Errorf("not a number: %q", s)
 	}
-	return strconv.ParseFloat(s, 64) // nearest binary64
+	x, err := strconv.ParseFloat(s, 64) // nearest binary64
+	if err != nil || math.IsInf(x, 0) {
+		return 0, fmt.Errorf("number not finite: %q", s)
+	}
+	return x, nil
 }
 
 func parseInteger(s string) (int64, error) {
@@ -122,14 +136,21 @@ func params(tokens []string, required, optional []string) (map[string]string, er
 // ParsePack parses the text of a pack.def (spec: Pack). Every row of the
 // load-error table is a returned error.
 func ParsePack(text string) (*Pack, error) {
-	p := &Pack{}
+	p := &Pack{TimeDefaults: map[string]correlator.TimeDefault{}}
 	seen := map[string]bool{}
 	ruleNames := map[string]bool{}
-	for n, line := range strings.Split(text, "\n") {
+	for n, line := range packLines(text) {
+		// 2. A control character other than tab, or a CR left inside the line.
+		if hasControl(line) {
+			return nil, fmt.Errorf("pack.def line %d: control character", n+1)
+		}
+		// 3. A comment runs to the end of the line.
 		if i := strings.IndexByte(line, '#'); i >= 0 {
 			line = line[:i]
 		}
-		tokens := strings.FieldsFunc(line, func(r rune) bool { return r == ' ' || r == '\t' || r == '\r' })
+		// 4 and 5. Tokens are separated by runs of space and tab only; an empty
+		// line is ignored.
+		tokens := strings.FieldsFunc(line, func(r rune) bool { return r == ' ' || r == '\t' })
 		if len(tokens) == 0 {
 			continue
 		}
@@ -166,6 +187,17 @@ func ParsePack(text string) (*Pack, error) {
 				ruleNames[r.Name] = true
 				p.Rules = append(p.Rules, r)
 			}
+		case "time_default":
+			// The grammar of correlate.md, Pack, with this pack's number grammar.
+			var source string
+			var d correlator.TimeDefault
+			source, d, err = correlator.ParseTimeDefault(rest, parseNumber)
+			if _, given := p.TimeDefaults[source]; err == nil && given {
+				err = fmt.Errorf("source %q given on an earlier time_default", source)
+			}
+			if err == nil {
+				p.TimeDefaults[source] = d
+			}
 		default:
 			err = fmt.Errorf("unknown directive")
 		}
@@ -179,6 +211,30 @@ func ParsePack(text string) (*Pack, error) {
 		}
 	}
 	return p, nil
+}
+
+// packLines splits pack.def text into lines (spec: Pack, step 1). Lines end at
+// LF; one CR at the end of a line is removed; a final LF does not start
+// another line.
+func packLines(text string) []string {
+	text = strings.TrimSuffix(text, "\n")
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimSuffix(line, "\r")
+	}
+	return lines
+}
+
+// hasControl reports whether a line holds U+0000 to U+001F other than tab, or
+// U+007F (spec: Pack, step 2). A CR still in the line is one of them.
+func hasControl(line string) bool {
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		if (c < 0x20 && c != '\t') || c == 0x7f {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Pack) parseFilter(tokens []string) error {

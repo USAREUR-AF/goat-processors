@@ -7,6 +7,13 @@ func optInt(p *int64) any {
 	return *p
 }
 
+func optString(p *string) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
 func optFloat(p *float64) any {
 	if p == nil {
 		return nil
@@ -30,6 +37,8 @@ func (g *Engine) Snapshot() Obj {
 			window = append(window, Obj{
 				"wt": rec.wt, "time_ms": rec.timeMs, "order": rec.order,
 				"interval": optInt(rec.interval), "latency": optInt(rec.latency),
+				"lateness": rec.lateness, "source_out_of_order": rec.sourceOutOfOrder,
+				"time_error": optFloat(rec.timeError), "time_state": optString(rec.timeState),
 				"nis": optFloat(rec.nis), "speed_err": optFloat(rec.speedErr),
 				"ce": rec.ce, "vel": rec.vel, "hae": rec.hae,
 			})
