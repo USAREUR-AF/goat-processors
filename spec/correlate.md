@@ -274,3 +274,13 @@ not parse is a load error. Numbers are decimal; `same` takes a string.
 Engines use IEEE-754 binary64 and the formulas above in the order written.
 Vectors compare floats within `1e-6 * max(1, abs(want))`, and place no
 decision within that distance of a threshold.
+
+## Open points
+
+Two cases this version does not decide. No vector covers them, and engines
+may differ on them until a later version settles them with vectors.
+
+| Point | Section |
+|---|---|
+| An integer literal outside the signed 64-bit range | Reports |
+| `same` between booleans, arrays or objects | Tests |
