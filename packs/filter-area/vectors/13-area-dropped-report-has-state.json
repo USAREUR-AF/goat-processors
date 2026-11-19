@@ -1,0 +1,101 @@
+{
+ "name": "13-area-dropped-report-has-state",
+ "pack": "filter-area",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 0,
+    "lat": 2.0,
+    "lon": 1.0,
+    "type": "a-n-S-X"
+   },
+   "expect": [
+    {
+     "ev": "drop",
+     "entity": "radar-1/T1",
+     "rule": "outside-box"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "own-ship",
+     "entity": "radar-1/T1",
+     "test": "source",
+     "negated": false,
+     "value": "radar-1",
+     "limit": [
+      "own"
+     ],
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "outside-box",
+     "entity": "radar-1/T1",
+     "test": "polygon",
+     "negated": true,
+     "value": "outside",
+     "limit": null,
+     "pass": true
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 1000,
+    "lat": 2.0,
+    "lon": 1.01,
+    "type": "a-n-S-X"
+   },
+   "expect": [
+    {
+     "ev": "drop",
+     "entity": "radar-1/T1",
+     "rule": "outside-box"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "own-ship",
+     "entity": "radar-1/T1",
+     "test": "source",
+     "negated": false,
+     "value": "radar-1",
+     "limit": [
+      "own"
+     ],
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "outside-box",
+     "entity": "radar-1/T1",
+     "test": "polygon",
+     "negated": true,
+     "value": "outside",
+     "limit": null,
+     "pass": true
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "entities": {
+   "radar-1/T1": {
+    "time_ms": 1000,
+    "lat": 2.0,
+    "lon": 1.01,
+    "course": null,
+    "speed_ms": null,
+    "stale_ms": null,
+    "kept_ms": null
+   }
+  }
+ }
+}
