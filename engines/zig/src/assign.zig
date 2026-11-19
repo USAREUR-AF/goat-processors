@@ -1,4 +1,4 @@
-// spec/correlate-assign.md (version 0.1): system tracks, per-source least-cost
+// spec/correlate-assign.md (version 0.2): system tracks, per-source least-cost
 // assignment at each tick, inverse-variance fused estimate.
 const std = @import("std");
 const json = std.json;
@@ -280,10 +280,14 @@ pub fn snapshot(self: *Engine) !json.Value {
     }
     var systems = json.ObjectMap.init(a);
     for (self.groups.items) |g| try systems.put(try self.groupName(g.id), try self.stringList(g.members.items));
+    // correlate-assign.md 0.2 "Snapshot": entities reported since the previous tick, key order.
+    const reported = try a.dupe([]const u8, self.reported.keys());
+    std.mem.sort([]const u8, reported, {}, lessKey);
     return self.object(.{
         .{ "ref", ref },
         .{ "entities", json.Value{ .object = entities } },
         .{ "systems", json.Value{ .object = systems } },
         .{ "next_system", self.next_group },
+        .{ "reported", try self.stringList(reported) },
     });
 }
