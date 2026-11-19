@@ -1,6 +1,12 @@
 #!/bin/sh
-# Build, then run every scenario vector and load vector; non-zero on failure.
+# Build, then run the correlate vectors and the filter vectors (scenario and
+# load vectors each); non-zero when any vector fails.
 set -e
 here="$(cd "$(dirname "$0")" && pwd)"
 "$here/build.sh"
-exec erl -noshell -pa "$here/ebin" -run correlator_vectors main "$here/../.."
+status=0
+echo "== correlate"
+erl -noshell -pa "$here/ebin" -run correlator_vectors main "$here/../.." || status=1
+echo "== filter"
+erl -noshell -pa "$here/ebin" -run filter_vectors main "$here/../.." || status=1
+exit $status

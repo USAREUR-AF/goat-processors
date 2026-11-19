@@ -1,0 +1,5 @@
+{
+ "name": "09-missing-forget-ms",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\n",
+ "expect_error": true
+}

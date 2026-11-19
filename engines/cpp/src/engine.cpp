@@ -1,4 +1,5 @@
 #include "engine.hpp"
+#include "report.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -20,37 +21,17 @@ double wrap180(double lon) {
     return lon;
 }
 
-// Report values; a null value counts as absent.
-std::optional<double> number_at(const Json& r, const std::string& key) {
-    const Json* v = r.find(key);
-    if (!v || !v->is_number()) return std::nullopt;
-    return v->number;
-}
-
-// Spec "Reports": a `ce` of 0 or below is absent.
-std::optional<double> ce_at(const Json& r) {
-    auto ce = number_at(r, "ce");
-    if (ce && *ce <= 0) return std::nullopt;
-    return ce;
-}
-
-// Spec "Reports": `time_ms` and `stale_ms` must be integers.
-bool is_integer(const Json* v) { return v && v->is_number() && v->is_int; }
+// Spec "Reports" helpers live in report.hpp, shared with the filter.
+using report::ce_at;
+using report::is_integer;
+using report::number_at;
 
 // Spec "Reports": `@env` is the third `-`-separated element of `type`.
 std::optional<Json> same_value(const Json& r, const std::string& key) {
     if (key == "@env") {
-        const Json* t = r.find("type");
-        if (!t || !t->is_string()) return std::nullopt;
-        std::vector<std::string> parts;
-        std::string cur;
-        for (char c : t->string) {
-            if (c == '-') { parts.push_back(cur); cur.clear(); }
-            else cur += c;
-        }
-        parts.push_back(cur);
-        if (parts.size() < 3) return std::nullopt;
-        return Json(parts[2]);
+        auto env = report::type_element(r, 2);
+        if (!env) return std::nullopt;
+        return Json(*env);
     }
     const Json* v = r.find(key);
     if (!v || v->is_null()) return std::nullopt;
@@ -355,19 +336,11 @@ Output Engine::ingest(const Json& r) {
     Output out;
 
     // Spec "Reports": required keys, in table order.
-    const std::pair<const char*, char> required[] = {
-        {"track.source_id", 's'}, {"uid", 's'}, {"time_ms", 'i'}, {"lat", 'n'}, {"lon", 'n'}};
-    for (const auto& req : required) {
-        const Json* v = r.find(req.first);
-        bool ok = req.second == 's' ? v && v->is_string()
-                : req.second == 'i' ? is_integer(v)
-                                    : v && v->is_number();
-        if (!ok) {
-            Json ev = event("reject");
-            ev["reason"] = std::string("missing:") + req.first;
-            out.events.push(ev);
-            return out;
-        }
+    if (auto missing = report::missing_required(r)) {
+        Json ev = event("reject");
+        ev["reason"] = "missing:" + *missing;
+        out.events.push(ev);
+        return out;
     }
     const std::string source = r.find("track.source_id")->string;
     const std::string key = source + "/" + r.find("uid")->string;
