@@ -1,6 +1,6 @@
 # goat-processors, C++ engine
 
-Three functions: correlate, filter and fuse.
+Four functions: correlate, filter, fuse and quality.
 
 ## Correlate and filter
 
@@ -11,7 +11,7 @@ own small JSON reader.
 
 | File | Spec section |
 |---|---|
-| `src/track.cpp` | correlate.md Frame, Track estimate; shared with fuse |
+| `src/track.cpp` | correlate.md Frame, Track estimate; shared with fuse and quality |
 | `src/pack.cpp` | Pack (`parse_pack`, `load_pack`) |
 | `src/engine.cpp` | Reports, Frame, Track estimate, Tests, Association, Events, Trace, Snapshot; then correlate-assign.md: Assignment (with `min_cost_assignment`, the Hungarian method with potentials), Events, Trace, Snapshot |
 | `src/report.cpp` | correlate.md "Reports": required keys, optional-key rules, `type` elements; shared by all three functions |
@@ -20,7 +20,7 @@ own small JSON reader.
 | `src/json.cpp` | JSON values for reports, events, trace and snapshot |
 | `test/run_vectors.cpp` | runs the correlate vectors |
 | `test/run_filter_vectors.cpp` | the same comparison for `packs/filter-*` and `spec/filter-load-vectors/` |
-| `test/vector_support.hpp` | the comparison in `spec/vector-format.md`, shared by the correlate, filter and fuse runners |
+| `test/vector_support.hpp` | the comparison in `spec/vector-format.md`, shared by the correlate, filter, fuse and quality runners |
 | `test/assignment_test.cpp` | `min_cost_assignment` against brute force on random matrices |
 
 API, in `src/engine.hpp` and `src/pack.hpp`:
@@ -60,6 +60,7 @@ failure the path of the first mismatch, for example
 
 ```sh
 build/cpp/run_vectors .
+build/cpp/run_quality_vectors .
 ```
 
 ## Fuse
@@ -85,6 +86,30 @@ corr::Json state = engine.snapshot();
 
 The ctest test `fuse_vectors` runs `run_fuse_vectors <repo root>`, which
 prints `PASS`/`FAIL` per vector and, for a failure, the first mismatch path.
+
+## Quality
+
+A C++17 implementation of `spec/quality.md` (version 0.1), in its own module
+(`corr::quality`). It reuses the correlate frame and filter from
+`src/track.cpp`.
+
+| File | Spec section |
+|---|---|
+| `src/quality_pack.cpp` | quality.md Pack and Rules (`quality::parse_pack`, `quality::load_pack`) |
+| `src/quality.cpp` | quality.md Reports, Order, Frame and filter, Samples, Window, Entity measures, Source measures, Rules, Forwarding, Tick, Ingest, Events, Trace, Snapshot |
+| `test/run_quality_vectors.cpp` | runs every vector under `packs/quality-*/vectors/` and `spec/quality-load-vectors/` |
+
+```cpp
+corr::quality::Pack qp = corr::quality::load_pack("packs/quality-feed");   // throws corr::PackError
+corr::quality::Engine quality(qp);
+corr::quality::Output qout = quality.ingest(report);   // qout.events, qout.trace
+qout = quality.tick(now_ms);
+corr::Json qstate = quality.snapshot();
+```
+
+The ctest test `quality_vectors` runs `run_quality_vectors <repo root>`, the
+same checks for every vector under `packs/quality-*/vectors/` and
+`spec/quality-load-vectors/`.
 
 Where the specification leaves room for more than one reading, the reading
 this engine takes is in `DISAGREEMENTS.md`.

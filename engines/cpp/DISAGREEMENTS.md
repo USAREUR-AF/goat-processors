@@ -69,3 +69,34 @@ vector covers them.
   pole the longitude can become very large; `wrap` then reduces a magnitude
   above 1e6 with `fmod(x, 360)` (exact) before the add-or-subtract loop, so it
   always ends, and passes an infinite or NaN longitude through unchanged.
+
+# Quality 0.1
+
+No quality vector contradicts quality.md 0.1 as this engine reads it. The
+entries below are the open points quality.md lists, and the reading this
+engine takes. No vector covers any of them.
+
+## Integers outside the signed 64-bit range (quality.md "Open points", Reports)
+
+- As for correlate: the literal is kept as a number that is not an integer.
+  As `time_ms` the report is rejected with `missing:time_ms`; as
+  `received_ms` it is absent (no `latency` sample).
+
+## Colliding entity keys (quality.md "Open points", Reports)
+
+- Entities are keyed by the string `<track.source_id>/<uid>` alone, so `a/b`
+  with uid `c` and `a` with uid `b/c` are one entity. Its source stays the
+  `track.source_id` of its first accepted report, and the source rules in
+  force for its reports are that source's.
+
+## A forwarded `ce` that overflows (quality.md "Open points", Forwarding)
+
+- The engine multiplies in binary64 without a guard, so the forwarded `ce`
+  becomes +infinity, which the JSON writer cannot express as a JSON number.
+
+## Whitespace other than space and tab in `pack.def` (quality.md "Open points", Pack)
+
+- Only space and tab separate tokens; any other whitespace is part of the
+  token it touches, which then fails its check (unknown directive, bad name,
+  not a number). One exception: a carriage return at the very end of a line
+  is removed, so a file with CRLF line ends loads as with LF.
