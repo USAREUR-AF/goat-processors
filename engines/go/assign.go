@@ -333,5 +333,9 @@ func (g *Engine) snapshotAssign() Obj {
 	for k, m := range g.systems {
 		systems[k] = strList(m)
 	}
-	return Obj{"ref": ref, "entities": ents, "systems": systems, "next_system": int64(g.nextSystem)}
+	reported := []any{}
+	for _, k := range sortedKeys(g.reported) {
+		reported = append(reported, k)
+	}
+	return Obj{"ref": ref, "entities": ents, "systems": systems, "next_system": int64(g.nextSystem), "reported": reported}
 }

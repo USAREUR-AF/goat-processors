@@ -268,5 +268,12 @@ func ParsePack(text string) (*Pack, error) {
 			return nil, fmt.Errorf("missing directive %q", d)
 		}
 	}
+	// Value ranges (spec: correlate.md 0.4 Pack, correlate-assign.md 0.2 Pack).
+	if !(p.DefaultCeM > 0 && p.VelSigmaMs > 0 && p.UnknownVelMs > 0 && p.AccelVar >= 0) {
+		return nil, fmt.Errorf("filter: default_ce_m, vel_sigma_ms, unknown_vel_ms must be above 0 and accel_var 0 or above")
+	}
+	if p.Method == "assign" && !(p.NewCost > 0 && p.KeepBonus >= 0) {
+		return nil, fmt.Errorf("new_cost must be above 0 and keep_bonus 0 or above")
+	}
 	return p, nil
 }
