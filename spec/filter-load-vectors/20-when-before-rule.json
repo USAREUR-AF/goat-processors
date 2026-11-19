@@ -1,0 +1,5 @@
+{
+ "name": "20-when-before-rule",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 1000\nwhen order\nrule r drop\nwhen order\n",
+ "expect_error": true
+}

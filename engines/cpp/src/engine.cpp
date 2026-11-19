@@ -1,4 +1,5 @@
 #include "engine.hpp"
+#include "report.hpp"
 
 #include "common.hpp"
 
@@ -13,65 +14,21 @@ namespace {
 
 using namespace detail;
 
-// Spec "Reports": a `ce` of 0 or below is absent.
-std::optional<double> ce_at(const Json& r) {
-    auto ce = number_at(r, "ce");
-    if (ce && *ce <= 0) return std::nullopt;
-    return ce;
-}
+// Spec "Reports" helpers live in report.hpp, shared with the filter and fuse.
+using report::ce_at;
+using report::is_integer;
+using report::number_at;
 
 // Spec "Reports": `@env` is the third `-`-separated element of `type`.
 std::optional<Json> same_value(const Json& r, const std::string& key) {
     if (key == "@env") {
-        const Json* t = r.find("type");
-        if (!t || !t->is_string()) return std::nullopt;
-        std::vector<std::string> parts;
-        std::string cur;
-        for (char c : t->string) {
-            if (c == '-') { parts.push_back(cur); cur.clear(); }
-            else cur += c;
-        }
-        parts.push_back(cur);
-        if (parts.size() < 3) return std::nullopt;
-        return Json(parts[2]);
+        auto env = report::type_element(r, 2);
+        if (!env) return std::nullopt;
+        return Json(*env);
     }
     const Json* v = r.find(key);
     if (!v || v->is_null()) return std::nullopt;
     return *v;
-}
-
-// Spec "Track estimate", step 1.
-void axis_predict(Axis& a, double dt, double q) {
-    const Axis b = a;
-    a.p = b.p + b.v * dt;
-    a.pp = b.pp + 2 * dt * b.pv + dt * dt * b.vv + q * (dt * dt * dt * dt) / 4;
-    a.pv = b.pv + dt * b.vv + q * (dt * dt * dt) / 2;
-    a.vv = b.vv + q * (dt * dt);
-}
-
-// Spec "Track estimate", step 2. Returns the innovation's likelihood term
-// y*y/s + ln(s) (spec "Two-model filter", step 3).
-double axis_position_update(Axis& a, double z, double r) {
-    const Axis b = a;
-    double s = b.pp + r, k1 = b.pp / s, k2 = b.pv / s, y = z - b.p;
-    a.p = b.p + k1 * y;
-    a.v = b.v + k2 * y;
-    a.pp = (1 - k1) * b.pp;
-    a.pv = (1 - k1) * b.pv;
-    a.vv = b.vv - k2 * b.pv;
-    return y * y / s + std::log(s);
-}
-
-// Spec "Track estimate", step 3. Returns the likelihood term, as step 2.
-double axis_velocity_update(Axis& a, double z, double r) {
-    const Axis b = a;
-    double s = b.vv + r, k1 = b.pv / s, k2 = b.vv / s, y = z - b.v;
-    a.p = b.p + k1 * y;
-    a.v = b.v + k2 * y;
-    a.pp = b.pp - k1 * b.pv;
-    a.pv = (1 - k2) * b.pv;
-    a.vv = (1 - k2) * b.vv;
-    return y * y / s + std::log(s);
 }
 
 // Spec "Two-model filter", step 1: blend(w1, w2) of one axis.
@@ -132,17 +89,12 @@ Engine::Engine(Pack pack) : pack_(std::move(pack)) {}
 
 // ---- Frame -----------------------------------------------------------------
 
-Engine::Point Engine::to_plane(double lat, double lon) const {
-    const double lat0 = ref_->first, lon0 = ref_->second;
-    double dlon = wrap180(lon - lon0);
-    return {R * rad(dlon) * std::cos(rad(lat0)), R * rad(lat - lat0)};
+Point Engine::to_plane(double lat, double lon) const {
+    return corr::to_plane(ref_->first, ref_->second, lat, lon);
 }
 
 std::pair<double, double> Engine::to_degrees(double east, double north) const {
-    const double lat0 = ref_->first, lon0 = ref_->second;
-    double lat = lat0 + deg(north / R);
-    double lon = lon0 + deg(east / (R * std::cos(rad(lat0))));
-    return {lat, wrap180(lon)};
+    return corr::to_degrees(ref_->first, ref_->second, east, north);
 }
 
 // ---- Track estimate --------------------------------------------------------
@@ -464,19 +416,11 @@ Output Engine::ingest(const Json& r) {
     Output out;
 
     // Spec "Reports": required keys, in table order.
-    const std::pair<const char*, char> required[] = {
-        {"track.source_id", 's'}, {"uid", 's'}, {"time_ms", 'i'}, {"lat", 'n'}, {"lon", 'n'}};
-    for (const auto& req : required) {
-        const Json* v = r.find(req.first);
-        bool ok = req.second == 's' ? v && v->is_string()
-                : req.second == 'i' ? is_integer(v)
-                                    : v && v->is_number();
-        if (!ok) {
-            Json ev = event("reject");
-            ev["reason"] = std::string("missing:") + req.first;
-            out.events.push(ev);
-            return out;
-        }
+    if (auto missing = report::missing_required(r)) {
+        Json ev = event("reject");
+        ev["reason"] = "missing:" + *missing;
+        out.events.push(ev);
+        return out;
     }
     const std::string source = r.find("track.source_id")->string;
     const std::string key = source + "/" + r.find("uid")->string;
@@ -505,9 +449,7 @@ Output Engine::ingest(const Json& r) {
     // Spec "Frame": the reference is the first accepted report.
     if (!ref_) ref_ = std::make_pair(lat, lon);
     Point z = to_plane(lat, lon);
-    std::optional<Point> vel;
-    auto course = number_at(r, "course"), speed = number_at(r, "speed_ms");
-    if (course && speed) vel = Point{*speed * std::sin(rad(*course)), *speed * std::cos(rad(*course))};
+    std::optional<Point> vel = measured_velocity(r);
     double ce = ce_at(r).value_or(pack_.filter.default_ce_m);
 
     if (it == entities_.end()) {

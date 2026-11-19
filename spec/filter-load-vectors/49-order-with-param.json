@@ -1,0 +1,5 @@
+{
+ "name": "49-order-with-param",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 1000\nrule r drop\nwhen order strict=1\n",
+ "expect_error": true
+}

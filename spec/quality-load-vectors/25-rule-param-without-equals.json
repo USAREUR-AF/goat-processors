@@ -1,0 +1,5 @@
+{
+ "name": "25-rule-param-without-equals",
+ "pack_def": "pack     t\nversion  0.1.0\nfilter   accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\nwindow   window_ms=60000 min_samples=3 forget_ms=300000\nrule a scope=entity measure=age op=> limit=10 for=1 extra clear=5 action=alert\n",
+ "expect_error": true
+}

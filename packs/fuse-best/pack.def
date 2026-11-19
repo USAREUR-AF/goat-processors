@@ -1,0 +1,11 @@
+# One member is the better sensor: take the member with the smallest position
+# variance. A flag any member raises is kept (max); a flag every member must
+# raise is kept only when all do (min).
+pack        fuse-best
+version     0.1.0
+filter      accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+kinematics  best
+attribute   track.simulated rule=max
+attribute   track.confirmed rule=min
+attribute   track.confidence rule=max
+stale_ms    60000

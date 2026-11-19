@@ -1,0 +1,5 @@
+{
+ "name": "26-attribute-repeated-key",
+ "pack_def": "pack fuse-x\nversion 0.1.0\nfilter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\nkinematics inverse_variance\nstale_ms 1000\nattribute type rule=latest\nattribute type rule=majority\n",
+ "expect_error": true
+}

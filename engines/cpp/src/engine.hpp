@@ -11,17 +11,9 @@
 
 #include "json.hpp"
 #include "pack.hpp"
+#include "track.hpp"
 
 namespace corr {
-
-// One axis of the constant-velocity filter (spec "Track estimate").
-struct Axis {
-    double p = 0, v = 0, pp = 0, pv = 0, vv = 0;
-};
-
-struct Filter {
-    Axis east, north;
-};
 
 struct Entity {
     std::string key;
@@ -78,7 +70,6 @@ public:
     Json snapshot() const;
 
 private:
-    struct Point { double east, north; };
     struct TestResult { Json value, limit; bool pass; bool skipped; };
 
     // Frame

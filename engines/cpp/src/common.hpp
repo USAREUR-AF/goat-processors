@@ -8,35 +8,16 @@
 
 #include "engine.hpp"
 #include "json.hpp"
+#include "report.hpp"
+#include "track.hpp"
 
 namespace corr::detail {
 
-// correlate.md "Frame".
-constexpr double R = 6371008.8;
-constexpr double PI = 3.141592653589793;
-inline double rad(double x) { return x * PI / 180; }
-inline double deg(double x) { return x * 180 / PI; }
-inline double wrap180(double lon) {
-    while (lon > 180) lon -= 360;
-    while (lon <= -180) lon += 360;
-    return lon;
-}
-
-// Report values; a null value counts as absent.
-inline std::optional<double> number_at(const Json& r, const std::string& key) {
-    const Json* v = r.find(key);
-    if (!v || !v->is_number()) return std::nullopt;
-    return v->number;
-}
-
-// correlate.md "Reports": `time_ms` and `stale_ms` must be integers.
-inline bool is_integer(const Json* v) { return v && v->is_number() && v->is_int; }
-
-inline Json axis_json(const Axis& a) {
-    Json j = Json::make_array();
-    for (double x : {a.p, a.v, a.pp, a.pv, a.vv}) j.push(x);
-    return j;
-}
+// correlate.md "Frame" (rad, deg, wrap180), the filter steps and `axis_json`
+// are in track.hpp; the Reports helpers are in report.hpp, both shared with
+// filter, fuse and quality.
+using report::is_integer;
+using report::number_at;
 
 inline Json filter_json_of(const Filter& f) {
     Json j = Json::make_object();
