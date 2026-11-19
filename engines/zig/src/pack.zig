@@ -28,6 +28,18 @@ pub const Maneuver = struct {
     p_leave: f64,
 };
 
+// correlate.md 0.7 "Restart": the `restart` line.
+pub const Restart = struct {
+    gate: f64,
+};
+
+// correlate-assign.md 0.5 "Sensor bias": the `bias` line.
+pub const Bias = struct {
+    sigma_m: f64,
+    floor_m: f64,
+    gate: f64,
+};
+
 pub const Output = enum { priority, latest };
 
 // Spec "Pack": `method confirm` (correlate.md) or `method assign` (correlate-assign.md).
@@ -41,6 +53,8 @@ pub const Pack = struct {
     method: Method,
     filter: Filter,
     maneuver: ?Maneuver,
+    restart: ?Restart,
+    bias: ?Bias,
     gate: []const Test,
     confirm: []const Test,
     hold: []const Test,
@@ -55,6 +69,8 @@ pub const Pack = struct {
     keep_bonus: f64,
     window: i64,
     hypotheses: i64,
+    // correlate-assign.md 0.5 "Window": keep histories within `margin` of the best.
+    margin: ?f64,
 
     // Spec "Fused output": 100 for a source the pack does not list.
     pub fn priorityOf(self: Pack, source: []const u8) f64 {
@@ -86,6 +102,8 @@ const Directive = enum {
     method,
     filter,
     maneuver,
+    restart,
+    bias,
     gate,
     confirm,
     hold,
@@ -99,6 +117,7 @@ const Directive = enum {
     keep_bonus,
     window,
     hypotheses,
+    margin,
 };
 
 // Spec "Pack": `gate`, `confirm`, `hold` and `priority` repeat.
@@ -210,6 +229,8 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
         .method = .confirm,
         .filter = undefined,
         .maneuver = null,
+        .restart = null,
+        .bias = null,
         .gate = &.{},
         .confirm = &.{},
         .hold = &.{},
@@ -223,6 +244,7 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
         .keep_bonus = 0,
         .window = 1,
         .hypotheses = 1,
+        .margin = null,
     };
 
     var lines = std.mem.splitScalar(u8, text, '\n');
@@ -250,6 +272,9 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
             .keep_bonus => pack.keep_bonus = try parseDecimal(try one(args)),
             .filter => pack.filter = try parseParams(Filter, alloc, args),
             .maneuver => pack.maneuver = try parseParams(Maneuver, alloc, args),
+            .restart => pack.restart = try parseParams(Restart, alloc, args),
+            .bias => pack.bias = try parseParams(Bias, alloc, args),
+            .margin => pack.margin = try parseDecimal(try one(args)),
             .window => pack.window = try parseCount(try one(args)),
             .hypotheses => pack.hypotheses = try parseCount(try one(args)),
             .gate => try gate.append(try parseTest(alloc, args)),
@@ -286,12 +311,17 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
         if (seen.contains(.filter) and !(m.accel_var > pack.filter.accel_var)) return error.BadValue;
     }
 
+    // correlate.md 0.7 "Pack": `restart`'s `gate` above 0, with either method.
+    if (pack.restart) |r| {
+        if (!(r.gate > 0)) return error.BadValue;
+    }
+
     switch (pack.method) {
         .confirm => {
             const required = [_]Directive{ .pack, .version, .filter, .confirm_count, .hold_failures, .stale_ms };
             for (required) |r| if (!seen.contains(r)) return error.MissingDirective;
             // correlate-assign.md directives are not directives of correlate.md.
-            const refused = [_]Directive{ .new_cost, .keep_bonus, .window, .hypotheses };
+            const refused = [_]Directive{ .new_cost, .keep_bonus, .window, .hypotheses, .margin, .bias };
             for (refused) |r| if (seen.contains(r)) return error.DirectiveNotForMethod;
         },
         .assign => {
@@ -306,6 +336,15 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
             // `hypotheses` above 1 needs `window` above 1.
             if (pack.window < 1 or pack.hypotheses < 1) return error.BadValue;
             if (pack.hypotheses > 1 and pack.window == 1) return error.BadValue;
+            // correlate-assign.md 0.5 "Pack": `bias` with `sigma_m` and `gate` above 0
+            // and `floor_m` above 0 and at most `sigma_m`.
+            if (pack.bias) |b| {
+                if (!(b.sigma_m > 0 and b.gate > 0 and b.floor_m > 0 and b.floor_m <= b.sigma_m)) return error.BadValue;
+            }
+            // `margin` above 0, and only with `hypotheses` above 1.
+            if (pack.margin) |m| {
+                if (!(m > 0) or pack.hypotheses <= 1) return error.BadValue;
+            }
         },
     }
 

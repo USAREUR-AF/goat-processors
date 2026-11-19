@@ -9,6 +9,7 @@ const imm = @import("imm.zig");
 const entity_mod = @import("entity.zig");
 const pair_tests = @import("pair_tests.zig");
 const assign = @import("assign.zig");
+const bias_mod = @import("bias.zig");
 const Entity = entity_mod.Entity;
 const Pack = pack_mod.Pack;
 
@@ -43,6 +44,9 @@ pub const Engine = struct {
     // correlate-assign.md: `reported` holds the entities with an accepted report
     // since the previous tick; `assign_state` the memberships and histories.
     reported: std.StringArrayHashMap(void),
+    // correlate.md 0.7 "Restart", method assign: the entities whose filter
+    // started again since the previous tick.
+    restarted: std.StringArrayHashMap(void),
     assign_state: assign.State,
 
     pub fn create(backing: Allocator, pack: Pack) !*Engine {
@@ -54,6 +58,7 @@ pub const Engine = struct {
             .groups = undefined,
             .counts = undefined,
             .reported = undefined,
+            .restarted = undefined,
             .assign_state = undefined,
         };
         const a = self.arena.allocator();
@@ -61,6 +66,7 @@ pub const Engine = struct {
         self.groups = std.ArrayList(Group).init(a);
         self.counts = std.ArrayList(PairCount).init(a);
         self.reported = std.StringArrayHashMap(void).init(a);
+        self.restarted = std.StringArrayHashMap(void).init(a);
         self.assign_state = try assign.State.init(a);
         return self;
     }
@@ -207,30 +213,59 @@ pub const Engine = struct {
             }
         }
 
+        // Spec "Track estimate", first report (also a restart): one filter, or both
+        // models with the long-run mode probabilities.
+        const ve: ?f64 = if (meas.vel) |v| v.east else null;
+        const vn: ?f64 = if (meas.vel) |v| v.north else null;
+        const first = kalman.Filter{
+            .east = kalman.Axis.init(pos.east, ve, ce, f.vel_sigma_ms, f.unknown_vel_ms),
+            .north = kalman.Axis.init(pos.north, vn, ce, f.vel_sigma_ms, f.unknown_vel_ms),
+        };
+        const first_imm: ?imm.State = if (self.pack.maneuver) |m| imm.init(m, first) else null;
+
         const gop = try self.entities.getOrPut(key);
         if (!gop.found_existing) {
-            // First report.
-            const ve: ?f64 = if (meas.vel) |v| v.east else null;
-            const vn: ?f64 = if (meas.vel) |v| v.north else null;
-            const first = kalman.Filter{
-                .east = kalman.Axis.init(pos.east, ve, ce, f.vel_sigma_ms, f.unknown_vel_ms),
-                .north = kalman.Axis.init(pos.north, vn, ce, f.vel_sigma_ms, f.unknown_vel_ms),
-            };
             gop.value_ptr.* = .{
                 .key = key,
                 .source = entity_mod.stringOf(stored, "track.source_id").?,
                 .last_time_ms = time_ms.?,
                 .report = stored,
                 .filter = first,
-                .imm = if (self.pack.maneuver) |m| imm.init(m, first) else null,
+                .imm = first_imm,
                 .group = null,
                 .hold_failures = 0,
             };
             try res.events.append(try self.object(.{ .{ "ev", "new" }, .{ "entity", key } }));
         } else {
             const e = gop.value_ptr;
+            // correlate.md 0.7 "Restart": d² of the report against the entity's
+            // prediction to its time, before any other record of the report.
+            var restart = false;
+            if (self.pack.restart) |rs| {
+                const pred = e.predictedTo(time_ms.?, self.pack);
+                const de = pos.east - pred.east.p;
+                const dn = pos.north - pred.north.p;
+                const d2 = de * de / (pred.east.pp + ce * ce) + dn * dn / (pred.north.pp + ce * ce);
+                const pass = d2 < rs.gate;
+                try res.trace.append(try self.object(.{
+                    .{ "stage", "filter" },
+                    .{ "a", e.key },
+                    .{ "b", json.Value{ .null = {} } },
+                    .{ "test", "restart" },
+                    .{ "value", d2 },
+                    .{ "limit", rs.gate },
+                    .{ "pass", pass },
+                }));
+                restart = !pass;
+            }
             const dt = @as(f64, @floatFromInt(time_ms.? - e.last_time_ms)) / 1000.0;
-            if (e.imm) |st| {
+            if (restart) {
+                // The filter starts again from this report as a first report. The
+                // entity keeps its key, group, pair counts and hold failure count.
+                e.filter = first;
+                e.imm = first_imm;
+                if (self.pack.method == .assign) try self.restarted.put(e.key, {});
+            } else if (e.imm) |st| {
                 // Spec "Two-model filter", later reports: steps 1 to 5, then the four filter records.
                 const step = imm.update(st, self.pack.maneuver.?, f.accel_var, dt, meas);
                 e.imm = step.state;
@@ -275,7 +310,9 @@ pub const Engine = struct {
     pub fn runTests(self: *Engine, res: *Result, stage: Stage, tests: []const pack_mod.Test, a_key: []const u8, b_key: []const u8) !bool {
         const a = self.entities.get(a_key).?;
         const b = self.entities.get(b_key).?;
-        const b_pred = b.predictedTo(a.last_time_ms, self.pack);
+        var b_pred = b.predictedTo(a.last_time_ms, self.pack);
+        // correlate-assign.md 0.5 "Sensor bias": B is moved into A's frame before the test formula.
+        if (self.pack.bias) |bp| b_pred = try bias_mod.moveInto(self.alloc(), &self.assign_state.bias, bp, a.source, b.source, b_pred);
         for (tests) |t| {
             const o = pair_tests.run(t, a, b, b_pred, self.pack.filter);
             var rec = try self.object(.{
