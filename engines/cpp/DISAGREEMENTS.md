@@ -1,7 +1,8 @@
 # Open points
 
-No vector contradicts correlate.md 0.6 or correlate-assign.md 0.4 as this
-engine reads them. The 0.4/0.2 entries on ties in the least total and on
+No vector contradicts correlate.md 0.7 or correlate-assign.md 0.5 as this
+engine reads them, including the new `restart`, `bias` and `margin` vectors
+(scenario vectors 45-53, load vectors 43-60). The 0.4/0.2 entries on ties in the least total and on
 where `method` may appear are settled by these versions (Ranking; Pack) and
 removed. The entries below are points the specifications leave open, and
 the reading this engine takes. No vector covers any of them.
@@ -21,12 +22,14 @@ the reading this engine takes. No vector covers any of them.
 
 ## A repeated parameter within one `filter`, `maneuver` or test line (correlate.md "Open points")
 
-- A load error.
+- A load error. The same holds for `restart` and `bias` lines, which take
+  exactly their named parameters.
 
 ## Decimal spellings in `pack.def` (correlate.md "Open points")
 
 - A number may have a leading sign, a fraction, an exponent, and `.5` or `5.`;
-  `inf` and `nan` do not parse. `window` and `hypotheses` take digits with an
+  `inf` and `nan` do not parse. This includes the values of `restart`,
+  `bias` and `margin`. `window` and `hypotheses` take digits with an
   optional sign only. `#` always starts a comment, inside a value too.
 
 ## How ranked assignments are found (correlate-assign.md "Ranking")

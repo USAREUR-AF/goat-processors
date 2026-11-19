@@ -128,10 +128,13 @@ std::vector<RankedAssignment> rank_assignments(const std::vector<std::vector<dou
 
 // "Fused estimate": members predicted to t, inverse-variance weighted per
 // axis, summing over members in key order. Only p, v, pp, vv are meaningful.
-Filter Engine::fuse(const std::set<std::string>& members, std::int64_t t) const {
+// With `frame` (Cost, with `bias`), each member is moved into that entity's
+// frame after its prediction; the estimate for output passes none.
+Filter Engine::fuse(const std::set<std::string>& members, std::int64_t t, const Entity* frame) const {
     double sp[2] = {0, 0}, spp[2] = {0, 0}, sv[2] = {0, 0}, svv[2] = {0, 0};
     for (const std::string& k : members) {
-        Filter f = predict(entities_.at(k), t);
+        const Entity& member = entities_.at(k);
+        Filter f = frame ? predict_into_frame(*frame, member, t) : predict(member, t);
         const Axis* ax[2] = {&f.east, &f.north};
         for (int i = 0; i < 2; ++i) {
             spp[i] = spp[i] + 1 / ax[i]->pp;
@@ -195,14 +198,16 @@ std::vector<RankedAssignment> Engine::rank_source(const std::vector<std::string>
             bool ok = true;
             for (const std::string& bk : others[j]) {
                 const Entity& b = entities_.at(bk);
-                if (!run_stage("gate", pack_.gate, a, b, predict(b, a.last_time_ms), out, &extra)) {
+                if (!run_stage("gate", pack_.gate, a, b, predict_into_frame(a, b, a.last_time_ms), out,
+                               &extra)) {
                     ok = false;
                     break;
                 }
             }
             if (!ok) continue;
-            // "Cost": d² of A against the fused estimate of the others.
-            Filter f = fuse(others[j], a.last_time_ms);
+            // "Cost": d² of A against the fused estimate of the others, each
+            // moved into A's frame (Sensor bias).
+            Filter f = fuse(others[j], a.last_time_ms, &a);
             double de = a.filter.east.p - f.east.p, dn = a.filter.north.p - f.north.p;
             double d2 = de * de / (a.filter.east.pp + f.east.pp) + dn * dn / (a.filter.north.pp + f.north.pp);
             if (a_system == columns[j]) d2 = d2 - pack_.keep_bonus;
@@ -261,6 +266,105 @@ void Engine::apply_assignment(const std::vector<std::string>& rows, const std::v
     rec.cost = rec.cost + r.total;
 }
 
+// ---- Sensor bias -------------------------------------------------------------------
+
+// "State": a pair with no stored state reads as o = 0, w = 0, var = s², n = 0.
+BiasState Engine::bias_state(const std::string& pair) const {
+    auto it = bias_.find(pair);
+    if (it != bias_.end()) return it->second;
+    BiasState st;
+    st.var = pack_.bias->sigma_m * pack_.bias->sigma_m;
+    return st;
+}
+
+// "Moving B into A's frame": B predicted to t, then, when the pack has `bias`
+// and the two sources differ, p + o (b_src first in key order) or p - o
+// (a_src first) on each axis, with pp + var. Without `bias` this is B's
+// prediction.
+Filter Engine::predict_into_frame(const Entity& a, const Entity& b, std::int64_t t) const {
+    Filter f = predict(b, t);
+    if (!pack_.bias || a.source == b.source) return f;
+    const bool b_first = b.source < a.source;
+    const BiasState st = bias_state(b_first ? b.source + "|" + a.source : a.source + "|" + b.source);
+    Axis* ax[2] = {&f.east, &f.north};
+    for (int i = 0; i < 2; ++i) {
+        ax[i]->p = b_first ? ax[i]->p + st.o[i] : ax[i]->p - st.o[i];
+        ax[i]->pp = ax[i]->pp + st.var;
+    }
+    return f;
+}
+
+// "Update", after the commit: committed system tracks in creation order,
+// members not retiring in key order, each pair X before Y from two different
+// sources with at least one of them among the tick's rows.
+void Engine::bias_update(std::int64_t now_ms, const std::set<std::string>& rows, Output& out) {
+    const BiasParams& bp = *pack_.bias;
+    for (const auto& kv : committed_.systems) {
+        std::vector<std::string> members;
+        for (const std::string& key : kv.second)
+            if (!retiring_.count(key)) members.push_back(key);
+        for (size_t x = 0; x < members.size(); ++x) {
+            for (size_t y = x + 1; y < members.size(); ++y) {
+                const Entity& ex = entities_.at(members[x]);
+                const Entity& ey = entities_.at(members[y]);
+                if (ex.source == ey.source) continue;
+                if (!rows.count(ex.key) && !rows.count(ey.key)) continue;
+
+                // 1. ES is the entity whose source is first in key order.
+                const bool x_first = ex.source < ey.source;
+                const Entity& es = x_first ? ex : ey;
+                const Entity& et = x_first ? ey : ex;
+                const std::string pair = es.source + "|" + et.source;
+                Filter fs = predict(es, now_ms), ft = predict(et, now_ms);
+                const Axis* as[2] = {&fs.east, &fs.north};
+                const Axis* at[2] = {&ft.east, &ft.north};
+                double yv[2], r[2];
+                for (int i = 0; i < 2; ++i) {
+                    yv[i] = at[i]->p - as[i]->p;
+                    r[i] = as[i]->pp + at[i]->pp;
+                }
+
+                // 2. d² with the pair's state.
+                BiasState st = bias_state(pair);
+                double d2 = 0;
+                for (int i = 0; i < 2; ++i) {
+                    double dev = yv[i] - st.o[i];
+                    d2 = d2 + dev * dev / (st.var + r[i]);
+                }
+
+                // 3. Accepted when d² < g.
+                const bool accepted = d2 < bp.gate;
+                if (accepted) {
+                    st.n = st.n + 1;
+                    st.var = bp.sigma_m * bp.sigma_m / static_cast<double>(st.n + 1);
+                    const double floor2 = bp.floor_m * bp.floor_m;
+                    if (st.var < floor2) st.var = floor2;
+                    for (int i = 0; i < 2; ++i) {
+                        st.w[i] = st.w[i] + 1 / r[i];
+                        st.o[i] = st.o[i] + ((1 / r[i]) / st.w[i]) * (yv[i] - st.o[i]);
+                    }
+                    bias_[pair] = st;
+                }
+
+                // 4. Trace, with the state after step 3.
+                Json rec = Json::make_object();
+                rec["stage"] = "bias";
+                rec["a"] = ex.key;
+                rec["b"] = ey.key;
+                rec["test"] = "offset";
+                rec["value"] = d2;
+                rec["limit"] = bp.gate;
+                rec["pass"] = accepted;
+                rec["east"] = st.o[0];
+                rec["north"] = st.o[1];
+                rec["var"] = st.var;
+                rec["pairs"] = static_cast<long long>(st.n);
+                out.trace.push(rec);
+            }
+        }
+    }
+}
+
 // ---- Window: on each tick -----------------------------------------------------------
 
 Output Engine::tick_assign(std::int64_t now_ms) {
@@ -271,9 +375,12 @@ Output Engine::tick_assign(std::int64_t now_ms) {
     // 1. Staleness: among entities that are not retiring, in key order. Every
     //    history gets a new record copying its latest membership, with the
     //    stale entities' leave, end and drop events.
+    //    Then each restarted entity that is not stale, in key order, leaves
+    //    its system track (reason `restart`).
     std::vector<std::string> stale;
     for (const auto& kv : entities_)
         if (!retiring_.count(kv.first) && is_stale(kv.second, now_ms)) stale.push_back(kv.first);
+    const std::set<std::string> stale_set(stale.begin(), stale.end());
     for (History& h : histories_) {
         Record rec;
         rec.membership = h.records.empty() ? committed_ : h.records.back().membership;
@@ -283,8 +390,13 @@ Output Engine::tick_assign(std::int64_t now_ms) {
             drop["entity"] = key;
             rec.events.push(drop);
         }
+        for (const std::string& key : restarted_) {   // std::set: key order
+            if (stale_set.count(key)) continue;
+            if (rec.membership.system_of(key)) leave_system(rec.membership, key, "restart", rec.events);
+        }
         h.records.push_back(std::move(rec));
     }
+    restarted_.clear();   // no entity is restarted after this step
     for (const std::string& key : stale) {
         retiring_.insert(key);
         reported_.erase(key);
@@ -293,10 +405,12 @@ Output Engine::tick_assign(std::int64_t now_ms) {
     // 2. Rows: entities reported since the previous tick, by source.
     std::map<std::string, std::vector<std::string>> by_source;   // key order
     for (const std::string& key : reported_) by_source[entities_.at(key).source].push_back(key);
+    const std::set<std::string> rows = reported_;   // read again by the bias update (step 5)
     reported_.clear();
 
     // 3. Sources in key order; each history in rank order gives one candidate
-    //    per ranked assignment; the first k candidates are kept.
+    //    per ranked assignment; the first k candidates are kept, and with
+    //    `margin` of those only the ones whose total is at most best + m.
     struct Candidate {
         History history;
         double total;
@@ -332,11 +446,20 @@ Output Engine::tick_assign(std::int64_t now_ms) {
         // orders them by total, then h, then r.
         std::stable_sort(candidates.begin(), candidates.end(),
                          [](const Candidate& x, const Candidate& y) { return x.total < y.total; });
-        const size_t keep = std::min(k, candidates.size());
+        size_t keep = std::min(k, candidates.size());
+        Json limit;   // null without margin
+        if (pack_.margin) {
+            const double cut = candidates[0].total + *pack_.margin;
+            limit = cut;
+            while (keep > 0 && candidates[keep - 1].total > cut) --keep;
+        }
         if (windowed)
-            for (size_t c = 0; c < candidates.size(); ++c)
-                out.trace.push(trace_record("history", candidates[c].h, candidates[c].r, "total",
-                                            candidates[c].total, c < keep));
+            for (size_t c = 0; c < candidates.size(); ++c) {
+                Json rec = trace_record("history", candidates[c].h, candidates[c].r, "total",
+                                        candidates[c].total, c < keep);
+                rec["limit"] = limit;
+                out.trace.push(rec);
+            }
         histories_.clear();
         for (size_t c = 0; c < keep; ++c) histories_.push_back(std::move(candidates[c].history));
     }
@@ -369,15 +492,23 @@ Output Engine::tick_assign(std::int64_t now_ms) {
         for (auto& kv : entities_) kv.second.system = committed_.system_of(kv.first);
     }
 
-    // 5. Output.
-    system_output(now_ms, out);
+    // 5. Bias, from the committed membership (also with margin).
+    if (pack_.bias) bias_update(now_ms, rows, out);
+
+    // 6. Output: the committed membership, or with `margin` the best
+    //    history's latest membership.
+    const History& best = histories_[0];
+    const Membership& latest = best.records.empty() ? committed_ : best.records.back().membership;
+    system_output(now_ms, pack_.margin ? latest : committed_, out);
     return out;
 }
 
-// Step 5: one `system` per committed system track, retiring members included;
-// with a window, one `provisional` per system track of the best history.
-void Engine::system_output(std::int64_t now_ms, Output& out) const {
-    for (const auto& kv : committed_.systems) {
+// Step 6: one `system` per system track of `reported` (the committed
+// membership, retiring members included, or with `margin` the best history's
+// latest membership, which holds no retiring member); with a window, one
+// `provisional` per system track of the best history.
+void Engine::system_output(std::int64_t now_ms, const Membership& reported, Output& out) const {
+    for (const auto& kv : reported.systems) {
         const Entity* latest_hae = nullptr;   // greatest last_time_ms with hae, ties to key order
         Json names = Json::make_array();
         for (const std::string& key : kv.second) {
@@ -440,6 +571,26 @@ Json Engine::snapshot_assign() const {
     Json reported = Json::make_array();
     for (const auto& key : reported_) reported.push(key);   // std::set: key order
     s["reported"] = reported;
+    if (pack_.restart_gate) {
+        Json restarted = Json::make_array();
+        for (const auto& key : restarted_) restarted.push(key);
+        s["restarted"] = restarted;
+    }
+    if (pack_.bias) {
+        Json bias = Json::make_object();
+        for (const auto& kv : bias_) {   // std::map: keys in order
+            const BiasState& st = kv.second;
+            Json j = Json::make_object();
+            j["east"] = st.o[0];
+            j["weight_east"] = st.w[0];
+            j["north"] = st.o[1];
+            j["weight_north"] = st.w[1];
+            j["var"] = st.var;
+            j["pairs"] = static_cast<long long>(st.n);
+            bias[kv.first] = j;
+        }
+        s["bias"] = bias;
+    }
     if (pack_.window <= 1) return s;
 
     Json retiring = Json::make_array();

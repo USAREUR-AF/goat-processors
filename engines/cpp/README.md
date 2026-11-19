@@ -5,9 +5,9 @@ Four functions: correlate, filter, fuse and quality.
 ## Correlate and filter
 
 A C++17 implementation of `spec/filter.md` (version 0.1), of `spec/correlate.md`
-(version 0.6, method `confirm`, with the two-model filter) and of
-`spec/correlate-assign.md` (version 0.4, method `assign`, with the multi-frame
-window), written from the specifications and the vectors. The pack's `method`
+(version 0.7, method `confirm`, with the two-model filter and the filter
+restart) and of `spec/correlate-assign.md` (version 0.5, method `assign`, with
+the multi-frame window, its margin, and sensor bias), written from the specifications and the vectors. The pack's `method`
 line selects which correlate method runs. It uses only the standard library and has its
 own small JSON reader.
 
@@ -15,8 +15,8 @@ own small JSON reader.
 |---|---|
 | `src/track.cpp` | correlate.md Frame, Track estimate (steps 1 to 3, each update returning its likelihood term for the two-model filter); shared with fuse and quality |
 | `src/pack.cpp` | Pack (`parse_pack`, `load_pack`) |
-| `src/engine.cpp` | correlate.md: Two-model filter (`filter_first`, `filter_update`, `predict`), Tests, Association, Events, Trace, Snapshot |
-| `src/assign.cpp` | correlate-assign.md: Memberships, Ranking (`rank_assignments`, brute force over every assignment), Assignment of one source (`rank_source`, `apply_assignment`), Window (`tick_assign`, steps 1 to 5), Snapshot |
+| `src/engine.cpp` | correlate.md: Two-model filter (`filter_first`, `filter_update`, `predict`), Restart (`restart_test`, and its use in `ingest`), Tests, Association, Events, Trace, Snapshot |
+| `src/assign.cpp` | correlate-assign.md: Memberships, Ranking (`rank_assignments`, brute force over every assignment), Assignment of one source (`rank_source`, `apply_assignment`), Sensor bias (`bias_state`, `predict_into_frame`, `bias_update`), Window (`tick_assign`, steps 1 to 6, with `margin`), Snapshot |
 | `src/common.hpp` | helpers engine.cpp and assign.cpp both use |
 | `src/report.cpp` | correlate.md "Reports": required keys, optional-key rules, `type` elements; shared by all four functions |
 | `src/filter_pack.cpp` | filter.md "Pack": directives, rules, `when` lines, parameter sets, values |

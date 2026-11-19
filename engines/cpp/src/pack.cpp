@@ -155,13 +155,37 @@ Pack parse_pack(const std::string& text) {
             if (!(m.p_enter > 0) || !(m.p_leave > 0) || !(m.p_enter + m.p_leave < 1))
                 fail(line, "p_enter and p_leave must be above 0 with a sum below 1");
             p.maneuver = m;
+        } else if (d == "restart") {
+            // correlate.md "Pack": exactly gate, above 0.
+            auto kv = parse_params(line, words, 1, {"gate"});
+            double g = parse_number(line, kv["gate"]);
+            if (!(g > 0)) fail(line, "restart gate must be above 0");
+            p.restart_gate = g;
+        } else if (d == "bias") {
+            // correlate-assign.md "Pack": exactly sigma_m, floor_m, gate; sigma_m
+            // and gate above 0, floor_m above 0 and at most sigma_m.
+            auto kv = parse_params(line, words, 1, {"sigma_m", "floor_m", "gate"});
+            BiasParams b;
+            b.sigma_m = parse_number(line, kv["sigma_m"]);
+            b.floor_m = parse_number(line, kv["floor_m"]);
+            b.gate = parse_number(line, kv["gate"]);
+            if (!(b.sigma_m > 0) || !(b.gate > 0)) fail(line, "bias sigma_m and gate must be above 0");
+            if (!(b.floor_m > 0) || !(b.floor_m <= b.sigma_m))
+                fail(line, "bias floor_m must be above 0 and at most sigma_m");
+            p.bias = b;
+        } else if (d == "margin") {
+            // correlate-assign.md "Pack": one number above 0.
+            want_args(line, words, 1);
+            double m = parse_number(line, words[1]);
+            if (!(m > 0)) fail(line, "margin must be above 0");
+            p.margin = m;
         } else if (d == "filter") {
             auto kv = parse_params(line, words, 1, {"accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms"});
             p.filter.accel_var = parse_number(line, kv["accel_var"]);
             p.filter.default_ce_m = parse_number(line, kv["default_ce_m"]);
             p.filter.vel_sigma_ms = parse_number(line, kv["vel_sigma_ms"]);
             p.filter.unknown_vel_ms = parse_number(line, kv["unknown_vel_ms"]);
-            // correlate.md 0.4 "Pack": ranges of the filter parameters.
+            // correlate.md "Pack": ranges of the filter parameters.
             if (!(p.filter.default_ce_m > 0) || !(p.filter.vel_sigma_ms > 0) ||
                 !(p.filter.unknown_vel_ms > 0))
                 fail(line, "default_ce_m, vel_sigma_ms and unknown_vel_ms must be above 0");
@@ -204,7 +228,7 @@ Pack parse_pack(const std::string& text) {
         refused = {"confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"};
     } else {
         required = {"pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms"};
-        refused = {"new_cost", "keep_bonus", "window", "hypotheses"};
+        refused = {"new_cost", "keep_bonus", "window", "hypotheses", "margin", "bias"};
     }
     for (const char* req : required)
         if (!seen.count(req)) throw PackError(std::string("pack.def: missing directive ") + req);
@@ -218,6 +242,7 @@ Pack parse_pack(const std::string& text) {
     // correlate-assign.md "Pack".
     if (p.hypotheses > 1 && p.window <= 1)
         throw PackError("pack.def: hypotheses above 1 needs window above 1");
+    if (p.margin && p.hypotheses <= 1) throw PackError("pack.def: margin needs hypotheses above 1");
     return p;
 }
 
