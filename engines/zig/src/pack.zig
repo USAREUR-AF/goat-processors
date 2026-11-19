@@ -255,6 +255,12 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
         }
     }
 
+    // correlate.md 0.4 "Pack": ranges of the `filter` parameters.
+    if (seen.contains(.filter)) {
+        const f = pack.filter;
+        if (!(f.default_ce_m > 0 and f.vel_sigma_ms > 0 and f.unknown_vel_ms > 0 and f.accel_var >= 0)) return error.BadValue;
+    }
+
     switch (pack.method) {
         .confirm => {
             const required = [_]Directive{ .pack, .version, .filter, .confirm_count, .hold_failures, .stale_ms };
@@ -269,6 +275,8 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
             for (required) |r| if (!seen.contains(r)) return error.MissingDirective;
             const refused = [_]Directive{ .confirm, .hold, .confirm_count, .hold_failures, .same_source, .output, .priority };
             for (refused) |r| if (seen.contains(r)) return error.DirectiveNotForMethod;
+            // correlate-assign.md 0.2 "Pack": ranges of `new_cost` and `keep_bonus`.
+            if (!(pack.new_cost > 0 and pack.keep_bonus >= 0)) return error.BadValue;
         },
     }
 

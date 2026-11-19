@@ -1,7 +1,7 @@
 # goat-correlator, zig engine
 
-An implementation of `spec/correlate.md` (version 0.3, method `confirm`) and
-`spec/correlate-assign.md` (version 0.1, method `assign`) in Zig 0.13.0,
+An implementation of `spec/correlate.md` (version 0.4, method `confirm`) and
+`spec/correlate-assign.md` (version 0.2, method `assign`) in Zig 0.13.0,
 standard library only. It was written from the specifications and the vectors,
 not from another engine. Points the specifications leave open, and how this
 engine decides them, are in `DISAGREEMENTS.md`.
