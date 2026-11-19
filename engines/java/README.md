@@ -1,6 +1,6 @@
 # goat-correlator: java engine
 
-An implementation of `spec/correlate.md` (version 0.2) in Java 17, using only the
+An implementation of `spec/correlate.md` (version 0.3) in Java 17, using only the
 standard library. It was written from the specification and the vectors,
 without reading any other engine.
 
@@ -25,5 +25,5 @@ mismatch, for example
 `steps[1].trace[0].value: got 0.2777765689606809, want 0.2778`. The script
 exits non-zero when any vector fails.
 
-`DISAGREEMENTS.md` lists the points where the spec is open, with the reading
-this engine takes on each.
+No point of the spec is open for this engine under version 0.3, so there is
+no `DISAGREEMENTS.md`.
