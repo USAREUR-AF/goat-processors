@@ -1,0 +1,6 @@
+#!/bin/sh
+# Build, then run every scenario vector and load vector; non-zero on failure.
+set -e
+here="$(cd "$(dirname "$0")" && pwd)"
+"$here/build.sh"
+exec erl -noshell -pa "$here/ebin" -run correlator_vectors main "$here/../.."
