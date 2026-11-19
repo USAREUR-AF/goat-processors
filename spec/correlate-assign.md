@@ -1,10 +1,13 @@
 # Correlate by assignment specification
 
-Status: Written. Version 0.4. A second method for the correlate function.
+Status: Written. Version 0.5. A second method for the correlate function.
 Engines implement it from this document, [correlate.md](correlate.md) and the
 vectors, never from another engine's source.
-Version 0.4 takes the pack line `maneuver` (it was `manoeuvre` in 0.3);
-behavior is otherwise unchanged.
+Version 0.5 adds three optional directives, each without effect when absent:
+`bias` (Sensor bias), `margin` (Window) and, from `correlate.md` 0.7,
+`restart`. "Why a window without a margin adds errors" (in Window) states
+the fault they correct. Version 0.4 took the pack line `maneuver` (it was
+`manoeuvre` in 0.3).
 
 ## What this method does
 
@@ -35,7 +38,8 @@ It differs from the `confirm` method of `correlate.md` in four ways:
 These sections of `correlate.md` apply unchanged: Reports (keys, types,
 rejects, entity key), Frame, Track estimate (the per-entity filter, updated on
 each accepted report), Two-model filter (when the pack has `maneuver`),
-Tests (every test and its trace record), Floats.
+Restart (when the pack has `restart`), Tests (every test and its trace
+record, with the change of Sensor bias when the pack has `bias`), Floats.
 
 ## Memberships
 
@@ -73,7 +77,9 @@ filter, prediction), then, summing over members in key order,
 
 **Cost.** For an entity A and a set M, predicted to A's `last_time_ms`:
 `d² = sum over east, north of (pa - p)² / (pp_a + pp)`, where `pa`, `pp_a` are
-A's filter and `p`, `pp` the fused estimate of M.
+A's filter and `p`, `pp` the fused estimate of M. With `bias`, each member of
+M is moved into A's frame (Sensor bias) after its prediction and before the
+fused estimate is formed.
 
 For one source S, its reported entities R (key order) and one membership:
 
@@ -104,6 +110,54 @@ For one source S, its reported entities R (key order) and one membership:
 
 Between two events of one source a system track may briefly hold two
 entities of one source.
+
+## Sensor bias
+
+A pack may add `bias sigma_m=<s> floor_m=<f> gate=<g>`. The correlator then
+keeps one position **offset** per unordered pair of sources: how far the
+second source's positions, in key order of the two source names, sit east
+and north of the first's. A sensor with a fixed position error is then
+compared with the others with its offset taken out, and the uncertainty of
+the offset is added to the comparison.
+
+**State.** For a pair key `"<S>|<T>"` (`S` before `T` in key order): per axis
+the offset `o` and the weight sum `w`; one variance `var` for both axes; and
+`n`, the count of accepted pairs. A pair with no stored state reads as
+`o = 0`, `w = 0`, `var = s²`, `n = 0`; its state is stored when its first
+pair is accepted.
+
+**Moving B into A's frame.** When A's source is `T` and B's source is `S`, and
+the two differ, B's predicted position on each axis becomes `p + o` with
+`pp + var`, from pair `"<S>|<T>"`, when `S` is before `T` in key order; or
+`p - o` with `pp + var`, from pair `"<T>|<S>"`, when `T` is before `S`. Two
+entities of one source are never moved. This applies wherever B is
+predicted to be compared with A: the `distance`, `window` and `mahalanobis`
+tests of `correlate.md` (to B's prediction, before the test formula), and
+each member of M in Cost. A system track's estimate for output moves no
+member.
+
+**Update.** At each tick, after the commit (Window step 4): for each committed
+system track in creation order, its members that are not retiring, in key
+order, and each pair `X`, `Y` of them (`X` before `Y` in key order) from two
+different sources, at least one of which is among the tick's rows (Window
+step 2):
+
+1. Of the two, call `ES` the entity whose source is first in key order and
+   `ET` the other. Predict both to `now_ms` (not moved). Per axis
+   `y = p_ET - p_ES` and `r = pp_ES + pp_ET`.
+2. `d² = sum over east, north of (y - o)² / (var + r)`, with the pair's state.
+3. When `d² < g` the pair is accepted: `n = n + 1`; `var = s² / (n + 1)`, or
+   `f²` when that is below `f²`; per axis `w = w_before + 1/r` and
+   `o = o_before + ((1/r) / w) * (y - o_before)`. The state is stored.
+   Otherwise nothing changes.
+4. Trace:
+   `{"stage":"bias","a":<X>,"b":<Y>,"test":"offset","value":d²,"limit":g,"pass":<accepted>,"east":<o>,"north":<o>,"var":<var>,"pairs":<n>}`,
+   with the state after step 3.
+
+The offset is the mean of the observed offsets weighted by `1/r`. Only the
+ratio of weights matters, so a sensor that understates its error does not
+drive the estimate, and `var` falls with the count of accepted pairs, not
+with the reported errors.
 
 ## Ranking
 
@@ -138,7 +192,9 @@ generator refuses them.
 ## Window
 
 The pack's `window <n>` (default 1) and `hypotheses <k>` (default 1) set the
-number of ticks a history spans and the number of histories kept.
+number of ticks a history spans and the number of histories kept. The
+optional `margin <m>` keeps only histories whose total is within `m` of the
+best, and makes `system` report the best history's latest membership.
 
 **On each tick** at `now_ms`, in this order:
 
@@ -147,8 +203,12 @@ number of ticks a history spans and the number of histories kept.
    history gets a new record whose membership is a copy of its latest
    membership, with cost 0 and no choices. In that copy, each stale entity in
    key order leaves its system track if it has one (event `leave`, reason
-   `stale`; event `end` if that empties it), and gets event `drop`. The
-   events go to the new record. Each stale entity is now *retiring*: it is in
+   `stale`; event `end` if that empties it), and gets event `drop`. Then
+   each *restarted* entity (`correlate.md`, Restart: its filter started again
+   since the previous tick) that is not stale, in key order, leaves its
+   system track if it has one (event `leave`, reason `restart`; event `end`
+   if that empties it). The events go to the new record, and no entity is
+   restarted after this step. Each stale entity is now *retiring*: it is in
    no history's latest membership, it keeps its filter and its place in the
    committed membership, and it is removed when its drop is committed.
 2. **Rows.** The entities that had an accepted report since the previous
@@ -164,9 +224,11 @@ number of ticks a history spans and the number of histories kept.
    are the record's events followed by the apply events. Its choices are the
    record's choices followed by this source's. Its cost is the record's cost
    plus the assignment total, and its total is recomputed from its records
-   as in Memberships (not the parent's total plus the assignment total). Candidates are ordered by their total, then by
-   `h`, then by `r`. The first `k` are the histories for the next source,
-   in that order.
+   as in Memberships (not the parent's total plus the assignment total).
+   Candidates are ordered by their total, then by `h`, then by `r`. The first
+   `k` are the histories for the next source, in that order. With `margin`,
+   of those only the ones whose total is at most `cut = best + m` are kept,
+   where `best` is the first candidate's total.
 4. **Commit**, when the best history (rank 0) has `n` records. Its oldest
    record is committed: its events are emitted, the committed membership
    becomes that record's membership, and each entity with a `drop` event in
@@ -174,8 +236,10 @@ number of ticks a history spans and the number of histories kept.
    committed membership, or null. Every history whose oldest record's
    `choices` differ from the committed record's is pruned. Each kept history
    loses its oldest record and keeps its rank order.
-5. **Output.** One event `system` per committed system track in creation
-   order, with the fused estimate of all its members at `now_ms`, in
+5. **Bias.** With `bias`, the update of Sensor bias.
+6. **Output.** One event `system` per committed system track in creation
+   order (with `margin`: per system track of the best history's latest
+   membership), with the fused estimate of all its members at `now_ms`, in
    degrees, with `course = deg(atan2(v_east, v_north))` in [0, 360) and
    `speed_ms = hypot(v_east, v_north)`, plus `hae` from the member with the
    greatest `last_time_ms` whose last report has `hae` (ties to key order),
@@ -188,6 +252,29 @@ committed, so the commit happens on every tick from the `n`-th on. With
 `window 1`, step 4 commits the tick at once: the committed membership is
 the best assignment of each source in turn, as in version 0.2 with the tie
 rule of Ranking.
+
+**Why a window without a margin adds errors.** On the benchmark's random set,
+with the two-model filter, a window of 2 with 3 histories makes more errors
+than no window: identity swaps rise from 160 to 275 and false merges from 12
+to 72. Two faults cause it.
+
+1. The output lags. `system` reports the committed membership, `n - 1`
+   ticks old. When a sensor moves a track number to another object, or
+   drops a track, the newest reports already split the pair, but the output
+   keeps it in one system track for `n - 1` more ticks. Scored on the best
+   history's latest membership instead, the same run has 15 false merges.
+2. Alternatives overtake on accumulated cost. A history that moved a track
+   at one tick holds its new system track at the next, where `keep_bonus`
+   now favors the new place. Over the window the move gives up `keep_bonus`
+   once while its cost advantage counts on every tick, and every kept
+   history can overtake the best this way. A track of middle uncertainty
+   between two system tracks of one object (one offset by a sensor bias)
+   then moves between them on most of its reports.
+
+`margin` corrects both: `system` reports the best history's latest
+membership, so nothing lags, and only near-ties stay as alternatives. The
+commit still waits `n - 1` ticks; it fixes the committed membership, the
+events, the drops and the histories kept.
 
 **Reports for a retiring entity.** A report whose entity key is retiring is
 rejected with `{"ev":"reject","entity":<key>,"reason":"retiring"}` and changes
@@ -202,15 +289,16 @@ new entity. With `window 1` no entity is retiring between calls.
 | `reject`, `new`, `drop` | as in `correlate.md`; `reject` also has reason `retiring`, with `entity` |
 | `start` | `system`, `entity` |
 | `join` | `system`, `entity` |
-| `leave` | `system`, `entity`, `reason` (`assign` or `stale`) |
+| `leave` | `system`, `entity`, `reason` (`assign`, `stale` or `restart`) |
 | `end` | `system` |
 | `system` | `system`, `members`, `lat`, `lon`, `course`, `speed_ms`, `hae` when known |
 | `provisional` | `system`, `members` |
 
 A report gives only `new` or `reject`. A tick gives, in order: the committed
 record's events, when a record is committed (per stale entity `leave`,
-`end`, `drop`; then per source the assignment events); then one `system` per
-committed system track; then, when `window` is above 1, one `provisional`
+`end`, `drop`; per restarted entity `leave`, `end`; then per source the
+assignment events); then one `system` per committed system track (with
+`margin`, per system track of the best history); then, when `window` is above 1, one `provisional`
 per system track of the best history.
 
 ## Trace
@@ -233,12 +321,14 @@ above, each with the added key `"h":<h>`, then, per ranked assignment `r` in
 rank order, its choice records with the added keys `"h":<h>` and `"r":<r>`.
 After every history of the source: one record per
 candidate in candidate order,
-`{"stage":"history","a":<h>,"b":<r>,"test":"total","value":<candidate total>,"limit":null,"pass":<true when kept>}`.
+`{"stage":"history","a":<h>,"b":<r>,"test":"total","value":<candidate total>,"limit":<cut, or null without margin>,"pass":<true when kept>}`.
 When a tick is committed: one record per history in rank order before
 pruning,
 `{"stage":"history","a":<rank>,"b":null,"test":"commit","value":<its total>,"limit":null,"pass":<true when kept>}`,
 the total still including the record being committed.
-The two-model filter records of `correlate.md` come from `ingest`.
+The two-model filter and restart records of `correlate.md` come from
+`ingest`. With `bias`, the `bias` records of Sensor bias follow the commit
+records of the tick (or the sources' records when nothing is committed).
 
 ## Snapshot
 
@@ -248,6 +338,10 @@ holds `last_time_ms`, `system` (its committed system track, or null) and
 `maneuver`); `systems` maps each committed system track name to its
 members in key order; `next_system` is the committed counter; `reported`
 lists, in key order, the entities that reported since the previous tick.
+With `restart` the snapshot also holds `restarted`, the restarted entities in
+key order. With `bias` it holds `bias`, mapping each stored pair key to
+`{"east", "weight_east", "north", "weight_north", "var", "pairs"}` (`o` and
+`w` per axis, `var`, `n`), keys in order.
 
 With `window` above 1 the snapshot also holds `retiring`, the retiring
 entities in key order, and `histories`, the histories in rank order, each
@@ -270,8 +364,11 @@ gate        <test> <param>=<value> ...
 new_cost    <number>
 keep_bonus  <number>
 stale_ms    <ms>
+restart     gate=<g>
+bias        sigma_m=<s> floor_m=<f> gate=<g>
 window      <n>
 hypotheses  <k>
+margin      <m>
 ```
 
 `pack`, `version`, `filter`, `new_cost`, `keep_bonus` and `stale_ms` are
@@ -279,15 +376,19 @@ required and appear once; `maneuver`, `window` and `hypotheses` are optional
 and appear at most once; `gate` repeats and may be absent, in which case every
 column entry passes. `new_cost` must be above 0 and `keep_bonus` 0 or above.
 `window` and `hypotheses` are integers, 1 or above, written as one value.
-`hypotheses` above 1 needs `window` above 1. Otherwise the pack does not
-load. `maneuver` follows `correlate.md`.
+`hypotheses` above 1 needs `window` above 1. `restart`, `bias` and `margin`
+are optional and appear at most once. `bias` takes exactly `sigma_m`,
+`floor_m` and `gate`, with `sigma_m` and `gate` above 0 and `floor_m` above 0
+and at most `sigma_m`. `margin` is one number above 0 and needs `hypotheses`
+above 1. Otherwise the pack does not load. `maneuver` and `restart` follow
+`correlate.md`.
 
 A `method` value other than `confirm` or `assign` does not load. `method`
 may appear anywhere in the file; which directives are required or refused is
 checked once the whole file is read. `confirm`, `hold`, `confirm_count`,
 `hold_failures`, `same_source`, `output` and `priority` are load errors with
-`method assign`; `new_cost`, `keep_bonus`, `window` and `hypotheses` are load
-errors with `method confirm`. A pack with no `method` line uses `method
+`method assign`; `new_cost`, `keep_bonus`, `window`, `hypotheses`, `margin`
+and `bias` are load errors with `method confirm`. A pack with no `method` line uses `method
 confirm` (`correlate.md`); `method confirm` may also be written.
 
 ## Open points

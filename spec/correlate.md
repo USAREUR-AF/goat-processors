@@ -1,10 +1,11 @@
 # Correlate specification
 
-Status: Written. Version 0.6. Every language's engine implements this document
+Status: Written. Version 0.7. Every language's engine implements this document
 and passes every vector. Engines are written from this document and the
 vectors, never from another engine's source.
-Version 0.6 spells the pack line `maneuver` (it was `manoeuvre` in 0.5);
-behavior is otherwise unchanged.
+Version 0.7 adds the optional `restart` directive (Restart); a pack without
+it behaves as in 0.6. Version 0.6 spelled the pack line `maneuver` (it was
+`manoeuvre` in 0.5).
 
 ## What the correlator does
 
@@ -199,6 +200,35 @@ record, `"stage":"filter"`, `"a"` the entity, `"limit":null`,
 `"test":"mode"` with `"b":"quiet"` and `mu1`, then with `"b":"maneuver"`
 and `mu2`.
 
+## Restart
+
+A pack may add the directive `restart gate=<g>`, with either method. It
+starts an entity's filter again when a report is far outside the filter's
+prediction, as when a sensor's track number moves to another object: without
+it, the filter takes the jump into its velocity and its predictions run far
+off for many reports.
+
+For each later report of an entity (one that passed every reject check), before
+the filter update: predict the entity to the report's `time_ms` (Track
+estimate, Prediction; with two models, Two-model filter, Prediction), and
+with `e`, `n` the report's position in the plane and `ce` the report's `ce`
+or `default_ce_m`:
+
+`d² = (e - pe)² / (pp_e + ce²) + (n - pn)² / (pp_n + ce²)`
+
+where `pe`, `pp_e` and `pn`, `pp_n` are the prediction's east and north `p`
+and `pp`. The trace gets
+`{"stage":"filter","a":<entity>,"b":null,"test":"restart","value":d²,"limit":g,"pass":<d² < g>}`,
+before any other record of that report.
+
+When `pass` is true the report updates the filter as in Track estimate (or
+Two-model filter). Otherwise the filter starts again from this report as a
+first report: one filter, or both models and the mode probabilities `b / s`,
+`a / s`, as in First report. No `new` event is given and the entity keeps
+its key, its group and its counts. With method `assign` the entity is also
+*restarted* until the next tick ([correlate-assign.md](correlate-assign.md),
+Window). The first report of an entity runs no restart test.
+
 ## Tests
 
 A test compares entity A, the one just reported, with entity B predicted to
@@ -315,7 +345,7 @@ Two-model filter:
 `{"stage", "a", "b", "test", "value", "limit", "pass"}`, plus
 `"skipped": true` for a skipped test. `stage` is `gate`, `confirm`, `hold`,
 `rank` or `filter`; `a` and `b` are entity keys, except that `b` of a
-`filter` record names a model. A pair's count after its tests is a
+`filter` record names a model, and is null for the `restart` record. A pair's count after its tests is a
 record with stage `confirm` (also when a `gate` test failed), `"test":"count"`,
 `value` the new count, `limit` the pack's `confirm_count`, and `pass` true
 when it has reached it. Records are in the order
@@ -343,7 +373,8 @@ pack           <name>
 version        <semver>
 method         confirm
 filter         accel_var=<q> default_ce_m=<m> vel_sigma_ms=<m/s> unknown_vel_ms=<m/s>
-maneuver      accel_var=<q2> p_enter=<per s> p_leave=<per s>
+maneuver       accel_var=<q2> p_enter=<per s> p_leave=<per s>
+restart        gate=<g>
 gate           <test> <param>=<value> ...
 confirm        <test> <param>=<value> ...
 hold           <test> <param>=<value> ...
@@ -363,6 +394,9 @@ above 0 and `accel_var` 0 or above, or the pack does not load.
 load unless `p_enter` and `p_leave` are above 0 with a sum below 1, and
 `maneuver`'s `accel_var` is above `filter`'s `accel_var`. That last rule is
 checked once the whole file is read, so `maneuver` may come before `filter`.
+
+`restart` is optional, appears at most once, takes exactly `gate`, which must
+be above 0, and is valid with either method.
 
 `gate`, `confirm`, `hold` and `priority` repeat; their order is the order the
 tests run. Every other directive appears once, and `pack`, `version`,
