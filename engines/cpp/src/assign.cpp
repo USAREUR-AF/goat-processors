@@ -1,4 +1,4 @@
-// Method assign: spec/correlate-assign.md. Section names in comments are
+// Method assign: spec/correlate-assign.md, version 0.6. Section names in comments are
 // that document's unless they name correlate.md.
 
 #include <algorithm>
@@ -128,8 +128,10 @@ std::vector<RankedAssignment> rank_assignments(const std::vector<std::vector<dou
 
 // "Fused estimate": members predicted to t, inverse-variance weighted per
 // axis, summing over members in key order. Only p, v, pp, vv are meaningful.
-// With `frame` (Cost, with `bias`), each member is moved into that entity's
-// frame after its prediction; the estimate for output passes none.
+// With `frame` (Cost), each member's prediction is one for comparison with
+// that entity: its timing variance added (correlate.md "Track estimate"),
+// then, with `bias`, moved into that entity's frame. The estimate for output
+// passes no frame and gets neither.
 Filter Engine::fuse(const std::set<std::string>& members, std::int64_t t, const Entity* frame) const {
     double sp[2] = {0, 0}, spp[2] = {0, 0}, sv[2] = {0, 0}, svv[2] = {0, 0};
     for (const std::string& k : members) {
@@ -206,10 +208,12 @@ std::vector<RankedAssignment> Engine::rank_source(const std::vector<std::string>
             }
             if (!ok) continue;
             // "Cost": d² of A against the fused estimate of the others, each
-            // moved into A's frame (Sensor bias).
+            // with its timing variance added and then moved into A's frame
+            // (Sensor bias); pp_a is A's filter pp plus A's timing variance.
             Filter f = fuse(others[j], a.last_time_ms, &a);
+            double pp_ae = a.filter.east.pp + a.timing.east, pp_an = a.filter.north.pp + a.timing.north;
             double de = a.filter.east.p - f.east.p, dn = a.filter.north.p - f.north.p;
-            double d2 = de * de / (a.filter.east.pp + f.east.pp) + dn * dn / (a.filter.north.pp + f.north.pp);
+            double d2 = de * de / (pp_ae + f.east.pp) + dn * dn / (pp_an + f.north.pp);
             if (a_system == columns[j]) d2 = d2 - pack_.keep_bonus;
             entries[i][j] = d2;
         }
@@ -277,21 +281,57 @@ BiasState Engine::bias_state(const std::string& pair) const {
     return st;
 }
 
-// "Moving B into A's frame": B predicted to t, then, when the pack has `bias`
-// and the two sources differ, p + o (b_src first in key order) or p - o
-// (a_src first) on each axis, with pp + var. Without `bias` this is B's
-// prediction.
+// "Moving B into A's frame": B predicted to t for comparison with A (its
+// timing variance added first, correlate.md "Track estimate"), then, when the
+// pack has `bias` and the two sources differ, p + o (b_src first in key
+// order) or p - o (a_src first) on each axis, with pp + var. With
+// `time_offset` ("Time offset") the offset on each axis is o - v*tau, v B's
+// predicted velocity on that axis. Without `bias` this is B's prediction for
+// comparison.
 Filter Engine::predict_into_frame(const Entity& a, const Entity& b, std::int64_t t) const {
-    Filter f = predict(b, t);
+    Filter f = predict_for_comparison(b, t);
     if (!pack_.bias || a.source == b.source) return f;
     const bool b_first = b.source < a.source;
     const BiasState st = bias_state(b_first ? b.source + "|" + a.source : a.source + "|" + b.source);
     Axis* ax[2] = {&f.east, &f.north};
     for (int i = 0; i < 2; ++i) {
-        ax[i]->p = b_first ? ax[i]->p + st.o[i] : ax[i]->p - st.o[i];
+        const double offset = pack_.time_offset_sigma_ms ? st.o[i] - ax[i]->v * st.tau : st.o[i];
+        ax[i]->p = b_first ? ax[i]->p + offset : ax[i]->p - offset;
         ax[i]->pp = ax[i]->pp + st.var;
     }
     return f;
+}
+
+// "Time offset", an accepted pair: add the pair to the sums S1 to S8, then
+// the closed-form weighted least-squares fit of y = o - v*tau with priors of
+// 0 for o (standard deviation s) and tau (standard deviation t ms). r, v, y
+// are the pair's east and north values of Update step 1.
+void Engine::fit_time_offset(BiasState& st, const double r[2], const double v[2], const double y[2]) const {
+    const double we = 1 / r[0], wn = 1 / r[1];
+    const double ve = v[0], vn = v[1], ye = y[0], yn = y[1];
+    double* S = st.S;
+    S[0] = S[0] + we;                                // S1
+    S[1] = S[1] + wn;                                // S2
+    S[2] = S[2] + we * ve;                           // S3
+    S[3] = S[3] + wn * vn;                           // S4
+    S[4] = S[4] + (we * ve * ve + wn * vn * vn);     // S5
+    S[5] = S[5] + we * ye;                           // S6
+    S[6] = S[6] + wn * yn;                           // S7
+    S[7] = S[7] + (we * ve * ye + wn * vn * yn);     // S8
+
+    const double s = pack_.bias->sigma_m, t = *pack_.time_offset_sigma_ms;
+    const double po = 1 / (s * s);
+    const double t_s = t / 1000;
+    const double pt = 1 / (t_s * t_s);
+    const double a11 = po + S[0], a22 = po + S[1];
+    const double a13 = -S[2], a23 = -S[3];
+    const double a33 = pt + S[4];
+    const double b1 = S[5], b2 = S[6], b3 = -S[7];
+    st.tau = (b3 - a13 * b1 / a11 - a23 * b2 / a22) / (a33 - a13 * a13 / a11 - a23 * a23 / a22);
+    st.o[0] = (b1 - a13 * st.tau) / a11;
+    st.o[1] = (b2 - a23 * st.tau) / a22;
+    st.w[0] = S[0];   // the weight sum of each axis is S1 and S2
+    st.w[1] = S[1];
 }
 
 // "Update", after the commit: committed system tracks in creation order,
@@ -318,17 +358,20 @@ void Engine::bias_update(std::int64_t now_ms, const std::set<std::string>& rows,
                 Filter fs = predict(es, now_ms), ft = predict(et, now_ms);
                 const Axis* as[2] = {&fs.east, &fs.north};
                 const Axis* at[2] = {&ft.east, &ft.north};
-                double yv[2], r[2];
+                const bool timed = pack_.time_offset_sigma_ms.has_value();
+                double yv[2], r[2], v[2];
                 for (int i = 0; i < 2; ++i) {
                     yv[i] = at[i]->p - as[i]->p;
                     r[i] = as[i]->pp + at[i]->pp;
+                    v[i] = (as[i]->v + at[i]->v) / 2;   // "Time offset": the pair's velocity
                 }
 
-                // 2. d² with the pair's state.
+                // 2. d² with the pair's state; with `time_offset` the expected
+                //    offset is o - v*tau.
                 BiasState st = bias_state(pair);
                 double d2 = 0;
                 for (int i = 0; i < 2; ++i) {
-                    double dev = yv[i] - st.o[i];
+                    double dev = timed ? yv[i] - (st.o[i] - v[i] * st.tau) : yv[i] - st.o[i];
                     d2 = d2 + dev * dev / (st.var + r[i]);
                 }
 
@@ -339,9 +382,13 @@ void Engine::bias_update(std::int64_t now_ms, const std::set<std::string>& rows,
                     st.var = bp.sigma_m * bp.sigma_m / static_cast<double>(st.n + 1);
                     const double floor2 = bp.floor_m * bp.floor_m;
                     if (st.var < floor2) st.var = floor2;
-                    for (int i = 0; i < 2; ++i) {
-                        st.w[i] = st.w[i] + 1 / r[i];
-                        st.o[i] = st.o[i] + ((1 / r[i]) / st.w[i]) * (yv[i] - st.o[i]);
+                    if (timed) {
+                        fit_time_offset(st, r, v, yv);
+                    } else {
+                        for (int i = 0; i < 2; ++i) {
+                            st.w[i] = st.w[i] + 1 / r[i];
+                            st.o[i] = st.o[i] + ((1 / r[i]) / st.w[i]) * (yv[i] - st.o[i]);
+                        }
                     }
                     bias_[pair] = st;
                 }
@@ -359,6 +406,7 @@ void Engine::bias_update(std::int64_t now_ms, const std::set<std::string>& rows,
                 rec["north"] = st.o[1];
                 rec["var"] = st.var;
                 rec["pairs"] = static_cast<long long>(st.n);
+                if (timed) rec["time_offset_ms"] = st.tau * 1000;
                 out.trace.push(rec);
             }
         }
@@ -587,6 +635,12 @@ Json Engine::snapshot_assign() const {
             j["weight_north"] = st.w[1];
             j["var"] = st.var;
             j["pairs"] = static_cast<long long>(st.n);
+            if (pack_.time_offset_sigma_ms) {
+                j["time_offset_ms"] = st.tau * 1000;
+                Json sums = Json::make_array();
+                for (double x : st.S) sums.push(x);
+                j["sums"] = sums;
+            }
             bias[kv.first] = j;
         }
         s["bias"] = bias;
