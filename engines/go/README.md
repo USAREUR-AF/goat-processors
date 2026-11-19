@@ -1,8 +1,9 @@
 # goat-correlator: Go engine
 
-An implementation of `spec/correlate.md` (version 0.6, method `confirm`, with
-the optional two-model filter) and `spec/correlate-assign.md` (version 0.4,
-method `assign`, with the multi-frame window) in Go, standard library only.
+An implementation of `spec/correlate.md` (version 0.7, method `confirm`, with
+the optional two-model filter and filter restart) and `spec/correlate-assign.md`
+(version 0.5, method `assign`, with the multi-frame window, its margin, and
+sensor bias) in Go, standard library only.
 The pack's `method` line selects which runs. The `fuse` package
 (`engines/go/fuse/`) implements `spec/fuse.md` (version 0.2).
 
@@ -17,8 +18,9 @@ reference to any other engine.
 |---|---|
 | `pack.go` | `LoadPack(dir)` / `ParsePack(text)`: the `pack.def` reader (spec: Pack) |
 | `engine.go` | `New(pack)`, `Ingest(report)`, `Tick(now_ms)`, `Snapshot()`: frame, Kalman axis steps, tests, association, events and trace |
-| `imm.go` | the per-entity filter: one model (Track estimate) or two (Two-model filter: switching, mixing, likelihood, mode probabilities, combination, prediction) |
-| `assign.go` | method `assign`: memberships and histories (Memberships), columns and entries of one source, ranked assignments by enumeration in choice-vector order (Ranking), the per-tick steps 1 to 5 (Window), fused estimate, snapshot |
+| `imm.go` | the per-entity filter: one model (Track estimate) or two (Two-model filter: switching, mixing, likelihood, mode probabilities, combination, prediction), and the restart test (Restart) |
+| `bias.go` | method `assign`, Sensor bias: per-pair offset state, moving B into A's frame for tests and costs, the per-tick update and its `bias` trace, the snapshot's `bias` |
+| `assign.go` | method `assign`: memberships and histories (Memberships), columns and entries of one source, ranked assignments by enumeration in choice-vector order (Ranking), the per-tick steps 1 to 6 (Window, with restart leaves and `margin`), fused estimate, snapshot |
 | `assign_test.go` | checks the ranked assignments follow the Ranking order on random tables |
 | `DISAGREEMENTS.md` | vectors that contradict the specification (none), and the points it leaves open |
 | `vectors_test.go` | runs every `packs/correlate-*` scenario vector and every `spec/correlate-load-vectors` vector with the structural comparison of `spec/vector-format.md` |

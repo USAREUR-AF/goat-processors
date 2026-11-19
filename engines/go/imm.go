@@ -190,3 +190,20 @@ func (e *Entity) filterSnapshot(out Obj) Obj {
 	}
 	return out
 }
+
+// restartTest runs the restart test of correlate.md Restart for a later report
+// at time t, appending its trace record, and reports whether the report may
+// update the filter (true also when the pack has no restart line).
+func (g *Engine) restartTest(e *Entity, t int64, z Measurement, trace *[]Obj) bool {
+	p := g.pack
+	if !p.HasRestart {
+		return true
+	}
+	pe, pn := g.predicted(e, t)
+	// z.R is ce², with ce the report's ce or default_ce_m.
+	de, dn := z.East-pe.P, z.North-pn.P
+	d2 := de*de/(pe.PP+z.R) + dn*dn/(pn.PP+z.R)
+	pass := d2 < p.RestartGate
+	*trace = append(*trace, Obj{"stage": "filter", "a": e.Key, "b": nil, "test": "restart", "value": d2, "limit": p.RestartGate, "pass": pass})
+	return pass
+}
