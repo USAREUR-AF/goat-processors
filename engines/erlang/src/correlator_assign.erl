@@ -304,7 +304,8 @@ output(S, Now, St) ->
 %% ---------------------------------------------------------------- snapshot
 
 snapshot(St) ->
-    #{ref := Ref, entities := Ents, systems := Systems, next_system := Next} = St,
+    #{ref := Ref, entities := Ents, systems := Systems, next_system := Next,
+      reported := Reported} = St,
     Axis = fun({P, V, PP, PV, VV}) -> [P, V, PP, PV, VV] end,
     #{<<"ref">> => case Ref of none -> null; {Lat, Lon} -> [Lat, Lon] end,
       <<"entities">> =>
@@ -318,4 +319,5 @@ snapshot(St) ->
                                      <<"north">> => Axis(maps:get(north, maps:get(filter, E)))}}}
              || {K, E} <- maps:to_list(Ents)]),
       <<"systems">> => maps:from_list([{system_name(S), Ms} || {S, Ms} <- maps:to_list(Systems)]),
-      <<"next_system">> => Next}.
+      <<"next_system">> => Next,
+      <<"reported">> => lists:sort([K || K <- maps:keys(Reported), maps:is_key(K, Ents)])}.

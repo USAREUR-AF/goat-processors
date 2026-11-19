@@ -1,7 +1,7 @@
 # goat-correlator: Erlang engine
 
-An implementation of `spec/correlate.md` (version 0.3), method `confirm`, and
-`spec/correlate-assign.md` (version 0.1), method `assign`, in Erlang/OTP, standard library
+An implementation of `spec/correlate.md` (version 0.4), method `confirm`, and
+`spec/correlate-assign.md` (version 0.2), method `assign`, in Erlang/OTP, standard library
 only. The pack's `method` line selects which runs. JSON is read with OTP 27's `json` module.
 
 | File | Contents |
