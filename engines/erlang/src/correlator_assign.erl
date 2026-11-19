@@ -1,7 +1,8 @@
-%% Method assign (spec/correlate-assign.md 0.5): system tracks, per-source ranked
+%% Method assign (spec/correlate-assign.md 0.6): system tracks, per-source ranked
 %% assignments at each tick, kept as the best `hypotheses` histories over a
 %% window of `window` ticks (only near-ties with `margin`), the optional sensor
-%% bias per pair of sources, and the inverse-variance fused estimate.
+%% bias per pair of sources with its optional clock offset (`time_offset`),
+%% and the inverse-variance fused estimate.
 %% Reports, frame, track estimate and tests are shared with correlator.
 %%
 %% Data, as in the spec's Memberships section:
@@ -11,7 +12,9 @@
 %% The state holds the committed membership, the histories in rank order, the
 %% retiring entities, the restarted entities (pack line restart) and the
 %% sensor bias state per pair of sources (pack line bias):
-%%   bias        #{{S, T} => #{oe, we, on, wn, var, n}}   (pair key "S|T", S < T)
+%%   bias        #{{S, T} => #{oe, we, on, wn, var, n, tau, sums}}
+%%               (pair key "S|T", S < T; tau in seconds and sums [S1..S8] are
+%%               used only with the pack line time_offset)
 -module(correlator_assign).
 -export([new/1, tick/2, snapshot/1]).
 %% Shared with correlator: Sensor bias, moving B into A's frame for a test.
@@ -335,25 +338,29 @@ gate(Tests, A, [B | Bs], St0) ->
     end.
 
 %% Cost: d² of A's filter against the fused estimate of Ms at A's time, each
-%% member moved into A's frame (Sensor bias) before the fused estimate.
+%% member's prediction with its timing variance added, then moved into A's
+%% frame (Sensor bias), before the fused estimate; pp_a is A's filter pp plus
+%% A's timing variance (correlate.md "Track estimate", Measurement variance).
 cost(A, Ms, St) ->
     EA = entity(A, St),
     Fused = fused(Ms, maps:get(time, EA), maps:get(source, EA), St),
-    Axis = fun(Ax) ->
-                   {PA, _, PPA, _, _} = maps:get(Ax, maps:get(filter, EA)),
+    {VarAE, VarAN} = maps:get(timing, EA),
+    Axis = fun(Ax, VarA) ->
+                   {PA, _, PPA0, _, _} = maps:get(Ax, maps:get(filter, EA)),
+                   PPA = PPA0 + VarA,
                    {P, _, PP, _} = maps:get(Ax, Fused),
                    (PA - P) * (PA - P) / (PPA + PP)
            end,
-    Axis(east) + Axis(north).
+    Axis(east, VarAE) + Axis(north, VarAN).
 
 %% Fused estimate of Ms at time T, per axis {P, V, PP, VV}; sums over members
-%% in key order. With FrameSrc a source, each member's prediction is first
-%% moved into that source's frame (Sensor bias); with none (output) no
-%% member is moved.
+%% in key order. With FrameSrc a source (a comparison, Cost), each member's
+%% prediction first gets its timing variance and is then moved into that
+%% source's frame (Sensor bias); with none (output) neither applies.
 fused(Ms, T, FrameSrc, St) ->
     Preds = [case FrameSrc of
                  none -> Pred;
-                 _ -> move(Pred, FrameSrc, maps:get(source, E), St)
+                 _ -> move(correlator:add_timing(Pred, E), FrameSrc, maps:get(source, E), St)
              end
              || M <- Ms, E <- [entity(M, St)], Pred <- [correlator:predict(E, T, St)]],
     Sum = fun(L) -> lists:foldl(fun(X, Acc) -> Acc + X end, 0, L) end,
@@ -401,16 +408,21 @@ apply_choice(A, B, Acc = {Mem = #{systems := Systems}, _}) ->
 %% ---------------------------------------------------------------- sensor bias
 
 %% A pair's state, or the state of a pair with none stored:
-%% o = 0, w = 0, var = s², n = 0.
+%% o = 0, w = 0, var = s², n = 0; with time_offset also tau = 0 and S1..S8 = 0.
 bias_state(Pair, St) ->
     #{<<"sigma_m">> := Sigma} = maps:get(bias, maps:get(pack, St)),
     maps:get(Pair, maps:get(bias, St),
-             #{oe => 0.0, we => 0.0, on => 0.0, wn => 0.0, var => Sigma * Sigma, n => 0}).
+             #{oe => 0.0, we => 0.0, on => 0.0, wn => 0.0, var => Sigma * Sigma, n => 0,
+               tau => 0.0, sums => {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}}).
+
+time_offset(St) -> maps:is_key(time_offset, maps:get(pack, St)).
 
 %% Moving B into A's frame: B's prediction Pred (source BSrc) as seen by
 %% source ASrc. p + o from pair "BSrc|ASrc" when BSrc is first, p - o from
-%% pair "ASrc|BSrc" when ASrc is first; pp + var either way. Never moved
-%% without the pack line bias, or between two entities of one source.
+%% pair "ASrc|BSrc" when ASrc is first; pp + var either way. With
+%% time_offset, o - v*tau takes the place of o, v B's predicted velocity on
+%% that axis. Never moved without the pack line bias, or between two
+%% entities of one source.
 move(Pred, ASrc, BSrc, St) ->
     case maps:is_key(bias, maps:get(pack, St)) of
         false -> Pred;
@@ -420,8 +432,19 @@ move(Pred, ASrc, BSrc, St) ->
                                true -> {{BSrc, ASrc}, 1};
                                false -> {{ASrc, BSrc}, -1}
                            end,
-            #{oe := OE, on := ON, var := Var} = bias_state(Pair, St),
-            Shift = fun({P, V, PP, PV, VV}, O) -> {P + Sign * O, V, PP + Var, PV, VV} end,
+            #{oe := OE, on := ON, var := Var, tau := Tau} = bias_state(Pair, St),
+            TimeOffset = time_offset(St),
+            Shift = fun({P, V, PP, PV, VV}, O0) ->
+                            O = case TimeOffset of
+                                    true -> O0 - V * Tau;
+                                    false -> O0
+                                end,
+                            Moved = case Sign of
+                                        1 -> P + O;
+                                        -1 -> P - O
+                                    end,
+                            {Moved, V, PP + Var, PV, VV}
+                    end,
             Pred#{east := Shift(maps:get(east, Pred), OE),
                   north := Shift(maps:get(north, Pred), ON)}
     end.
@@ -445,6 +468,7 @@ bias_update(Now, Rows, St0) ->
     end.
 
 bias_pair(X, Y, Now, #{<<"sigma_m">> := Sigma, <<"floor_m">> := Floor, <<"gate">> := Gate}, St0) ->
+    TimeOffset = time_offset(St0),
     %% 1. ES is the entity whose source is first in key order, ET the other;
     %% both predicted to now (not moved).
     [ES, ET] = lists:sort(fun(P, Q) -> maps:get(source, entity(P, St0))
@@ -452,16 +476,24 @@ bias_pair(X, Y, Now, #{<<"sigma_m">> := Sigma, <<"floor_m">> := Floor, <<"gate">
     Pair = {maps:get(source, entity(ES, St0)), maps:get(source, entity(ET, St0))},
     PredS = correlator:predict(entity(ES, St0), Now, St0),
     PredT = correlator:predict(entity(ET, St0), Now, St0),
+    %% Per axis y = p_ET - p_ES, r = pp_ES + pp_ET; with time_offset also
+    %% v = (v_ES + v_ET) / 2.
     Axis = fun(Ax) ->
-                   {PS, _, PPS, _, _} = maps:get(Ax, PredS),
-                   {PT, _, PPT, _, _} = maps:get(Ax, PredT),
-                   {PT - PS, PPS + PPT}
+                   {PS, VS, PPS, _, _} = maps:get(Ax, PredS),
+                   {PT, VT, PPT, _, _} = maps:get(Ax, PredT),
+                   {PT - PS, PPS + PPT, (VS + VT) / 2}
            end,
-    {YE, RE} = Axis(east),
-    {YN, RN} = Axis(north),
-    State0 = #{oe := OE, we := WE, on := ON, wn := WN, var := Var, n := N} = bias_state(Pair, St0),
-    %% 2. d² with the pair's state.
-    D2 = (YE - OE) * (YE - OE) / (Var + RE) + (YN - ON) * (YN - ON) / (Var + RN),
+    {YE, RE, VE} = Axis(east),
+    {YN, RN, VN} = Axis(north),
+    State0 = #{oe := OE, we := WE, on := ON, wn := WN, var := Var, n := N, tau := Tau} =
+        bias_state(Pair, St0),
+    %% 2. d² with the pair's state; with time_offset the expected offset on
+    %% each axis is o - v*tau in place of o.
+    {XE, XN} = case TimeOffset of
+                   true -> {OE - VE * Tau, ON - VN * Tau};
+                   false -> {OE, ON}
+               end,
+    D2 = (YE - XE) * (YE - XE) / (Var + RE) + (YN - XN) * (YN - XN) / (Var + RN),
     %% 3. Accepted when d² < gate: the state is updated and stored.
     Accepted = D2 < Gate,
     {State, St1} =
@@ -470,18 +502,58 @@ bias_pair(X, Y, Now, #{<<"sigma_m">> := Sigma, <<"floor_m">> := Floor, <<"gate">
             true ->
                 N1 = N + 1,
                 Var1 = max(Sigma * Sigma / (N1 + 1), Floor * Floor),
-                WE1 = WE + 1 / RE,
-                WN1 = WN + 1 / RN,
-                New = #{oe => OE + ((1 / RE) / WE1) * (YE - OE), we => WE1,
-                        on => ON + ((1 / RN) / WN1) * (YN - ON), wn => WN1,
-                        var => Var1, n => N1},
+                New = case TimeOffset of
+                          false ->
+                              WE1 = WE + 1 / RE,
+                              WN1 = WN + 1 / RN,
+                              State0#{oe := OE + ((1 / RE) / WE1) * (YE - OE), we := WE1,
+                                      on := ON + ((1 / RN) / WN1) * (YN - ON), wn := WN1,
+                                      var := Var1, n := N1};
+                          true ->
+                              Fit = time_offset_fit(maps:get(sums, State0), 1 / RE, 1 / RN,
+                                                    VE, VN, YE, YN, Sigma, St0),
+                              maps:merge(State0#{var := Var1, n := N1}, Fit)
+                      end,
                 {New, St0#{bias := (maps:get(bias, St0))#{Pair => New}}}
         end,
     %% 4. Trace, with the state after step 3.
-    record(#{<<"stage">> => <<"bias">>, <<"a">> => X, <<"b">> => Y, <<"test">> => <<"offset">>,
-             <<"value">> => D2, <<"limit">> => Gate, <<"pass">> => Accepted,
-             <<"east">> => maps:get(oe, State), <<"north">> => maps:get(on, State),
-             <<"var">> => maps:get(var, State), <<"pairs">> => maps:get(n, State)}, St1).
+    Rec = #{<<"stage">> => <<"bias">>, <<"a">> => X, <<"b">> => Y, <<"test">> => <<"offset">>,
+            <<"value">> => D2, <<"limit">> => Gate, <<"pass">> => Accepted,
+            <<"east">> => maps:get(oe, State), <<"north">> => maps:get(on, State),
+            <<"var">> => maps:get(var, State), <<"pairs">> => maps:get(n, State)},
+    record(case TimeOffset of
+               true -> Rec#{<<"time_offset_ms">> => maps:get(tau, State) * 1000};
+               false -> Rec
+           end, St1).
+
+%% Sensor bias, "Time offset", an accepted pair: add this pair's terms to the
+%% sums S1..S8 (each += one addition of the whole right-hand side), then fit
+%% y = o - v*tau by weighted least squares with priors po = 1/s² on o and
+%% pt = 1/(t/1000)² on tau, in closed form. Returns the new oe, on, tau, sums
+%% and the weight sums we = S1, wn = S2.
+time_offset_fit({S1, S2, S3, S4, S5, S6, S7, S8}, We, Wn, Ve, Vn, Ye, Yn, Sigma, St) ->
+    #{<<"sigma_ms">> := T} = maps:get(time_offset, maps:get(pack, St)),
+    NS1 = S1 + We,
+    NS2 = S2 + Wn,
+    NS3 = S3 + We * Ve,
+    NS4 = S4 + Wn * Vn,
+    NS5 = S5 + (We * Ve * Ve + Wn * Vn * Vn),
+    NS6 = S6 + We * Ye,
+    NS7 = S7 + Wn * Yn,
+    NS8 = S8 + (We * Ve * Ye + Wn * Vn * Yn),
+    Po = 1 / (Sigma * Sigma),
+    Pt = 1 / ((T / 1000) * (T / 1000)),
+    A11 = Po + NS1,
+    A22 = Po + NS2,
+    A13 = -NS3,
+    A23 = -NS4,
+    A33 = Pt + NS5,
+    B1 = NS6,
+    B2 = NS7,
+    B3 = -NS8,
+    Tau = (B3 - A13 * B1 / A11 - A23 * B2 / A22) / (A33 - A13 * A13 / A11 - A23 * A23 / A22),
+    #{oe => (B1 - A13 * Tau) / A11, on => (B2 - A23 * Tau) / A22, tau => Tau,
+      we => NS1, wn => NS2, sums => {NS1, NS2, NS3, NS4, NS5, NS6, NS7, NS8}}.
 
 %% ---------------------------------------------------------------- ranking
 
@@ -539,15 +611,22 @@ snapshot(St) ->
     WithBias = case maps:is_key(bias, Pack) of
                    false -> WithRestart;
                    true ->
+                       TimeOffset = time_offset(St),
+                       Pair = fun(#{oe := OE, we := WE, on := ON, wn := WN, var := Var, n := N,
+                                    tau := Tau, sums := Sums}) ->
+                                      P = #{<<"east">> => OE, <<"weight_east">> => WE,
+                                            <<"north">> => ON, <<"weight_north">> => WN,
+                                            <<"var">> => Var, <<"pairs">> => N},
+                                      case TimeOffset of
+                                          true -> P#{<<"time_offset_ms">> => Tau * 1000,
+                                                     <<"sums">> => tuple_to_list(Sums)};
+                                          false -> P
+                                      end
+                              end,
                        WithRestart#{<<"bias">> =>
                                         maps:from_list(
-                                          [{<<S/binary, "|", T/binary>>,
-                                            #{<<"east">> => OE, <<"weight_east">> => WE,
-                                              <<"north">> => ON, <<"weight_north">> => WN,
-                                              <<"var">> => Var, <<"pairs">> => N}}
-                                           || {{S, T}, #{oe := OE, we := WE, on := ON, wn := WN,
-                                                         var := Var, n := N}}
-                                                  <- maps:to_list(maps:get(bias, St))])}
+                                          [{<<S/binary, "|", T/binary>>, Pair(State)}
+                                           || {{S, T}, State} <- maps:to_list(maps:get(bias, St))])}
                end,
     case window(St) > 1 of
         false -> WithBias;

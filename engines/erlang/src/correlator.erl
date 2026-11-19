@@ -1,5 +1,6 @@
-%% The correlator engine: load_pack, ingest, tick, snapshot (spec/correlate.md 0.7,
-%% sections "Reports", "Restart", "Tests", "Association", "Events", "Trace", "Snapshot").
+%% The correlator engine: load_pack, ingest, tick, snapshot (spec/correlate.md 0.8,
+%% sections "Reports" with "Time quality", "Track estimate" (Measurement
+%% variance), "Restart", "Tests", "Association", "Events", "Trace", "Snapshot").
 %% State is a value; ingest and tick return {Events, Trace, NewState}.
 %% Explicit recursion stands in for lists:mapfoldl, which OTP 27.3 miscompiles
 %% when a case on its result follows.
@@ -7,7 +8,7 @@
 -export([load_pack/1, new/1, ingest/2, tick/2, snapshot/1]).
 %% Shared with correlator_assign (correlate-assign.md "Shared with correlate.md").
 -export([validate/1, entity_key/1, emit/2, record/2, finish/1, entity/2, put_entity/3, value/2,
-         run_tests/5, is_stale/3, predict/3, course/2, snapshot_entity/1]).
+         run_tests/5, is_stale/3, predict/3, course/2, snapshot_entity/1, add_timing/2]).
 
 %% Reports: required keys in table order with their type; optional keys with
 %% their type. A key of the wrong type is missing (required) or absent (optional).
@@ -97,6 +98,10 @@ accept(Key, Report, St0) ->
     Vel = correlator_filter:velocity(maps:get(<<"course">>, Report, null),
                                      maps:get(<<"speed_ms">>, Report, null)),
     Ents = maps:get(entities, St1),
+    %% Track estimate, Measurement variance: R = {r_east, r_north} and the
+    %% timing variance, with its "time" filter record before any other.
+    {Te, TimeState} = time_quality(Report, Pack),
+    {R, Timing, StT} = measurement_variance(Key, maps:find(Key, Ents), T, Vel, Ce, Te, St1),
     {Ent, St2} =
         case maps:find(Key, Ents) of
             error ->
@@ -105,13 +110,13 @@ accept(Key, Report, St0) ->
                             assign -> #{}
                         end,
                 E0 = maps:merge(Assoc#{source => maps:get(<<"track.source_id">>, Report)},
-                                correlator_estimate:init(Z, Vel, Ce, Pack)),
-                {E0, emit(#{<<"ev">> => <<"new">>, <<"entity">> => Key}, St1)};
+                                correlator_estimate:init(Z, Vel, R, Pack)),
+                {E0, emit(#{<<"ev">> => <<"new">>, <<"entity">> => Key}, StT)};
             {ok, E0 = #{time := Last}} ->
-                case restart_test(Key, E0, T, Z, Ce, St1) of
+                case restart_test(Key, E0, T, Z, R, StT) of
                     {true, StR} ->
                         Dt = (T - Last) / 1000,
-                        {Est, Records} = correlator_estimate:update(E0, Dt, Z, Vel, Ce, Pack),
+                        {Est, Records} = correlator_estimate:update(E0, Dt, Z, Vel, R, Pack),
                         %% Two-model filter, Trace: four filter records first.
                         {maps:merge(E0, Est),
                          lists:foldl(fun({Test, Model, Value}, S) ->
@@ -126,15 +131,19 @@ accept(Key, Report, St0) ->
                         %% report; key, group, pair counts and hold failure
                         %% count are kept, and no new event is given. With
                         %% method assign the entity is restarted until the
-                        %% next tick.
+                        %% next tick. pp is this report's measurement
+                        %% variance R, found from the prediction's velocity.
                         StR1 = case maps:get(method, Pack) of
                                    assign -> StR#{restarted := (maps:get(restarted, StR))#{Key => true}};
                                    confirm -> StR
                                end,
-                        {maps:merge(E0, correlator_estimate:init(Z, Vel, Ce, Pack)), StR1}
+                        {maps:merge(E0, correlator_estimate:init(Z, Vel, R, Pack)), StR1}
                 end
         end,
-    Ent1 = Ent#{time => T, report => Report, ce => Ce},
+    %% The entity keeps its last report's ce, measurement variance R, time
+    %% error and timing variance.
+    Ent1 = Ent#{time => T, report => Report, ce => Ce, r => R, time_error => Te,
+                time_state => TimeState, timing => Timing},
     St3 = put_entity(Key, Ent1, St2),
     case {maps:get(method, Pack), Ent1} of
         %% Method assign: a report gives only new; the tick decides.
@@ -143,19 +152,67 @@ accept(Key, Report, St0) ->
         {confirm, #{group := G}} -> hold(Key, G, St3)
     end.
 
+%% Reports, "Time quality": {TimeError, TimeState} of a report, each key
+%% found independently: the report's own key when present; otherwise the
+%% pack's time_default for the report's source, when it gives that key;
+%% otherwise time error 0 and state coherent. time_error_ms is present when
+%% it is a finite number 0 or above (JSON numbers decoded by OTP are always
+%% finite); time_state when it is one of the three states, byte for byte. Any
+%% other value is absent, never a reject. Correlate keeps the time state but
+%% does not use it in this version.
+time_quality(Report, Pack) ->
+    Source = maps:get(<<"track.source_id">>, Report),
+    Default = maps:get(Source, maps:get(time_default, Pack), #{}),
+    Te = case maps:get(<<"time_error_ms">>, Report, null) of
+             Ms when is_number(Ms), Ms >= 0 -> Ms;
+             _ -> maps:get(<<"error_ms">>, Default, 0)
+         end,
+    State = case maps:get(<<"time_state">>, Report, null) of
+                S when S =:= <<"coherent">>; S =:= <<"drifting">>; S =:= <<"free-running">> -> S;
+                _ -> maps:get(<<"state">>, Default, <<"coherent">>)
+            end,
+    {Te, State}.
+
+%% Track estimate, "Measurement variance". Returns {R, Timing, St} with
+%% R = {r_east, r_north} and Timing = {(v_e*ts)², (v_n*ts)²}:
+%% with te = 0, r = ce² on both axes and the timing variance 0 and 0;
+%% otherwise ts = te / 1000, (v_e, v_n) the entity's prediction to the
+%% report's time_ms (first report: the measured velocity, or 0 without one),
+%% r = ce² + (v*ts)² per axis, and the trace gets the "time" filter record.
+measurement_variance(_Key, _Found, _T, _Vel, Ce, Te, St) when Te == 0 ->
+    {{Ce * Ce, Ce * Ce}, {0.0, 0.0}, St};
+measurement_variance(Key, Found, T, Vel, Ce, Te, St) ->
+    {VE, VN} = case Found of
+                   error when Vel =:= none -> {0.0, 0.0};
+                   error -> Vel;
+                   {ok, Ent} ->
+                       Pred = predict(Ent, T, St),
+                       {_, PredVE, _, _, _} = maps:get(east, Pred),
+                       {_, PredVN, _, _, _} = maps:get(north, Pred),
+                       {PredVE, PredVN}
+               end,
+    Ts = Te / 1000,
+    VarE = (VE * Ts) * (VE * Ts),
+    VarN = (VN * Ts) * (VN * Ts),
+    Rec = #{<<"stage">> => <<"filter">>, <<"a">> => Key, <<"b">> => null,
+            <<"test">> => <<"time">>, <<"value">> => Te, <<"limit">> => null,
+            <<"pass">> => true, <<"var_east">> => VarE, <<"var_north">> => VarN},
+    {{Ce * Ce + VarE, Ce * Ce + VarN}, {VarE, VarN}, record(Rec, St)}.
+
 %% Restart (correlate.md "Restart"), for a later report of an entity: with
 %% the pack's restart line, predict the entity to the report's time and
-%% d² = sum over east, north of (z - p)² / (pp + ce²); one filter record
-%% before any other record of the report; passes when d² < gate. Without the
-%% line the report always updates the filter.
-restart_test(Key, Ent, T, {E, N}, Ce, St) ->
+%% d² = (e - pe)² / (pp_e + r_east) + (n - pn)² / (pp_n + r_north), the
+%% prediction without any timing variance; one filter record after the
+%% "time" record and before any other record of the report; passes when
+%% d² < gate. Without the line the report always updates the filter.
+restart_test(Key, Ent, T, {E, N}, {RE, RN}, St) ->
     case maps:find(restart, maps:get(pack, St)) of
         error -> {true, St};
         {ok, #{<<"gate">> := Gate}} ->
             Pred = predict(Ent, T, St),
             {PE, _, PPE, _, _} = maps:get(east, Pred),
             {PN, _, PPN, _, _} = maps:get(north, Pred),
-            D2 = (E - PE) * (E - PE) / (PPE + Ce * Ce) + (N - PN) * (N - PN) / (PPN + Ce * Ce),
+            D2 = (E - PE) * (E - PE) / (PPE + RE) + (N - PN) * (N - PN) / (PPN + RN),
             Pass = D2 < Gate,
             {Pass, record(#{<<"stage">> => <<"filter">>, <<"a">> => Key, <<"b">> => null,
                             <<"test">> => <<"restart">>, <<"value">> => D2,
@@ -185,14 +242,23 @@ value(K, Ent) -> maps:get(K, maps:get(report, Ent), null).
 
 %% ---------------------------------------------------------------- tests
 
-%% Tests: A is the entity just reported, B predicted to A's time_ms; with the
-%% pack line bias (method assign), B's prediction moved into A's frame
-%% (correlate-assign.md "Sensor bias").
+%% Tests: A is the entity just reported, B predicted to A's time_ms, with B's
+%% timing variance added to the predicted pp on each axis (Track estimate,
+%% Measurement variance); then, with the pack line bias (method assign), B's
+%% prediction moved into A's frame (correlate-assign.md "Sensor bias").
 pair_view(A, B, St) ->
     EA = entity(A, St),
     EB = entity(B, St),
-    PredB = predict(EB, maps:get(time, EA), St),
+    PredB = add_timing(predict(EB, maps:get(time, EA), St), EB),
     {EA, EB, correlator_assign:move(PredB, maps:get(source, EA), maps:get(source, EB), St)}.
+
+%% A prediction Pred of entity Ent compared with another entity: Ent's timing
+%% variance added to pp on each axis.
+add_timing(Pred, Ent) ->
+    {VarE, VarN} = maps:get(timing, Ent),
+    {PE, VE, PPE, PVE, VVE} = maps:get(east, Pred),
+    {PN, VN, PPN, PVN, VVN} = maps:get(north, Pred),
+    Pred#{east := {PE, VE, PPE + VarE, PVE, VVE}, north := {PN, VN, PPN + VarN, PVN, VVN}}.
 
 %% Prediction of an entity to time T (ms): a copy of its filter.
 predict(Ent, T, St) ->
@@ -226,15 +292,16 @@ distance(EA, PredB) ->
     {BE, BN} = pos(PredB),
     math:sqrt((AE - BE) * (AE - BE) + (AN - BN) * (AN - BN)).
 
-%% d² = sum over east, north of (pa - pb)² / (pp_b + ce_a²).
+%% d² = sum over east, north of (pa - pb)² / (pp_b + r_a), r_a A's last
+%% report's measurement variance on that axis (ce_a² with time error 0).
 d2(EA, PredB) ->
-    CeA = maps:get(ce, EA),
-    Axis = fun(Ax) ->
+    {RAE, RAN} = maps:get(r, EA),
+    Axis = fun(Ax, RA) ->
                    {PA, _, _, _, _} = maps:get(Ax, maps:get(filter, EA)),
                    {PB, _, PPB, _, _} = maps:get(Ax, PredB),
-                   (PA - PB) * (PA - PB) / (PPB + CeA * CeA)
+                   (PA - PB) * (PA - PB) / (PPB + RA)
            end,
-    Axis(east) + Axis(north).
+    Axis(east, RAE) + Axis(north, RAN).
 
 run_test({<<"distance">>, #{<<"max_m">> := Max}}, {EA, _EB, PredB}, _St) ->
     V = distance(EA, PredB),
@@ -520,12 +587,18 @@ snapshot(St) ->
       <<"next_group">> => Next}.
 
 %% Snapshot of an entity's time and estimate: filter, plus models and mode
-%% with two models.
+%% with two models, plus time (its timing variance) when its last report had
+%% a time error above 0.
 snapshot_entity(E) ->
     Filter = fun(F) -> #{<<"east">> => tuple_to_list(maps:get(east, F)),
                          <<"north">> => tuple_to_list(maps:get(north, F))} end,
-    Base = #{<<"last_time_ms">> => maps:get(time, E),
-             <<"filter">> => Filter(maps:get(filter, E))},
+    Base0 = #{<<"last_time_ms">> => maps:get(time, E),
+              <<"filter">> => Filter(maps:get(filter, E))},
+    Base = case E of
+               #{time_error := Te, timing := {VarE, VarN}} when Te > 0 ->
+                   Base0#{<<"time">> => #{<<"var_east">> => VarE, <<"var_north">> => VarN}};
+               _ -> Base0
+           end,
     case E of
         #{models := {Quiet, Maneuver}, mode := {Mu1, Mu2}} ->
             Base#{<<"models">> => #{<<"quiet">> => Filter(Quiet),

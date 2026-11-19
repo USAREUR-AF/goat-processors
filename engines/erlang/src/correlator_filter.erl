@@ -1,6 +1,9 @@
 %% Frame and the one-model track estimate (correlate.md "Frame", "Track estimate").
 -module(correlator_filter).
 -export([to_plane/3, from_plane/3, init/4, update/7, predict/3, velocity/2]).
+%% The same with a measurement variance per axis {REast, RNorth}
+%% (correlate.md "Track estimate", Measurement variance).
+-export([init_r/4, update_r/7]).
 
 -define(R, 6371008.8).
 
@@ -28,24 +31,30 @@ velocity(Course, Speed) when is_number(Course), is_number(Speed) ->
     {Speed * math:sin(rad(Course)), Speed * math:cos(rad(Course))};
 velocity(_, _) -> none.
 
-%% First report: one axis tuple {P, V, PP, PV, VV} per east and north.
-init({E, N}, Vel, Ce, F) ->
+%% First report: one axis tuple {P, V, PP, PV, VV} per east and north, with
+%% measurement variance ce² on both axes (fuse and quality).
+init(Z, Vel, Ce, F) -> init_r(Z, Vel, {sq(Ce), sq(Ce)}, F).
+
+%% First report with measurement variance {RE, RN}: pp = r on each axis.
+init_r({E, N}, Vel, {RE, RN}, F) ->
     {VE, VN, VV} = case Vel of
                        none -> {0.0, 0.0, sq(maps:get(<<"unknown_vel_ms">>, F))};
                        {X, Y} -> {X, Y, sq(maps:get(<<"vel_sigma_ms">>, F))}
                    end,
-    PP = sq(Ce),
-    #{east => {E, VE, PP, 0.0, VV}, north => {N, VN, PP, 0.0, VV}}.
+    #{east => {E, VE, RE, 0.0, VV}, north => {N, VN, RN, 0.0, VV}}.
 
 %% Later reports: steps 1 to 3 with acceleration variance Q. Returns the new
 %% filter and the innovations {Y, S} of its scalar updates in the order east
 %% position, north position, then (velocity measured) east and north velocity,
 %% the order Two-model filter step 3 adds them in.
-update(Filter, Dt, Q, {E, N}, Vel, Ce, F) ->
-    R = sq(Ce),
+%% Measurement variance ce² on both axes (fuse and quality).
+update(Filter, Dt, Q, Z, Vel, Ce, F) -> update_r(Filter, Dt, Q, Z, Vel, {sq(Ce), sq(Ce)}, F).
+
+%% The same with measurement variance {RE, RN}, each axis's r in step 2.
+update_r(Filter, Dt, Q, {E, N}, Vel, {RE, RN}, F) ->
     RV = sq(maps:get(<<"vel_sigma_ms">>, F)),
-    {EastPos, YSEP} = position_update(predict_axis(maps:get(east, Filter), Dt, Q), E, R),
-    {NorthPos, YSNP} = position_update(predict_axis(maps:get(north, Filter), Dt, Q), N, R),
+    {EastPos, YSEP} = position_update(predict_axis(maps:get(east, Filter), Dt, Q), E, RE),
+    {NorthPos, YSNP} = position_update(predict_axis(maps:get(north, Filter), Dt, Q), N, RN),
     case Vel of
         none ->
             {#{east => EastPos, north => NorthPos}, [YSEP, YSNP]};
