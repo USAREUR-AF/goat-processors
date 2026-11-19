@@ -62,8 +62,23 @@ build(Directives) ->
                assign -> #{method => assign, gate => []}
            end,
     P = lists:foldl(fun directive/2, Base, Directives),
+    check_ranges(P),
     lists:foldl(fun(K, Acc) -> Acc#{K := lists:reverse(maps:get(K, Acc))} end, P,
                 [K || K <- [gate, confirm, hold, priority], maps:is_key(K, P)]).
+
+%% Ranges: filter (correlate.md "Pack"); new_cost, keep_bonus
+%% (correlate-assign.md "Pack").
+check_ranges(P) ->
+    F = maps:get(filter, P),
+    [fail({not_above_zero, K}) || K <- [default_ce_m, vel_sigma_ms, unknown_vel_ms],
+                                  not (maps:get(atom_to_binary(K), F) > 0)],
+    maps:get(<<"accel_var">>, F) >= 0 orelse fail({below_zero, accel_var}),
+    case P of
+        #{method := assign, new_cost := NC, keep_bonus := KB} ->
+            NC > 0 orelse fail({not_above_zero, new_cost}),
+            KB >= 0 orelse fail({below_zero, keep_bonus});
+        _ -> ok
+    end.
 
 count(N, Names) -> length([X || X <- Names, X =:= N]).
 
