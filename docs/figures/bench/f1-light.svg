@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="670" height="1456" viewBox="0 0 670 1456" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="Pairwise association F1 per scenario">
+<svg xmlns="http://www.w3.org/2000/svg" width="670" height="1624" viewBox="0 0 670 1624" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="Pairwise association F1 per scenario">
 <rect width="100%" height="100%" fill="#fcfcfb"/>
 <text x="16" y="26" font-size="15" font-weight="600" fill="#0b0b0b">Pairwise association F1 per scenario</text>
 <text x="16" y="45" font-size="12" fill="#52514e">1.0 is every pair of tracks grouped exactly as in truth</text>
@@ -15,184 +15,207 @@
 <rect x="360" y="56" width="10" height="10" rx="2" fill="#008300"/>
 <text x="374" y="65" font-size="12" fill="#52514e">assign-imm</text>
 <rect x="455" y="56" width="10" height="10" rx="2" fill="#6250d6"/>
-<text x="469" y="65" font-size="12" fill="#52514e">assign-window</text>
-<line x1="150.0" y1="74" x2="150.0" y2="1426" stroke="#e1e0d9" stroke-width="1"/>
-<text x="150.0" y="1442" font-size="11" text-anchor="middle" fill="#898781">0.00</text>
-<line x1="267.5" y1="74" x2="267.5" y2="1426" stroke="#e1e0d9" stroke-width="1"/>
-<text x="267.5" y="1442" font-size="11" text-anchor="middle" fill="#898781">0.25</text>
-<line x1="385.0" y1="74" x2="385.0" y2="1426" stroke="#e1e0d9" stroke-width="1"/>
-<text x="385.0" y="1442" font-size="11" text-anchor="middle" fill="#898781">0.50</text>
-<line x1="502.5" y1="74" x2="502.5" y2="1426" stroke="#e1e0d9" stroke-width="1"/>
-<text x="502.5" y="1442" font-size="11" text-anchor="middle" fill="#898781">0.75</text>
-<line x1="620.0" y1="74" x2="620.0" y2="1426" stroke="#e1e0d9" stroke-width="1"/>
-<text x="620.0" y="1442" font-size="11" text-anchor="middle" fill="#898781">1.00</text>
-<line x1="150" y1="74" x2="150" y2="1426" stroke="#c3c2b7" stroke-width="1"/>
-<text x="142" y="109.0" font-size="12" text-anchor="end" fill="#0b0b0b">stationary</text>
+<text x="469" y="65" font-size="12" fill="#52514e">assign-full</text>
+<rect x="556" y="56" width="10" height="10" rx="2" fill="#e34948"/>
+<text x="570" y="65" font-size="12" fill="#52514e">gnn-restart</text>
+<line x1="150.0" y1="74" x2="150.0" y2="1594" stroke="#e1e0d9" stroke-width="1"/>
+<text x="150.0" y="1610" font-size="11" text-anchor="middle" fill="#898781">0.00</text>
+<line x1="267.5" y1="74" x2="267.5" y2="1594" stroke="#e1e0d9" stroke-width="1"/>
+<text x="267.5" y="1610" font-size="11" text-anchor="middle" fill="#898781">0.25</text>
+<line x1="385.0" y1="74" x2="385.0" y2="1594" stroke="#e1e0d9" stroke-width="1"/>
+<text x="385.0" y="1610" font-size="11" text-anchor="middle" fill="#898781">0.50</text>
+<line x1="502.5" y1="74" x2="502.5" y2="1594" stroke="#e1e0d9" stroke-width="1"/>
+<text x="502.5" y="1610" font-size="11" text-anchor="middle" fill="#898781">0.75</text>
+<line x1="620.0" y1="74" x2="620.0" y2="1594" stroke="#e1e0d9" stroke-width="1"/>
+<text x="620.0" y="1610" font-size="11" text-anchor="middle" fill="#898781">1.00</text>
+<line x1="150" y1="74" x2="150" y2="1594" stroke="#c3c2b7" stroke-width="1"/>
+<text x="142" y="113.0" font-size="12" text-anchor="end" fill="#0b0b0b">stationary</text>
 <rect x="150" y="78" width="468.0" height="6" rx="2" fill="#2a78d6"><title>stationary, gnn: 1.00</title></rect>
 <rect x="150" y="86" width="468.0" height="6" rx="2" fill="#eb6834"><title>stationary, window: 1.00</title></rect>
 <rect x="150" y="94" width="313.3" height="6" rx="2" fill="#1baf7a"><title>stationary, distance: 0.67</title></rect>
 <rect x="150" y="102" width="470.0" height="6" rx="2" fill="#eda100"><title>stationary, assign: 1.00</title></rect>
 <rect x="150" y="110" width="468.0" height="6" rx="2" fill="#e87ba4"><title>stationary, gnn-imm: 1.00</title></rect>
 <rect x="150" y="118" width="470.0" height="6" rx="2" fill="#008300"><title>stationary, assign-imm: 1.00</title></rect>
-<rect x="150" y="126" width="468.0" height="6" rx="2" fill="#6250d6"><title>stationary, assign-window: 1.00</title></rect>
-<text x="142" y="173.0" font-size="12" text-anchor="end" fill="#0b0b0b">straight-level</text>
-<rect x="150" y="142" width="468.0" height="6" rx="2" fill="#2a78d6"><title>straight-level, gnn: 1.00</title></rect>
-<rect x="150" y="150" width="468.0" height="6" rx="2" fill="#eb6834"><title>straight-level, window: 1.00</title></rect>
-<rect x="150" y="158" width="470.0" height="6" rx="2" fill="#1baf7a"><title>straight-level, distance: 1.00</title></rect>
-<rect x="150" y="166" width="470.0" height="6" rx="2" fill="#eda100"><title>straight-level, assign: 1.00</title></rect>
-<rect x="150" y="174" width="468.0" height="6" rx="2" fill="#e87ba4"><title>straight-level, gnn-imm: 1.00</title></rect>
-<rect x="150" y="182" width="470.0" height="6" rx="2" fill="#008300"><title>straight-level, assign-imm: 1.00</title></rect>
-<rect x="150" y="190" width="468.0" height="6" rx="2" fill="#6250d6"><title>straight-level, assign-window: 1.00</title></rect>
-<text x="142" y="237.0" font-size="12" text-anchor="end" fill="#0b0b0b">turn-3dps</text>
-<rect x="150" y="206" width="470.0" height="6" rx="2" fill="#2a78d6"><title>turn-3dps, gnn: 1.00</title></rect>
-<rect x="150" y="214" width="470.0" height="6" rx="2" fill="#eb6834"><title>turn-3dps, window: 1.00</title></rect>
-<rect x="150" y="222" width="470.0" height="6" rx="2" fill="#1baf7a"><title>turn-3dps, distance: 1.00</title></rect>
-<rect x="150" y="230" width="453.7" height="6" rx="2" fill="#eda100"><title>turn-3dps, assign: 0.97</title></rect>
-<rect x="150" y="238" width="470.0" height="6" rx="2" fill="#e87ba4"><title>turn-3dps, gnn-imm: 1.00</title></rect>
-<rect x="150" y="246" width="470.0" height="6" rx="2" fill="#008300"><title>turn-3dps, assign-imm: 1.00</title></rect>
-<rect x="150" y="254" width="451.5" height="6" rx="2" fill="#6250d6"><title>turn-3dps, assign-window: 0.96</title></rect>
-<text x="142" y="301.0" font-size="12" text-anchor="end" fill="#0b0b0b">turn-6dps</text>
-<rect x="150" y="270" width="404.2" height="6" rx="2" fill="#2a78d6"><title>turn-6dps, gnn: 0.86</title></rect>
-<rect x="150" y="278" width="470.0" height="6" rx="2" fill="#eb6834"><title>turn-6dps, window: 1.00</title></rect>
-<rect x="150" y="286" width="470.0" height="6" rx="2" fill="#1baf7a"><title>turn-6dps, distance: 1.00</title></rect>
-<rect x="150" y="294" width="359.3" height="6" rx="2" fill="#eda100"><title>turn-6dps, assign: 0.76</title></rect>
-<rect x="150" y="302" width="470.0" height="6" rx="2" fill="#e87ba4"><title>turn-6dps, gnn-imm: 1.00</title></rect>
-<rect x="150" y="310" width="468.0" height="6" rx="2" fill="#008300"><title>turn-6dps, assign-imm: 1.00</title></rect>
-<rect x="150" y="318" width="362.3" height="6" rx="2" fill="#6250d6"><title>turn-6dps, assign-window: 0.77</title></rect>
-<text x="142" y="365.0" font-size="12" text-anchor="end" fill="#0b0b0b">accelerate</text>
-<rect x="150" y="334" width="463.9" height="6" rx="2" fill="#2a78d6"><title>accelerate, gnn: 0.99</title></rect>
-<rect x="150" y="342" width="468.0" height="6" rx="2" fill="#eb6834"><title>accelerate, window: 1.00</title></rect>
-<rect x="150" y="350" width="470.0" height="6" rx="2" fill="#1baf7a"><title>accelerate, distance: 1.00</title></rect>
-<rect x="150" y="358" width="433.2" height="6" rx="2" fill="#eda100"><title>accelerate, assign: 0.92</title></rect>
-<rect x="150" y="366" width="468.0" height="6" rx="2" fill="#e87ba4"><title>accelerate, gnn-imm: 1.00</title></rect>
-<rect x="150" y="374" width="470.0" height="6" rx="2" fill="#008300"><title>accelerate, assign-imm: 1.00</title></rect>
-<rect x="150" y="382" width="428.5" height="6" rx="2" fill="#6250d6"><title>accelerate, assign-window: 0.91</title></rect>
-<text x="142" y="429.0" font-size="12" text-anchor="end" fill="#0b0b0b">crossing-90deg</text>
-<rect x="150" y="398" width="468.0" height="6" rx="2" fill="#2a78d6"><title>crossing-90deg, gnn: 1.00</title></rect>
-<rect x="150" y="406" width="468.0" height="6" rx="2" fill="#eb6834"><title>crossing-90deg, window: 1.00</title></rect>
-<rect x="150" y="414" width="470.0" height="6" rx="2" fill="#1baf7a"><title>crossing-90deg, distance: 1.00</title></rect>
-<rect x="150" y="422" width="463.9" height="6" rx="2" fill="#eda100"><title>crossing-90deg, assign: 0.99</title></rect>
-<rect x="150" y="430" width="468.0" height="6" rx="2" fill="#e87ba4"><title>crossing-90deg, gnn-imm: 1.00</title></rect>
-<rect x="150" y="438" width="463.9" height="6" rx="2" fill="#008300"><title>crossing-90deg, assign-imm: 0.99</title></rect>
-<rect x="150" y="446" width="462.9" height="6" rx="2" fill="#6250d6"><title>crossing-90deg, assign-window: 0.98</title></rect>
-<text x="142" y="493.0" font-size="12" text-anchor="end" fill="#0b0b0b">crossing-20deg</text>
-<rect x="150" y="462" width="469.0" height="6" rx="2" fill="#2a78d6"><title>crossing-20deg, gnn: 1.00</title></rect>
-<rect x="150" y="470" width="469.0" height="6" rx="2" fill="#eb6834"><title>crossing-20deg, window: 1.00</title></rect>
-<rect x="150" y="478" width="470.0" height="6" rx="2" fill="#1baf7a"><title>crossing-20deg, distance: 1.00</title></rect>
-<rect x="150" y="486" width="470.0" height="6" rx="2" fill="#eda100"><title>crossing-20deg, assign: 1.00</title></rect>
-<rect x="150" y="494" width="469.0" height="6" rx="2" fill="#e87ba4"><title>crossing-20deg, gnn-imm: 1.00</title></rect>
-<rect x="150" y="502" width="470.0" height="6" rx="2" fill="#008300"><title>crossing-20deg, assign-imm: 1.00</title></rect>
-<rect x="150" y="510" width="468.0" height="6" rx="2" fill="#6250d6"><title>crossing-20deg, assign-window: 1.00</title></rect>
-<text x="142" y="557.0" font-size="12" text-anchor="end" fill="#0b0b0b">parallel-500m</text>
-<rect x="150" y="526" width="467.8" height="6" rx="2" fill="#2a78d6"><title>parallel-500m, gnn: 1.00</title></rect>
-<rect x="150" y="534" width="467.8" height="6" rx="2" fill="#eb6834"><title>parallel-500m, window: 1.00</title></rect>
-<rect x="150" y="542" width="470.0" height="6" rx="2" fill="#1baf7a"><title>parallel-500m, distance: 1.00</title></rect>
-<rect x="150" y="550" width="470.0" height="6" rx="2" fill="#eda100"><title>parallel-500m, assign: 1.00</title></rect>
-<rect x="150" y="558" width="467.8" height="6" rx="2" fill="#e87ba4"><title>parallel-500m, gnn-imm: 1.00</title></rect>
-<rect x="150" y="566" width="470.0" height="6" rx="2" fill="#008300"><title>parallel-500m, assign-imm: 1.00</title></rect>
-<rect x="150" y="574" width="467.8" height="6" rx="2" fill="#6250d6"><title>parallel-500m, assign-window: 1.00</title></rect>
-<text x="142" y="621.0" font-size="12" text-anchor="end" fill="#0b0b0b">parallel-150m</text>
-<rect x="150" y="590" width="426.3" height="6" rx="2" fill="#2a78d6"><title>parallel-150m, gnn: 0.91</title></rect>
-<rect x="150" y="598" width="1.0" height="6" rx="2" fill="#eb6834"><title>parallel-150m, window: 0.00</title></rect>
-<rect x="150" y="606" width="234.0" height="6" rx="2" fill="#1baf7a"><title>parallel-150m, distance: 0.50</title></rect>
-<rect x="150" y="614" width="470.0" height="6" rx="2" fill="#eda100"><title>parallel-150m, assign: 1.00</title></rect>
-<rect x="150" y="622" width="413.0" height="6" rx="2" fill="#e87ba4"><title>parallel-150m, gnn-imm: 0.88</title></rect>
-<rect x="150" y="630" width="470.0" height="6" rx="2" fill="#008300"><title>parallel-150m, assign-imm: 1.00</title></rect>
-<rect x="150" y="638" width="467.9" height="6" rx="2" fill="#6250d6"><title>parallel-150m, assign-window: 1.00</title></rect>
-<text x="142" y="685.0" font-size="12" text-anchor="end" fill="#0b0b0b">split</text>
-<rect x="150" y="654" width="468.7" height="6" rx="2" fill="#2a78d6"><title>split, gnn: 1.00</title></rect>
-<rect x="150" y="662" width="470.0" height="6" rx="2" fill="#eb6834"><title>split, window: 1.00</title></rect>
-<rect x="150" y="670" width="270.7" height="6" rx="2" fill="#1baf7a"><title>split, distance: 0.58</title></rect>
-<rect x="150" y="678" width="444.7" height="6" rx="2" fill="#eda100"><title>split, assign: 0.95</title></rect>
-<rect x="150" y="686" width="470.0" height="6" rx="2" fill="#e87ba4"><title>split, gnn-imm: 1.00</title></rect>
-<rect x="150" y="694" width="470.0" height="6" rx="2" fill="#008300"><title>split, assign-imm: 1.00</title></rect>
-<rect x="150" y="702" width="446.1" height="6" rx="2" fill="#6250d6"><title>split, assign-window: 0.95</title></rect>
-<text x="142" y="749.0" font-size="12" text-anchor="end" fill="#0b0b0b">error-understated</text>
-<rect x="150" y="718" width="455.6" height="6" rx="2" fill="#2a78d6"><title>error-understated, gnn: 0.97</title></rect>
-<rect x="150" y="726" width="470.0" height="6" rx="2" fill="#eb6834"><title>error-understated, window: 1.00</title></rect>
-<rect x="150" y="734" width="470.0" height="6" rx="2" fill="#1baf7a"><title>error-understated, distance: 1.00</title></rect>
-<rect x="150" y="742" width="398.9" height="6" rx="2" fill="#eda100"><title>error-understated, assign: 0.85</title></rect>
-<rect x="150" y="750" width="455.6" height="6" rx="2" fill="#e87ba4"><title>error-understated, gnn-imm: 0.97</title></rect>
-<rect x="150" y="758" width="404.2" height="6" rx="2" fill="#008300"><title>error-understated, assign-imm: 0.86</title></rect>
-<rect x="150" y="766" width="401.6" height="6" rx="2" fill="#6250d6"><title>error-understated, assign-window: 0.85</title></rect>
-<text x="142" y="813.0" font-size="12" text-anchor="end" fill="#0b0b0b">error-absent</text>
-<rect x="150" y="782" width="468.0" height="6" rx="2" fill="#2a78d6"><title>error-absent, gnn: 1.00</title></rect>
-<rect x="150" y="790" width="468.0" height="6" rx="2" fill="#eb6834"><title>error-absent, window: 1.00</title></rect>
-<rect x="150" y="798" width="470.0" height="6" rx="2" fill="#1baf7a"><title>error-absent, distance: 1.00</title></rect>
-<rect x="150" y="806" width="470.0" height="6" rx="2" fill="#eda100"><title>error-absent, assign: 1.00</title></rect>
-<rect x="150" y="814" width="468.0" height="6" rx="2" fill="#e87ba4"><title>error-absent, gnn-imm: 1.00</title></rect>
-<rect x="150" y="822" width="470.0" height="6" rx="2" fill="#008300"><title>error-absent, assign-imm: 1.00</title></rect>
-<rect x="150" y="830" width="468.0" height="6" rx="2" fill="#6250d6"><title>error-absent, assign-window: 1.00</title></rect>
-<text x="142" y="877.0" font-size="12" text-anchor="end" fill="#0b0b0b">latency-3s</text>
-<rect x="150" y="846" width="470.0" height="6" rx="2" fill="#2a78d6"><title>latency-3s, gnn: 1.00</title></rect>
-<rect x="150" y="854" width="470.0" height="6" rx="2" fill="#eb6834"><title>latency-3s, window: 1.00</title></rect>
-<rect x="150" y="862" width="470.0" height="6" rx="2" fill="#1baf7a"><title>latency-3s, distance: 1.00</title></rect>
-<rect x="150" y="870" width="470.0" height="6" rx="2" fill="#eda100"><title>latency-3s, assign: 1.00</title></rect>
-<rect x="150" y="878" width="470.0" height="6" rx="2" fill="#e87ba4"><title>latency-3s, gnn-imm: 1.00</title></rect>
-<rect x="150" y="886" width="470.0" height="6" rx="2" fill="#008300"><title>latency-3s, assign-imm: 1.00</title></rect>
-<rect x="150" y="894" width="467.9" height="6" rx="2" fill="#6250d6"><title>latency-3s, assign-window: 1.00</title></rect>
-<text x="142" y="941.0" font-size="12" text-anchor="end" fill="#0b0b0b">bias-400m</text>
-<rect x="150" y="910" width="1.0" height="6" rx="2" fill="#2a78d6"><title>bias-400m, gnn: 0.00</title></rect>
-<rect x="150" y="918" width="468.0" height="6" rx="2" fill="#eb6834"><title>bias-400m, window: 1.00</title></rect>
-<rect x="150" y="926" width="1.0" height="6" rx="2" fill="#1baf7a"><title>bias-400m, distance: 0.00</title></rect>
-<rect x="150" y="934" width="1.0" height="6" rx="2" fill="#eda100"><title>bias-400m, assign: 0.00</title></rect>
-<rect x="150" y="942" width="1.0" height="6" rx="2" fill="#e87ba4"><title>bias-400m, gnn-imm: 0.00</title></rect>
-<rect x="150" y="950" width="1.0" height="6" rx="2" fill="#008300"><title>bias-400m, assign-imm: 0.00</title></rect>
-<rect x="150" y="958" width="1.0" height="6" rx="2" fill="#6250d6"><title>bias-400m, assign-window: 0.00</title></rect>
-<text x="142" y="1005.0" font-size="12" text-anchor="end" fill="#0b0b0b">slow-jittered</text>
-<rect x="150" y="974" width="461.3" height="6" rx="2" fill="#2a78d6"><title>slow-jittered, gnn: 0.98</title></rect>
-<rect x="150" y="982" width="467.9" height="6" rx="2" fill="#eb6834"><title>slow-jittered, window: 1.00</title></rect>
-<rect x="150" y="990" width="467.9" height="6" rx="2" fill="#1baf7a"><title>slow-jittered, distance: 1.00</title></rect>
-<rect x="150" y="998" width="454.6" height="6" rx="2" fill="#eda100"><title>slow-jittered, assign: 0.97</title></rect>
-<rect x="150" y="1006" width="467.9" height="6" rx="2" fill="#e87ba4"><title>slow-jittered, gnn-imm: 1.00</title></rect>
-<rect x="150" y="1014" width="470.0" height="6" rx="2" fill="#008300"><title>slow-jittered, assign-imm: 1.00</title></rect>
-<rect x="150" y="1022" width="452.3" height="6" rx="2" fill="#6250d6"><title>slow-jittered, assign-window: 0.96</title></rect>
-<text x="142" y="1069.0" font-size="12" text-anchor="end" fill="#0b0b0b">low-detection</text>
-<rect x="150" y="1038" width="464.0" height="6" rx="2" fill="#2a78d6"><title>low-detection, gnn: 0.99</title></rect>
-<rect x="150" y="1046" width="464.0" height="6" rx="2" fill="#eb6834"><title>low-detection, window: 0.99</title></rect>
-<rect x="150" y="1054" width="470.0" height="6" rx="2" fill="#1baf7a"><title>low-detection, distance: 1.00</title></rect>
-<rect x="150" y="1062" width="470.0" height="6" rx="2" fill="#eda100"><title>low-detection, assign: 1.00</title></rect>
-<rect x="150" y="1070" width="464.0" height="6" rx="2" fill="#e87ba4"><title>low-detection, gnn-imm: 0.99</title></rect>
-<rect x="150" y="1078" width="470.0" height="6" rx="2" fill="#008300"><title>low-detection, assign-imm: 1.00</title></rect>
-<rect x="150" y="1086" width="467.6" height="6" rx="2" fill="#6250d6"><title>low-detection, assign-window: 0.99</title></rect>
-<text x="142" y="1133.0" font-size="12" text-anchor="end" fill="#0b0b0b">number-swap</text>
-<rect x="150" y="1102" width="392.2" height="6" rx="2" fill="#2a78d6"><title>number-swap, gnn: 0.83</title></rect>
-<rect x="150" y="1110" width="232.1" height="6" rx="2" fill="#eb6834"><title>number-swap, window: 0.49</title></rect>
-<rect x="150" y="1118" width="291.4" height="6" rx="2" fill="#1baf7a"><title>number-swap, distance: 0.62</title></rect>
-<rect x="150" y="1126" width="392.4" height="6" rx="2" fill="#eda100"><title>number-swap, assign: 0.83</title></rect>
-<rect x="150" y="1134" width="388.3" height="6" rx="2" fill="#e87ba4"><title>number-swap, gnn-imm: 0.83</title></rect>
-<rect x="150" y="1142" width="392.4" height="6" rx="2" fill="#008300"><title>number-swap, assign-imm: 0.83</title></rect>
-<rect x="150" y="1150" width="387.9" height="6" rx="2" fill="#6250d6"><title>number-swap, assign-window: 0.83</title></rect>
-<text x="142" y="1197.0" font-size="12" text-anchor="end" fill="#0b0b0b">number-drop</text>
-<rect x="150" y="1166" width="393.2" height="6" rx="2" fill="#2a78d6"><title>number-drop, gnn: 0.84</title></rect>
-<rect x="150" y="1174" width="393.2" height="6" rx="2" fill="#eb6834"><title>number-drop, window: 0.84</title></rect>
-<rect x="150" y="1182" width="470.0" height="6" rx="2" fill="#1baf7a"><title>number-drop, distance: 1.00</title></rect>
-<rect x="150" y="1190" width="398.4" height="6" rx="2" fill="#eda100"><title>number-drop, assign: 0.85</title></rect>
-<rect x="150" y="1198" width="393.2" height="6" rx="2" fill="#e87ba4"><title>number-drop, gnn-imm: 0.84</title></rect>
-<rect x="150" y="1206" width="398.4" height="6" rx="2" fill="#008300"><title>number-drop, assign-imm: 0.85</title></rect>
-<rect x="150" y="1214" width="315.1" height="6" rx="2" fill="#6250d6"><title>number-drop, assign-window: 0.67</title></rect>
-<text x="142" y="1261.0" font-size="12" text-anchor="end" fill="#0b0b0b">false-tracks</text>
-<rect x="150" y="1230" width="468.0" height="6" rx="2" fill="#2a78d6"><title>false-tracks, gnn: 1.00</title></rect>
-<rect x="150" y="1238" width="468.0" height="6" rx="2" fill="#eb6834"><title>false-tracks, window: 1.00</title></rect>
-<rect x="150" y="1246" width="470.0" height="6" rx="2" fill="#1baf7a"><title>false-tracks, distance: 1.00</title></rect>
-<rect x="150" y="1254" width="470.0" height="6" rx="2" fill="#eda100"><title>false-tracks, assign: 1.00</title></rect>
-<rect x="150" y="1262" width="468.0" height="6" rx="2" fill="#e87ba4"><title>false-tracks, gnn-imm: 1.00</title></rect>
-<rect x="150" y="1270" width="470.0" height="6" rx="2" fill="#008300"><title>false-tracks, assign-imm: 1.00</title></rect>
-<rect x="150" y="1278" width="468.0" height="6" rx="2" fill="#6250d6"><title>false-tracks, assign-window: 1.00</title></rect>
-<text x="142" y="1325.0" font-size="12" text-anchor="end" fill="#0b0b0b">three-sensors</text>
-<rect x="150" y="1294" width="451.3" height="6" rx="2" fill="#2a78d6"><title>three-sensors, gnn: 0.96</title></rect>
-<rect x="150" y="1302" width="466.7" height="6" rx="2" fill="#eb6834"><title>three-sensors, window: 0.99</title></rect>
-<rect x="150" y="1310" width="435.7" height="6" rx="2" fill="#1baf7a"><title>three-sensors, distance: 0.93</title></rect>
-<rect x="150" y="1318" width="443.5" height="6" rx="2" fill="#eda100"><title>three-sensors, assign: 0.94</title></rect>
-<rect x="150" y="1326" width="466.7" height="6" rx="2" fill="#e87ba4"><title>three-sensors, gnn-imm: 0.99</title></rect>
-<rect x="150" y="1334" width="470.0" height="6" rx="2" fill="#008300"><title>three-sensors, assign-imm: 1.00</title></rect>
-<rect x="150" y="1342" width="441.6" height="6" rx="2" fill="#6250d6"><title>three-sensors, assign-window: 0.94</title></rect>
-<text x="142" y="1389.0" font-size="12" text-anchor="end" fill="#0b0b0b">dense-8</text>
-<rect x="150" y="1358" width="452.0" height="6" rx="2" fill="#2a78d6"><title>dense-8, gnn: 0.96</title></rect>
-<rect x="150" y="1366" width="469.5" height="6" rx="2" fill="#eb6834"><title>dense-8, window: 1.00</title></rect>
-<rect x="150" y="1374" width="470.0" height="6" rx="2" fill="#1baf7a"><title>dense-8, distance: 1.00</title></rect>
-<rect x="150" y="1382" width="432.9" height="6" rx="2" fill="#eda100"><title>dense-8, assign: 0.92</title></rect>
-<rect x="150" y="1390" width="469.5" height="6" rx="2" fill="#e87ba4"><title>dense-8, gnn-imm: 1.00</title></rect>
-<rect x="150" y="1398" width="462.9" height="6" rx="2" fill="#008300"><title>dense-8, assign-imm: 0.98</title></rect>
-<rect x="150" y="1406" width="428.2" height="6" rx="2" fill="#6250d6"><title>dense-8, assign-window: 0.91</title></rect>
+<rect x="150" y="126" width="470.0" height="6" rx="2" fill="#6250d6"><title>stationary, assign-full: 1.00</title></rect>
+<rect x="150" y="134" width="468.0" height="6" rx="2" fill="#e34948"><title>stationary, gnn-restart: 1.00</title></rect>
+<text x="142" y="185.0" font-size="12" text-anchor="end" fill="#0b0b0b">straight-level</text>
+<rect x="150" y="150" width="468.0" height="6" rx="2" fill="#2a78d6"><title>straight-level, gnn: 1.00</title></rect>
+<rect x="150" y="158" width="468.0" height="6" rx="2" fill="#eb6834"><title>straight-level, window: 1.00</title></rect>
+<rect x="150" y="166" width="470.0" height="6" rx="2" fill="#1baf7a"><title>straight-level, distance: 1.00</title></rect>
+<rect x="150" y="174" width="470.0" height="6" rx="2" fill="#eda100"><title>straight-level, assign: 1.00</title></rect>
+<rect x="150" y="182" width="468.0" height="6" rx="2" fill="#e87ba4"><title>straight-level, gnn-imm: 1.00</title></rect>
+<rect x="150" y="190" width="470.0" height="6" rx="2" fill="#008300"><title>straight-level, assign-imm: 1.00</title></rect>
+<rect x="150" y="198" width="470.0" height="6" rx="2" fill="#6250d6"><title>straight-level, assign-full: 1.00</title></rect>
+<rect x="150" y="206" width="468.0" height="6" rx="2" fill="#e34948"><title>straight-level, gnn-restart: 1.00</title></rect>
+<text x="142" y="257.0" font-size="12" text-anchor="end" fill="#0b0b0b">turn-3dps</text>
+<rect x="150" y="222" width="470.0" height="6" rx="2" fill="#2a78d6"><title>turn-3dps, gnn: 1.00</title></rect>
+<rect x="150" y="230" width="470.0" height="6" rx="2" fill="#eb6834"><title>turn-3dps, window: 1.00</title></rect>
+<rect x="150" y="238" width="470.0" height="6" rx="2" fill="#1baf7a"><title>turn-3dps, distance: 1.00</title></rect>
+<rect x="150" y="246" width="453.7" height="6" rx="2" fill="#eda100"><title>turn-3dps, assign: 0.97</title></rect>
+<rect x="150" y="254" width="470.0" height="6" rx="2" fill="#e87ba4"><title>turn-3dps, gnn-imm: 1.00</title></rect>
+<rect x="150" y="262" width="470.0" height="6" rx="2" fill="#008300"><title>turn-3dps, assign-imm: 1.00</title></rect>
+<rect x="150" y="270" width="470.0" height="6" rx="2" fill="#6250d6"><title>turn-3dps, assign-full: 1.00</title></rect>
+<rect x="150" y="278" width="470.0" height="6" rx="2" fill="#e34948"><title>turn-3dps, gnn-restart: 1.00</title></rect>
+<text x="142" y="329.0" font-size="12" text-anchor="end" fill="#0b0b0b">turn-6dps</text>
+<rect x="150" y="294" width="404.2" height="6" rx="2" fill="#2a78d6"><title>turn-6dps, gnn: 0.86</title></rect>
+<rect x="150" y="302" width="470.0" height="6" rx="2" fill="#eb6834"><title>turn-6dps, window: 1.00</title></rect>
+<rect x="150" y="310" width="470.0" height="6" rx="2" fill="#1baf7a"><title>turn-6dps, distance: 1.00</title></rect>
+<rect x="150" y="318" width="359.3" height="6" rx="2" fill="#eda100"><title>turn-6dps, assign: 0.76</title></rect>
+<rect x="150" y="326" width="470.0" height="6" rx="2" fill="#e87ba4"><title>turn-6dps, gnn-imm: 1.00</title></rect>
+<rect x="150" y="334" width="468.0" height="6" rx="2" fill="#008300"><title>turn-6dps, assign-imm: 1.00</title></rect>
+<rect x="150" y="342" width="470.0" height="6" rx="2" fill="#6250d6"><title>turn-6dps, assign-full: 1.00</title></rect>
+<rect x="150" y="350" width="379.8" height="6" rx="2" fill="#e34948"><title>turn-6dps, gnn-restart: 0.81</title></rect>
+<text x="142" y="401.0" font-size="12" text-anchor="end" fill="#0b0b0b">accelerate</text>
+<rect x="150" y="366" width="463.9" height="6" rx="2" fill="#2a78d6"><title>accelerate, gnn: 0.99</title></rect>
+<rect x="150" y="374" width="468.0" height="6" rx="2" fill="#eb6834"><title>accelerate, window: 1.00</title></rect>
+<rect x="150" y="382" width="470.0" height="6" rx="2" fill="#1baf7a"><title>accelerate, distance: 1.00</title></rect>
+<rect x="150" y="390" width="433.2" height="6" rx="2" fill="#eda100"><title>accelerate, assign: 0.92</title></rect>
+<rect x="150" y="398" width="468.0" height="6" rx="2" fill="#e87ba4"><title>accelerate, gnn-imm: 1.00</title></rect>
+<rect x="150" y="406" width="470.0" height="6" rx="2" fill="#008300"><title>accelerate, assign-imm: 1.00</title></rect>
+<rect x="150" y="414" width="470.0" height="6" rx="2" fill="#6250d6"><title>accelerate, assign-full: 1.00</title></rect>
+<rect x="150" y="422" width="463.9" height="6" rx="2" fill="#e34948"><title>accelerate, gnn-restart: 0.99</title></rect>
+<text x="142" y="473.0" font-size="12" text-anchor="end" fill="#0b0b0b">crossing-90deg</text>
+<rect x="150" y="438" width="468.0" height="6" rx="2" fill="#2a78d6"><title>crossing-90deg, gnn: 1.00</title></rect>
+<rect x="150" y="446" width="468.0" height="6" rx="2" fill="#eb6834"><title>crossing-90deg, window: 1.00</title></rect>
+<rect x="150" y="454" width="470.0" height="6" rx="2" fill="#1baf7a"><title>crossing-90deg, distance: 1.00</title></rect>
+<rect x="150" y="462" width="463.9" height="6" rx="2" fill="#eda100"><title>crossing-90deg, assign: 0.99</title></rect>
+<rect x="150" y="470" width="468.0" height="6" rx="2" fill="#e87ba4"><title>crossing-90deg, gnn-imm: 1.00</title></rect>
+<rect x="150" y="478" width="463.9" height="6" rx="2" fill="#008300"><title>crossing-90deg, assign-imm: 0.99</title></rect>
+<rect x="150" y="486" width="470.0" height="6" rx="2" fill="#6250d6"><title>crossing-90deg, assign-full: 1.00</title></rect>
+<rect x="150" y="494" width="468.0" height="6" rx="2" fill="#e34948"><title>crossing-90deg, gnn-restart: 1.00</title></rect>
+<text x="142" y="545.0" font-size="12" text-anchor="end" fill="#0b0b0b">crossing-20deg</text>
+<rect x="150" y="510" width="469.0" height="6" rx="2" fill="#2a78d6"><title>crossing-20deg, gnn: 1.00</title></rect>
+<rect x="150" y="518" width="469.0" height="6" rx="2" fill="#eb6834"><title>crossing-20deg, window: 1.00</title></rect>
+<rect x="150" y="526" width="470.0" height="6" rx="2" fill="#1baf7a"><title>crossing-20deg, distance: 1.00</title></rect>
+<rect x="150" y="534" width="470.0" height="6" rx="2" fill="#eda100"><title>crossing-20deg, assign: 1.00</title></rect>
+<rect x="150" y="542" width="469.0" height="6" rx="2" fill="#e87ba4"><title>crossing-20deg, gnn-imm: 1.00</title></rect>
+<rect x="150" y="550" width="470.0" height="6" rx="2" fill="#008300"><title>crossing-20deg, assign-imm: 1.00</title></rect>
+<rect x="150" y="558" width="470.0" height="6" rx="2" fill="#6250d6"><title>crossing-20deg, assign-full: 1.00</title></rect>
+<rect x="150" y="566" width="469.0" height="6" rx="2" fill="#e34948"><title>crossing-20deg, gnn-restart: 1.00</title></rect>
+<text x="142" y="617.0" font-size="12" text-anchor="end" fill="#0b0b0b">parallel-500m</text>
+<rect x="150" y="582" width="467.8" height="6" rx="2" fill="#2a78d6"><title>parallel-500m, gnn: 1.00</title></rect>
+<rect x="150" y="590" width="467.8" height="6" rx="2" fill="#eb6834"><title>parallel-500m, window: 1.00</title></rect>
+<rect x="150" y="598" width="470.0" height="6" rx="2" fill="#1baf7a"><title>parallel-500m, distance: 1.00</title></rect>
+<rect x="150" y="606" width="470.0" height="6" rx="2" fill="#eda100"><title>parallel-500m, assign: 1.00</title></rect>
+<rect x="150" y="614" width="467.8" height="6" rx="2" fill="#e87ba4"><title>parallel-500m, gnn-imm: 1.00</title></rect>
+<rect x="150" y="622" width="470.0" height="6" rx="2" fill="#008300"><title>parallel-500m, assign-imm: 1.00</title></rect>
+<rect x="150" y="630" width="470.0" height="6" rx="2" fill="#6250d6"><title>parallel-500m, assign-full: 1.00</title></rect>
+<rect x="150" y="638" width="467.8" height="6" rx="2" fill="#e34948"><title>parallel-500m, gnn-restart: 1.00</title></rect>
+<text x="142" y="689.0" font-size="12" text-anchor="end" fill="#0b0b0b">parallel-150m</text>
+<rect x="150" y="654" width="426.3" height="6" rx="2" fill="#2a78d6"><title>parallel-150m, gnn: 0.91</title></rect>
+<rect x="150" y="662" width="1.0" height="6" rx="2" fill="#eb6834"><title>parallel-150m, window: 0.00</title></rect>
+<rect x="150" y="670" width="234.0" height="6" rx="2" fill="#1baf7a"><title>parallel-150m, distance: 0.50</title></rect>
+<rect x="150" y="678" width="470.0" height="6" rx="2" fill="#eda100"><title>parallel-150m, assign: 1.00</title></rect>
+<rect x="150" y="686" width="413.0" height="6" rx="2" fill="#e87ba4"><title>parallel-150m, gnn-imm: 0.88</title></rect>
+<rect x="150" y="694" width="470.0" height="6" rx="2" fill="#008300"><title>parallel-150m, assign-imm: 1.00</title></rect>
+<rect x="150" y="702" width="470.0" height="6" rx="2" fill="#6250d6"><title>parallel-150m, assign-full: 1.00</title></rect>
+<rect x="150" y="710" width="426.3" height="6" rx="2" fill="#e34948"><title>parallel-150m, gnn-restart: 0.91</title></rect>
+<text x="142" y="761.0" font-size="12" text-anchor="end" fill="#0b0b0b">split</text>
+<rect x="150" y="726" width="468.7" height="6" rx="2" fill="#2a78d6"><title>split, gnn: 1.00</title></rect>
+<rect x="150" y="734" width="470.0" height="6" rx="2" fill="#eb6834"><title>split, window: 1.00</title></rect>
+<rect x="150" y="742" width="270.7" height="6" rx="2" fill="#1baf7a"><title>split, distance: 0.58</title></rect>
+<rect x="150" y="750" width="444.7" height="6" rx="2" fill="#eda100"><title>split, assign: 0.95</title></rect>
+<rect x="150" y="758" width="470.0" height="6" rx="2" fill="#e87ba4"><title>split, gnn-imm: 1.00</title></rect>
+<rect x="150" y="766" width="470.0" height="6" rx="2" fill="#008300"><title>split, assign-imm: 1.00</title></rect>
+<rect x="150" y="774" width="470.0" height="6" rx="2" fill="#6250d6"><title>split, assign-full: 1.00</title></rect>
+<rect x="150" y="782" width="468.7" height="6" rx="2" fill="#e34948"><title>split, gnn-restart: 1.00</title></rect>
+<text x="142" y="833.0" font-size="12" text-anchor="end" fill="#0b0b0b">error-understated</text>
+<rect x="150" y="798" width="455.6" height="6" rx="2" fill="#2a78d6"><title>error-understated, gnn: 0.97</title></rect>
+<rect x="150" y="806" width="470.0" height="6" rx="2" fill="#eb6834"><title>error-understated, window: 1.00</title></rect>
+<rect x="150" y="814" width="470.0" height="6" rx="2" fill="#1baf7a"><title>error-understated, distance: 1.00</title></rect>
+<rect x="150" y="822" width="398.9" height="6" rx="2" fill="#eda100"><title>error-understated, assign: 0.85</title></rect>
+<rect x="150" y="830" width="455.6" height="6" rx="2" fill="#e87ba4"><title>error-understated, gnn-imm: 0.97</title></rect>
+<rect x="150" y="838" width="404.2" height="6" rx="2" fill="#008300"><title>error-understated, assign-imm: 0.86</title></rect>
+<rect x="150" y="846" width="470.0" height="6" rx="2" fill="#6250d6"><title>error-understated, assign-full: 1.00</title></rect>
+<rect x="150" y="854" width="455.6" height="6" rx="2" fill="#e34948"><title>error-understated, gnn-restart: 0.97</title></rect>
+<text x="142" y="905.0" font-size="12" text-anchor="end" fill="#0b0b0b">error-absent</text>
+<rect x="150" y="870" width="468.0" height="6" rx="2" fill="#2a78d6"><title>error-absent, gnn: 1.00</title></rect>
+<rect x="150" y="878" width="468.0" height="6" rx="2" fill="#eb6834"><title>error-absent, window: 1.00</title></rect>
+<rect x="150" y="886" width="470.0" height="6" rx="2" fill="#1baf7a"><title>error-absent, distance: 1.00</title></rect>
+<rect x="150" y="894" width="470.0" height="6" rx="2" fill="#eda100"><title>error-absent, assign: 1.00</title></rect>
+<rect x="150" y="902" width="468.0" height="6" rx="2" fill="#e87ba4"><title>error-absent, gnn-imm: 1.00</title></rect>
+<rect x="150" y="910" width="470.0" height="6" rx="2" fill="#008300"><title>error-absent, assign-imm: 1.00</title></rect>
+<rect x="150" y="918" width="470.0" height="6" rx="2" fill="#6250d6"><title>error-absent, assign-full: 1.00</title></rect>
+<rect x="150" y="926" width="468.0" height="6" rx="2" fill="#e34948"><title>error-absent, gnn-restart: 1.00</title></rect>
+<text x="142" y="977.0" font-size="12" text-anchor="end" fill="#0b0b0b">latency-3s</text>
+<rect x="150" y="942" width="470.0" height="6" rx="2" fill="#2a78d6"><title>latency-3s, gnn: 1.00</title></rect>
+<rect x="150" y="950" width="470.0" height="6" rx="2" fill="#eb6834"><title>latency-3s, window: 1.00</title></rect>
+<rect x="150" y="958" width="470.0" height="6" rx="2" fill="#1baf7a"><title>latency-3s, distance: 1.00</title></rect>
+<rect x="150" y="966" width="470.0" height="6" rx="2" fill="#eda100"><title>latency-3s, assign: 1.00</title></rect>
+<rect x="150" y="974" width="470.0" height="6" rx="2" fill="#e87ba4"><title>latency-3s, gnn-imm: 1.00</title></rect>
+<rect x="150" y="982" width="470.0" height="6" rx="2" fill="#008300"><title>latency-3s, assign-imm: 1.00</title></rect>
+<rect x="150" y="990" width="470.0" height="6" rx="2" fill="#6250d6"><title>latency-3s, assign-full: 1.00</title></rect>
+<rect x="150" y="998" width="470.0" height="6" rx="2" fill="#e34948"><title>latency-3s, gnn-restart: 1.00</title></rect>
+<text x="142" y="1049.0" font-size="12" text-anchor="end" fill="#0b0b0b">bias-400m</text>
+<rect x="150" y="1014" width="1.0" height="6" rx="2" fill="#2a78d6"><title>bias-400m, gnn: 0.00</title></rect>
+<rect x="150" y="1022" width="468.0" height="6" rx="2" fill="#eb6834"><title>bias-400m, window: 1.00</title></rect>
+<rect x="150" y="1030" width="1.0" height="6" rx="2" fill="#1baf7a"><title>bias-400m, distance: 0.00</title></rect>
+<rect x="150" y="1038" width="1.0" height="6" rx="2" fill="#eda100"><title>bias-400m, assign: 0.00</title></rect>
+<rect x="150" y="1046" width="1.0" height="6" rx="2" fill="#e87ba4"><title>bias-400m, gnn-imm: 0.00</title></rect>
+<rect x="150" y="1054" width="1.0" height="6" rx="2" fill="#008300"><title>bias-400m, assign-imm: 0.00</title></rect>
+<rect x="150" y="1062" width="470.0" height="6" rx="2" fill="#6250d6"><title>bias-400m, assign-full: 1.00</title></rect>
+<rect x="150" y="1070" width="1.0" height="6" rx="2" fill="#e34948"><title>bias-400m, gnn-restart: 0.00</title></rect>
+<text x="142" y="1121.0" font-size="12" text-anchor="end" fill="#0b0b0b">slow-jittered</text>
+<rect x="150" y="1086" width="461.3" height="6" rx="2" fill="#2a78d6"><title>slow-jittered, gnn: 0.98</title></rect>
+<rect x="150" y="1094" width="467.9" height="6" rx="2" fill="#eb6834"><title>slow-jittered, window: 1.00</title></rect>
+<rect x="150" y="1102" width="467.9" height="6" rx="2" fill="#1baf7a"><title>slow-jittered, distance: 1.00</title></rect>
+<rect x="150" y="1110" width="454.6" height="6" rx="2" fill="#eda100"><title>slow-jittered, assign: 0.97</title></rect>
+<rect x="150" y="1118" width="467.9" height="6" rx="2" fill="#e87ba4"><title>slow-jittered, gnn-imm: 1.00</title></rect>
+<rect x="150" y="1126" width="470.0" height="6" rx="2" fill="#008300"><title>slow-jittered, assign-imm: 1.00</title></rect>
+<rect x="150" y="1134" width="470.0" height="6" rx="2" fill="#6250d6"><title>slow-jittered, assign-full: 1.00</title></rect>
+<rect x="150" y="1142" width="461.3" height="6" rx="2" fill="#e34948"><title>slow-jittered, gnn-restart: 0.98</title></rect>
+<text x="142" y="1193.0" font-size="12" text-anchor="end" fill="#0b0b0b">low-detection</text>
+<rect x="150" y="1158" width="464.0" height="6" rx="2" fill="#2a78d6"><title>low-detection, gnn: 0.99</title></rect>
+<rect x="150" y="1166" width="464.0" height="6" rx="2" fill="#eb6834"><title>low-detection, window: 0.99</title></rect>
+<rect x="150" y="1174" width="470.0" height="6" rx="2" fill="#1baf7a"><title>low-detection, distance: 1.00</title></rect>
+<rect x="150" y="1182" width="470.0" height="6" rx="2" fill="#eda100"><title>low-detection, assign: 1.00</title></rect>
+<rect x="150" y="1190" width="464.0" height="6" rx="2" fill="#e87ba4"><title>low-detection, gnn-imm: 0.99</title></rect>
+<rect x="150" y="1198" width="470.0" height="6" rx="2" fill="#008300"><title>low-detection, assign-imm: 1.00</title></rect>
+<rect x="150" y="1206" width="470.0" height="6" rx="2" fill="#6250d6"><title>low-detection, assign-full: 1.00</title></rect>
+<rect x="150" y="1214" width="464.0" height="6" rx="2" fill="#e34948"><title>low-detection, gnn-restart: 0.99</title></rect>
+<text x="142" y="1265.0" font-size="12" text-anchor="end" fill="#0b0b0b">number-swap</text>
+<rect x="150" y="1230" width="392.2" height="6" rx="2" fill="#2a78d6"><title>number-swap, gnn: 0.83</title></rect>
+<rect x="150" y="1238" width="232.1" height="6" rx="2" fill="#eb6834"><title>number-swap, window: 0.49</title></rect>
+<rect x="150" y="1246" width="291.4" height="6" rx="2" fill="#1baf7a"><title>number-swap, distance: 0.62</title></rect>
+<rect x="150" y="1254" width="392.4" height="6" rx="2" fill="#eda100"><title>number-swap, assign: 0.83</title></rect>
+<rect x="150" y="1262" width="388.3" height="6" rx="2" fill="#e87ba4"><title>number-swap, gnn-imm: 0.83</title></rect>
+<rect x="150" y="1270" width="392.4" height="6" rx="2" fill="#008300"><title>number-swap, assign-imm: 0.83</title></rect>
+<rect x="150" y="1278" width="470.0" height="6" rx="2" fill="#6250d6"><title>number-swap, assign-full: 1.00</title></rect>
+<rect x="150" y="1286" width="457.1" height="6" rx="2" fill="#e34948"><title>number-swap, gnn-restart: 0.97</title></rect>
+<text x="142" y="1337.0" font-size="12" text-anchor="end" fill="#0b0b0b">number-drop</text>
+<rect x="150" y="1302" width="393.2" height="6" rx="2" fill="#2a78d6"><title>number-drop, gnn: 0.84</title></rect>
+<rect x="150" y="1310" width="393.2" height="6" rx="2" fill="#eb6834"><title>number-drop, window: 0.84</title></rect>
+<rect x="150" y="1318" width="470.0" height="6" rx="2" fill="#1baf7a"><title>number-drop, distance: 1.00</title></rect>
+<rect x="150" y="1326" width="398.4" height="6" rx="2" fill="#eda100"><title>number-drop, assign: 0.85</title></rect>
+<rect x="150" y="1334" width="393.2" height="6" rx="2" fill="#e87ba4"><title>number-drop, gnn-imm: 0.84</title></rect>
+<rect x="150" y="1342" width="398.4" height="6" rx="2" fill="#008300"><title>number-drop, assign-imm: 0.85</title></rect>
+<rect x="150" y="1350" width="415.9" height="6" rx="2" fill="#6250d6"><title>number-drop, assign-full: 0.88</title></rect>
+<rect x="150" y="1358" width="393.2" height="6" rx="2" fill="#e34948"><title>number-drop, gnn-restart: 0.84</title></rect>
+<text x="142" y="1409.0" font-size="12" text-anchor="end" fill="#0b0b0b">false-tracks</text>
+<rect x="150" y="1374" width="468.0" height="6" rx="2" fill="#2a78d6"><title>false-tracks, gnn: 1.00</title></rect>
+<rect x="150" y="1382" width="468.0" height="6" rx="2" fill="#eb6834"><title>false-tracks, window: 1.00</title></rect>
+<rect x="150" y="1390" width="470.0" height="6" rx="2" fill="#1baf7a"><title>false-tracks, distance: 1.00</title></rect>
+<rect x="150" y="1398" width="470.0" height="6" rx="2" fill="#eda100"><title>false-tracks, assign: 1.00</title></rect>
+<rect x="150" y="1406" width="468.0" height="6" rx="2" fill="#e87ba4"><title>false-tracks, gnn-imm: 1.00</title></rect>
+<rect x="150" y="1414" width="470.0" height="6" rx="2" fill="#008300"><title>false-tracks, assign-imm: 1.00</title></rect>
+<rect x="150" y="1422" width="470.0" height="6" rx="2" fill="#6250d6"><title>false-tracks, assign-full: 1.00</title></rect>
+<rect x="150" y="1430" width="468.0" height="6" rx="2" fill="#e34948"><title>false-tracks, gnn-restart: 1.00</title></rect>
+<text x="142" y="1481.0" font-size="12" text-anchor="end" fill="#0b0b0b">three-sensors</text>
+<rect x="150" y="1446" width="451.3" height="6" rx="2" fill="#2a78d6"><title>three-sensors, gnn: 0.96</title></rect>
+<rect x="150" y="1454" width="466.7" height="6" rx="2" fill="#eb6834"><title>three-sensors, window: 0.99</title></rect>
+<rect x="150" y="1462" width="435.7" height="6" rx="2" fill="#1baf7a"><title>three-sensors, distance: 0.93</title></rect>
+<rect x="150" y="1470" width="443.5" height="6" rx="2" fill="#eda100"><title>three-sensors, assign: 0.94</title></rect>
+<rect x="150" y="1478" width="466.7" height="6" rx="2" fill="#e87ba4"><title>three-sensors, gnn-imm: 0.99</title></rect>
+<rect x="150" y="1486" width="470.0" height="6" rx="2" fill="#008300"><title>three-sensors, assign-imm: 1.00</title></rect>
+<rect x="150" y="1494" width="470.0" height="6" rx="2" fill="#6250d6"><title>three-sensors, assign-full: 1.00</title></rect>
+<rect x="150" y="1502" width="451.3" height="6" rx="2" fill="#e34948"><title>three-sensors, gnn-restart: 0.96</title></rect>
+<text x="142" y="1553.0" font-size="12" text-anchor="end" fill="#0b0b0b">dense-8</text>
+<rect x="150" y="1518" width="452.0" height="6" rx="2" fill="#2a78d6"><title>dense-8, gnn: 0.96</title></rect>
+<rect x="150" y="1526" width="469.5" height="6" rx="2" fill="#eb6834"><title>dense-8, window: 1.00</title></rect>
+<rect x="150" y="1534" width="470.0" height="6" rx="2" fill="#1baf7a"><title>dense-8, distance: 1.00</title></rect>
+<rect x="150" y="1542" width="432.9" height="6" rx="2" fill="#eda100"><title>dense-8, assign: 0.92</title></rect>
+<rect x="150" y="1550" width="469.5" height="6" rx="2" fill="#e87ba4"><title>dense-8, gnn-imm: 1.00</title></rect>
+<rect x="150" y="1558" width="462.9" height="6" rx="2" fill="#008300"><title>dense-8, assign-imm: 0.98</title></rect>
+<rect x="150" y="1566" width="468.2" height="6" rx="2" fill="#6250d6"><title>dense-8, assign-full: 1.00</title></rect>
+<rect x="150" y="1574" width="452.0" height="6" rx="2" fill="#e34948"><title>dense-8, gnn-restart: 0.96</title></rect>
 </svg>

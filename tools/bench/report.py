@@ -13,9 +13,13 @@ FIG = os.path.join(ROOT, "docs", "figures", "bench")
 
 # Categorical slots in fixed order (one per pack, never cycled), light and dark.
 SERIES = {
-    "light": ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6"],
-    "dark": ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#0ca30c", "#9085e9"],
+    "light": ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"],
+    "dark": ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#0ca30c", "#9085e9", "#e66767"],
 }
+
+# Packs left out of the charts (eight slots at most), with the reason; they stay in every table.
+CHART_OMIT = {"correlate-assign-window": "assign-full includes its multi-frame window",
+              "correlate-assign-bias": "assign-full includes its bias estimate"}
 INK = {
     "light": dict(surface="#fcfcfb", text="#0b0b0b", text2="#52514e", muted="#898781",
                   grid="#e1e0d9", axis="#c3c2b7"),
@@ -168,6 +172,9 @@ def picture(name, alt):
 def render_all(res):
     """Every generated file: {path: text}."""
     packs = res["packs"]
+    cpacks = [p for p in packs if p not in CHART_OMIT]
+    if len(cpacks) > len(SERIES["light"]):
+        raise SystemExit("more than %d packs to chart: add one to CHART_OMIT" % len(SERIES["light"]))
     named = [m for m in res["meta"] if m["family"] != "random"]
     random = [m for m in res["meta"] if m["family"] == "random"]
     S = res["scenarios"]
@@ -177,18 +184,18 @@ def render_all(res):
     rows = [m["name"] for m in named]
     f1 = {p: {r: S[p]["per"][r]["f1"] for r in rows} for p in packs}
     gs = {p: {r: S[p]["per"][r]["gospa_m"] for r in rows} for p in packs}
-    summary = [(lab, [S[p]["random"][k] for p in packs], f, hi)
+    summary = [(lab, [S[p]["random"][k] for p in cpacks], f, hi)
                for (k, lab, f, hi) in METRICS if k in ("f1", "swaps", "false_merges", "rms_m", "gospa_m")]
     for mode in ("light", "dark"):
         files[os.path.join(FIG, "f1-%s.svg" % mode)] = grouped_bars(
             "Pairwise association F1 per scenario", "1.0 is every pair of tracks grouped exactly as in truth",
-            rows, packs, f1, mode, vmax=1.0, fmt_s="{:.2f}")
+            rows, cpacks, f1, mode, vmax=1.0, fmt_s="{:.2f}")
         files[os.path.join(FIG, "gospa-%s.svg" % mode)] = grouped_bars(
             "GOSPA per scenario, mean over ticks", "meters, c = 500 m, p = 2; lower is better",
-            rows, packs, gs, mode, fmt_s="{:.0f}")
+            rows, cpacks, gs, mode, fmt_s="{:.0f}")
         files[os.path.join(FIG, "random-%s.svg" % mode)] = panels(
             "Seeded random set: %d scenarios pooled" % len(random),
-            "each panel has its own scale", packs, summary, mode)
+            "each panel has its own scale", cpacks, summary, mode)
 
     L = []
     L.append("# Correlation benchmark\n")
@@ -204,6 +211,10 @@ def render_all(res):
              "a track number swap, a drop, and false tracks. Counts are summed and rates pooled over "
              "the set.\n" % len(random))
     L.append(picture("random", "Pooled scores over the random set, one bar per pack"))
+    omitted = [p for p in packs if p in CHART_OMIT]
+    if omitted:
+        L.append("The charts leave out %s; the tables include every pack.\n" % "; ".join(
+            "%s (%s)" % (short(p), CHART_OMIT[p]) for p in omitted))
     L.append(table(["Pack"] + [lab for _, lab, _, _ in METRICS],
                    [[short(p)] + [fmt(S[p]["random"][k], f) for k, _, f, _ in METRICS] for p in packs]))
     L.append("## Named scenarios, pooled\n")
