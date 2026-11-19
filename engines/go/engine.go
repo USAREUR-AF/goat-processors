@@ -41,8 +41,8 @@ func (a Axis) predict(dt, q float64) Axis {
 	}
 }
 
-// updatePos is step 2.
-func (a Axis) updatePos(z, r float64) Axis {
+// updatePos is step 2; it also returns the innovation y and its variance s.
+func (a Axis) updatePos(z, r float64) (Axis, float64, float64) {
 	s := a.PP + r
 	k1, k2 := a.PP/s, a.PV/s
 	y := z - a.P
@@ -52,11 +52,11 @@ func (a Axis) updatePos(z, r float64) Axis {
 		PP: (1 - k1) * a.PP,
 		PV: (1 - k1) * a.PV,
 		VV: a.VV - k2*a.PV,
-	}
+	}, y, s
 }
 
-// updateVel is step 3.
-func (a Axis) updateVel(z, r float64) Axis {
+// updateVel is step 3; it also returns the innovation y and its variance s.
+func (a Axis) updateVel(z, r float64) (Axis, float64, float64) {
 	s := a.VV + r
 	k1, k2 := a.PV/s, a.VV/s
 	y := z - a.V
@@ -66,7 +66,7 @@ func (a Axis) updateVel(z, r float64) Axis {
 		PP: a.PP - k1*a.PV,
 		PV: (1 - k2) * a.PV,
 		VV: (1 - k2) * a.VV,
-	}
+	}, y, s
 }
 
 func (a Axis) list() []any { return []any{a.P, a.V, a.PP, a.PV, a.VV} }
@@ -76,18 +76,15 @@ type Entity struct {
 	Key          string
 	Source       string
 	LastTime     int64
-	East, North  Axis
+	East, North  Axis       // the filter; with two models, their combination
+	Models       *[2]Model  // with the manoeuvre line: quiet, manoeuvre (spec: Two-model filter)
+	Mode         [2]float64 // with the manoeuvre line: mu1, mu2
 	Ce           float64
 	Last         map[string]any // the last accepted report
 	Group        string
 	HoldFailures int64
-	System       string // method assign: the entity's system track, "" for none
-}
-
-// predicted returns copies of both axes predicted to t (spec: Prediction).
-func (e *Entity) predicted(t int64, q float64) (Axis, Axis) {
-	dt := float64(t-e.LastTime) / 1000
-	return e.East.predict(dt, q), e.North.predict(dt, q)
+	System       string // method assign: the entity's committed system track, "" for none
+	Retiring     bool   // method assign: found stale, drop not yet committed
 }
 
 func (e *Entity) num(key string) (float64, bool) { return toFloat(e.Last[key]) }
@@ -103,16 +100,15 @@ type Engine struct {
 	nextGroup  int
 
 	// method assign (spec: correlate-assign.md)
-	systems     map[string][]string
-	systemOrder []string
-	nextSystem  int
-	reported    map[string]bool // entities with an accepted report since the previous tick
+	committed Membership      // the membership the output reports
+	histories []History       // in rank order
+	reported  map[string]bool // entities with an accepted report since the previous tick
 }
 
 // New returns an engine for a loaded pack.
 func New(p *Pack) *Engine {
 	return &Engine{pack: p, entities: map[string]*Entity{}, groups: map[string][]string{}, counts: map[string]int64{}, nextGroup: 1,
-		systems: map[string][]string{}, nextSystem: 1, reported: map[string]bool{}}
+		committed: newMembership(), histories: []History{{}}, reported: map[string]bool{}}
 }
 
 func toFloat(v any) (float64, bool) {
@@ -193,6 +189,10 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 	lat, _ := toFloat(report["lat"])
 	lon, _ := toFloat(report["lon"])
 	e := g.entities[key]
+	if e != nil && e.Retiring {
+		// correlate-assign.md: Window, Reports for a retiring entity.
+		return []Obj{{"ev": "reject", "entity": key, "reason": "retiring"}}, []Obj{}
+	}
 	if e != nil && t < e.LastTime {
 		return []Obj{{"ev": "reject", "entity": key, "reason": "out-of-order"}}, []Obj{}
 	}
@@ -201,37 +201,25 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 		g.ref = &[2]float64{lat, lon}
 	}
 	p := g.pack
-	east, north := g.toPlane(lat, lon)
+	var z Measurement
+	z.East, z.North = g.toPlane(lat, lon)
 	ce, ok := toFloat(report["ce"])
 	if !ok {
 		ce = p.DefaultCeM
 	}
+	z.R = ce * ce
 	course, hasC := toFloat(report["course"])
 	speed, hasS := toFloat(report["speed_ms"])
-	hasVel := hasC && hasS
-	var ve, vn float64
-	if hasVel {
-		ve, vn = speed*math.Sin(rad(course)), speed*math.Cos(rad(course))
+	if z.HasVel = hasC && hasS; z.HasVel {
+		z.VE, z.VN = speed*math.Sin(rad(course)), speed*math.Cos(rad(course))
 	}
 	if e == nil {
-		// First report.
-		vv := p.UnknownVelMs * p.UnknownVelMs
-		if hasVel {
-			vv = p.VelSigmaMs * p.VelSigmaMs
-		}
-		e = &Entity{Key: key, Source: source,
-			East:  Axis{P: east, V: ve, PP: ce * ce, VV: vv},
-			North: Axis{P: north, V: vn, PP: ce * ce, VV: vv}}
+		e = &Entity{Key: key, Source: source}
+		g.startFilter(e, z)
 		g.entities[key] = e
 		events = append(events, Obj{"ev": "new", "entity": key})
 	} else {
-		// Later reports: predict, position update, velocity update.
-		e.East, e.North = e.predicted(t, p.AccelVar)
-		e.East, e.North = e.East.updatePos(east, ce*ce), e.North.updatePos(north, ce*ce)
-		if hasVel {
-			r := p.VelSigmaMs * p.VelSigmaMs
-			e.East, e.North = e.East.updateVel(ve, r), e.North.updateVel(vn, r)
-		}
+		trace = append(trace, g.updateFilter(e, t, z)...)
 	}
 	e.LastTime, e.Ce, e.Last = t, ce, report
 
@@ -439,7 +427,7 @@ func record(stage string, a, b *Entity, test string, value, limit any, pass bool
 
 // d2 is the squared statistical distance of A's filter from B's prediction (spec: Tests).
 func (g *Engine) d2(a, b *Entity) float64 {
-	be, bn := b.predicted(a.LastTime, g.pack.AccelVar)
+	be, bn := g.predicted(b, a.LastTime)
 	r := a.Ce * a.Ce
 	de, dn := a.East.P-be.P, a.North.P-bn.P
 	return de*de/(be.PP+r) + dn*dn/(bn.PP+r)
@@ -502,7 +490,7 @@ func (g *Engine) runTest(stage string, t Test, a, b *Entity) Obj {
 		r["skipped"] = true
 		return r
 	}
-	be, bn := b.predicted(a.LastTime, g.pack.AccelVar)
+	be, bn := g.predicted(b, a.LastTime)
 	dist := math.Hypot(a.East.P-be.P, a.North.P-bn.P)
 	switch t.Name {
 	case "distance":
@@ -563,11 +551,7 @@ func (g *Engine) Tick(now int64) (events, trace []Obj) {
 	events, trace = []Obj{}, []Obj{}
 	for _, k := range sortedKeys(g.entities) {
 		e := g.entities[k]
-		stale := now-e.LastTime > g.pack.StaleMs
-		if s, ok := toInt(e.Last["stale_ms"]); ok && now >= s {
-			stale = true
-		}
-		if !stale {
+		if !g.isStale(e, now) {
 			continue
 		}
 		if e.Group != "" {
@@ -591,7 +575,7 @@ func (g *Engine) Tick(now int64) (events, trace []Obj) {
 				primary = e
 			}
 		}
-		pe, pn := primary.predicted(now, g.pack.AccelVar)
+		pe, pn := g.predicted(primary, now)
 		lat, lon := g.toDegrees(pe.P, pn.P)
 		course := deg(math.Atan2(pe.V, pn.V))
 		if course < 0 {
@@ -608,6 +592,15 @@ func (g *Engine) Tick(now int64) (events, trace []Obj) {
 		events = append(events, ev)
 	}
 	return events, trace
+}
+
+// isStale reports whether an entity is stale at now (spec: On each tick, Staleness).
+func (g *Engine) isStale(e *Entity, now int64) bool {
+	if now-e.LastTime > g.pack.StaleMs {
+		return true
+	}
+	s, ok := toInt(e.Last["stale_ms"])
+	return ok && now >= s
 }
 
 // better reports whether e beats the current primary c; members arrive in key order,
@@ -641,8 +634,7 @@ func (g *Engine) Snapshot() Obj {
 		if e.Group != "" {
 			grp = e.Group
 		}
-		ents[k] = Obj{"last_time_ms": e.LastTime, "group": grp, "hold_failures": e.HoldFailures,
-			"filter": Obj{"east": e.East.list(), "north": e.North.list()}}
+		ents[k] = e.filterSnapshot(Obj{"last_time_ms": e.LastTime, "group": grp, "hold_failures": e.HoldFailures})
 	}
 	groups := Obj{}
 	for k, m := range g.groups {
