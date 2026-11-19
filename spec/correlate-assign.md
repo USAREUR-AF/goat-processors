@@ -106,7 +106,9 @@ entity `leave`, `end`, `drop`; then per source the assignment events; then one
 
 ## Trace
 
-Gate tests give the records of `correlate.md` with stage `gate`. After a
+Gate tests give the records of `correlate.md` with stage `gate`, in the order
+they run: entities of R in key order, per entity the columns in creation
+order, per column the others in key order. After a
 source's entries are computed, each entry is a record
 `{"stage":"assign","a":<entity>,"b":<system track or "alone">,"test":"cost","value":<cost or null>,"limit":null,"pass":<true unless forbidden>}`,
 entities in key order and, per entity, columns in creation order then
@@ -140,7 +142,9 @@ stale_ms    <ms>
 All but `gate` are required and appear once; `gate` repeats and may be
 absent, in which case every column entry passes. `new_cost` must be above 0
 and `keep_bonus` 0 or above, or the pack does not load. A `method` value other
-than `confirm` or `assign` does not load. `confirm`,
+than `confirm` or `assign` does not load. `method` may appear anywhere in the
+file; which directives are required or refused is checked once the whole file
+is read. `confirm`,
 `hold`, `confirm_count`, `hold_failures`, `same_source`, `output` and
 `priority` are load errors with `method assign`. A pack with no `method` line
 uses `method confirm` (`correlate.md`); `method confirm` may also be written.
