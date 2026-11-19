@@ -7,6 +7,7 @@ const frame = @import("frame.zig");
 const kalman = @import("kalman.zig");
 const entity_mod = @import("entity.zig");
 const pair_tests = @import("pair_tests.zig");
+const assign = @import("assign.zig");
 const Entity = entity_mod.Entity;
 const Pack = pack_mod.Pack;
 
@@ -17,16 +18,16 @@ pub const Result = struct {
     trace: json.Array,
 };
 
-const Group = struct {
+pub const Group = struct {
     id: u64,
     members: std.ArrayList([]const u8),
 };
 
 const PairCount = struct { a: []const u8, b: []const u8, count: i64 };
 
-const Stage = enum { gate, confirm, hold, rank };
+pub const Stage = enum { gate, confirm, hold, rank };
 
-fn lessKey(_: void, a: []const u8, b: []const u8) bool {
+pub fn lessKey(_: void, a: []const u8, b: []const u8) bool {
     return std.mem.order(u8, a, b) == .lt;
 }
 
@@ -38,6 +39,9 @@ pub const Engine = struct {
     groups: std.ArrayList(Group),
     counts: std.ArrayList(PairCount),
     next_group: u64 = 1,
+    // correlate-assign.md: system tracks reuse `groups`, `next_group` and `Entity.group`;
+    // `reported` holds the entities with an accepted report since the previous tick.
+    reported: std.StringArrayHashMap(void),
 
     pub fn create(backing: Allocator, pack: Pack) !*Engine {
         const self = try backing.create(Engine);
@@ -47,11 +51,13 @@ pub const Engine = struct {
             .entities = undefined,
             .groups = undefined,
             .counts = undefined,
+            .reported = undefined,
         };
         const a = self.arena.allocator();
         self.entities = std.StringArrayHashMap(Entity).init(a);
         self.groups = std.ArrayList(Group).init(a);
         self.counts = std.ArrayList(PairCount).init(a);
+        self.reported = std.StringArrayHashMap(void).init(a);
         return self;
     }
 
@@ -61,7 +67,7 @@ pub const Engine = struct {
         backing.destroy(self);
     }
 
-    fn alloc(self: *Engine) Allocator {
+    pub fn alloc(self: *Engine) Allocator {
         return self.arena.allocator();
     }
 
@@ -85,36 +91,37 @@ pub const Engine = struct {
     }
 
     // `fields` is a tuple of .{ name, value } pairs, kept in that order.
-    fn object(self: *Engine, fields: anytype) !json.Value {
+    pub fn object(self: *Engine, fields: anytype) !json.Value {
         var m = json.ObjectMap.init(self.alloc());
         inline for (fields) |kv| try m.put(kv[0], self.toValue(kv[1]));
         return .{ .object = m };
     }
 
-    fn stringList(self: *Engine, items: []const []const u8) !json.Value {
+    pub fn stringList(self: *Engine, items: []const []const u8) !json.Value {
         var arr = json.Array.init(self.alloc());
         for (items) |s| try arr.append(.{ .string = s });
         return .{ .array = arr };
     }
 
-    fn groupName(self: *Engine, id: u64) ![]const u8 {
-        return std.fmt.allocPrint(self.alloc(), "g{d}", .{id});
+    pub fn groupName(self: *Engine, id: u64) ![]const u8 {
+        const prefix = if (self.pack.method == .assign) "s" else "g";
+        return std.fmt.allocPrint(self.alloc(), "{s}{d}", .{ prefix, id });
     }
 
     // ---- state helpers -----------------------------------------------------
 
-    fn sortedKeys(self: *Engine) ![][]const u8 {
+    pub fn sortedKeys(self: *Engine) ![][]const u8 {
         const keys = try self.alloc().dupe([]const u8, self.entities.keys());
         std.mem.sort([]const u8, keys, {}, lessKey);
         return keys;
     }
 
-    fn groupIndex(self: *Engine, id: u64) usize {
+    pub fn groupIndex(self: *Engine, id: u64) usize {
         for (self.groups.items, 0..) |g, i| if (g.id == id) return i;
         unreachable;
     }
 
-    fn insertSorted(list: *std.ArrayList([]const u8), key: []const u8) !void {
+    pub fn insertSorted(list: *std.ArrayList([]const u8), key: []const u8) !void {
         var i: usize = 0;
         while (i < list.items.len and lessKey({}, list.items[i], key)) i += 1;
         try list.insert(i, key);
@@ -226,6 +233,11 @@ pub const Engine = struct {
         }
 
         const a_key = self.entities.getPtr(key).?.key;
+        // correlate-assign.md: a report gives only `new` or `reject`; the tick decides.
+        if (self.pack.method == .assign) {
+            try self.reported.put(a_key, {});
+            return res;
+        }
         if (self.entities.get(a_key).?.group) |gid| {
             try self.hold(&res, a_key, gid);
         } else {
@@ -235,7 +247,7 @@ pub const Engine = struct {
     }
 
     // Runs `tests` between A and B in order, stopping at the first failure.
-    fn runTests(self: *Engine, res: *Result, stage: Stage, tests: []const pack_mod.Test, a_key: []const u8, b_key: []const u8) !bool {
+    pub fn runTests(self: *Engine, res: *Result, stage: Stage, tests: []const pack_mod.Test, a_key: []const u8, b_key: []const u8) !bool {
         const a = self.entities.get(a_key).?;
         const b = self.entities.get(b_key).?;
         const b_pred = b.predictedTo(a.last_time_ms, self.pack.filter.accel_var);
@@ -389,6 +401,7 @@ pub const Engine = struct {
 
     // Spec operation `tick(now_ms)`.
     pub fn tick(self: *Engine, now_ms: i64) !Result {
+        if (self.pack.method == .assign) return assign.tick(self, now_ms);
         var res = Result{ .events = json.Array.init(self.alloc()), .trace = json.Array.init(self.alloc()) };
 
         // 1. Staleness, entities in key order.
@@ -450,7 +463,7 @@ pub const Engine = struct {
 
     // ---- snapshot ----------------------------------------------------------
 
-    fn axisValue(self: *Engine, a: kalman.Axis) !json.Value {
+    pub fn axisValue(self: *Engine, a: kalman.Axis) !json.Value {
         var arr = json.Array.init(self.alloc());
         for ([_]f64{ a.p, a.v, a.pp, a.pv, a.vv }) |x| try arr.append(.{ .float = x });
         return .{ .array = arr };
@@ -458,6 +471,7 @@ pub const Engine = struct {
 
     // Spec operation `snapshot()`.
     pub fn snapshot(self: *Engine) !json.Value {
+        if (self.pack.method == .assign) return assign.snapshot(self);
         var ref: json.Value = .null;
         if (self.ref) |r| {
             var arr = json.Array.init(self.alloc());
