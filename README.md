@@ -8,7 +8,7 @@ model; goat-processors reads that model.
 
 | Function | Status |
 |---|---|
-| correlate | Written (specification 0.2) and built in seven languages; every engine passes every vector |
+| correlate | Written (specification 0.3) and built in seven languages |
 | fuse, filter, quality | Designed, not built ([spec/README.md](spec/README.md)) |
 
 Every decision is explainable from the output. Each test a function runs is a

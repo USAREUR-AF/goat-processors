@@ -1,6 +1,6 @@
 # Correlate specification
 
-Status: Written. Version 0.2. Every language's engine implements this document
+Status: Written. Version 0.3. Every language's engine implements this document
 and passes every vector. Engines are written from this document and the
 vectors, never from another engine's source.
 
@@ -55,7 +55,10 @@ A required key is missing when it is absent, `null`, or of the wrong type:
 table; this event never carries `entity`, even when the key could be built.
 An optional key that is `null` or of the wrong type (`hae`, `ce`, `course`,
 `speed_ms` must be numbers, `type` a string, `stale_ms` an integer) is treated
-as absent. An integer is accepted where a number is required. A report whose `time_ms` is earlier than its entity's last report is
+as absent, and so is a `ce` of 0 or below. An integer is a JSON number written
+without a fraction or an exponent (`1000`, not `1000.0` or `1e3`); an integer
+is accepted where a number is required. A `null` value for any key is the
+same as the key being absent. A report whose `time_ms` is earlier than its entity's last report is
 rejected with `{"ev":"reject","entity":<key>,"reason":"out-of-order"}`.
 A rejected report changes no state.
 
@@ -147,7 +150,9 @@ faster speed is 0 its `value` is 0. An `altitude`
 test is skipped, and passes, when either entity lacks `hae`. A skipped test
 has trace `value` and `limit` null and `"skipped":true`. For `same`, the trace
 `value` and `limit` are the two values (null when absent). `@env` as a `same`
-key names the environment taken from `type`.
+key names the environment taken from `type`, and is absent when `type` is
+absent or has fewer than three elements. `same` compares strings byte for
+byte and numbers by value (`1` equals `1.0`); a string never equals a number.
 
 ## Association
 

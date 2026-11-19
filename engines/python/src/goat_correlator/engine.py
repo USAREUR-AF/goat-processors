@@ -1,4 +1,4 @@
-"""Correlate engine (spec/correlate.md, version 0.2). Standard library only."""
+"""Correlate engine (spec/correlate.md, version 0.3). Standard library only."""
 
 import math
 import os
@@ -38,6 +38,8 @@ def _normalise(report):
         if v is None:
             continue
         if k in OPTIONAL and not _is(v, OPTIONAL[k]):
+            continue
+        if k == "ce" and v <= 0:
             continue
         out[k] = v
     return out

@@ -243,6 +243,17 @@ scenario("21-wrong-types", "correlate-gnn", [
 ], [["reject"], ["reject"], ["reject"], ["new"], ["new"]])
 
 
+# 22. Edge values: an integral float is not an integer; same compares numbers by
+#     value; a short type has no environment; a ce of 0 falls back to the default.
+scenario("22-edge-values", "correlate-gnn", [
+    ("ingest", {"track.source_id": "radar-1", "uid": "T1", "time_ms": 1000.0, "lat": 1.0, "lon": 1.0}),
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=0, type="a-f", **{"track.simulated": 1})),
+    ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, type="a-h", **{"track.simulated": 1.0})),
+    ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=-5, type="a-f", stale_ms=9000.0, **{"track.simulated": 1})),
+    ("tick", 9500),
+], [["reject"], ["new"], ["new"], ["correlate"], ["fused"]])
+
+
 def clean(x):
     """Write negative zero as zero."""
     if isinstance(x, float):
