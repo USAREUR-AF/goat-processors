@@ -4,7 +4,7 @@
 
 main([Root]) ->
     Scenarios = lists:sort(filelib:wildcard(filename:join(Root, "packs/*/vectors/*.json"))),
-    Loads = lists:sort(filelib:wildcard(filename:join(Root, "spec/load-vectors/*.json"))),
+    Loads = lists:sort(filelib:wildcard(filename:join(Root, "spec/correlate-load-vectors/*.json"))),
     Results = [scenario(Root, F) || F <- Scenarios] ++ [load(F) || F <- Loads],
     Failed = [R || R <- Results, R =/= ok],
     io:format("~b vectors, ~b passed, ~b failed~n",
