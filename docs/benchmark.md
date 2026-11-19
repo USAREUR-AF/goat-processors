@@ -19,6 +19,9 @@ Each scenario places truth objects and sensors that report tracks of them with s
 | window | 0.934 | 0.988 | 0.887 | 77 | 40 | 17 | 3.5 | 508.5 | 308.1 |
 | distance | 0.807 | 0.996 | 0.678 | 21 | 76 | 14 | 8.2 | 962.4 | 418.1 |
 | assign | 0.715 | 0.997 | 0.558 | 15 | 99 | 130 | 4.3 | 587.4 | 474.7 |
+| gnn-imm | 0.884 | 0.993 | 0.796 | 71 | 55 | 21 | 4.7 | 534.4 | 344.2 |
+| assign-imm | 0.796 | 0.998 | 0.661 | 12 | 54 | 160 | 4.6 | 354.3 | 399.0 |
+| assign-window | 0.698 | 0.994 | 0.538 | 62 | 91 | 229 | 5.0 | 853.3 | 477.0 |
 
 ## Named scenarios, pooled
 
@@ -28,6 +31,9 @@ Each scenario places truth objects and sensors that report tracks of them with s
 | window | 0.924 | 0.930 | 0.917 | 5 | 6 | 1 | 0.7 | 40.4 | 56.8 |
 | distance | 0.884 | 0.857 | 0.913 | 13 | 2 | 1 | 2.6 | 939.0 | 108.8 |
 | assign | 0.937 | 1.000 | 0.881 | 0 | 2 | 2 | 1.2 | 67.1 | 109.6 |
+| gnn-imm | 0.968 | 0.996 | 0.941 | 3 | 2 | 1 | 2.4 | 9.6 | 69.8 |
+| assign-imm | 0.971 | 1.000 | 0.944 | 0 | 2 | 2 | 1.0 | 18.4 | 72.4 |
+| assign-window | 0.929 | 1.000 | 0.867 | 2 | 2 | 2 | 2.0 | 64.9 | 115.7 |
 
 ## Scenarios
 
@@ -70,22 +76,37 @@ Each scenario places truth objects and sensors that report tracks of them with s
 | stationary | window | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 9.3 | 11.2 |
 | stationary | distance | 0.667 | 1.000 | 0.500 | 0 | 0 | 0 | 60.0 | 10.8 | 180.3 |
 | stationary | assign | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 9.5 | 8.6 |
+| stationary | gnn-imm | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 9.3 | 11.2 |
+| stationary | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 9.5 | 8.5 |
+| stationary | assign-window | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 9.5 | 11.4 |
 | straight-level | gnn | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 9.3 | 11.2 |
 | straight-level | window | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 9.3 | 11.2 |
 | straight-level | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 6.5 | 5.8 |
 | straight-level | assign | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 9.0 | 7.8 |
+| straight-level | gnn-imm | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 9.3 | 11.2 |
+| straight-level | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 9.0 | 7.8 |
+| straight-level | assign-window | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 9.0 | 10.8 |
 | turn-3dps | gnn | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 57.6 | 45.6 |
 | turn-3dps | window | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 57.6 | 45.6 |
 | turn-3dps | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 20.7 | 17.8 |
 | turn-3dps | assign | 0.965 | 1.000 | 0.933 | 0 | 0 | 0 | 0.0 | 86.0 | 65.2 |
+| turn-3dps | gnn-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 10.0 | 8.9 |
+| turn-3dps | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 10.0 | 8.8 |
+| turn-3dps | assign-window | 0.961 | 1.000 | 0.924 | 0 | 0 | 0 | 1.0 | 73.1 | 68.2 |
 | turn-6dps | gnn | 0.860 | 1.000 | 0.754 | 0 | 0 | 0 | 0.0 | 113.7 | 130.8 |
 | turn-6dps | window | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 113.7 | 77.5 |
 | turn-6dps | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 35.4 | 26.1 |
 | turn-6dps | assign | 0.764 | 1.000 | 0.619 | 0 | 0 | 0 | 0.0 | 187.0 | 161.6 |
+| turn-6dps | gnn-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 10.2 | 8.6 |
+| turn-6dps | assign-imm | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 0.0 | 20.2 | 11.4 |
+| turn-6dps | assign-window | 0.771 | 1.000 | 0.627 | 0 | 0 | 0 | 1.0 | 182.0 | 161.8 |
 | accelerate | gnn | 0.987 | 1.000 | 0.974 | 0 | 0 | 0 | 1.0 | 53.3 | 44.9 |
 | accelerate | window | 0.996 | 1.000 | 0.991 | 0 | 0 | 0 | 1.0 | 53.3 | 40.2 |
 | accelerate | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 24.7 | 18.6 |
 | accelerate | assign | 0.922 | 1.000 | 0.855 | 0 | 0 | 0 | 0.0 | 96.7 | 82.3 |
+| accelerate | gnn-imm | 0.996 | 1.000 | 0.991 | 0 | 0 | 0 | 1.0 | 9.4 | 11.4 |
+| accelerate | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 9.5 | 8.5 |
+| accelerate | assign-window | 0.912 | 1.000 | 0.838 | 0 | 0 | 0 | 1.0 | 92.3 | 88.0 |
 
 ### Geometry
 
@@ -95,22 +116,37 @@ Each scenario places truth objects and sensors that report tracks of them with s
 | crossing-90deg | window | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 8.7 | 15.7 |
 | crossing-90deg | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 16.6 | 14.8 |
 | crossing-90deg | assign | 0.987 | 1.000 | 0.975 | 0 | 0 | 0 | 0.0 | 18.8 | 28.1 |
+| crossing-90deg | gnn-imm | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 8.7 | 15.7 |
+| crossing-90deg | assign-imm | 0.987 | 1.000 | 0.975 | 0 | 0 | 0 | 0.0 | 18.8 | 28.1 |
+| crossing-90deg | assign-window | 0.985 | 1.000 | 0.970 | 0 | 0 | 0 | 1.0 | 17.7 | 29.2 |
 | crossing-20deg | gnn | 0.998 | 1.000 | 0.996 | 0 | 0 | 0 | 0.5 | 9.2 | 14.9 |
 | crossing-20deg | window | 0.998 | 1.000 | 0.996 | 0 | 0 | 0 | 0.5 | 9.2 | 14.9 |
 | crossing-20deg | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 22.8 | 20.7 |
 | crossing-20deg | assign | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 9.1 | 12.0 |
+| crossing-20deg | gnn-imm | 0.998 | 1.000 | 0.996 | 0 | 0 | 0 | 0.5 | 9.2 | 14.9 |
+| crossing-20deg | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 9.1 | 12.0 |
+| crossing-20deg | assign-window | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 9.0 | 16.0 |
 | parallel-500m | gnn | 0.995 | 1.000 | 0.991 | 0 | 0 | 0 | 0.4 | 9.0 | 17.6 |
 | parallel-500m | window | 0.995 | 1.000 | 0.991 | 0 | 0 | 0 | 0.4 | 9.0 | 17.6 |
 | parallel-500m | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 15.2 | 14.3 |
 | parallel-500m | assign | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.8 | 11.7 |
+| parallel-500m | gnn-imm | 0.995 | 1.000 | 0.991 | 0 | 0 | 0 | 0.4 | 9.0 | 17.6 |
+| parallel-500m | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.8 | 11.7 |
+| parallel-500m | assign-window | 0.995 | 1.000 | 0.991 | 0 | 0 | 0 | 0.4 | 8.4 | 15.5 |
 | parallel-150m | gnn | 0.907 | 0.939 | 0.877 | 1 | 0 | 0 | 9.3 | 8.9 | 52.9 |
 | parallel-150m | window | 0.000 | 0.000 | 0.000 | 3 | 3 | 0 | – | 102.6 | 11.9 |
 | parallel-150m | distance | 0.498 | 0.331 | 1.000 | 6 | 0 | 0 | 0.0 | 105.4 | 353.6 |
 | parallel-150m | assign | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.8 | 11.7 |
+| parallel-150m | gnn-imm | 0.879 | 0.919 | 0.842 | 1 | 0 | 0 | 12.0 | 8.9 | 64.4 |
+| parallel-150m | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.8 | 11.7 |
+| parallel-150m | assign-window | 0.996 | 1.000 | 0.991 | 0 | 0 | 0 | 0.7 | 8.5 | 15.6 |
 | split | gnn | 0.997 | 1.000 | 0.995 | 0 | 0 | 0 | 0.0 | 33.5 | 29.9 |
 | split | window | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 33.5 | 27.7 |
 | split | distance | 0.576 | 0.404 | 1.000 | 4 | 0 | 0 | 0.0 | 4570.2 | 209.0 |
 | split | assign | 0.946 | 1.000 | 0.898 | 0 | 0 | 0 | 0.0 | 81.9 | 74.8 |
+| split | gnn-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.4 | 9.5 |
+| split | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.3 | 9.3 |
+| split | assign-window | 0.949 | 1.000 | 0.903 | 0 | 0 | 0 | 1.0 | 75.6 | 72.3 |
 
 ### Sensor error
 
@@ -120,26 +156,44 @@ Each scenario places truth objects and sensors that report tracks of them with s
 | error-understated | window | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 9.0 | 7.9 |
 | error-understated | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 6.8 | 5.8 |
 | error-understated | assign | 0.849 | 1.000 | 0.737 | 0 | 0 | 0 | 4.0 | 40.2 | 97.8 |
+| error-understated | gnn-imm | 0.969 | 1.000 | 0.941 | 0 | 0 | 0 | 4.0 | 9.1 | 27.8 |
+| error-understated | assign-imm | 0.860 | 1.000 | 0.754 | 0 | 0 | 0 | 3.0 | 39.9 | 92.0 |
+| error-understated | assign-window | 0.854 | 1.000 | 0.746 | 0 | 0 | 0 | 5.0 | 38.8 | 95.1 |
 | error-absent | gnn | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 5.2 | 7.2 |
 | error-absent | window | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 5.1 | 7.2 |
 | error-absent | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 16.5 | 7.3 |
 | error-absent | assign | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 13.2 | 11.8 |
+| error-absent | gnn-imm | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 5.2 | 7.2 |
+| error-absent | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 13.0 | 11.5 |
+| error-absent | assign-window | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 12.8 | 14.4 |
 | latency-3s | gnn | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 7.8 | 6.9 |
 | latency-3s | window | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 7.8 | 6.9 |
 | latency-3s | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 5.8 | 5.0 |
 | latency-3s | assign | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.1 | 7.1 |
+| latency-3s | gnn-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 7.8 | 6.9 |
+| latency-3s | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.0 | 7.1 |
+| latency-3s | assign-window | 0.995 | 1.000 | 0.991 | 0 | 0 | 0 | 0.5 | 8.1 | 10.0 |
 | bias-400m | gnn | 0.000 | – | 0.000 | 0 | 1 | 0 | – | 10.4 | 348.1 |
 | bias-400m | window | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 10.4 | 11.2 |
 | bias-400m | distance | 0.000 | – | 0.000 | 0 | 1 | 0 | – | 8.6 | 348.1 |
 | bias-400m | assign | 0.000 | – | 0.000 | 0 | 1 | 0 | – | 10.4 | 348.1 |
+| bias-400m | gnn-imm | 0.000 | – | 0.000 | 0 | 1 | 0 | – | 10.4 | 348.1 |
+| bias-400m | assign-imm | 0.000 | – | 0.000 | 0 | 1 | 0 | – | 10.4 | 348.1 |
+| bias-400m | assign-window | 0.000 | – | 0.000 | 0 | 1 | 0 | – | 9.5 | 348.0 |
 | slow-jittered | gnn | 0.981 | 1.000 | 0.964 | 0 | 0 | 0 | 1.0 | 38.6 | 35.5 |
 | slow-jittered | window | 0.995 | 1.000 | 0.991 | 0 | 0 | 0 | 1.0 | 38.6 | 28.2 |
 | slow-jittered | distance | 0.995 | 1.000 | 0.991 | 0 | 0 | 0 | 0.0 | 15.6 | 14.3 |
 | slow-jittered | assign | 0.967 | 1.000 | 0.936 | 0 | 0 | 0 | 0.0 | 115.3 | 41.9 |
+| slow-jittered | gnn-imm | 0.995 | 1.000 | 0.991 | 0 | 0 | 0 | 1.0 | 9.7 | 11.1 |
+| slow-jittered | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 9.6 | 8.1 |
+| slow-jittered | assign-window | 0.962 | 1.000 | 0.927 | 0 | 0 | 0 | 1.0 | 111.4 | 44.6 |
 | low-detection | gnn | 0.987 | 1.000 | 0.975 | 0 | 0 | 0 | 0.6 | 15.3 | 27.7 |
 | low-detection | window | 0.987 | 1.000 | 0.975 | 0 | 0 | 0 | 0.6 | 15.3 | 27.7 |
 | low-detection | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 26.7 | 25.8 |
 | low-detection | assign | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 13.9 | 16.4 |
+| low-detection | gnn-imm | 0.987 | 1.000 | 0.975 | 0 | 0 | 0 | 0.6 | 15.3 | 27.7 |
+| low-detection | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 14.2 | 16.8 |
+| low-detection | assign-window | 0.995 | 1.000 | 0.990 | 0 | 0 | 0 | 0.2 | 11.8 | 20.3 |
 
 ### Track management
 
@@ -149,10 +203,16 @@ Each scenario places truth objects and sensors that report tracks of them with s
 | number-swap | window | 0.494 | 0.496 | 0.492 | 2 | 2 | 0 | 1.0 | 8.8 | 15.8 |
 | number-swap | distance | 0.620 | 0.775 | 0.517 | 3 | 1 | 0 | 18.7 | 9.7 | 192.5 |
 | number-swap | assign | 0.835 | 1.000 | 0.717 | 0 | 0 | 1 | 17.0 | 9.0 | 154.0 |
+| number-swap | gnn-imm | 0.826 | 0.983 | 0.713 | 2 | 0 | 0 | 17.2 | 8.8 | 147.9 |
+| number-swap | assign-imm | 0.835 | 1.000 | 0.717 | 0 | 0 | 1 | 14.0 | 37.9 | 154.0 |
+| number-swap | assign-window | 0.825 | 0.988 | 0.708 | 2 | 0 | 1 | 17.5 | 9.3 | 152.5 |
 | number-drop | gnn | 0.837 | 1.000 | 0.719 | 0 | 1 | 1 | 1.0 | 9.0 | 94.1 |
 | number-drop | window | 0.837 | 1.000 | 0.719 | 0 | 1 | 1 | 1.0 | 9.0 | 94.1 |
 | number-drop | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 7.0 | 6.1 |
 | number-drop | assign | 0.848 | 1.000 | 0.736 | 0 | 1 | 1 | 0.0 | 9.1 | 91.8 |
+| number-drop | gnn-imm | 0.837 | 1.000 | 0.719 | 0 | 1 | 1 | 1.0 | 9.0 | 94.1 |
+| number-drop | assign-imm | 0.848 | 1.000 | 0.736 | 0 | 1 | 1 | 0.0 | 9.1 | 91.8 |
+| number-drop | assign-window | 0.670 | 1.000 | 0.504 | 0 | 1 | 1 | 3.0 | 31.2 | 166.2 |
 
 ### Clutter
 
@@ -162,6 +222,9 @@ Each scenario places truth objects and sensors that report tracks of them with s
 | false-tracks | window | 0.996 | 1.000 | 0.991 | 0 | 0 | 0 | 1.0 | 9.5 | 560.7 |
 | false-tracks | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 16.6 | 555.7 |
 | false-tracks | assign | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 9.4 | 555.0 |
+| false-tracks | gnn-imm | 0.996 | 1.000 | 0.991 | 0 | 0 | 0 | 1.0 | 9.5 | 560.7 |
+| false-tracks | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 9.4 | 555.0 |
+| false-tracks | assign-window | 0.996 | 1.000 | 0.991 | 0 | 0 | 0 | 1.0 | 9.2 | 550.0 |
 
 ### Mixed
 
@@ -171,10 +234,16 @@ Each scenario places truth objects and sensors that report tracks of them with s
 | three-sensors | window | 0.993 | 1.000 | 0.986 | 0 | 0 | 0 | 1.4 | 31.3 | 52.8 |
 | three-sensors | distance | 0.927 | 1.000 | 0.864 | 0 | 0 | 1 | 3.6 | 23.3 | 222.6 |
 | three-sensors | assign | 0.944 | 1.000 | 0.893 | 0 | 0 | 0 | 0.0 | 59.2 | 182.4 |
+| three-sensors | gnn-imm | 0.993 | 1.000 | 0.986 | 0 | 0 | 0 | 1.4 | 8.8 | 29.4 |
+| three-sensors | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.9 | 14.7 |
+| three-sensors | assign-window | 0.939 | 1.000 | 0.886 | 0 | 0 | 0 | 0.8 | 56.5 | 186.8 |
 | dense-8 | gnn | 0.962 | 1.000 | 0.926 | 0 | 0 | 0 | 0.2 | 40.6 | 228.2 |
 | dense-8 | window | 0.999 | 1.000 | 0.998 | 0 | 0 | 0 | 0.2 | 40.6 | 106.0 |
 | dense-8 | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 15.3 | 39.7 |
 | dense-8 | assign | 0.921 | 1.000 | 0.854 | 0 | 0 | 0 | 0.0 | 99.3 | 330.9 |
+| dense-8 | gnn-imm | 0.999 | 1.000 | 0.998 | 0 | 0 | 0 | 0.2 | 9.8 | 31.0 |
+| dense-8 | assign-imm | 0.985 | 1.000 | 0.970 | 0 | 0 | 0 | 0.0 | 24.5 | 103.1 |
+| dense-8 | assign-window | 0.911 | 1.000 | 0.837 | 0 | 0 | 0 | 1.0 | 97.0 | 352.8 |
 
 ## Position per scenario
 
@@ -183,26 +252,26 @@ Each scenario places truth objects and sensors that report tracks of them with s
   <img alt="GOSPA per named scenario, one bar per pack" src="figures/bench/gospa-light.svg">
 </picture>
 
-| Scenario | gnn | window | distance | assign |
-|---|---|---|---|---|
-| stationary | 11.2 | 11.2 | 180.3 | 8.6 |
-| straight-level | 11.2 | 11.2 | 5.8 | 7.8 |
-| turn-3dps | 45.6 | 45.6 | 17.8 | 65.2 |
-| turn-6dps | 130.8 | 77.5 | 26.1 | 161.6 |
-| accelerate | 44.9 | 40.2 | 18.6 | 82.3 |
-| crossing-90deg | 15.7 | 15.7 | 14.8 | 28.1 |
-| crossing-20deg | 14.9 | 14.9 | 20.7 | 12.0 |
-| parallel-500m | 17.6 | 17.6 | 14.3 | 11.7 |
-| parallel-150m | 52.9 | 11.9 | 353.6 | 11.7 |
-| split | 29.9 | 27.7 | 209.0 | 74.8 |
-| error-understated | 27.8 | 7.9 | 5.8 | 97.8 |
-| error-absent | 7.2 | 7.2 | 7.3 | 11.8 |
-| latency-3s | 6.9 | 6.9 | 5.0 | 7.1 |
-| bias-400m | 348.1 | 11.2 | 348.1 | 348.1 |
-| slow-jittered | 35.5 | 28.2 | 14.3 | 41.9 |
-| low-detection | 27.7 | 27.7 | 25.8 | 16.4 |
-| number-swap | 141.0 | 15.8 | 192.5 | 154.0 |
-| number-drop | 94.1 | 94.1 | 6.1 | 91.8 |
-| false-tracks | 560.7 | 560.7 | 555.7 | 555.0 |
-| three-sensors | 140.4 | 52.8 | 222.6 | 182.4 |
-| dense-8 | 228.2 | 106.0 | 39.7 | 330.9 |
+| Scenario | gnn | window | distance | assign | gnn-imm | assign-imm | assign-window |
+|---|---|---|---|---|---|---|---|
+| stationary | 11.2 | 11.2 | 180.3 | 8.6 | 11.2 | 8.5 | 11.4 |
+| straight-level | 11.2 | 11.2 | 5.8 | 7.8 | 11.2 | 7.8 | 10.8 |
+| turn-3dps | 45.6 | 45.6 | 17.8 | 65.2 | 8.9 | 8.8 | 68.2 |
+| turn-6dps | 130.8 | 77.5 | 26.1 | 161.6 | 8.6 | 11.4 | 161.8 |
+| accelerate | 44.9 | 40.2 | 18.6 | 82.3 | 11.4 | 8.5 | 88.0 |
+| crossing-90deg | 15.7 | 15.7 | 14.8 | 28.1 | 15.7 | 28.1 | 29.2 |
+| crossing-20deg | 14.9 | 14.9 | 20.7 | 12.0 | 14.9 | 12.0 | 16.0 |
+| parallel-500m | 17.6 | 17.6 | 14.3 | 11.7 | 17.6 | 11.7 | 15.5 |
+| parallel-150m | 52.9 | 11.9 | 353.6 | 11.7 | 64.4 | 11.7 | 15.6 |
+| split | 29.9 | 27.7 | 209.0 | 74.8 | 9.5 | 9.3 | 72.3 |
+| error-understated | 27.8 | 7.9 | 5.8 | 97.8 | 27.8 | 92.0 | 95.1 |
+| error-absent | 7.2 | 7.2 | 7.3 | 11.8 | 7.2 | 11.5 | 14.4 |
+| latency-3s | 6.9 | 6.9 | 5.0 | 7.1 | 6.9 | 7.1 | 10.0 |
+| bias-400m | 348.1 | 11.2 | 348.1 | 348.1 | 348.1 | 348.1 | 348.0 |
+| slow-jittered | 35.5 | 28.2 | 14.3 | 41.9 | 11.1 | 8.1 | 44.6 |
+| low-detection | 27.7 | 27.7 | 25.8 | 16.4 | 27.7 | 16.8 | 20.3 |
+| number-swap | 141.0 | 15.8 | 192.5 | 154.0 | 147.9 | 154.0 | 152.5 |
+| number-drop | 94.1 | 94.1 | 6.1 | 91.8 | 94.1 | 91.8 | 166.2 |
+| false-tracks | 560.7 | 560.7 | 555.7 | 555.0 | 560.7 | 555.0 | 550.0 |
+| three-sensors | 140.4 | 52.8 | 222.6 | 182.4 | 29.4 | 14.7 | 186.8 |
+| dense-8 | 228.2 | 106.0 | 39.7 | 330.9 | 31.0 | 103.1 | 352.8 |

@@ -13,8 +13,8 @@ FIG = os.path.join(ROOT, "docs", "figures", "bench")
 
 # Categorical slots in fixed order (one per pack, never cycled), light and dark.
 SERIES = {
-    "light": ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"],
-    "dark": ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#0ca30c"],
+    "light": ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6"],
+    "dark": ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#0ca30c", "#9085e9"],
 }
 INK = {
     "light": dict(surface="#fcfcfb", text="#0b0b0b", text2="#52514e", muted="#898781",
@@ -137,7 +137,7 @@ def panels(title, subtitle, packs, items, mode):
                  % (x0, top + 14, ink["muted"], "higher is better" if higher else "lower is better"))
         present = [v for v in vals if v is not None]
         vmax = nice_max(max(present)) if present else 1.0
-        lab_w = 62
+        lab_w = max(62, int(6.2 * max(len(short(p)) for p in packs)) + 8)
         for i, p in enumerate(packs):
             y = top + 24 + i * (bar + gap)
             o.append('<text x="%d" y="%d" font-size="11" fill="%s">%s</text>'
