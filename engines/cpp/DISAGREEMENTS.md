@@ -32,6 +32,22 @@ engine takes. No vector covers any of them.
   governs. The engine accepts `method` anywhere in `pack.def`, and checks the
   required and refused directives after the whole file is read.
 
+## fuse.md 0.1
+
+No vector contradicts fuse.md 0.1 as this engine reads it. The points below
+are the readings this engine takes where the spec is open; no vector covers
+them.
+
+- Integers outside the signed 64-bit range (fuse.md "Open points", Reports):
+  as for correlate above.
+- `majority`, `max`, `min` between integers above 2^53 (fuse.md "Open
+  points", Attributes): the engine compares every number as binary64, so two
+  such integers that round to the same double are equal for `majority` and
+  tie (to key order) for `max` and `min`.
+- `inverse_variance` with one member (fuse.md "Kinematics"): the spec says
+  every method gives that member's predicted filter, so the engine returns it
+  as is rather than through `1/(1/pp)`, which can differ in the last bit.
+
 # Filter (spec/filter.md 0.1)
 
 No filter vector contradicts filter.md 0.1 as this engine reads it. The
