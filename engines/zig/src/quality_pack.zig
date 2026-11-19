@@ -1,4 +1,4 @@
-// spec/quality.md "Pack" and "Rules": parsing of a quality pack.def.
+// spec/quality.md 0.2 "Pack" and "Rules": parsing of a quality pack.def.
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const correlate_pack = @import("pack.zig");
@@ -6,6 +6,21 @@ const correlate_pack = @import("pack.zig");
 // spec/quality.md "Frame and filter": the `filter` line has the parameters of
 // correlate.md "Track estimate", so the correlate type is reused.
 pub const Filter = correlate_pack.Filter;
+
+// spec/quality.md "Reports", "Time quality": the clock states and the
+// `time_default` line are those of correlate.md 0.8, so the correlate types
+// are reused.
+pub const TimeState = correlate_pack.TimeState;
+pub const TimeDefault = correlate_pack.TimeDefault;
+
+// "Time quality": the code of a time state for measures; higher is worse.
+pub fn timeStateCode(state: TimeState) i64 {
+    return switch (state) {
+        .coherent => 0,
+        .drifting => 1,
+        .@"free-running" => 2,
+    };
+}
 
 // The `window` line.
 pub const Window = struct {
@@ -26,13 +41,22 @@ pub const Measure = enum {
     age,
     latency_mean,
     latency_max,
+    lateness_mean,
+    lateness_max,
+    lateness_min,
     nis_mean,
     speed_err_mean,
     out_of_order,
     duplicate,
+    source_out_of_order,
     missing_ce,
     missing_vel,
     missing_hae,
+    time_error_mean,
+    time_error_max,
+    time_state_last,
+    time_state_worst,
+    missing_time,
     entities,
 
     pub fn inScope(m: Measure, scope: Scope) bool {
@@ -93,7 +117,17 @@ pub const Pack = struct {
     version: []const u8,
     filter: Filter,
     window: Window,
+    // "Time quality": per-source defaults, at most one per source id.
+    time_default: []const TimeDefault,
     rules: []const Rule,
+
+    // The pack's `time_default` for a report's `track.source_id`, if any.
+    pub fn timeDefaultOf(self: Pack, source: []const u8) ?TimeDefault {
+        for (self.time_default) |d| {
+            if (std.mem.eql(u8, d.source, source)) return d;
+        }
+        return null;
+    }
 };
 
 pub const Error = error{
@@ -110,9 +144,10 @@ pub const Error = error{
     BadValue,
     BadRuleName,
     RepeatedRuleName,
+    ControlCharacter,
 } || Allocator.Error;
 
-const Directive = enum { pack, version, filter, window, rule };
+const Directive = enum { pack, version, filter, window, time_default, rule };
 
 // "Values": a number is written `-?[0-9]+(\.[0-9]+)?`, read as the nearest binary64.
 fn parseNumber(s: []const u8) Error!f64 {
@@ -128,7 +163,10 @@ fn parseNumber(s: []const u8) Error!f64 {
         if (i == frac_start) return error.NotANumber;
     }
     if (i != s.len) return error.NotANumber;
-    return std.fmt.parseFloat(f64, s) catch error.NotANumber;
+    const x = std.fmt.parseFloat(f64, s) catch return error.NotANumber;
+    // A number whose nearest binary64 is infinite is a load error.
+    if (!std.math.isFinite(x)) return error.NotANumber;
+    return x;
 }
 
 // "Values": an integer is written `[0-9]+`.
@@ -252,6 +290,31 @@ fn parseRule(tokens: []const []const u8, earlier: []const Rule) Error!Rule {
     };
 }
 
+// `time_default <source_id> error_ms=<ms> state=<state>`: the grammar of
+// correlate.md 0.8 "Pack", with `error_ms` a number of this pack's grammar.
+// No source id (a first token holding `=`), no parameter, a parameter other
+// than `error_ms` and `state`, `error_ms` below 0 or `state` not one of the
+// three states is a load error. A repeated source id is checked by the caller.
+fn parseTimeDefault(tokens: []const []const u8) Error!TimeDefault {
+    if (tokens.len == 0 or std.mem.indexOfScalar(u8, tokens[0], '=') != null) return error.BadValue;
+    const p = try Params.read(&.{ "error_ms", "state" }, tokens[1..]);
+    var out = TimeDefault{ .source = tokens[0], .error_ms = null, .state = null };
+    if (p.optional("error_ms") == null and p.optional("state") == null) return error.MissingParam;
+    if (p.optional("error_ms")) |text| {
+        out.error_ms = try parseNumber(text);
+        if (out.error_ms.? < 0) return error.BadValue;
+    }
+    if (p.optional("state")) |text| {
+        out.state = std.meta.stringToEnum(TimeState, text) orelse return error.BadValue;
+    }
+    return out;
+}
+
+// "Pack", step 2: a control character is U+0000 to U+001F other than tab, or U+007F.
+fn isControl(c: u8) bool {
+    return (c < 0x20 and c != '\t') or c == 0x7f;
+}
+
 // Parses the text of a pack.def. Returned slices point into `text`.
 pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
     var name: ?[]const u8 = null;
@@ -259,10 +322,18 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
     var filter: ?Filter = null;
     var window: ?Window = null;
     var rules = std.ArrayList(Rule).init(alloc);
+    var time_default = std.ArrayList(TimeDefault).init(alloc);
 
-    var lines = std.mem.splitScalar(u8, text, '\n');
-    while (lines.next()) |raw| {
-        // `#` starts a comment; tokens are separated by spaces or tabs; blank lines are ignored.
+    // "Pack", step 1: lines end at LF; a final LF does not start another line.
+    const body = if (std.mem.endsWith(u8, text, "\n")) text[0 .. text.len - 1] else text;
+    var lines = std.mem.splitScalar(u8, body, '\n');
+    while (lines.next()) |raw_line| {
+        // Step 1: one CR at the end of a line is removed.
+        const raw = if (std.mem.endsWith(u8, raw_line, "\r")) raw_line[0 .. raw_line.len - 1] else raw_line;
+        // Step 2: any control character left, a CR included, is a load error.
+        for (raw) |c| if (isControl(c)) return error.ControlCharacter;
+        // Step 3: `#` starts a comment. Steps 4 and 5: tokens are separated by
+        // runs of space and tab only; a line with no token is ignored.
         const line = if (std.mem.indexOfScalar(u8, raw, '#')) |i| raw[0..i] else raw;
         var toks = std.ArrayList([]const u8).init(alloc);
         var it = std.mem.tokenizeAny(u8, line, " \t");
@@ -286,6 +357,13 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
                 if (window != null) return error.RepeatedDirective;
                 window = try parseWindow(args);
             },
+            .time_default => {
+                const td = try parseTimeDefault(args);
+                for (time_default.items) |prev| {
+                    if (std.mem.eql(u8, prev.source, td.source)) return error.RepeatedDirective;
+                }
+                try time_default.append(td);
+            },
             .rule => try rules.append(try parseRule(args, rules.items)),
         }
     }
@@ -295,6 +373,7 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
         .version = version orelse return error.MissingDirective,
         .filter = filter orelse return error.MissingDirective,
         .window = window orelse return error.MissingDirective,
+        .time_default = time_default.items,
         .rules = rules.items,
     };
 }

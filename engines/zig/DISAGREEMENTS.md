@@ -45,24 +45,24 @@ Readings this engine takes where the text could be read more than one way:
 
 ## Quality: vectors that contradict the specification
 
-None. Every quality load vector (01 to 45) and every scenario vector (q01 to
-q15) agrees with `spec/quality.md` 0.1 as this engine reads it.
+None. Every quality load vector (01 to 62) and every scenario vector (q01 to
+q22) agrees with `spec/quality.md` 0.2 as this engine reads it.
 
-## Points `quality.md` 0.1 leaves open
+## Points `quality.md` 0.2 leaves open
 
 | Point | This engine |
 |---|---|
-| An integer literal outside the signed 64-bit range | As for correlate: `std.json` does not give it as an integer, so `time_ms` is missing and `received_ms` absent. In `pack.def`, an integer that does not fit `i64` is a load error. |
-| Two sources whose key strings collide | Entities are keyed by the key string alone, so the two reports are one entity; its source stays the `track.source_id` of its first report. Sources are compared by their `track.source_id` string. |
-| A forwarded `ce` that overflows binary64 | The product is the binary64 result, `+inf`; no check is made. |
-| Whitespace other than space and tab inside a `pack.def` line | It is part of a token. A trailing CR (CRLF line ends) therefore joins the last token of the line, which is a load error wherever that token must be a number or an integer. |
+| An integer literal outside the signed 64-bit range | As for correlate: `std.json` does not give it as an integer, so `time_ms` is missing and `received_ms` absent; a `time_error_ms` so written is a number string, read as the nearest binary64. In `pack.def`, an integer that does not fit `i64` is a load error. |
 
-## Readings of `quality.md` 0.1 the vectors do not fix
+## Readings of `quality.md` 0.2 the vectors do not fix
 
 | Point | This engine |
 |---|---|
 | `rule` followed directly by a parameter (`rule scope=entity ...`) | The first token is the name; `=` is not a name character, so it is a load error ("no name"). Load vector 19 agrees. |
-| `#` inside a token | Starts a comment anywhere on the line, as the Pack section says. |
+| `#` inside a token | Starts a comment anywhere on the line, as the Pack section says. A control character inside a comment is still a load error (Pack step 2 comes before step 3). |
+| The source latest when the report's entity was created by another source (colliding keys) | Only entities whose source is the report's `track.source_id` count, so the report's own entity does not; scenario vector q22 agrees (`source_order` inputs `[1000, null]`). |
+| A `time_default` source id that holds `=` | Not a source id: a load error, as in correlate. |
+| `lateness` when the input clock is a mean of two middle values that is a whole number | Written as a binary64 (the clock is one), compared as a number. |
 
 ## `fuse.md` 0.2
 
