@@ -41,6 +41,7 @@ fn speedsUsable(a: Entity, b: Entity, min_speed_ms: f64) ?[2]f64 {
     return .{ sa, sb };
 }
 
+// Spec 0.3 "Tests": strings byte for byte, numbers by value, never a string against a number.
 fn valuesEqual(x: json.Value, y: json.Value) bool {
     switch (x) {
         .string => |s| return y == .string and std.mem.eql(u8, s, y.string),

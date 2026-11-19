@@ -22,10 +22,11 @@ pub const Entity = struct {
 
     // The entity's last `ce`, or the pack's `default_ce_m`.
     pub fn ce(self: Entity, default_ce_m: f64) f64 {
-        return self.number("ce") orelse default_ce_m;
+        return ceOf(self.report) orelse default_ce_m;
     }
 
-    // Spec "Tests": `@env` names the environment taken from `type`.
+    // Spec "Tests": `@env` names the environment taken from `type`; absent when
+    // `type` is absent or has fewer than three elements.
     pub fn sameValue(self: Entity, key: []const u8) ?json.Value {
         if (std.mem.eql(u8, key, "@env")) {
             const t = stringOf(self.report, "type") orelse return null;
@@ -57,10 +58,17 @@ pub fn numberOf(m: json.ObjectMap, key: []const u8) ?f64 {
     };
 }
 
+// Spec 0.3 "Reports": a `ce` of 0 or below is treated as absent.
+pub fn ceOf(m: json.ObjectMap) ?f64 {
+    const c = numberOf(m, "ce") orelse return null;
+    return if (c > 0) c else null;
+}
+
 pub fn integerOf(m: json.ObjectMap, key: []const u8) ?i64 {
     const v = m.get(key) orelse return null;
     return switch (v) {
-        // Spec 0.2 "Reports": `time_ms` and `stale_ms` must be integers; a float is the wrong type.
+        // Spec 0.3 "Reports": an integer is a JSON number written without a fraction or
+        // an exponent; std.json yields `.float` for `1000.0` and `1e3`, so those are the wrong type.
         .integer => |i| i,
         else => null,
     };

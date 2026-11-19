@@ -1,6 +1,6 @@
 # goat-correlator, zig engine
 
-An implementation of `spec/correlate.md` (version 0.2) in Zig 0.13.0,
+An implementation of `spec/correlate.md` (version 0.3) in Zig 0.13.0,
 standard library only. It was written from the specification and the vectors,
 not from another engine.
 

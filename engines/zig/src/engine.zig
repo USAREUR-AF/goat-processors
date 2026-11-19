@@ -181,7 +181,7 @@ pub const Engine = struct {
         const stored = (try self.cloneValue(.{ .object = report })).object;
         const pos = self.ref.?.toPlane(lat.?, lon.?);
         const f = self.pack.filter;
-        const ce = entity_mod.numberOf(stored, "ce") orelse f.default_ce_m;
+        const ce = entity_mod.ceOf(stored) orelse f.default_ce_m;
 
         // Spec "Track estimate": velocity measurement.
         var ve: ?f64 = null;
