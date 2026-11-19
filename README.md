@@ -87,7 +87,7 @@ entry and every choice:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/seven-engines-dark.svg">
-  <img alt="102 scenario vectors (650 steps, 3009 trace records) and 170 load vectors sit at the center. each generator under tools/ states its decisions by hand and the Python engine computes the numbers; the Rust, Go, Java, C++, Erlang, Zig engines are written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot." src="docs/figures/seven-engines-light.svg">
+  <img alt="111 scenario vectors (728 steps, 3479 trace records) and 188 load vectors sit at the center. each generator under tools/ states its decisions by hand and the Python engine computes the numbers; the Rust, Go, Java, C++, Erlang, Zig engines are written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot." src="docs/figures/seven-engines-light.svg">
 </picture>
 
 The Python engine and `tools/make-*-vectors.py` write the vectors; each
