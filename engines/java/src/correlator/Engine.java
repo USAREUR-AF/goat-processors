@@ -755,6 +755,8 @@ public final class Engine {
             ss.put(st.getKey(), new ArrayList<Object>(st.getValue()));
         s.put("systems", ss);
         s.put("next_system", nextSystem);
+        // correlate-assign.md 0.2, Snapshot: the entities reported since the previous tick.
+        s.put("reported", new ArrayList<Object>(reported));
         return s;
     }
 

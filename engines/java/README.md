@@ -1,7 +1,7 @@
 # goat-correlator: java engine
 
-An implementation of `spec/correlate.md` (version 0.3) and `spec/correlate-assign.md`
-(version 0.1) in Java 17, using only the
+An implementation of `spec/correlate.md` (version 0.4) and `spec/correlate-assign.md`
+(version 0.2) in Java 17, using only the
 standard library. It was written from the specification and the vectors,
 without reading any other engine.
 
@@ -28,5 +28,7 @@ exits non-zero when any vector fails.
 
 The pack's `method` line selects which method the engine runs: `confirm` (or no
 line) runs `correlate.md`, `assign` runs `correlate-assign.md`. No vector
-contradicts either specification. The points `correlate-assign.md` 0.1 leaves
-open, and what this engine does on each, are in `DISAGREEMENTS.md`.
+contradicts either specification, and neither leaves a point open for this
+engine. On a tie in the least total cost, which `correlate-assign.md` 0.2
+leaves undefined, the Hungarian method's result stands (rows in key order;
+columns in creation order, then each row's `alone`).
