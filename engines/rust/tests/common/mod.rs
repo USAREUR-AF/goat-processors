@@ -1,5 +1,5 @@
-//! Shared by the correlate, filter and fuse vector runners: file listing and
-//! the structural comparison of spec/vector-format.md ("What the engine checks").
+//! Shared by the correlate, filter, fuse and quality vector runners: file listing
+//! and the structural comparison of spec/vector-format.md ("What the engine checks").
 #![allow(dead_code)]
 
 use std::fs;

@@ -9,7 +9,7 @@
 main([Root]) ->
     Scenarios = lists:sort(filelib:wildcard(filename:join(Root, "packs/filter-*/vectors/*.json"))),
     Loads = lists:sort(filelib:wildcard(filename:join(Root, "spec/filter-load-vectors/*.json"))),
-    correlator_vectors:summarize([scenario(Root, F) || F <- Scenarios] ++ [load(F) || F <- Loads]).
+    correlator_vectors:summarize("filter", [scenario(Root, F) || F <- Scenarios] ++ [load(F) || F <- Loads]).
 
 %% Scenario vector: each step's events and trace, then the final snapshot.
 scenario(Root, File) ->

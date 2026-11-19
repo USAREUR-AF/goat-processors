@@ -70,6 +70,15 @@ Filter filter_first(const FilterParams& f, const Point& z, const std::optional<P
     return out;
 }
 
+void filter_correct(Filter& filter, const FilterParams& f, const Point& z, const std::optional<Point>& vel,
+                    double ce) {
+    for (int axis = 0; axis < 2; ++axis) {
+        Axis& a = axis == 0 ? filter.east : filter.north;
+        axis_position_update(a, axis == 0 ? z.east : z.north, ce * ce);
+        if (vel) axis_velocity_update(a, axis == 0 ? vel->east : vel->north, f.vel_sigma_ms * f.vel_sigma_ms);
+    }
+}
+
 void filter_update(Filter& filter, const FilterParams& f, const Point& z, const std::optional<Point>& vel,
                    double ce, double dt) {
     for (int axis = 0; axis < 2; ++axis) {

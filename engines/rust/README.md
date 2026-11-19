@@ -1,8 +1,9 @@
-# goat-correlator, rust engine
+# goat-processors, rust engine
 
 An implementation of `spec/correlate.md` (version 0.4),
-`spec/correlate-assign.md` (version 0.2), `spec/fuse.md` (version 0.1) and the filter
-function `spec/filter.md` (version 0.1) in Rust, written from the
+`spec/correlate-assign.md` (version 0.2), `spec/fuse.md` (version 0.1), the filter
+function `spec/filter.md` (version 0.1) and `spec/quality.md` (version 0.1) in Rust,
+written from the
 specifications and the vectors only. The pack's `method` line selects which
 runs: `confirm` (the default) or `assign`. Standard library only; it carries
 its own small JSON reader (`src/json.rs`).
@@ -24,7 +25,10 @@ its own small JSON reader (`src/json.rs`).
 | `tests/common/mod.rs` | `spec/vector-format.md`: the structural comparison, shared by all runners |
 | `tests/vectors.rs` | correlate vectors: `packs/correlate-*` and `spec/correlate-load-vectors` |
 | `tests/filter_vectors.rs` | filter vectors: `packs/filter-*` and `spec/filter-load-vectors` |
+| `src/quality.rs` | `spec/quality.md` 0.1: Reports, Order, Samples, Window, Entity and Source measures, Rules, Forwarding, Tick, Ingest, Events, Trace, Snapshot; reuses `src/filter.rs` for Frame and Track estimate |
+| `src/quality/pack.rs` | `spec/quality.md`, Pack: `quality::load_pack(dir)` and `quality::parse_pack(text)` |
 | `tests/fuse_vectors.rs` | fuse vectors: `packs/fuse-*` and `spec/fuse-load-vectors` |
+| `tests/quality_vectors.rs` | quality vectors: `packs/quality-*` and `spec/quality-load-vectors` |
 
 Use (filter: the same calls on `goat_correlator::filter_fn::{load_pack, Engine}`):
 
@@ -38,6 +42,11 @@ let state = engine.snapshot();
 // fuse (spec/fuse.md); reuses correlate's Frame and filter (src/filter.rs)
 let pack = goat_correlator::fuse::load_pack(std::path::Path::new("packs/fuse-shared"))?;
 let mut fuse = goat_correlator::fuse::Engine::new(pack);
+
+let pack = goat_correlator::quality::load_pack(std::path::Path::new("packs/quality-feed"))?;
+let mut quality = goat_correlator::quality::Engine::new(pack);
+let step = quality.ingest(&report);  // new, pass (with the actions in force)
+let step = quality.tick(60000);      // forget, quality, action-start / action-end
 ```
 
 ## Build
@@ -59,7 +68,9 @@ cargo test
 events and trace, then the final snapshot. `load_vectors` runs every
 `spec/correlate-load-vectors/*.json`. `filter_scenario_vectors` and
 `filter_load_vectors` do the same for `packs/filter-*/vectors/*.json` and
-`spec/filter-load-vectors/*.json`. Numbers compare within
+`spec/filter-load-vectors/*.json`; `quality_scenario_vectors` and
+`quality_load_vectors` for `packs/quality-*/vectors/*.json` and
+`spec/quality-load-vectors/*.json`. Numbers compare within
 `1e-6 * max(1, abs(want))`; a key with `null` differs from an absent key. On a
 failure the test prints the vector and the path of the first mismatch, for
 example `steps[2].trace[6].value: got 1.0, want 2.0`. `fuse_scenario_vectors`
@@ -67,5 +78,5 @@ and `fuse_load_vectors` do the same for `packs/fuse-*/vectors/*.json` and
 `spec/fuse-load-vectors/*.json`. Add `-- --nocapture` to
 see one line per vector.
 
-Points still open under correlate 0.4, correlate-assign 0.2, filter 0.1 and
-fuse 0.1 are in `DISAGREEMENTS.md`.
+Points still open under correlate 0.4, correlate-assign 0.2, filter 0.1,
+fuse 0.1 and quality 0.1 are in `DISAGREEMENTS.md`.

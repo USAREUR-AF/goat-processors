@@ -1,6 +1,7 @@
 // The parts of correlate.md that more than one function uses: Frame and
 // Track estimate (the per-entity filter); Reports is in report.hpp. The
-// correlate engine (engine.cpp) and the fuse engine (fuse.cpp) both use these,
+// correlate engine (engine.cpp), the fuse engine (fuse.cpp) and the quality
+// engine (quality.cpp) use these,
 // so the two functions run the same filter with the same operations.
 #pragma once
 
@@ -61,6 +62,10 @@ void axis_velocity_update(Axis& a, double z, double r);
 
 // First report.
 Filter filter_first(const FilterParams& f, const Point& z, const std::optional<Point>& vel, double ce);
+// Steps 2 and (with a velocity) 3 on both axes of an already predicted filter
+// (quality.md "Samples": the filter is updated from the prediction that gave nis).
+void filter_correct(Filter& filter, const FilterParams& f, const Point& z, const std::optional<Point>& vel,
+                    double ce);
 // Later reports: steps 1, 2 and (with a velocity) 3 on each axis.
 void filter_update(Filter& filter, const FilterParams& f, const Point& z, const std::optional<Point>& vel,
                    double ce, double dt);

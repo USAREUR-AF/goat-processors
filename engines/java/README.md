@@ -4,7 +4,8 @@ Implementations, in Java 17 with only the standard library, of
 
 - the correlator: `spec/correlate.md` (version 0.4) and `spec/correlate-assign.md` (version 0.2), package `correlator`;
 - the filter: `spec/filter.md` (version 0.1), package `filter`;
-- the fuser: `spec/fuse.md` (version 0.1), package `fuse`.
+- the fuser: `spec/fuse.md` (version 0.1), package `fuse`;
+- quality: `spec/quality.md` (version 0.1), package `quality`.
 
 All were written from the specifications and the vectors, without reading any other engine.
 
@@ -53,6 +54,24 @@ compares two integer attribute values exactly and any other pair of numbers as
 binary64, and an integer literal outside the signed 64-bit range is read as a
 binary64 number.
 
+## Quality (`src/quality/`)
+
+`src/quality/` implements `spec/quality.md` (version 0.1) as its own package,
+written from that specification, the sections of `correlate.md` it cites and the
+vectors. It reuses this engine's correlate code for those sections: the frame
+(`correlator.Engine.toPlane`) and the constant-velocity filter
+(`correlator.Engine.Axis`).
+
+| File | Spec section |
+|---|---|
+| `Pack.java` | Pack (the `pack.def` parser, every load error of its table), Rules (`op` and `clear` tests) |
+| `Engine.java` | Reports, Order, Frame and filter, Samples, Ingest, Forwarding (`ingest`); Tick, Window, Entity measures, Source measures, Rules, Events, Trace (`tick`); Snapshot |
+| `VectorTest.java` | `spec/vector-format.md` for quality: `spec/quality-load-vectors/` and `packs/quality-*` |
+
+No quality vector contradicts `spec/quality.md`; the open points of
+`quality.md` are not decided by any vector, and this engine does not
+special-case them.
+
 ## Build and run the vectors
 
 ```
@@ -60,8 +79,8 @@ engines/java/build.sh
 ```
 
 The script compiles with `javac --release 17 -Xlint:all -Werror` into
-`engines/java/build/`, then runs the correlator vectors, the filter vectors and the fuse vectors,
-each with one summary line.
+`engines/java/build/`, then runs the correlator vectors, the filter vectors, the fuse vectors and the
+quality vectors, each with one summary line.
 For a scenario vector it checks each step's events and trace, then the final
 snapshot. A failing vector prints the path of its first mismatch, for example
 `steps[1].trace[0].value: got 0.2777765689606809, want 0.2778`. The script

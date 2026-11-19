@@ -44,3 +44,16 @@ any vector. The engine holds report integers as 64-bit signed values (an
 integer literal outside that range is read as a float, so `time_ms` with that
 value is missing), compares integers with pack numbers after conversion to
 binary64, and applies the prediction formula as written near a pole.
+
+# Open points under quality 0.1
+
+No vector contradicts `spec/quality.md` (version 0.1) as this engine reads it:
+scenario vectors q01 to q15 and load vectors 01 to 45 pass. The spec's own
+"Open points" are undecided; the engine does this:
+
+| # | Spec section | What the engine does |
+|---|---|---|
+| 1 | Reports | Integers are 64-bit signed, as for correlate (point 2 above): a `time_ms` or `received_ms` literal outside that range is not an integer, so `time_ms` is missing and `received_ms` absent. |
+| 2 | Reports | The entity key is the string `<track.source_id>/<uid>`; two reports whose keys collide are one entity, whose source is that of its first report. |
+| 3 | Forwarding | The forwarded `ce` is the binary64 product; one that overflows is written as Rust's `inf`, which is not valid JSON. |
+| 4 | Pack | Only space and tab separate tokens; any other whitespace is part of a token, so it makes a value or directive fail to parse. |

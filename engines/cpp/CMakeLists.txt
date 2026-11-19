@@ -14,6 +14,12 @@ add_library(correlator src/json.cpp src/report.cpp src/pack.cpp src/track.cpp sr
 target_include_directories(correlator PUBLIC src)
 target_compile_options(correlator PRIVATE -Wall -Wextra)
 
+# quality.md: its own module beside correlate, reusing the shared filter and
+# frame in track.cpp.
+add_library(quality src/quality_pack.cpp src/quality.cpp)
+target_link_libraries(quality PUBLIC correlator)
+target_compile_options(quality PRIVATE -Wall -Wextra)
+
 # fuse.md: its own module beside correlate, reusing the shared filter in
 # track.cpp and the report reading in report.cpp.
 add_library(fuse src/fuse_pack.cpp src/fuse.cpp)
@@ -51,3 +57,9 @@ target_link_libraries(run_filter_vectors PRIVATE filter)
 target_compile_definitions(run_filter_vectors PRIVATE CORR_REPO_ROOT="${CORR_REPO_ROOT}")
 target_compile_options(run_filter_vectors PRIVATE -Wall -Wextra)
 add_test(NAME filter_vectors COMMAND run_filter_vectors "${CORR_REPO_ROOT}")
+
+add_executable(run_quality_vectors test/run_quality_vectors.cpp)
+target_link_libraries(run_quality_vectors PRIVATE quality)
+target_compile_definitions(run_quality_vectors PRIVATE CORR_REPO_ROOT="${CORR_REPO_ROOT}")
+target_compile_options(run_quality_vectors PRIVATE -Wall -Wextra)
+add_test(NAME quality_vectors COMMAND run_quality_vectors "${CORR_REPO_ROOT}")
