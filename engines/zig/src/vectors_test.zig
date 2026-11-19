@@ -1,38 +1,20 @@
-// spec/vector-format.md: runs every load vector and every scenario vector.
+// spec/vector-format.md: runs every correlate load vector and every scenario
+// vector of the packs/correlate-* packs.
 const std = @import("std");
 const json = std.json;
 const paths = @import("paths");
 const pack_mod = @import("pack.zig");
 const engine_mod = @import("engine.zig");
 const compare = @import("compare.zig");
+const files_mod = @import("vector_files.zig");
 
 test {
     _ = compare;
     _ = @import("hungarian.zig");
 }
 
-fn sortedJsonFiles(alloc: std.mem.Allocator, dir_path: []const u8) ![][]const u8 {
-    var dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
-    defer dir.close();
-    var names = std.ArrayList([]const u8).init(alloc);
-    var it = dir.iterate();
-    while (try it.next()) |e| {
-        if (e.kind == .file and std.mem.endsWith(u8, e.name, ".json")) {
-            try names.append(try std.fs.path.join(alloc, &.{ dir_path, e.name }));
-        }
-    }
-    std.mem.sort([]const u8, names.items, {}, struct {
-        fn lt(_: void, a: []const u8, b: []const u8) bool {
-            return std.mem.order(u8, a, b) == .lt;
-        }
-    }.lt);
-    return names.items;
-}
-
-fn readJson(alloc: std.mem.Allocator, path: []const u8) !json.Value {
-    const text = try std.fs.cwd().readFileAlloc(alloc, path, 1 << 24);
-    return json.parseFromSliceLeaky(json.Value, alloc, text, .{});
-}
+const sortedJsonFiles = files_mod.sortedJsonFiles;
+const readJson = files_mod.readJson;
 
 // Load vectors: parsing `pack_def` fails exactly when `expect_error` is true.
 test "load vectors" {
@@ -50,7 +32,7 @@ test "load vectors" {
             std.debug.print("FAIL load vector {s}: expect_error={} got_error={}\n", .{ path, expect_error, got_error });
         }
     }
-    std.debug.print("load vectors: {d} run, {d} failed\n", .{ files.len, failed });
+    std.debug.print("correlate load vectors: {d} run, {d} failed\n", .{ files.len, failed });
     try std.testing.expect(files.len > 0);
     try std.testing.expectEqual(@as(usize, 0), failed);
 }
@@ -87,18 +69,10 @@ test "scenario vectors" {
     var run: usize = 0;
     var failed: usize = 0;
 
-    var packs = try std.fs.cwd().openDir(paths.packs_dir, .{ .iterate = true });
-    defer packs.close();
-    var pack_names = std.ArrayList([]const u8).init(alloc);
-    var it = packs.iterate();
-    while (try it.next()) |e| if (e.kind == .directory) try pack_names.append(try alloc.dupe(u8, e.name));
-    std.mem.sort([]const u8, pack_names.items, {}, struct {
-        fn lt(_: void, a: []const u8, b: []const u8) bool {
-            return std.mem.order(u8, a, b) == .lt;
-        }
-    }.lt);
+    // Only the correlate packs; the quality packs run in quality_vectors_test.zig.
+    const pack_names = try files_mod.sortedPackNames(alloc, paths.packs_dir, "correlate-");
 
-    for (pack_names.items) |pn| {
+    for (pack_names) |pn| {
         const vdir = try std.fs.path.join(alloc, &.{ paths.packs_dir, pn, "vectors" });
         for (try sortedJsonFiles(alloc, vdir)) |path| {
             run += 1;
@@ -108,7 +82,7 @@ test "scenario vectors" {
             }
         }
     }
-    std.debug.print("scenario vectors: {d} run, {d} failed\n", .{ run, failed });
+    std.debug.print("correlate scenario vectors: {d} run, {d} failed\n", .{ run, failed });
     try std.testing.expect(run > 0);
     try std.testing.expectEqual(@as(usize, 0), failed);
 }
