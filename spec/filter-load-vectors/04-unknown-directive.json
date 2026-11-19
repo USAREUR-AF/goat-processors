@@ -1,0 +1,5 @@
+{
+ "name": "04-unknown-directive",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 1000\nstale_ms 5\n",
+ "expect_error": true
+}

@@ -1,6 +1,6 @@
+//! Shared by the correlate, filter, fuse and quality vector runners: file listing
+//! and the structural comparison of spec/vector-format.md ("What the engine checks").
 #![allow(dead_code)]
-//! Shared by the vector runners: the structural comparison of
-//! spec/vector-format.md and file helpers.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -69,4 +69,15 @@ pub fn compare(got: &Json, want: &Json, path: &str) -> Result<(), String> {
         (Json::Null, Json::Null) => Ok(()),
         _ => mismatch(),
     }
+}
+
+/// The `packs/<prefix>*` directories, in name order.
+pub fn packs_with_prefix(root: &Path, prefix: &str) -> Vec<PathBuf> {
+    let mut packs: Vec<PathBuf> = fs::read_dir(root.join("packs"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with(prefix)))
+        .collect();
+    packs.sort();
+    packs
 }
