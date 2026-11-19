@@ -2,7 +2,7 @@
 
 No vector contradicts `spec/correlate.md` (version 0.7) or
 `spec/correlate-assign.md` (version 0.5) as this engine reads them: scenario
-vectors 01 to 53 (there is no vector 46) and load vectors 01 to 60 pass.
+vectors 01 to 53 and load vectors 01 to 60 pass.
 
 ## Readings the engine takes
 
