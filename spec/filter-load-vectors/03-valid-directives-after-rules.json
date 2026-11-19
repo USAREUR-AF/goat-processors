@@ -1,0 +1,5 @@
+{
+ "name": "03-valid-directives-after-rules",
+ "pack_def": "rule r keep\nwhen order\npack x\nversion 1\nwhen has name=k\ndefault drop\nforget_ms 5\n",
+ "expect_error": false
+}

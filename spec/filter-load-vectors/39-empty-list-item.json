@@ -1,0 +1,5 @@
+{
+ "name": "39-empty-list-item",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 1000\nrule r drop\nwhen env in=A,,S\n",
+ "expect_error": true
+}
