@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 
 use crate::json::{obj, Json};
+use crate::pack::{TimeDefault, TimeState};
 
 /// The five required keys of an accepted report.
 #[derive(Debug, Clone, Copy)]
@@ -59,4 +60,36 @@ pub fn optional<'a>(fields: &'a BTreeMap<String, Json>, key: &str) -> Option<&'a
 /// An optional numeric key as a number.
 pub fn optional_f64(fields: &BTreeMap<String, Json>, key: &str) -> Option<f64> {
     optional(fields, key).and_then(Json::as_f64)
+}
+
+/// A report's `time_error_ms` (correlate.md Reports, Time quality): a finite
+/// number 0 or above, else absent. Never a reject.
+pub fn time_error_ms(fields: &BTreeMap<String, Json>) -> Option<f64> {
+    fields.get("time_error_ms").and_then(Json::as_f64).filter(|ms| ms.is_finite() && *ms >= 0.0)
+}
+
+/// A report's `time_state` (correlate.md Reports, Time quality): one of
+/// `coherent`, `drifting`, `free-running`, byte for byte, else absent.
+pub fn time_state(fields: &BTreeMap<String, Json>) -> Option<TimeState> {
+    fields.get("time_state").and_then(Json::as_str).and_then(TimeState::parse)
+}
+
+/// The time error and time state of a report (correlate.md Reports, Time
+/// quality).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TimeQuality {
+    /// `te`, milliseconds, 0 or above.
+    pub error_ms: f64,
+    /// Parsed and validated; correlate does not use it in this version.
+    pub state: TimeState,
+}
+
+/// Found per key, independently: 1. the report's own key; 2. otherwise the
+/// pack's `time_default` for the report's source, when it gives that key;
+/// 3. otherwise error 0 and state `coherent`.
+pub fn time_quality(fields: &BTreeMap<String, Json>, source: &str, defaults: &BTreeMap<String, TimeDefault>) -> TimeQuality {
+    let default = defaults.get(source);
+    let error_ms = time_error_ms(fields).or_else(|| default.and_then(|d| d.error_ms)).unwrap_or(0.0);
+    let state = time_state(fields).or_else(|| default.and_then(|d| d.state)).unwrap_or(TimeState::Coherent);
+    TimeQuality { error_ms, state }
 }

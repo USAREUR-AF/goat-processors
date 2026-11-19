@@ -57,12 +57,18 @@ pub struct Axis {
 }
 
 impl Axis {
-    /// First report.
+    /// First report, with `pp = ce²`.
     pub fn first(z: f64, vel: Option<f64>, ce: f64, vel_sigma_ms: f64, unknown_vel_ms: f64) -> Axis {
+        Axis::first_with_variance(z, vel, ce * ce, vel_sigma_ms, unknown_vel_ms)
+    }
+
+    /// First report, with `pp = r`, that axis's measurement variance
+    /// (correlate.md 0.8 Track estimate, First report).
+    pub fn first_with_variance(z: f64, vel: Option<f64>, r: f64, vel_sigma_ms: f64, unknown_vel_ms: f64) -> Axis {
         Axis {
             p: z,
             v: vel.unwrap_or(0.0),
-            pp: ce * ce,
+            pp: r,
             pv: 0.0,
             vv: match vel {
                 Some(_) => vel_sigma_ms * vel_sigma_ms,
@@ -141,9 +147,10 @@ impl Innovation {
 /// The measurements of one report, in the plane.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Measurement {
-    /// `(east, north)` position, with variance `r_pos = ce²`.
+    /// `(east, north)` position, with its measurement variance per axis
+    /// `(r_east, r_north)` (correlate.md Track estimate, Measurement variance).
     pub pos: (f64, f64),
-    pub r_pos: f64,
+    pub r_pos: (f64, f64),
     /// `(ve, vn)` when the report has `course` and `speed_ms`, with variance
     /// `r_vel = vel_sigma_ms²`.
     pub vel: Option<(f64, f64)>,
@@ -168,8 +175,8 @@ impl Model {
     /// position, east velocity, north velocity (Two-model filter, step 3).
     pub fn step(&self, dt: f64, q: f64, m: &Measurement) -> (Model, f64) {
         let predicted = self.predict(dt, q);
-        let (mut east, ie) = predicted.east.update_position(m.pos.0, m.r_pos);
-        let (mut north, in_) = predicted.north.update_position(m.pos.1, m.r_pos);
+        let (mut east, ie) = predicted.east.update_position(m.pos.0, m.r_pos.0);
+        let (mut north, in_) = predicted.north.update_position(m.pos.1, m.r_pos.1);
         let mut g = 0.0 + ie.term() + in_.term();
         if let Some((ve, vn)) = m.vel {
             let (e, iev) = east.update_velocity(ve, m.r_vel);
