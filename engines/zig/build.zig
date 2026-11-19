@@ -1,0 +1,25 @@
+const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    const packs_dir = b.option([]const u8, "packs", "packs directory") orelse b.pathFromRoot("../../packs");
+    const load_vectors_dir = b.option([]const u8, "load-vectors", "load vectors directory") orelse b.pathFromRoot("../../spec/load-vectors");
+
+    const options = b.addOptions();
+    options.addOption([]const u8, "packs_dir", packs_dir);
+    options.addOption([]const u8, "load_vectors_dir", load_vectors_dir);
+
+    const tests = b.addTest(.{
+        .root_source_file = b.path("src/vectors_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    tests.root_module.addOptions("paths", options);
+
+    const run_tests = b.addRunArtifact(tests);
+    run_tests.has_side_effects = true;
+    const test_step = b.step("test", "Run every load vector and scenario vector");
+    test_step.dependOn(&run_tests.step);
+}
