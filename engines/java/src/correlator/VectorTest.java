@@ -23,6 +23,7 @@ public final class VectorTest {
             if (why == null) pass++;
             else { fail++; System.out.println("FAIL " + root.relativize(f) + ": " + why); }
         }
+        // Only the correlate packs: packs/correlate-*/vectors/*.json.
         for (Path packDir : listDirs(root.resolve("packs"))) {
             for (Path f : list(packDir.resolve("vectors"))) {
                 String why = runScenario(root, f);
@@ -123,7 +124,9 @@ public final class VectorTest {
 
     private static List<Path> listDirs(Path dir) throws IOException {
         try (Stream<Path> s = Files.list(dir)) {
-            return s.filter(Files::isDirectory).sorted().collect(Collectors.toList());
+            return s.filter(Files::isDirectory)
+                    .filter(p -> p.getFileName().toString().startsWith("correlate-"))
+                    .sorted().collect(Collectors.toList());
         }
     }
 }
