@@ -672,6 +672,56 @@ scenario("53-full-restart-then-stale", "correlate-assign-full", [
     [], [], [], ["system", "provisional"], ["leave", "drop", "system", "provisional"]])
 
 
+# --- time quality (correlate.md, Reports, Time quality; correlate-assign.md, Time offset) ---
+
+E200 = dict(course=90, speed_ms=200, ce=30, **AIR)
+TIMED = [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, **E200)),
+    ("ingest", rep("adsb", "A7", 0, 200, 0, **E200)),
+    ("ingest", rep("radar-1", "T1", 1000, 200, 0, **E200)),
+    ("ingest", rep("adsb", "A7", 1000, 400, 0, **E200)),
+    ("tick", 1500),
+    ("ingest", rep("radar-1", "T1", 2000, 400, 0, time_error_ms=0, time_state="unsynced", **E200)),
+    ("tick", 2500),
+]
+# 54. radar-1 trails the adsb by 200 m along a 200 m/s track. The pack gives
+#     radar-1 a time error of 500 ms, so each radar-1 report adds
+#     (200 m/s x 0.5 s)² to its east variance (trace `time`): the gate passes
+#     on two reports in a row and the pair correlates. The report at 2 s says
+#     time_error_ms 0, which overrides the pack (no `time` record), and an
+#     unknown time_state, which is ignored: the hold test fails once, which
+#     does not yet dissolve the group.
+scenario("54-confirm-time-error-widens-gate", "correlate-gnn-time", TIMED,
+         [["new"], ["new"], ["correlate"], [], ["fused"], [], ["fused"]])
+
+# 55. The same reports with no time quality: 200 m against 30 m errors fails
+#     the gate every time and the pair never correlates.
+scenario("55-confirm-exact-time-stays-apart", "correlate-gnn", TIMED,
+         [["new"], ["new"], [], [], [], [], []])
+
+CLOCK = []
+for i in range(4):
+    t = 1000 * i
+    ts = t / 1000.0
+    CLOCK += [("ingest", rep("adsb", "A1", t, 200 * ts, 0, course=90, speed_ms=200, ce=30,
+                             time_error_ms=20, **AIR)),
+              ("ingest", rep("adsb", "A2", t, 0, 5000 + 150 * ts, course=0, speed_ms=150, ce=30, **AIR)),
+              ("ingest", rep("radar-1", "R1", t, 200 * (ts - 1), 0, course=90, speed_ms=200, ce=30, **AIR)),
+              ("ingest", rep("radar-1", "R2", t, 0, 5000 + 150 * (ts - 1), course=0, speed_ms=150, ce=30,
+                             **AIR)),
+              ("tick", t + 500)]
+CP = ["system", "system", "provisional", "provisional"]
+# 56. radar-1's clock is 1 s ahead: each of its reports gives where the object
+#     was 1 s before its time. Two objects on different headings: the offsets
+#     (200 m east on A1's track, 150 m north on A2's) fit one clock offset, not
+#     one position offset. Each radar track joins its adsb track under the
+#     prior; each tick the adsb|radar-1 fit moves the time offset toward
+#     +1000 ms and the position offset stays near 0 (trace, snapshot). A1's
+#     reports carry time_error_ms 20 (trace `time`).
+scenario("56-assign-time-offset-fit", "correlate-assign-time", CLOCK, per_round(CLOCK, [
+    CP, ["start", "start", "join", "join"] + CP, CP, CP]))
+
+
 NEAR = 1e-6
 
 

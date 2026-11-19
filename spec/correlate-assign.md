@@ -3,7 +3,10 @@
 Status: Written. Version 0.6. A second method for the correlate function.
 Engines implement it from this document, [correlate.md](correlate.md) and the
 vectors, never from another engine's source.
-Version 0.5 adds three optional directives, each without effect when absent:
+Version 0.6 adds the time offset of Sensor bias (directive `time_offset`) and
+takes `time_default` and the measurement variance of `correlate.md` 0.8; a
+pack without them behaves as in 0.5. Version 0.5 added three optional
+directives, each without effect when absent:
 `bias` (Sensor bias), `margin` (Window) and, from `correlate.md` 0.7,
 `restart`. "Why a window without a margin adds errors" (in Window) states
 the fault they correct. Version 0.4 took the pack line `maneuver` (it was
@@ -155,6 +158,37 @@ step 2):
 4. Trace:
    `{"stage":"bias","a":<X>,"b":<Y>,"test":"offset","value":d²,"limit":g,"pass":<accepted>,"east":<o>,"north":<o>,"var":<var>,"pairs":<n>}`,
    with the state after step 3.
+
+**Time offset.** With `time_offset sigma_ms=<t>` (it needs `bias`), each pair
+of sources also has a clock offset `tau`, in seconds: how far `T`'s clock is
+ahead of `S`'s. A report stamped `tau` seconds late gives where the object was
+`tau` seconds earlier, so the observed offset is `y = o - v*tau` per axis,
+with `v` the object's velocity. An offset that grows with speed along the
+track is then read as a clock error, not as a position offset; without
+`time_offset`, `o` absorbs it.
+
+The state adds `tau` and eight sums `S1` to `S8`, all 0 when no state is
+stored, and `o` is no longer a running mean:
+
+- Moving B into A's frame uses `o - v*tau` in place of `o` on each axis, with
+  `v` B's predicted velocity on that axis.
+- In the update, per axis `v = (v_ES + v_ET) / 2` from the two predictions to
+  `now_ms`, and step 2 uses `(y - (o - v*tau))²` in place of `(y - o)²`.
+- When the pair is accepted, `n` and `var` change as in step 3, and with
+  `we = 1/r_east`, `wn = 1/r_north`, `ve`, `vn`, `ye`, `yn` of this pair:
+  `S1 += we`; `S2 += wn`; `S3 += we*ve`; `S4 += wn*vn`;
+  `S5 += we*ve*ve + wn*vn*vn`; `S6 += we*ye`; `S7 += wn*yn`;
+  `S8 += we*ve*ye + wn*vn*yn` (each `+=` one addition of the whole
+  right-hand side). Then, with `po = 1/s²` and `pt = 1/(t/1000)²`:
+  `a11 = po + S1`; `a22 = po + S2`; `a13 = -S3`; `a23 = -S4`;
+  `a33 = pt + S5`; `b1 = S6`; `b2 = S7`; `b3 = -S8`;
+  `tau = (b3 - a13*b1/a11 - a23*b2/a22) / (a33 - a13*a13/a11 - a23*a23/a22)`;
+  `o_east = (b1 - a13*tau) / a11`; `o_north = (b2 - a23*tau) / a22`.
+  This is the weighted least-squares fit of `y = o - v*tau` over every
+  accepted pair, with priors of 0 for `o` (standard deviation `s`) and for
+  `tau` (standard deviation `t` ms). The weight sum `w` of each axis is `S1`
+  and `S2`.
+- The trace record adds `"time_offset_ms": tau*1000`.
 
 The update reads the committed membership, also with `margin`: an offset is
 learned only from memberships the window has committed.
@@ -347,7 +381,8 @@ lists, in key order, the entities that reported since the previous tick.
 With `restart` the snapshot also holds `restarted`, the restarted entities in
 key order. With `bias` it holds `bias`, mapping each stored pair key to
 `{"east", "weight_east", "north", "weight_north", "var", "pairs"}` (`o` and
-`w` per axis, `var`, `n`), keys in order.
+`w` per axis, `var`, `n`), keys in order; with `time_offset` each also has
+`"time_offset_ms"` (`tau*1000`) and `"sums"` (`[S1, ..., S8]`).
 
 With `window` above 1 the snapshot also holds `retiring`, the retiring
 entities in key order, and `histories`, the histories in rank order, each
@@ -373,6 +408,7 @@ stale_ms    <ms>
 restart     gate=<g>
 time_default <source_id> error_ms=<ms> state=<state>
 bias        sigma_m=<s> floor_m=<f> gate=<g>
+time_offset sigma_ms=<t>
 window      <n>
 hypotheses  <k>
 margin      <m>
@@ -387,15 +423,16 @@ column entry passes. `new_cost` must be above 0 and `keep_bonus` 0 or above.
 are optional and appear at most once. `bias` takes exactly `sigma_m`,
 `floor_m` and `gate`, with `sigma_m` and `gate` above 0 and `floor_m` above 0
 and at most `sigma_m`. `margin` is one number above 0 and needs `hypotheses`
-above 1. Otherwise the pack does not load. `maneuver`, `restart` and `time_default`
+above 1. `time_offset` is optional, appears at most once, takes exactly
+`sigma_ms`, above 0, and needs `bias`. Otherwise the pack does not load. `maneuver`, `restart` and `time_default`
 follow `correlate.md`.
 
 A `method` value other than `confirm` or `assign` does not load. `method`
 may appear anywhere in the file; which directives are required or refused is
 checked once the whole file is read. `confirm`, `hold`, `confirm_count`,
 `hold_failures`, `same_source`, `output` and `priority` are load errors with
-`method assign`; `new_cost`, `keep_bonus`, `window`, `hypotheses`, `margin`
-and `bias` are load errors with `method confirm`. A pack with no `method` line uses `method
+`method assign`; `new_cost`, `keep_bonus`, `window`, `hypotheses`, `margin`,
+`bias` and `time_offset` are load errors with `method confirm`. A pack with no `method` line uses `method
 confirm` (`correlate.md`); `method confirm` may also be written.
 
 ## Open points

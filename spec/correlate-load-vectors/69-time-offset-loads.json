@@ -1,0 +1,5 @@
+{
+ "name": "69-time-offset-loads",
+ "pack_def": "pack        a\nversion     0.1.0\nmethod      assign\nfilter      accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\ngate        mahalanobis gate=18.42\nnew_cost    9.21\nkeep_bonus  2\nstale_ms    120000\nbias        sigma_m=300 floor_m=10 gate=13.82\ntime_offset sigma_ms=500\n",
+ "expect_error": false
+}

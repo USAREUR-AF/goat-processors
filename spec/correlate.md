@@ -93,6 +93,9 @@ error** and **time state** of a report are found per key, independently:
 3. otherwise time error 0 and time state `coherent`: the time is exact, as in
    every version before 0.8.
 
+Correlate uses the time error (Track estimate, Measurement variance; and,
+with method `assign`, the time offset of `correlate-assign.md`). It does not
+use the time state in this version; it is read by the quality function.
 The correlator never reads a clock. Time quality comes only from reports and
 the pack, so two runs on the same input decide the same way.
 
@@ -122,8 +125,24 @@ symmetric covariance `pp`, `pv`, `vv`. Parameters come from the pack's
 Velocity measurement, when the report has both `course` and `speed_ms`:
 `ve = speed_ms * sin(rad(course))`, `vn = speed_ms * cos(rad(course))`.
 
+**Measurement variance.** Each report has a position variance per axis,
+`r_east` and `r_north`. With `ce` the report's `ce` or `default_ce_m`, and `te`
+the report's time error (Reports, Time quality) in milliseconds:
+
+- when `te` is 0, `r_east = r_north = ce²`;
+- otherwise, with `ts = te / 1000` and the velocity `(v_e, v_n)` taken from
+  the entity's prediction to the report's `time_ms` (for its first report:
+  the measured velocity, or 0 without one),
+  `r_east = ce² + (v_e*ts)²` and `r_north = ce² + (v_n*ts)²`. A position
+  stamped up to `ts` seconds off lies up to `v*ts` along the track from the
+  true one. The trace gets
+  `{"stage":"filter","a":<entity>,"b":null,"test":"time","value":te,"limit":null,"pass":true,"var_east":(v_e*ts)²,"var_north":(v_n*ts)²}`,
+  before any other record of that report.
+
+The entity keeps its last report's `r_east` and `r_north`.
+
 **First report.** Per axis: `p` = measured position, `v` = measured velocity
-or 0, `pp = ce²`, `pv = 0`, `vv = vel_sigma_ms²` when a velocity was measured,
+or 0, `pp = r` (that axis's measurement variance), `pv = 0`, `vv = vel_sigma_ms²` when a velocity was measured,
 else `unknown_vel_ms²`.
 
 **Later reports**, per axis, with `dt = (time_ms - last_time_ms) / 1000`:
@@ -133,7 +152,8 @@ else `unknown_vel_ms²`.
    `pp = pp + 2*dt*pv + dt²*vv + q*dt⁴/4`;
    `pv = pv + dt*vv + q*dt³/2`;
    `vv = vv + q*dt²`.
-2. Position update with measurement `z` and `r = ce²`:
+2. Position update with measurement `z` and `r` that axis's measurement
+   variance:
    `s = pp + r`, `k1 = pp/s`, `k2 = pv/s`, `y = z - p`;
    `p = p + k1*y`, `v = v + k2*y`;
    `pp = (1-k1)*pp`, `pv = (1-k1)*pv`, `vv = vv - k2*pv_before`.
@@ -242,15 +262,16 @@ off for many reports.
 For each later report of an entity (one that passed every reject check), before
 the filter update: predict the entity to the report's `time_ms` (Track
 estimate, Prediction; with two models, Two-model filter, Prediction), and
-with `e`, `n` the report's position in the plane and `ce` the report's `ce`
-or `default_ce_m`:
+with `e`, `n` the report's position in the plane and `r_east`, `r_north`
+its measurement variance (Track estimate):
 
-`d² = (e - pe)² / (pp_e + ce²) + (n - pn)² / (pp_n + ce²)`
+`d² = (e - pe)² / (pp_e + r_east) + (n - pn)² / (pp_n + r_north)`
 
 where `pe`, `pp_e` and `pn`, `pp_n` are the prediction's east and north `p`
 and `pp`. The trace gets
 `{"stage":"filter","a":<entity>,"b":null,"test":"restart","value":d²,"limit":g,"pass":<d² < g>}`,
-before any other record of that report.
+after the `time` record, when there is one, and before any other record of
+that report.
 
 When `pass` is true the report updates the filter as in Track estimate (or
 Two-model filter). Otherwise the filter starts again from this report as a
@@ -277,8 +298,10 @@ B's predicted position.
 | `altitude` | `max_m` | `abs(hae_a - hae_b)`, m | `value <= max_m` |
 | `same` | `key` | — | the two values are equal, or both absent |
 
-`d² = sum over east, north of (pa - pb)² / (pp_b + ce_a²)`, with `pb` and
-`pp_b` from B's prediction and `pa` from A's filter.
+`d² = sum over east, north of (pa - pb)² / (pp_b + r_a)`, with `pb` and
+`pp_b` from B's prediction, `pa` from A's filter and `r_a` A's measurement
+variance on that axis (Track estimate), which is `ce_a²` when A's last report
+has time error 0.
 
 Within a stage (`gate`, `confirm`, or `hold` against one member), tests run
 in pack order and stop at the first that fails; the tests after it are not
@@ -376,7 +399,8 @@ Two-model filter:
 `{"stage", "a", "b", "test", "value", "limit", "pass"}`, plus
 `"skipped": true` for a skipped test. `stage` is `gate`, `confirm`, `hold`,
 `rank` or `filter`; `a` and `b` are entity keys, except that `b` of a
-`filter` record names a model, and is null for the `restart` record. A pair's count after its tests is a
+`filter` record names a model, and is null for the `time` and `restart`
+records. A pair's count after its tests is a
 record with stage `confirm` (also when a `gate` test failed), `"test":"count"`,
 `value` the new count, `limit` the pack's `confirm_count`, and `pass` true
 when it has reached it. Records are in the order

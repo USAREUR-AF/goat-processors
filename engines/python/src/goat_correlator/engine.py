@@ -81,6 +81,7 @@ class Pack:
         self.restart = None
         self.margin = None
         self.time_default = {}
+        self.time_offset = None
 
 
 def _params(args, line_no):
@@ -123,7 +124,7 @@ def parse_pack(text):
         d, args = parts[0], parts[1:]
         if d in ("pack", "version", "filter", "confirm_count", "hold_failures",
                  "stale_ms", "same_source", "output", "method", "new_cost", "keep_bonus",
-                 "maneuver", "window", "hypotheses", "bias", "restart", "margin"):
+                 "maneuver", "window", "hypotheses", "bias", "restart", "margin", "time_offset"):
             if d in seen:
                 raise PackError("line %d: repeated directive %s" % (i, d))
             seen.add(d)
@@ -157,6 +158,13 @@ def parse_pack(text):
             if m["p_enter"] <= 0 or m["p_leave"] <= 0 or m["p_enter"] + m["p_leave"] >= 1:
                 raise PackError("line %d: p_enter and p_leave must be above 0 with a sum below 1" % i)
             p.maneuver = m
+        elif d == "time_offset":
+            kv = _params(args, i)
+            if set(kv) != {"sigma_ms"}:
+                raise PackError("line %d: time_offset needs exactly sigma_ms" % i)
+            p.time_offset = _num(kv["sigma_ms"], i)
+            if p.time_offset <= 0:
+                raise PackError("line %d: time_offset sigma_ms must be above 0" % i)
         elif d == "time_default":
             if not args or "=" in args[0]:
                 raise PackError("line %d: time_default needs a source id" % i)
@@ -239,11 +247,11 @@ def parse_pack(text):
         refused = ("confirm_count", "hold_failures", "same_source", "output", "priority")
         if p.confirm or p.hold or any(d in seen for d in refused):
             raise PackError("method assign takes only pack, version, method, filter, maneuver, gate, "
-                            "new_cost, keep_bonus, stale_ms, window, hypotheses, margin, bias, restart")
+                            "new_cost, keep_bonus, stale_ms, window, hypotheses, margin, bias, time_offset, restart, time_default")
     else:
         required = ("pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms")
-        if any(d in seen for d in ("new_cost", "keep_bonus", "window", "hypotheses", "bias", "margin")):
-            raise PackError("new_cost, keep_bonus, window, hypotheses, margin and bias need method assign")
+        if any(d in seen for d in ("new_cost", "keep_bonus", "window", "hypotheses", "bias", "margin", "time_offset")):
+            raise PackError("new_cost, keep_bonus, window, hypotheses, margin, bias and time_offset need method assign")
     for d in required:
         if d not in seen:
             raise PackError("missing directive %s" % d)
@@ -251,6 +259,8 @@ def parse_pack(text):
         raise PackError("maneuver accel_var must be above the filter's accel_var")
     if p.window == 1 and p.hypotheses > 1:
         raise PackError("hypotheses above 1 needs a window above 1")
+    if p.time_offset is not None and p.bias is None:
+        raise PackError("time_offset needs bias")
     if p.margin is not None and p.hypotheses == 1:
         raise PackError("margin needs hypotheses above 1")
     return p
@@ -343,6 +353,7 @@ class _Entity:
         self.north = None
         self.models = None  # two-model filter: [[east, north] quiet, [east, north] maneuver]
         self.mode = None    # [mu_quiet, mu_maneuver]
+        self.r_meas = None  # per-axis measurement variance of the last report
 
     def ce(self, pack):
         v = self.report.get("ce")
@@ -426,9 +437,9 @@ class Engine:
             east = _predict_axis(mixed[j][0], dt, q[j])
             north = _predict_axis(mixed[j][1], dt, q[j])
             terms = []
-            east, y, s = _pos_step(east, e, r)
+            east, y, s = _pos_step(east, e, r[0])
             terms.append(y * y / s + math.log(s))
-            north, y, s = _pos_step(north, n, r)
+            north, y, s = _pos_step(north, n, r[1])
             terms.append(y * y / s + math.log(s))
             if vel:
                 east, y, s = _vel_step(east, vel[0], rv)
@@ -465,9 +476,9 @@ class Engine:
 
     def _d2(self, a, b):
         be, bn = self._predict_in(b, a.last_time_ms, a)
-        ce2 = a.ce(self.pack) ** 2
-        return ((a.east[0] - be[0]) ** 2 / (be[2] + ce2)
-                + (a.north[0] - bn[0]) ** 2 / (bn[2] + ce2))
+        re_, rn_ = a.r_meas
+        return ((a.east[0] - be[0]) ** 2 / (be[2] + re_)
+                + (a.north[0] - bn[0]) ** 2 / (bn[2] + rn_))
 
     def _dist(self, a, b):
         be, bn = self._predict_in(b, a.last_time_ms, a)
@@ -585,10 +596,24 @@ class Engine:
             c, s = math.radians(float(report["course"])), float(report["speed_ms"])
             vel = (s * math.sin(c), s * math.cos(c))
         ce = f["default_ce_m"] if report.get("ce") is None else float(report["ce"])
+        re_, rn_ = ce * ce, ce * ce
+        te = self._time_error_ms(report, source)
+        pred = self._predict(ent, t) if ent is not None else None
+        if te > 0:
+            if pred is not None:
+                ve, vn = pred[0][1], pred[1][1]
+            else:
+                ve, vn = vel if vel else (0.0, 0.0)
+            ts = te / 1000.0
+            ae, an = (ve * ts) ** 2, (vn * ts) ** 2
+            re_, rn_ = re_ + ae, rn_ + an
+            trace.append({"stage": "filter", "a": key, "b": None, "test": "time",
+                          "value": te, "limit": None, "pass": True,
+                          "var_east": ae, "var_north": an})
         fresh = ent is None
         if ent is not None and self.pack.restart is not None:
-            pe, pn = self._predict(ent, t)
-            d2 = (e - pe[0]) ** 2 / (pe[2] + ce * ce) + (n - pn[0]) ** 2 / (pn[2] + ce * ce)
+            pe, pn = pred
+            d2 = (e - pe[0]) ** 2 / (pe[2] + re_) + (n - pn[0]) ** 2 / (pn[2] + rn_)
             ok = d2 < self.pack.restart
             trace.append({"stage": "filter", "a": key, "b": None, "test": "restart",
                           "value": d2, "limit": self.pack.restart, "pass": ok})
@@ -601,27 +626,36 @@ class Engine:
                 self.entities[key] = ent
                 events.append({"ev": "new", "entity": key})
             vv = (f["vel_sigma_ms"] if vel else f["unknown_vel_ms"]) ** 2
-            ent.east = [e, vel[0] if vel else 0.0, ce * ce, 0.0, vv]
-            ent.north = [n, vel[1] if vel else 0.0, ce * ce, 0.0, vv]
+            ent.east = [e, vel[0] if vel else 0.0, re_, 0.0, vv]
+            ent.north = [n, vel[1] if vel else 0.0, rn_, 0.0, vv]
             if self.pack.maneuver is not None:
                 a, b = self.pack.maneuver["p_enter"], self.pack.maneuver["p_leave"]
                 ent.models = [[list(ent.east), list(ent.north)], [list(ent.east), list(ent.north)]]
                 ent.mode = [b / (a + b), a / (a + b)]
         elif ent.models is not None:
             dt = (t - ent.last_time_ms) / 1000.0
-            self._two_model_update(ent, dt, e, n, ce * ce, vel, f["vel_sigma_ms"] ** 2, trace)
+            self._two_model_update(ent, dt, e, n, (re_, rn_), vel, f["vel_sigma_ms"] ** 2, trace)
         else:
             dt = (t - ent.last_time_ms) / 1000.0
             q = f["accel_var"]
-            ent.east = _pos_update(_predict_axis(ent.east, dt, q), e, ce * ce)
-            ent.north = _pos_update(_predict_axis(ent.north, dt, q), n, ce * ce)
+            ent.east = _pos_update(_predict_axis(ent.east, dt, q), e, re_)
+            ent.north = _pos_update(_predict_axis(ent.north, dt, q), n, rn_)
             if vel:
                 r = f["vel_sigma_ms"] ** 2
                 ent.east = _vel_update(ent.east, vel[0], r)
                 ent.north = _vel_update(ent.north, vel[1], r)
         ent.report = dict(report)
+        ent.r_meas = (re_, rn_)
         ent.last_time_ms = t
         return ent
+
+    def _time_error_ms(self, report, source):
+        """correlate.md, Reports, Time quality: the report's value, else the
+        pack's time_default for its source, else 0."""
+        v = report.get("time_error_ms")
+        if v is not None:
+            return float(v)
+        return float(self.pack.time_default.get(source, {}).get("error_ms", 0.0))
 
     def ingest(self, report):
         events, trace = [], []
@@ -965,9 +999,10 @@ class AssignEngine(Engine):
             self.reported.add(ent.key)
         return events, trace
 
-    def _offset(self, src, dst):
-        """Per axis (shift, variance) that moves a position of source src into
-        the frame of source dst: the pair estimate, or 0 with the prior."""
+    def _offset(self, src, dst, vel):
+        """Per axis (shift, variance) that moves a position of source src, with
+        velocity vel, into the frame of source dst: the pair estimate, or 0
+        with the prior."""
         if self.pack.bias is None or src == dst:
             return None
         key = self._pair(src, dst)
@@ -976,11 +1011,17 @@ class AssignEngine(Engine):
             v = self.pack.bias["sigma_m"] ** 2
             return ((0.0, v), (0.0, v))
         sign = 1.0 if src < dst else -1.0
-        return ((sign * st[0][0], st[0][1]), (sign * st[1][0], st[1][1]))
+        out = []
+        for x in (0, 1):
+            o = st[x][0]
+            if self.pack.time_offset is not None:
+                o = o - vel[x] * st[3]
+            out.append((sign * o, st[x][1]))
+        return tuple(out)
 
     def _predict_in(self, b, t, a):
         pr = self._predict(b, t)
-        off = self._offset(b.source, a if isinstance(a, str) else a.source)
+        off = self._offset(b.source, a if isinstance(a, str) else a.source, (pr[0][1], pr[1][1]))
         if off is None:
             return pr
         return tuple((x[0] + o[0], x[1], x[2] + o[1]) + tuple(x[3:]) for x, o in zip(pr, off))
@@ -1229,20 +1270,29 @@ class AssignEngine(Engine):
                     lo, hi = (a, b) if a.source < b.source else (b, a)
                     key = self._pair(a.source, b.source)
                     st = self.bias.get(key)
+                    timed = self.pack.time_offset is not None
                     if st is None:
                         v = prm["sigma_m"] ** 2
                         st = [[0.0, v, 0.0], [0.0, v, 0.0], 0]
+                        if timed:
+                            st += [0.0, [0.0] * 8]
                     pl, ph = self._predict(lo, now_ms), self._predict(hi, now_ms)
-                    ys, rs = [], []
+                    ys, rs, vs = [], [], []
                     d2 = 0.0
                     for x in (0, 1):
                         y = ph[x][0] - pl[x][0]
                         r = pl[x][2] + ph[x][2]
+                        vx = (pl[x][1] + ph[x][1]) / 2
                         ys.append(y)
                         rs.append(r)
-                        d2 += (y - st[x][0]) ** 2 / (st[x][1] + r)
+                        vs.append(vx)
+                        want = st[x][0] - vx * st[3] if timed else st[x][0]
+                        d2 += (y - want) ** 2 / (st[x][1] + r)
                     ok = d2 < prm["gate"]
-                    if ok:
+                    if ok and timed:
+                        st = self._time_fit(st, ys, rs, vs)
+                        self.bias[key] = st
+                    elif ok:
                         n = st[2] + 1
                         pv = prm["sigma_m"] ** 2 / (n + 1)
                         if pv < floor2:
@@ -1254,10 +1304,45 @@ class AssignEngine(Engine):
                             new.append([st[x][0] + (w / ws) * (ys[x] - st[x][0]), pv, ws])
                         st = [new[0], new[1], n]
                         self.bias[key] = st
-                    trace.append({"stage": "bias", "a": lo.key, "b": hi.key, "test": "offset",
-                                  "value": d2, "limit": prm["gate"], "pass": ok,
-                                  "east": st[0][0], "north": st[1][0], "var": st[0][1],
-                                  "pairs": st[2]})
+                    rec = {"stage": "bias", "a": lo.key, "b": hi.key, "test": "offset",
+                           "value": d2, "limit": prm["gate"], "pass": ok,
+                           "east": st[0][0], "north": st[1][0], "var": st[0][1],
+                           "pairs": st[2]}
+                    if timed:
+                        rec["time_offset_ms"] = st[3] * 1000.0
+                    trace.append(rec)
+
+    def _time_fit(self, st, ys, rs, vs):
+        """correlate-assign.md, Sensor bias, Time offset: add one pair to the
+        sums and solve for the offsets o east, o north and the time offset."""
+        prm = self.pack.bias
+        n = st[2] + 1
+        var = prm["sigma_m"] ** 2 / (n + 1)
+        if var < prm["floor_m"] ** 2:
+            var = prm["floor_m"] ** 2
+        S = list(st[4])
+        we, wn = 1.0 / rs[0], 1.0 / rs[1]
+        ve, vn = vs[0], vs[1]
+        S[0] += we
+        S[1] += wn
+        S[2] += we * ve
+        S[3] += wn * vn
+        S[4] += we * ve * ve + wn * vn * vn
+        S[5] += we * ys[0]
+        S[6] += wn * ys[1]
+        S[7] += we * ve * ys[0] + wn * vn * ys[1]
+        po = 1.0 / prm["sigma_m"] ** 2
+        pt = 1.0 / (self.pack.time_offset / 1000.0) ** 2
+        a11 = po + S[0]
+        a22 = po + S[1]
+        a13 = -S[2]
+        a23 = -S[3]
+        a33 = pt + S[4]
+        b1, b2, b3 = S[5], S[6], -S[7]
+        tau = (b3 - a13 * b1 / a11 - a23 * b2 / a22) / (a33 - a13 * a13 / a11 - a23 * a23 / a22)
+        oe = (b1 - a13 * tau) / a11
+        on = (b2 - a23 * tau) / a22
+        return [[oe, var, S[0]], [on, var, S[1]], n, tau, S]
 
     def snapshot(self):
         out = {
@@ -1271,8 +1356,10 @@ class AssignEngine(Engine):
         if self.pack.restart is not None:
             out["restarted"] = sorted(self.restarted)
         if self.pack.bias is not None:
-            out["bias"] = {k: {"east": v[0][0], "weight_east": v[0][2], "north": v[1][0],
-                               "weight_north": v[1][2], "var": v[0][1], "pairs": v[2]}
+            out["bias"] = {k: dict({"east": v[0][0], "weight_east": v[0][2], "north": v[1][0],
+                                    "weight_north": v[1][2], "var": v[0][1], "pairs": v[2]},
+                                   **({"time_offset_ms": v[3] * 1000.0, "sums": list(v[4])}
+                                      if self.pack.time_offset is not None else {}))
                            for k, v in sorted(self.bias.items())}
         if self.pack.window > 1:
             out["retiring"] = sorted(self.retiring)
