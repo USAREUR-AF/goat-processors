@@ -6,6 +6,21 @@ None. Every load vector (01 to 21) and every scenario vector (01 to 32)
 agrees with `spec/correlate.md` 0.4 and `spec/correlate-assign.md` 0.2 as
 this engine reads them.
 
+## Filter: vectors that contradict `filter.md` 0.1
+
+None. Every filter load vector (01 to 50) and every filter scenario vector
+(01 to 27) agrees with `spec/filter.md` 0.1 as this engine reads it.
+
+## Filter: points `filter.md` 0.1 leaves open
+
+| Point | This engine |
+|---|---|
+| An integer literal in a report outside the signed 64-bit range | `std.json` keeps it as a number string: the wrong type for `time_ms` and `stale_ms`, a number (read as the nearest binary64) for `lat`, `lon`, `key`, `speed`, `altitude`. |
+| `key` and `speed`/`altitude` on an integer above 2^53 | The integer is converted to the nearest binary64 before comparing. |
+| A reference within 1 m of a pole | The formula is evaluated as written; no special case. |
+| Differences of two times (`near` age, `interval`, tick `age`) that overflow int64 | Computed in i128; a trace value outside int64 is written as a float. |
+| `version` | Any single token is accepted (load vector 03 uses `version 1`); no semver check. |
+
 ## Points `correlate-assign.md` 0.2 leaves open
 
 | Point | This engine |
@@ -18,3 +33,18 @@ this engine reads them.
 |---|---|
 | An integer literal outside the signed 64-bit range | `std.json` does not return it as an integer, so it is the wrong type where an integer is required. |
 | `same` between booleans, arrays or objects | Compared structurally: equal when of the same kind and equal element by element. |
+
+## `fuse.md` 0.1
+
+### Vectors that contradict the specification
+
+None. Every fuse load vector (01 to 33) and every fuse scenario vector (01 to
+16) agrees with `spec/fuse.md` 0.1 as this engine reads it.
+
+### Points `fuse.md` 0.1 leaves open
+
+| Point | This engine |
+|---|---|
+| An integer literal outside the signed 64-bit range | `std.json` keeps it as a number string: the wrong type where an integer is required (`time_ms`, `stale_ms`), a number where a number is read (`lat`, `hae`, an attribute value). |
+| `majority`, `max` and `min` between integers above 2^53 | Compared as binary64. |
+| `version` value | Taken as one value with no further check; `fuse.md` gives `version` no rule beyond "one value". |
