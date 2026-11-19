@@ -18,7 +18,6 @@
 
 namespace fs = std::filesystem;
 using corr::Json;
-
 using vectors::json_files;
 using vectors::mismatch;
 using vectors::read_file;

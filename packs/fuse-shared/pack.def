@@ -1,0 +1,12 @@
+# Fusion of tracks whose errors may be correlated by an unknown amount, for
+# example system tracks of two trackers that share a radar. Kinematics by
+# covariance intersection, which never claims more certainty than the inputs
+# allow; attributes by the latest report and by majority.
+pack        fuse-shared
+version     0.1.0
+filter      accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+kinematics  covariance_intersection
+attribute   callsign rule=latest
+attribute   type rule=majority
+attribute   track.class rule=majority
+stale_ms    120000

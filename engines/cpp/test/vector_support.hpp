@@ -1,5 +1,6 @@
-// What both vector runners share: reading files, listing vectors, and the
-// comparison of spec/vector-format.md "What the engine checks".
+// What the vector runners (correlate, filter, fuse) share: reading files,
+// listing vectors, and the comparison of spec/vector-format.md "What the
+// engine checks".
 #pragma once
 
 #include <algorithm>

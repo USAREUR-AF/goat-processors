@@ -7,8 +7,8 @@ from these documents and the vectors, never from another engine's source.
 |---|---|---|---|
 | correlate | [correlate.md](correlate.md) | Written, version 0.4; seven engines built | decides which tracks from different sources are one object, groups them, emits one estimate per group |
 | correlate, method assign | [correlate-assign.md](correlate-assign.md) | Written, version 0.2; seven engines built | every track in one system track; per-source least-cost assignment at each tick; members fused by uncertainty weight |
-| fuse | — | Designed, not built | combines the measurements of a group's members into one estimate weighted by each member's uncertainty, instead of reporting one member |
-| filter | [filter.md](filter.md) | Written, version 0.1; Python built | keeps or drops each report by the first matching rule: inside or outside a circle or polygon, within a distance of a reference such as own ship, by environment, affiliation, source, identity or any key, and thins a feed by interval |
+| fuse | [fuse.md](fuse.md) | Written, version 0.1; seven engines built | combines the members of each group named by `fuse.group` into one estimate: inverse variance, covariance intersection, best, priority or latest; one rule per attribute |
+| filter | [filter.md](filter.md) | Written, version 0.1; seven engines built | keeps or drops each report by the first matching rule: inside or outside a circle or polygon, within a distance of a reference such as own ship, by environment, affiliation, source, identity or any key, and thins a feed by interval |
 | quality | — | Designed, not built | measures each source and track (update interval, latency, reported against observed error, gaps, staleness) and states the action a rule attaches to a measurement: mark, downgrade, drop or alert |
 
 ## What every function shares

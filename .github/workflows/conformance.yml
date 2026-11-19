@@ -19,6 +19,8 @@ jobs:
         run: python3 -I tools/make-vectors.py && git diff --exit-code -- packs
       - name: the committed filter vectors are what the scenarios produce
         run: python3 -I tools/make-filter-vectors.py && git diff --exit-code -- packs spec/filter-load-vectors
+      - name: the committed fuse vectors are what the scenarios produce
+        run: python3 -I tools/make-fuse-vectors.py && git diff --exit-code -- packs spec/fuse-load-vectors && test -z "$(git status --porcelain -- packs spec/fuse-load-vectors)"
   python:
     runs-on: ubuntu-latest
     timeout-minutes: 10
