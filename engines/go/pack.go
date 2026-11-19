@@ -39,12 +39,26 @@ type Pack struct {
 	// maneuver line (spec: correlate.md Two-model filter)
 	HasManeuver bool
 	ManeuverVar float64 // q2
-	PEnter       float64 // a
-	PLeave       float64 // b
+	PEnter      float64 // a
+	PLeave      float64 // b
 
 	// method assign window (spec: correlate-assign.md Window)
 	Window     int64 // n, default 1
 	Hypotheses int64 // k, default 1
+
+	// restart line (spec: correlate.md Restart)
+	HasRestart  bool
+	RestartGate float64 // g
+
+	// bias line (spec: correlate-assign.md Sensor bias)
+	HasBias   bool
+	BiasSigma float64 // s
+	BiasFloor float64 // f
+	BiasGate  float64 // g
+
+	// margin line (spec: correlate-assign.md Window)
+	HasMargin bool
+	Margin    float64 // m
 }
 
 // testParams lists every test and its parameters (spec: Tests table).
@@ -201,6 +215,35 @@ func ParsePack(text string) (*Pack, error) {
 					}
 				}
 			}
+		case "restart":
+			var m map[string]string
+			if m, err = parseParams(rest, []string{"gate"}); err == nil {
+				p.HasRestart = true
+				if p.RestartGate, err = parseFloat(m["gate"]); err == nil && !(p.RestartGate > 0) {
+					err = fmt.Errorf("restart: gate must be above 0")
+				}
+			}
+		case "bias":
+			var m map[string]string
+			m, err = parseParams(rest, []string{"sigma_m", "floor_m", "gate"})
+			if err == nil {
+				p.HasBias = true
+				for _, f := range []struct {
+					k string
+					p *float64
+				}{{"sigma_m", &p.BiasSigma}, {"floor_m", &p.BiasFloor}, {"gate", &p.BiasGate}} {
+					if *f.p, err = parseFloat(m[f.k]); err != nil {
+						break
+					}
+				}
+			}
+		case "margin":
+			if v, err = oneValue(d, rest); err == nil {
+				p.HasMargin = true
+				if p.Margin, err = parseFloat(v); err == nil && !(p.Margin > 0) {
+					err = fmt.Errorf("margin must be above 0")
+				}
+			}
 		case "window", "hypotheses":
 			if v, err = oneValue(d, rest); err == nil {
 				var i int64
@@ -290,7 +333,7 @@ func ParsePack(text string) (*Pack, error) {
 	}
 	// Each method has its own directives (spec: correlate.md Pack, correlate-assign.md Pack).
 	required := []string{"pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms"}
-	refused := []string{"new_cost", "keep_bonus", "window", "hypotheses"}
+	refused := []string{"new_cost", "keep_bonus", "window", "hypotheses", "margin", "bias"}
 	if p.Method == "assign" {
 		required = []string{"pack", "version", "method", "filter", "new_cost", "keep_bonus", "stale_ms"}
 		refused = []string{"confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"}
@@ -317,6 +360,12 @@ func ParsePack(text string) (*Pack, error) {
 	}
 	if p.Hypotheses > 1 && p.Window == 1 {
 		return nil, fmt.Errorf("hypotheses above 1 needs window above 1")
+	}
+	if p.HasBias && !(p.BiasSigma > 0 && p.BiasGate > 0 && p.BiasFloor > 0 && p.BiasFloor <= p.BiasSigma) {
+		return nil, fmt.Errorf("bias: sigma_m and gate must be above 0, floor_m above 0 and at most sigma_m")
+	}
+	if p.HasMargin && p.Hypotheses <= 1 {
+		return nil, fmt.Errorf("margin needs hypotheses above 1")
 	}
 	return p, nil
 }

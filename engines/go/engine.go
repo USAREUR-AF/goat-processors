@@ -100,15 +100,18 @@ type Engine struct {
 	nextGroup  int
 
 	// method assign (spec: correlate-assign.md)
-	committed Membership      // the membership the output reports
-	histories []History       // in rank order
-	reported  map[string]bool // entities with an accepted report since the previous tick
+	committed Membership            // the membership the output reports
+	histories []History             // in rank order
+	reported  map[string]bool       // entities with an accepted report since the previous tick
+	restarted map[string]bool       // entities whose filter started again since the previous tick (correlate.md Restart)
+	bias      map[string]*BiasState // pair key "<S>|<T>" -> stored offset (correlate-assign.md Sensor bias)
 }
 
 // New returns an engine for a loaded pack.
 func New(p *Pack) *Engine {
 	return &Engine{pack: p, entities: map[string]*Entity{}, groups: map[string][]string{}, counts: map[string]int64{}, nextGroup: 1,
-		committed: newMembership(), histories: []History{{}}, reported: map[string]bool{}}
+		committed: newMembership(), histories: []History{{}}, reported: map[string]bool{},
+		restarted: map[string]bool{}, bias: map[string]*BiasState{}}
 }
 
 func toFloat(v any) (float64, bool) {
@@ -218,8 +221,16 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 		g.startFilter(e, z)
 		g.entities[key] = e
 		events = append(events, Obj{"ev": "new", "entity": key})
-	} else {
+	} else if g.restartTest(e, t, z, &trace) {
 		trace = append(trace, g.updateFilter(e, t, z)...)
+	} else {
+		// correlate.md Restart: the filter starts again from this report as a
+		// first report; the entity keeps its key, group, pair counts and hold
+		// failure count, and no new event is given.
+		g.startFilter(e, z)
+		if p.Method == "assign" {
+			g.restarted[key] = true // until the next tick (correlate-assign.md Window step 1)
+		}
 	}
 	e.LastTime, e.Ce, e.Last = t, ce, report
 
@@ -427,7 +438,7 @@ func record(stage string, a, b *Entity, test string, value, limit any, pass bool
 
 // d2 is the squared statistical distance of A's filter from B's prediction (spec: Tests).
 func (g *Engine) d2(a, b *Entity) float64 {
-	be, bn := g.predicted(b, a.LastTime)
+	be, bn := g.predictedFor(b, a)
 	r := a.Ce * a.Ce
 	de, dn := a.East.P-be.P, a.North.P-bn.P
 	return de*de/(be.PP+r) + dn*dn/(bn.PP+r)
@@ -490,7 +501,7 @@ func (g *Engine) runTest(stage string, t Test, a, b *Entity) Obj {
 		r["skipped"] = true
 		return r
 	}
-	be, bn := g.predicted(b, a.LastTime)
+	be, bn := g.predictedFor(b, a)
 	dist := math.Hypot(a.East.P-be.P, a.North.P-bn.P)
 	switch t.Name {
 	case "distance":

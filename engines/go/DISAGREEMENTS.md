@@ -2,11 +2,11 @@
 
 ## Vectors that contradict the specification
 
-None. Every vector in `packs/correlate-*/vectors/` (01-44),
-`spec/correlate-load-vectors/` (01-42), `packs/filter-*/vectors/`,
+None. Every vector in `packs/correlate-*/vectors/` (01-53),
+`spec/correlate-load-vectors/` (01-60), `packs/filter-*/vectors/`,
 `spec/filter-load-vectors/`, `packs/fuse-*/vectors/` and
-`spec/fuse-load-vectors/` agrees with `spec/correlate.md` 0.6,
-`spec/correlate-assign.md` 0.4, `spec/filter.md` 0.1 and `spec/fuse.md` 0.2 as
+`spec/fuse-load-vectors/` agrees with `spec/correlate.md` 0.7,
+`spec/correlate-assign.md` 0.5, `spec/filter.md` 0.1 and `spec/fuse.md` 0.2 as
 this engine reads them.
 
 ## Points still open
@@ -27,6 +27,8 @@ No vector covers any of them; each is listed with what this engine does.
 | A report or reference within 1 m of a pole (open point of `filter.md` 0.1) | filter: Geometry | the formula as written; no guard on `cos(rad(lat))` |
 | `key` range on a present value that is not a number (a string, a boolean) | filter: Conditions, Trace | unknown, with `value` the report's value (only `near` is told to give null when unknown) |
 | `#` inside a parameter value | filter: Pack | `#` always starts a comment, wherever it is on the line |
+| A repeated parameter within one `restart` or `bias` line | `correlate.md` Pack, `correlate-assign.md` Pack | load error, as for `filter` and `maneuver` |
+| `margin` with a value that is not finite or not decimal | `correlate-assign.md` Pack | read as the other pack numbers above |
 
 ## Quality (`quality/`, `spec/quality.md` 0.1)
 
