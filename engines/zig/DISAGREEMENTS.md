@@ -33,3 +33,18 @@ None. Every filter load vector (01 to 50) and every filter scenario vector
 |---|---|
 | An integer literal outside the signed 64-bit range | `std.json` does not return it as an integer, so it is the wrong type where an integer is required. |
 | `same` between booleans, arrays or objects | Compared structurally: equal when of the same kind and equal element by element. |
+
+## `fuse.md` 0.1
+
+### Vectors that contradict the specification
+
+None. Every fuse load vector (01 to 33) and every fuse scenario vector (01 to
+16) agrees with `spec/fuse.md` 0.1 as this engine reads it.
+
+### Points `fuse.md` 0.1 leaves open
+
+| Point | This engine |
+|---|---|
+| An integer literal outside the signed 64-bit range | `std.json` keeps it as a number string: the wrong type where an integer is required (`time_ms`, `stale_ms`), a number where a number is read (`lat`, `hae`, an attribute value). |
+| `majority`, `max` and `min` between integers above 2^53 | Compared as binary64. |
+| `version` value | Taken as one value with no further check; `fuse.md` gives `version` no rule beyond "one value". |
