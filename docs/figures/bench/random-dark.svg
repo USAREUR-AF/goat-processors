@@ -22,12 +22,12 @@
 <text x="16" y="205" font-size="11" fill="#c3c2b7">assign-imm</text>
 <rect x="92" y="194" width="90.7" height="14" rx="2" fill="#0ca30c"><title>assign-imm Pairwise F1: 0.796</title></rect>
 <text x="186.7" y="205" font-size="11" fill="#f0efec">0.796</text>
-<text x="16" y="225" font-size="11" fill="#c3c2b7">assign-full</text>
-<rect x="92" y="214" width="109.2" height="14" rx="2" fill="#9085e9"><title>assign-full Pairwise F1: 0.958</title></rect>
-<text x="205.2" y="225" font-size="11" fill="#f0efec">0.958</text>
-<text x="16" y="245" font-size="11" fill="#c3c2b7">gnn-restart</text>
-<rect x="92" y="234" width="97.0" height="14" rx="2" fill="#e66767"><title>gnn-restart Pairwise F1: 0.851</title></rect>
-<text x="193.0" y="245" font-size="11" fill="#f0efec">0.851</text>
+<text x="16" y="225" font-size="11" fill="#c3c2b7">gnn-restart</text>
+<rect x="92" y="214" width="97.0" height="14" rx="2" fill="#9085e9"><title>gnn-restart Pairwise F1: 0.851</title></rect>
+<text x="193.0" y="225" font-size="11" fill="#f0efec">0.851</text>
+<text x="16" y="245" font-size="11" fill="#c3c2b7">assign-time</text>
+<rect x="92" y="234" width="109.6" height="14" rx="2" fill="#e66767"><title>assign-time Pairwise F1: 0.961</title></rect>
+<text x="205.6" y="245" font-size="11" fill="#f0efec">0.961</text>
 <text x="270" y="70" font-size="12" font-weight="600" fill="#f0efec">False merges</text>
 <text x="270" y="84" font-size="11" fill="#898781">lower is better</text>
 <text x="270" y="105" font-size="11" fill="#c3c2b7">gnn</text>
@@ -48,12 +48,12 @@
 <text x="270" y="205" font-size="11" fill="#c3c2b7">assign-imm</text>
 <rect x="346" y="194" width="17.1" height="14" rx="2" fill="#0ca30c"><title>assign-imm False merges: 12</title></rect>
 <text x="367.1" y="205" font-size="11" fill="#f0efec">12</text>
-<text x="270" y="225" font-size="11" fill="#c3c2b7">assign-full</text>
-<rect x="346" y="214" width="14.2" height="14" rx="2" fill="#9085e9"><title>assign-full False merges: 10</title></rect>
-<text x="364.2" y="225" font-size="11" fill="#f0efec">10</text>
-<text x="270" y="245" font-size="11" fill="#c3c2b7">gnn-restart</text>
-<rect x="346" y="234" width="85.5" height="14" rx="2" fill="#e66767"><title>gnn-restart False merges: 60</title></rect>
-<text x="435.5" y="245" font-size="11" fill="#f0efec">60</text>
+<text x="270" y="225" font-size="11" fill="#c3c2b7">gnn-restart</text>
+<rect x="346" y="214" width="85.5" height="14" rx="2" fill="#9085e9"><title>gnn-restart False merges: 60</title></rect>
+<text x="435.5" y="225" font-size="11" fill="#f0efec">60</text>
+<text x="270" y="245" font-size="11" fill="#c3c2b7">assign-time</text>
+<rect x="346" y="234" width="12.8" height="14" rx="2" fill="#e66767"><title>assign-time False merges: 9</title></rect>
+<text x="362.8" y="245" font-size="11" fill="#f0efec">9</text>
 <text x="524" y="70" font-size="12" font-weight="600" fill="#f0efec">Identity swaps</text>
 <text x="524" y="84" font-size="11" fill="#898781">lower is better</text>
 <text x="524" y="105" font-size="11" fill="#c3c2b7">gnn</text>
@@ -74,12 +74,12 @@
 <text x="524" y="205" font-size="11" fill="#c3c2b7">assign-imm</text>
 <rect x="600" y="194" width="91.2" height="14" rx="2" fill="#0ca30c"><title>assign-imm Identity swaps: 160</title></rect>
 <text x="695.2" y="205" font-size="11" fill="#f0efec">160</text>
-<text x="524" y="225" font-size="11" fill="#c3c2b7">assign-full</text>
-<rect x="600" y="214" width="21.1" height="14" rx="2" fill="#9085e9"><title>assign-full Identity swaps: 37</title></rect>
-<text x="625.1" y="225" font-size="11" fill="#f0efec">37</text>
-<text x="524" y="245" font-size="11" fill="#c3c2b7">gnn-restart</text>
-<rect x="600" y="234" width="10.3" height="14" rx="2" fill="#e66767"><title>gnn-restart Identity swaps: 18</title></rect>
-<text x="614.3" y="245" font-size="11" fill="#f0efec">18</text>
+<text x="524" y="225" font-size="11" fill="#c3c2b7">gnn-restart</text>
+<rect x="600" y="214" width="10.3" height="14" rx="2" fill="#9085e9"><title>gnn-restart Identity swaps: 18</title></rect>
+<text x="614.3" y="225" font-size="11" fill="#f0efec">18</text>
+<text x="524" y="245" font-size="11" fill="#c3c2b7">assign-time</text>
+<rect x="600" y="234" width="18.8" height="14" rx="2" fill="#e66767"><title>assign-time Identity swaps: 33</title></rect>
+<text x="622.8" y="245" font-size="11" fill="#f0efec">33</text>
 <text x="16" y="274" font-size="12" font-weight="600" fill="#f0efec">Position error RMS, m</text>
 <text x="16" y="288" font-size="11" fill="#898781">lower is better</text>
 <text x="16" y="309" font-size="11" fill="#c3c2b7">gnn</text>
@@ -100,12 +100,12 @@
 <text x="16" y="409" font-size="11" fill="#c3c2b7">assign-imm</text>
 <rect x="92" y="398" width="40.4" height="14" rx="2" fill="#0ca30c"><title>assign-imm Position error RMS, m: 354.3</title></rect>
 <text x="136.4" y="409" font-size="11" fill="#f0efec">354.3</text>
-<text x="16" y="429" font-size="11" fill="#c3c2b7">assign-full</text>
-<rect x="92" y="418" width="10.1" height="14" rx="2" fill="#9085e9"><title>assign-full Position error RMS, m: 88.5</title></rect>
-<text x="106.1" y="429" font-size="11" fill="#f0efec">88.5</text>
-<text x="16" y="449" font-size="11" fill="#c3c2b7">gnn-restart</text>
-<rect x="92" y="438" width="86.4" height="14" rx="2" fill="#e66767"><title>gnn-restart Position error RMS, m: 758.1</title></rect>
-<text x="182.4" y="449" font-size="11" fill="#f0efec">758.1</text>
+<text x="16" y="429" font-size="11" fill="#c3c2b7">gnn-restart</text>
+<rect x="92" y="418" width="86.4" height="14" rx="2" fill="#9085e9"><title>gnn-restart Position error RMS, m: 758.1</title></rect>
+<text x="182.4" y="429" font-size="11" fill="#f0efec">758.1</text>
+<text x="16" y="449" font-size="11" fill="#c3c2b7">assign-time</text>
+<rect x="92" y="438" width="9.9" height="14" rx="2" fill="#e66767"><title>assign-time Position error RMS, m: 87.1</title></rect>
+<text x="105.9" y="449" font-size="11" fill="#f0efec">87.1</text>
 <text x="270" y="274" font-size="12" font-weight="600" fill="#f0efec">GOSPA, m</text>
 <text x="270" y="288" font-size="11" fill="#898781">lower is better</text>
 <text x="270" y="309" font-size="11" fill="#c3c2b7">gnn</text>
@@ -126,10 +126,10 @@
 <text x="270" y="409" font-size="11" fill="#c3c2b7">assign-imm</text>
 <rect x="346" y="398" width="91.0" height="14" rx="2" fill="#0ca30c"><title>assign-imm GOSPA, m: 399.0</title></rect>
 <text x="441.0" y="409" font-size="11" fill="#f0efec">399.0</text>
-<text x="270" y="429" font-size="11" fill="#c3c2b7">assign-full</text>
-<rect x="346" y="418" width="56.4" height="14" rx="2" fill="#9085e9"><title>assign-full GOSPA, m: 247.2</title></rect>
-<text x="406.4" y="429" font-size="11" fill="#f0efec">247.2</text>
-<text x="270" y="449" font-size="11" fill="#c3c2b7">gnn-restart</text>
-<rect x="346" y="438" width="87.2" height="14" rx="2" fill="#e66767"><title>gnn-restart GOSPA, m: 382.6</title></rect>
-<text x="437.2" y="449" font-size="11" fill="#f0efec">382.6</text>
+<text x="270" y="429" font-size="11" fill="#c3c2b7">gnn-restart</text>
+<rect x="346" y="418" width="87.2" height="14" rx="2" fill="#9085e9"><title>gnn-restart GOSPA, m: 382.6</title></rect>
+<text x="437.2" y="429" font-size="11" fill="#f0efec">382.6</text>
+<text x="270" y="449" font-size="11" fill="#c3c2b7">assign-time</text>
+<rect x="346" y="438" width="55.6" height="14" rx="2" fill="#e66767"><title>assign-time GOSPA, m: 244.0</title></rect>
+<text x="405.6" y="449" font-size="11" fill="#f0efec">244.0</text>
 </svg>

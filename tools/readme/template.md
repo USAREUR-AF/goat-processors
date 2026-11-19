@@ -79,7 +79,8 @@ the vector is changed only through the specification.
 The correlate packs are scored against ground truth on generated scenarios:
 crossing, formation, splitting and turning objects; sensors with understated
 or absent error, bias, latency, low detection, track number swaps and false
-tracks. Every score and its formula is in [docs/benchmark.md](docs/benchmark.md),
+tracks; and sensors whose clocks are offset, drifting or free-running, or
+whose reports arrive out of order. Every score and its formula is in [docs/benchmark.md](docs/benchmark.md),
 which `tools/bench/bench.py report` writes.
 
 {{benchmark}}

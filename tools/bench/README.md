@@ -48,6 +48,9 @@ and then maneuvers on its own. Positions are in a local plane around
 | number swap | from a stated time, the sensor's track numbers of two objects trade places |
 | drop | from a stated time, the sensor stops reporting an object; after a gap it starts a new track number |
 | false tracks | tracks of no object: each lives 20 to 60 s on a straight line within 3 km of an object |
+| clock offset, clock drift | the sensor's clock is wrong: a report made at true time `t` is stamped `time_ms = t + offset + drift * t / 60 s`. The position is measured at `t`, so truth stays exact. A report stamped before 0 is not sent |
+| delivery spread | an extra delay after `latency`, a uniform integer in `[0, spread]` ms per report, so reports arrive out of order |
+| time quality | on every report of a described sensor: `time_state` (`coherent`, `drifting`, `free-running`) and `time_error_ms`, the clock's error at that report rounded up, at least 1 ms, twice that when free-running (such a clock knows only a loose bound). Keys as in `spec/correlate.md`, "Time quality". A sensor that is not described sends neither key |
 
 Every report carries `type` `a-u-A` (air) or `a-u-S` (surface).
 
@@ -66,6 +69,25 @@ so adding a sensor does not change the others' reports.
 The named scenarios each test one thing; the random set of 50 (seed
 20261119) mixes 2 to 4 objects with 2 or 3 sensors and random errors, for
 averages. The full list is in [docs/benchmark.md](../../docs/benchmark.md).
+
+**Time family.** One object at 300 m/s, turning 90 degrees every 100 s
+(3 deg/s for 30 s, from 40 s), seen by a radar and two beacons; the second
+beacon (`beacon2`) carries the fault. The turns change the direction of the
+along-track error, so a fixed position bias cannot stand in for a clock
+error.
+
+| Scenario | beacon2 | Length |
+|---|---|---|
+| `clock-offset-200ms` | clock 200 ms ahead | 120 s |
+| `clock-drift-10ms-min` | clock drifts 10 ms per minute, 0 to 200 ms | 1200 s |
+| `clock-free-running` | clock 1.5 s behind, drifting 30 ms per minute further | 300 s |
+| `out-of-order` | delivery 0.3 to 2.8 s after the report's time, clock exact | 120 s |
+
+In each `clock-` scenario every sensor reports its time quality (the
+radar and the first beacon: `coherent`, 1 ms). Each has an `-undescribed`
+twin with the same seed: the same reports without `time_state` and
+`time_error_ms`. The time family is pooled as its own set, like the random
+set; "named" in the pooled tables means the other named scenarios.
 
 ## Events file
 

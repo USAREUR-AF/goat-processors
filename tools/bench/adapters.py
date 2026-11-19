@@ -20,7 +20,8 @@ from goat_correlator import load_pack, make_engine  # noqa: E402
 # is scored once it is named here.
 PACKS = ["correlate-gnn", "correlate-window", "correlate-distance", "correlate-assign",
          "correlate-gnn-imm", "correlate-assign-imm", "correlate-assign-window",
-         "correlate-assign-bias", "correlate-assign-full", "correlate-gnn-restart"]
+         "correlate-assign-bias", "correlate-assign-full", "correlate-gnn-restart",
+         "correlate-assign-time", "correlate-gnn-time"]
 
 
 def run_pack(pack_name, vector):

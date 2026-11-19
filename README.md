@@ -114,33 +114,50 @@ Each engine runs all 121 scenario vectors (838 steps, 4,333 trace records) and 2
 The correlate packs are scored against ground truth on generated scenarios:
 crossing, formation, splitting and turning objects; sensors with understated
 or absent error, bias, latency, low detection, track number swaps and false
-tracks. Every score and its formula is in [docs/benchmark.md](docs/benchmark.md),
+tracks; and sensors whose clocks are offset, drifting or free-running, or
+whose reports arrive out of order. Every score and its formula is in [docs/benchmark.md](docs/benchmark.md),
 which `tools/bench/bench.py report` writes.
 
 | Pack | Set | Pairwise F1 | Precision | Recall | False merges | Missed merges | Identity swaps | GOSPA, m |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
 | gnn | 21 named | 0.951 | 0.997 | 0.910 | 3 | 2 | 1 | 94.9 |
 | gnn | 50 random | 0.820 | 0.988 | 0.701 | 61 | 81 | 23 | 414.5 |
+| gnn | 7 time quality | 0.959 | 1.000 | 0.922 | 0 | 3 | 0 | 86.8 |
 | window | 21 named | 0.924 | 0.930 | 0.917 | 5 | 6 | 1 | 56.8 |
 | window | 50 random | 0.934 | 0.988 | 0.887 | 77 | 40 | 17 | 308.1 |
+| window | 7 time quality | 0.996 | 1.000 | 0.993 | 0 | 0 | 0 | 55.1 |
 | distance | 21 named | 0.884 | 0.857 | 0.913 | 13 | 2 | 1 | 108.8 |
 | distance | 50 random | 0.807 | 0.996 | 0.678 | 21 | 76 | 14 | 418.1 |
+| distance | 7 time quality | 0.937 | 1.000 | 0.881 | 0 | 6 | 0 | 95.4 |
 | assign | 21 named | 0.937 | 1.000 | 0.881 | 0 | 2 | 2 | 109.6 |
 | assign | 50 random | 0.715 | 0.997 | 0.558 | 15 | 99 | 130 | 474.7 |
+| assign | 7 time quality | 0.775 | 1.000 | 0.632 | 0 | 4 | 120 | 214.5 |
 | gnn-imm | 21 named | 0.968 | 0.996 | 0.941 | 3 | 2 | 1 | 69.8 |
 | gnn-imm | 50 random | 0.884 | 0.993 | 0.796 | 71 | 55 | 21 | 344.2 |
+| gnn-imm | 7 time quality | 0.968 | 1.000 | 0.939 | 0 | 0 | 0 | 40.1 |
 | assign-imm | 21 named | 0.971 | 1.000 | 0.944 | 0 | 2 | 2 | 72.4 |
 | assign-imm | 50 random | 0.796 | 0.998 | 0.661 | 12 | 54 | 160 | 399.0 |
+| assign-imm | 7 time quality | 0.881 | 1.000 | 0.787 | 0 | 4 | 21 | 120.0 |
 | assign-window | 21 named | 0.929 | 1.000 | 0.867 | 2 | 2 | 2 | 115.7 |
 | assign-window | 50 random | 0.698 | 0.994 | 0.538 | 62 | 91 | 229 | 477.0 |
+| assign-window | 7 time quality | 0.739 | 1.000 | 0.586 | 0 | 4 | 141 | 235.3 |
 | assign-bias | 21 named | 0.989 | 1.000 | 0.979 | 0 | 1 | 2 | 49.0 |
 | assign-bias | 50 random | 0.906 | 0.999 | 0.830 | 11 | 47 | 64 | 313.0 |
+| assign-bias | 7 time quality | 0.936 | 1.000 | 0.879 | 0 | 1 | 9 | 76.1 |
 | assign-full | 21 named | 0.997 | 1.000 | 0.994 | 0 | 0 | 0 | 41.4 |
 | assign-full | 50 random | 0.958 | 0.999 | 0.919 | 10 | 4 | 37 | 247.2 |
+| assign-full | 7 time quality | 0.932 | 1.000 | 0.873 | 0 | 1 | 15 | 79.2 |
 | gnn-restart | 21 named | 0.956 | 0.997 | 0.919 | 3 | 2 | 1 | 89.6 |
 | gnn-restart | 50 random | 0.851 | 0.990 | 0.746 | 60 | 64 | 18 | 382.6 |
+| gnn-restart | 7 time quality | 0.949 | 1.000 | 0.903 | 0 | 3 | 5 | 92.6 |
+| assign-time | 21 named | 0.997 | 1.000 | 0.994 | 0 | 0 | 0 | 41.2 |
+| assign-time | 50 random | 0.961 | 0.999 | 0.926 | 9 | 2 | 33 | 244.0 |
+| assign-time | 7 time quality | 0.996 | 1.000 | 0.993 | 0 | 0 | 0 | 25.9 |
+| gnn-time | 21 named | 0.951 | 0.997 | 0.910 | 3 | 2 | 1 | 94.9 |
+| gnn-time | 50 random | 0.820 | 0.988 | 0.701 | 61 | 81 | 23 | 414.5 |
+| gnn-time | 7 time quality | 0.959 | 1.000 | 0.922 | 0 | 3 | 0 | 86.8 |
 
-Highest pairwise F1 over the random set: `correlate-assign-full`, 0.958.
+Highest pairwise F1 over the random set: `correlate-assign-time`, 0.961.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/bench/random-dark.svg">

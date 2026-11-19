@@ -32,7 +32,7 @@ BUILD = os.path.join(ROOT, "build", "bench")
 RESULTS = os.path.join(ROOT, "docs", "figures", "bench", "results.json")
 # The short subset `check` re-runs: one scenario of each family.
 QUICK = ["straight-level", "turn-6dps", "crossing-20deg", "error-understated",
-         "number-swap", "false-tracks", "random-01", "random-02"]
+         "number-swap", "false-tracks", "clock-offset-200ms", "random-01", "random-02"]
 
 
 def all_scenarios():
@@ -102,22 +102,22 @@ def cmd_score(scen_dir, events_dir):
     print(json.dumps(result, indent=1))
 
 
-def results_from(raw):
-    """Per pack: derived scores per scenario, pooled over the named set and the random set."""
+# Families pooled as a set of their own instead of with the named set.
+OWN_SET = {"random": "random", "time": "time"}
+
+
+def results_from(raw, family):
+    """Per pack: derived scores per scenario, pooled over the named set, the random
+    set and the time set. `family` maps a scenario name to its family."""
     out = {"packs": list(raw), "scenarios": {}, "raw": raw}
     for pack, runs in raw.items():
         per = {n: scoring.derive(s) for n, s in runs.items()}
-        named = random = None
+        tot = {"named": None, "random": None, "time": None}
         for n, s in runs.items():
-            if n.startswith("random-"):
-                random = s if random is None else scoring.add(random, s)
-            else:
-                named = s if named is None else scoring.add(named, s)
-        out["scenarios"][pack] = {
-            "per": per,
-            "named": scoring.derive(named) if named else None,
-            "random": scoring.derive(random) if random else None,
-        }
+            k = OWN_SET.get(family[n], "named")
+            tot[k] = s if tot[k] is None else scoring.add(tot[k], s)
+        out["scenarios"][pack] = dict(
+            {"per": per}, **{k: (scoring.derive(v) if v else None) for k, v in tot.items()})
     return out
 
 
@@ -125,7 +125,7 @@ def cmd_report():
     import report
     pairs = list(build())
     raw = run_all(pairs)
-    res = results_from(raw)
+    res = results_from(raw, {t["name"]: t["family"] for _, t in pairs})
     res["meta"] = [{"name": t["name"], "family": t["family"], "tests": t["tests"],
                     "sensors": t["sensors"], "objects": len(t["objects"]),
                     "reports": sum(1 for s in v["steps"] if "ingest" in s),
