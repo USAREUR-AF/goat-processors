@@ -7,15 +7,18 @@
 -define(CONFIRM, {[<<"pack">>, <<"version">>, <<"filter">>, <<"confirm_count">>,
                    <<"hold_failures">>, <<"stale_ms">>],
                   [<<"gate">>, <<"confirm">>, <<"hold">>, <<"priority">>],
-                  [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"confirm_count">>,
-                   <<"hold_failures">>, <<"stale_ms">>, <<"same_source">>, <<"output">>]}).
+                  [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"manoeuvre">>,
+                   <<"confirm_count">>, <<"hold_failures">>, <<"stale_ms">>, <<"same_source">>,
+                   <<"output">>]}).
 -define(ASSIGN, {[<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"new_cost">>,
                   <<"keep_bonus">>, <<"stale_ms">>],
                  [<<"gate">>],
-                 [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"new_cost">>,
-                  <<"keep_bonus">>, <<"stale_ms">>]}).
+                 [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"manoeuvre">>,
+                  <<"new_cost">>, <<"keep_bonus">>, <<"stale_ms">>, <<"window">>,
+                  <<"hypotheses">>]}).
 -define(FILTER_PARAMS, [<<"accel_var">>, <<"default_ce_m">>, <<"vel_sigma_ms">>,
                         <<"unknown_vel_ms">>]).
+-define(MANOEUVRE_PARAMS, [<<"accel_var">>, <<"p_enter">>, <<"p_leave">>]).
 
 load_pack(Dir) ->
     case file:read_file(filename:join(Dir, "pack.def")) of
@@ -59,14 +62,15 @@ build(Directives) ->
     Base = case Method of
                confirm -> #{method => confirm, gate => [], confirm => [], hold => [],
                             priority => [], same_source => forbid, output => priority};
-               assign -> #{method => assign, gate => []}
+               assign -> #{method => assign, gate => [], window => 1, hypotheses => 1}
            end,
     P = lists:foldl(fun directive/2, Base, Directives),
     check_ranges(P),
     lists:foldl(fun(K, Acc) -> Acc#{K := lists:reverse(maps:get(K, Acc))} end, P,
                 [K || K <- [gate, confirm, hold, priority], maps:is_key(K, P)]).
 
-%% Ranges: filter (correlate.md "Pack"); new_cost, keep_bonus
+%% Ranges, checked once the whole file is read: filter and manoeuvre
+%% (correlate.md "Pack"); new_cost, keep_bonus, window, hypotheses
 %% (correlate-assign.md "Pack").
 check_ranges(P) ->
     F = maps:get(filter, P),
@@ -74,9 +78,20 @@ check_ranges(P) ->
                                   not (maps:get(atom_to_binary(K), F) > 0)],
     maps:get(<<"accel_var">>, F) >= 0 orelse fail({below_zero, accel_var}),
     case P of
-        #{method := assign, new_cost := NC, keep_bonus := KB} ->
+        #{manoeuvre := #{<<"accel_var">> := Q2, <<"p_enter">> := A, <<"p_leave">> := B}} ->
+            A > 0 orelse fail({not_above_zero, p_enter}),
+            B > 0 orelse fail({not_above_zero, p_leave}),
+            A + B < 1 orelse fail({not_below_one, switching}),
+            Q2 > maps:get(<<"accel_var">>, F) orelse fail({not_above_filter, accel_var});
+        _ -> ok
+    end,
+    case P of
+        #{method := assign, new_cost := NC, keep_bonus := KB, window := N, hypotheses := K} ->
             NC > 0 orelse fail({not_above_zero, new_cost}),
-            KB >= 0 orelse fail({below_zero, keep_bonus});
+            KB >= 0 orelse fail({below_zero, keep_bonus}),
+            N >= 1 orelse fail({below_one, window}),
+            K >= 1 orelse fail({below_one, hypotheses}),
+            K =:= 1 orelse N > 1 orelse fail({hypotheses_without_window, K});
         _ -> ok
     end.
 
@@ -87,8 +102,12 @@ directive([<<"version">>, V], P) -> P#{version => V};
 directive([<<"method">>, _], P) -> P;
 directive([<<"new_cost">>, N], P) -> P#{new_cost => number(N)};
 directive([<<"keep_bonus">>, N], P) -> P#{keep_bonus => number(N)};
+directive([<<"window">>, N], P) -> P#{window := integer(N)};
+directive([<<"hypotheses">>, N], P) -> P#{hypotheses := integer(N)};
 directive([<<"filter">> | Params], P) ->
     P#{filter => number_params(params(Params, ?FILTER_PARAMS))};
+directive([<<"manoeuvre">> | Params], P) ->
+    P#{manoeuvre => number_params(params(Params, ?MANOEUVRE_PARAMS))};
 directive([Stage, Test | Params], P)
   when Stage =:= <<"gate">>; Stage =:= <<"confirm">>; Stage =:= <<"hold">> ->
     Key = binary_to_atom(Stage),

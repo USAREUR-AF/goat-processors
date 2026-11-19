@@ -7,7 +7,7 @@
 -export([load_pack/1, new/1, ingest/2, tick/2, snapshot/1]).
 %% Shared with correlator_assign (correlate-assign.md "Shared with correlate.md").
 -export([emit/2, record/2, finish/1, entity/2, put_entity/3, value/2, run_tests/5,
-         is_stale/3]).
+         is_stale/3, predict/3, course/2, snapshot_entity/1]).
 
 %% Reports: required keys in table order with their type; optional keys with
 %% their type. A key of the wrong type is missing (required) or absent (optional).
@@ -18,9 +18,7 @@
 
 load_pack(Dir) -> correlator_pack:load_pack(Dir).
 
-new(Pack = #{method := assign}) ->
-    #{pack => Pack, ref => none, entities => #{}, systems => #{}, next_system => 1,
-      reported => #{}, events => [], trace => []};
+new(Pack = #{method := assign}) -> correlator_assign:new(Pack);
 new(Pack) ->
     #{pack => Pack, ref => none, entities => #{}, groups => #{}, counts => #{},
       next_group => 1, events => [], trace => []}.
@@ -35,7 +33,8 @@ finish(St = #{events := Es, trace := Ts}) ->
 
 %% ---------------------------------------------------------------- reports
 
-%% Reports: reject missing keys in table order, then out-of-order.
+%% Reports: reject missing keys in table order, then (method assign) a
+%% retiring entity, then out-of-order.
 ingest(Report0, St) ->
     case [K || {K, Type} <- ?REQUIRED, not typed(Type, maps:get(K, Report0, null))] of
         [Missing | _] ->
@@ -50,7 +49,11 @@ ingest(Report0, St) ->
                                  end, Report0),
             Key = entity_key(Report),
             T = maps:get(<<"time_ms">>, Report),
+            Retiring = maps:is_key(Key, maps:get(retiring, St, #{})),
             case maps:find(Key, maps:get(entities, St)) of
+                _ when Retiring ->
+                    finish(emit(#{<<"ev">> => <<"reject">>, <<"entity">> => Key,
+                                  <<"reason">> => <<"retiring">>}, St));
                 {ok, #{time := Last}} when T < Last ->
                     finish(emit(#{<<"ev">> => <<"reject">>, <<"entity">> => Key,
                                   <<"reason">> => <<"out-of-order">>}, St));
@@ -89,22 +92,30 @@ accept(Key, Report, St0) ->
             error ->
                 Assoc = case maps:get(method, Pack) of
                             confirm -> #{group => none, hold_failures => 0};
-                            assign -> #{system => none}
+                            assign -> #{}
                         end,
-                E0 = Assoc#{source => maps:get(<<"track.source_id">>, Report),
-                            filter => correlator_filter:init(Z, Vel, Ce, F)},
+                E0 = maps:merge(Assoc#{source => maps:get(<<"track.source_id">>, Report)},
+                                correlator_estimate:init(Z, Vel, Ce, Pack)),
                 {E0, emit(#{<<"ev">> => <<"new">>, <<"entity">> => Key}, St1)};
-            {ok, E0 = #{time := Last, filter := Filter}} ->
+            {ok, E0 = #{time := Last}} ->
                 Dt = (T - Last) / 1000,
-                {E0#{filter := correlator_filter:update(Filter, Dt, Z, Vel, Ce, F)}, St1}
+                {Est, Records} = correlator_estimate:update(E0, Dt, Z, Vel, Ce, Pack),
+                %% Two-model filter, Trace: four filter records first.
+                {maps:merge(E0, Est),
+                 lists:foldl(fun({Test, Model, Value}, S) ->
+                                     record(#{<<"stage">> => <<"filter">>, <<"a">> => Key,
+                                              <<"b">> => Model, <<"test">> => Test,
+                                              <<"value">> => Value, <<"limit">> => null,
+                                              <<"pass">> => true}, S)
+                             end, St1, Records)}
         end,
     Ent1 = Ent#{time => T, report => Report, ce => Ce},
     St3 = put_entity(Key, Ent1, St2),
-    case Ent1 of
+    case {maps:get(method, Pack), Ent1} of
         %% Method assign: a report gives only new; the tick decides.
-        #{system := _} -> St3#{reported := (maps:get(reported, St3))#{Key => true}};
-        #{group := none} -> associate(Key, St3);
-        #{group := G} -> hold(Key, G, St3)
+        {assign, _} -> St3#{reported := (maps:get(reported, St3))#{Key => true}};
+        {confirm, #{group := none}} -> associate(Key, St3);
+        {confirm, #{group := G}} -> hold(Key, G, St3)
     end.
 
 report_ce(Report, F) ->
@@ -134,9 +145,11 @@ value(K, Ent) -> maps:get(K, maps:get(report, Ent), null).
 pair_view(A, B, St) ->
     EA = entity(A, St),
     EB = entity(B, St),
-    F = maps:get(filter, maps:get(pack, St)),
-    Dt = (maps:get(time, EA) - maps:get(time, EB)) / 1000,
-    {EA, EB, correlator_filter:predict(maps:get(filter, EB), Dt, F)}.
+    {EA, EB, predict(EB, maps:get(time, EA), St)}.
+
+%% Prediction of an entity to time T (ms): a copy of its filter.
+predict(Ent, T, St) ->
+    correlator_estimate:predict(Ent, (T - maps:get(time, Ent)) / 1000, maps:get(pack, St)).
 
 %% Run tests in order, stopping at the first failure; returns {AllPassed, St}.
 run_tests([], _Stage, _A, _B, St) -> {true, St};
@@ -404,14 +417,11 @@ fused(G, Now, St) ->
     Ms = members(G, St),
     Primary = primary(maps:get(output, Pack), Ms, Pack, St),
     Ent = entity(Primary, St),
-    Pred = correlator_filter:predict(maps:get(filter, Ent),
-                                     (Now - maps:get(time, Ent)) / 1000,
-                                     maps:get(filter, Pack)),
+    Pred = predict(Ent, Now, St),
     {PE, VE, _, _, _} = maps:get(east, Pred),
     {PN, VN, _, _, _} = maps:get(north, Pred),
     {Lat, Lon} = correlator_filter:from_plane(maps:get(ref, St), PE, PN),
-    C0 = math:atan2(VE, VN) * 180 / math:pi(),
-    Course = if C0 < 0 -> C0 + 360; C0 >= 360 -> C0 - 360; true -> C0 end,
+    Course = course(VE, VN),
     Ev0 = #{<<"ev">> => <<"fused">>, <<"group">> => group_name(G),
             <<"primary">> => Primary, <<"members">> => Ms,
             <<"lat">> => Lat, <<"lon">> => Lon, <<"course">> => Course,
@@ -421,6 +431,11 @@ fused(G, Now, St) ->
              _ -> Ev0
          end,
     emit(Ev, St).
+
+%% course = deg(atan2(ve, vn)) in [0, 360).
+course(VE, VN) ->
+    C0 = math:atan2(VE, VN) * 180 / math:pi(),
+    if C0 < 0 -> C0 + 360; C0 >= 360 -> C0 - 360; true -> C0 end.
 
 %% Primary member: Ms is in key order, so the first best wins ties.
 primary(priority, Ms, Pack, St) ->
@@ -443,20 +458,31 @@ snapshot(St = #{pack := #{method := assign}}) -> correlator_assign:snapshot(St);
 snapshot(St) ->
     #{ref := Ref, entities := Ents, groups := Groups, counts := Counts,
       next_group := Next} = St,
-    Axis = fun({P, V, PP, PV, VV}) -> [P, V, PP, PV, VV] end,
     #{<<"ref">> => case Ref of none -> null; {Lat, Lon} -> [Lat, Lon] end,
       <<"entities">> =>
           maps:from_list(
-            [{K, #{<<"last_time_ms">> => maps:get(time, E),
-                   <<"group">> => case maps:get(group, E) of
-                                      none -> null;
-                                      G -> group_name(G)
-                                  end,
-                   <<"hold_failures">> => maps:get(hold_failures, E),
-                   <<"filter">> => #{<<"east">> => Axis(maps:get(east, maps:get(filter, E))),
-                                     <<"north">> => Axis(maps:get(north, maps:get(filter, E)))}}}
+            [{K, (snapshot_entity(E))#{<<"group">> => case maps:get(group, E) of
+                                                          none -> null;
+                                                          G -> group_name(G)
+                                                      end,
+                                       <<"hold_failures">> => maps:get(hold_failures, E)}}
              || {K, E} <- maps:to_list(Ents)]),
       <<"groups">> => maps:from_list([{group_name(G), Ms} || {G, Ms} <- maps:to_list(Groups)]),
       <<"counts">> => maps:from_list([{<<A/binary, "|", B/binary>>, N}
                                       || {{A, B}, N} <- maps:to_list(Counts)]),
       <<"next_group">> => Next}.
+
+%% Snapshot of an entity's time and estimate: filter, plus models and mode
+%% with two models.
+snapshot_entity(E) ->
+    Filter = fun(F) -> #{<<"east">> => tuple_to_list(maps:get(east, F)),
+                         <<"north">> => tuple_to_list(maps:get(north, F))} end,
+    Base = #{<<"last_time_ms">> => maps:get(time, E),
+             <<"filter">> => Filter(maps:get(filter, E))},
+    case E of
+        #{models := {Quiet, Manoeuvre}, mode := {Mu1, Mu2}} ->
+            Base#{<<"models">> => #{<<"quiet">> => Filter(Quiet),
+                                    <<"manoeuvre">> => Filter(Manoeuvre)},
+                  <<"mode">> => [Mu1, Mu2]};
+        _ -> Base
+    end.
