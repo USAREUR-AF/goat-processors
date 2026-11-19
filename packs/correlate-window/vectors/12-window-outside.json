@@ -1,0 +1,151 @@
+{
+ "name": "12-window-outside",
+ "pack": "correlate-window",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "ais",
+    "uid": "M1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "ce": 100,
+    "type": "a-u-S-X",
+    "track.simulated": 0
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "ais/M1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "S4",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.01349186,
+    "ce": 100,
+    "type": "a-u-S-X",
+    "track.simulated": 0
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/S4"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "gate",
+     "a": "radar-1/S4",
+     "b": "ais/M1",
+     "test": "window",
+     "value": 1499.9999631393491,
+     "limit": 1041.4213562373095,
+     "pass": false
+    },
+    {
+     "stage": "confirm",
+     "a": "radar-1/S4",
+     "b": "ais/M1",
+     "test": "count",
+     "value": 0,
+     "limit": 2,
+     "pass": false
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "ais",
+    "uid": "M1",
+    "time_ms": 10000,
+    "lat": 1.0,
+    "lon": 1.0,
+    "ce": 100,
+    "type": "a-u-S-X",
+    "track.simulated": 0
+   },
+   "expect": [],
+   "trace": [
+    {
+     "stage": "gate",
+     "a": "ais/M1",
+     "b": "radar-1/S4",
+     "test": "window",
+     "value": 1499.9999631393491,
+     "limit": 1041.4213562373095,
+     "pass": false
+    },
+    {
+     "stage": "confirm",
+     "a": "ais/M1",
+     "b": "radar-1/S4",
+     "test": "count",
+     "value": 0,
+     "limit": 2,
+     "pass": false
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {
+   "ais/M1": {
+    "last_time_ms": 10000,
+    "group": null,
+    "hold_failures": 0,
+    "filter": {
+     "east": [
+      0.0,
+      0.0,
+      9902.200488997601,
+      982.8850855745767,
+      222.0048899755493
+     ],
+     "north": [
+      0.0,
+      0.0,
+      9902.200488997601,
+      982.8850855745767,
+      222.0048899755493
+     ]
+    }
+   },
+   "radar-1/S4": {
+    "last_time_ms": 0,
+    "group": null,
+    "hold_failures": 0,
+    "filter": {
+     "east": [
+      1499.9999631393491,
+      0.0,
+      10000.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      10000.0,
+      0.0,
+      10000.0
+     ]
+    }
+   }
+  },
+  "groups": {},
+  "counts": {
+   "ais/M1|radar-1/S4": 0
+  },
+  "next_group": 1
+ }
+}

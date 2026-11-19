@@ -35,7 +35,7 @@ integers.
 
 ## Load vectors
 
-One JSON object per file under `spec/load-vectors/*.json`: `name`,
+One JSON object per file under `spec/correlate-load-vectors/*.json`: `name`,
 `pack_def` (the full text of a `pack.def`) and `expect_error` (boolean).
 Parsing `pack_def` must fail when `expect_error` is true and succeed when it
 is false. The error text is not compared.

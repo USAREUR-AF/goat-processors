@@ -57,7 +57,7 @@ class Vectors(unittest.TestCase):
                 self.assertIsNone(equal(eng.snapshot(), v["snapshot"], "snapshot"))
 
     def test_load(self):
-        files = sorted(glob.glob(os.path.join(ROOT, "spec", "load-vectors", "*.json")))
+        files = sorted(glob.glob(os.path.join(ROOT, "spec", "correlate-load-vectors", "*.json")))
         self.assertTrue(files)
         for f in files:
             v = json.load(open(f, encoding="utf-8"))

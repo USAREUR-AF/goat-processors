@@ -1,4 +1,4 @@
-"""Correlator engine (spec/correlator-spec.md, version 0.1). Standard library only."""
+"""Correlate engine (spec/correlate.md, version 0.2). Standard library only."""
 
 import math
 import os
@@ -15,7 +15,32 @@ TESTS = {
     "same": ("key",),
 }
 FILTER_PARAMS = ("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms")
-REQUIRED = ("track.source_id", "uid", "time_ms", "lat", "lon")
+REQUIRED = (("track.source_id", "str"), ("uid", "str"), ("time_ms", "int"),
+            ("lat", "num"), ("lon", "num"))
+OPTIONAL = {"hae": "num", "ce": "num", "course": "num", "speed_ms": "num",
+            "type": "str", "stale_ms": "int"}
+
+
+def _is(v, kind):
+    if isinstance(v, bool) or v is None:
+        return False
+    if kind == "str":
+        return isinstance(v, str)
+    if kind == "int":
+        return isinstance(v, int)
+    return isinstance(v, (int, float))
+
+
+def _normalise(report):
+    """Spec, Reports: optional keys of the wrong type are absent."""
+    out = {}
+    for k, v in report.items():
+        if v is None:
+            continue
+        if k in OPTIONAL and not _is(v, OPTIONAL[k]):
+            continue
+        out[k] = v
+    return out
 
 
 class PackError(Exception):
@@ -261,7 +286,8 @@ class Engine:
                 value, limit = min(d, 360.0 - d), prm["max_deg"]
             else:
                 slow, fast = sorted((float(sa), float(sb)))
-                value, limit = abs(1.0 - slow / fast) * 100.0, prm["max_pct"]
+                value = 0.0 if fast == 0 else abs(1.0 - slow / fast) * 100.0
+                limit = prm["max_pct"]
             ok = value <= limit
         elif name == "altitude":
             ha, hb = ra.get("hae"), rb.get("hae")
@@ -317,10 +343,11 @@ class Engine:
     # operations --------------------------------------------------------
     def ingest(self, report):
         events, trace = [], []
-        for k in REQUIRED:
-            if report.get(k) is None:
+        for k, kind in REQUIRED:
+            if not _is(report.get(k), kind):
                 events.append({"ev": "reject", "reason": "missing:" + k})
                 return events, trace
+        report = _normalise(report)
         source = str(report["track.source_id"])
         key = source + "/" + str(report["uid"])
         t = int(report["time_ms"])

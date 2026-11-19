@@ -1,0 +1,21 @@
+# A fixed distance window that grows with the two tracks' reported error, in
+# the shape of the Link 16 correlation window: distance below
+# multiplier * sqrt(ea^2 + eb^2) + window, each error clamped to a range.
+# Values here are round numbers, not any standard's table.
+pack           correlate-window
+version        0.1.0
+filter         accel_var=1 default_ce_m=100 vel_sigma_ms=5 unknown_vel_ms=100
+gate           window multiplier=1 window_m=900 err_min_m=100 err_max_m=5000
+gate           same key=track.simulated
+gate           same key=@env
+confirm        course max_deg=45 min_speed_ms=5
+confirm        speed max_pct=40 min_speed_ms=5
+confirm        altitude max_m=3000
+confirm_count  2
+hold           window multiplier=1.5 window_m=1350 err_min_m=100 err_max_m=5000
+hold           same key=@env
+hold_failures  2
+stale_ms       120000
+output         priority
+priority       radar-1 1
+priority       ais 50

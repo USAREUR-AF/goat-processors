@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the conformance vectors for packs/gnn and packs/window.
+"""Write the correlate conformance vectors for packs/correlate-*.
 
 Each scenario below states its inputs and, in `decide`, the association
 events it must produce. The script runs the Python engine, refuses to write a
@@ -31,7 +31,7 @@ def at(east_m, north_m, lat0=LAT0, lon0=LON0):
 
 def rep(src, uid, t, e, n, **kw):
     lat, lon = at(e, n, kw.pop("lat0", LAT0), kw.pop("lon0", LON0))
-    r = {"track.source_id": src, "uid": uid, "time_ms": t, "lat": lat, "lon": lon}
+    r = {"track.source_id": src, "uid": kw.pop("uid_value", uid), "time_ms": t, "lat": lat, "lon": lon}
     r.update(kw)
     return r
 
@@ -54,7 +54,7 @@ def scenario(name, pack, steps, decide):
 
 
 # 1. Two sources see one stationary object; second consecutive pass correlates.
-scenario("01-two-sources-one-object", "gnn", [
+scenario("01-two-sources-one-object", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, hae=3000, **AIR)),
     ("ingest", rep("adsb", "A7", 0, 20, -10, ce=30, hae=3050, **AIR)),
     ("ingest", rep("radar-1", "T1", 1000, 5, 0, ce=30, hae=3000, **AIR)),
@@ -62,7 +62,7 @@ scenario("01-two-sources-one-object", "gnn", [
 ], [["new"], ["new"], ["correlate"], ["fused"]])
 
 # 2. Two objects 10 km apart never correlate.
-scenario("02-far-apart-stay-separate", "gnn", [
+scenario("02-far-apart-stay-separate", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
     ("ingest", rep("adsb", "A7", 0, 10000, 0, ce=30, **AIR)),
     ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
@@ -71,7 +71,7 @@ scenario("02-far-apart-stay-separate", "gnn", [
 ], [["new"], ["new"], [], [], []])
 
 # 3. Two tracks from one source are never grouped, however close.
-scenario("03-same-source-never-grouped", "gnn", [
+scenario("03-same-source-never-grouped", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
     ("ingest", rep("radar-1", "T2", 0, 5, 5, ce=30, **AIR)),
     ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
@@ -81,7 +81,7 @@ scenario("03-same-source-never-grouped", "gnn", [
 # 4. A moving pair correlates, then one track turns away and the group dissolves
 #    after two consecutive hold failures.
 mv = dict(course=90, speed_ms=100, ce=30, **AIR)
-scenario("04-separation-dissolves", "gnn", [
+scenario("04-separation-dissolves", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, **mv)),
     ("ingest", rep("adsb", "A7", 0, 10, 10, **mv)),
     ("ingest", rep("radar-1", "T1", 1000, 100, 0, **mv)),
@@ -92,7 +92,7 @@ scenario("04-separation-dissolves", "gnn", [
 ], [["new"], ["new"], ["correlate"], [], [], ["leave", "dissolve"], []])
 
 # 5. A grouped track goes silent; at the tick past stale_ms it leaves and drops.
-scenario("05-stale-member-drops", "gnn", [
+scenario("05-stale-member-drops", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
     ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
     ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
@@ -102,7 +102,7 @@ scenario("05-stale-member-drops", "gnn", [
 ], [["new"], ["new"], ["correlate"], [], ["leave", "dissolve", "drop"], []])
 
 # 6. A third source joins an existing group.
-scenario("06-third-source-joins", "gnn", [
+scenario("06-third-source-joins", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
     ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
     ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
@@ -112,7 +112,7 @@ scenario("06-third-source-joins", "gnn", [
 ], [["new"], ["new"], ["correlate"], ["new"], ["join"], ["fused"]])
 
 # 7. Two candidates confirm on the same report; the nearer one is chosen.
-scenario("07-nearest-candidate-wins", "gnn", [
+scenario("07-nearest-candidate-wins", "correlate-gnn", [
     ("ingest", rep("adsb", "A7", 0, 60, 0, ce=40, **AIR)),
     ("ingest", rep("eo-2", "E3", 0, 5, 0, ce=40, **AIR)),
     ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=40, **AIR)),
@@ -121,7 +121,7 @@ scenario("07-nearest-candidate-wins", "gnn", [
 ], [["new"], ["new"], ["new"], ["correlate"], ["fused"]])
 
 # 8. Rejections change no state.
-scenario("08-rejections", "gnn", [
+scenario("08-rejections", "correlate-gnn", [
     ("ingest", {"track.source_id": "radar-1", "uid": "T1", "time_ms": 0, "lat": 1.0}),
     ("ingest", {"uid": "T1", "time_ms": 0, "lat": 1.0, "lon": 1.0}),
     ("ingest", rep("radar-1", "T1", 5000, 0, 0, ce=30, **AIR)),
@@ -129,7 +129,7 @@ scenario("08-rejections", "gnn", [
 ], [["reject"], ["reject"], ["new"], ["reject"]])
 
 # 9. Close in position but on opposite courses: the confirm stage refuses.
-scenario("09-opposite-courses-refused", "gnn", [
+scenario("09-opposite-courses-refused", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, course=90, speed_ms=50, **AIR)),
     ("ingest", rep("adsb", "A7", 0, 5, 0, ce=30, course=270, speed_ms=50, **AIR)),
     ("ingest", rep("radar-1", "T1", 1000, 50, 0, ce=30, course=90, speed_ms=50, **AIR)),
@@ -137,14 +137,14 @@ scenario("09-opposite-courses-refused", "gnn", [
 ], [["new"], ["new"], [], []])
 
 # 10. An air track and a surface track at one spot are not grouped.
-scenario("10-environment-differs", "gnn", [
+scenario("10-environment-differs", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
     ("ingest", rep("ais", "M1", 0, 5, 0, ce=30, **SEA)),
     ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
 ], [["new"], ["new"], []])
 
 # 11. Window pack: priority picks the fused output's source.
-scenario("11-window-priority-output", "window", [
+scenario("11-window-priority-output", "correlate-window", [
     ("ingest", rep("ais", "M1", 0, 0, 0, ce=300, **SEA)),
     ("ingest", rep("radar-1", "S4", 0, 600, 300, ce=200, **SEA)),
     ("ingest", rep("ais", "M1", 10000, 50, 0, ce=300, **SEA)),
@@ -152,7 +152,7 @@ scenario("11-window-priority-output", "window", [
 ], [["new"], ["new"], ["correlate"], ["fused"]])
 
 # 12. Window pack: outside the window, not grouped.
-scenario("12-window-outside", "window", [
+scenario("12-window-outside", "correlate-window", [
     ("ingest", rep("ais", "M1", 0, 0, 0, ce=100, **SEA)),
     ("ingest", rep("radar-1", "S4", 0, 1500, 0, ce=100, **SEA)),
     ("ingest", rep("ais", "M1", 10000, 0, 0, ce=100, **SEA)),
@@ -161,7 +161,7 @@ scenario("12-window-outside", "window", [
 # 13. Moving pair on the window pack with reported velocity; fused output carries
 #     the filtered course and speed predicted forward.
 mvs = dict(course=45, speed_ms=10, ce=150, **SEA)
-scenario("13-window-moving-fused", "window", [
+scenario("13-window-moving-fused", "correlate-window", [
     ("ingest", rep("ais", "M1", 0, 0, 0, **mvs)),
     ("ingest", rep("radar-1", "S4", 0, 100, 0, **mvs)),
     ("ingest", rep("ais", "M1", 10000, 70.71, 70.71, **mvs)),
@@ -169,19 +169,78 @@ scenario("13-window-moving-fused", "window", [
 ], [["new"], ["new"], ["correlate"], ["fused"]])
 
 # 14. A report's own stale_ms drops it before the pack's stale_ms.
-scenario("14-report-stale-ms", "gnn", [
+scenario("14-report-stale-ms", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, stale_ms=5000, **AIR)),
     ("tick", 4999),
     ("tick", 5000),
 ], [["new"], [], ["drop"]])
 
 # 15. Reference near the antimeridian: tracks either side of 180 correlate.
-scenario("15-antimeridian", "gnn", [
+scenario("15-antimeridian", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 0, -20, 0, ce=30, lat0=60.0, lon0=180.0, **AIR)),
     ("ingest", rep("adsb", "A7", 0, 20, 0, ce=30, lat0=60.0, lon0=180.0, **AIR)),
     ("ingest", rep("radar-1", "T1", 1000, -20, 0, ce=30, lat0=60.0, lon0=180.0, **AIR)),
     ("tick", 1000),
 ], [["new"], ["new"], ["correlate"], ["fused"]])
+
+
+# 16. A member with one hold failure is left alone when its group dissolves:
+#     its count goes back to 0 (snapshot).
+scenario("16-dissolve-resets-remaining-member", "correlate-gnn", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("adsb", "A7", 2000, 3000, 0, ce=30, **AIR)),
+    ("tick", 121001),
+], [["new"], ["new"], ["correlate"], [], ["leave", "dissolve", "drop"]])
+
+# 17. In a three-member group the hold stops at the first member that passes.
+scenario("17-hold-stops-at-first-passing-member", "correlate-gnn", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("eo-2", "E3", 1000, -15, 5, ce=40, **AIR)),
+    ("ingest", rep("eo-2", "E3", 2000, -15, 5, ce=40, **AIR)),
+    ("ingest", rep("eo-2", "E3", 3000, -15, 5, ce=40, **AIR)),
+], [["new"], ["new"], ["correlate"], ["new"], ["join"], []])
+
+# 18. Window pack: a hold that fails its first test runs no second test; two
+#     hold failures in a row are needed before the member leaves.
+scenario("18-window-hold-stops-at-first-failure", "correlate-window", [
+    ("ingest", rep("ais", "M1", 0, 0, 0, ce=100, **SEA)),
+    ("ingest", rep("radar-1", "S4", 0, 100, 0, ce=100, **SEA)),
+    ("ingest", rep("ais", "M1", 10000, 0, 0, ce=100, **SEA)),
+    ("ingest", rep("radar-1", "S4", 20000, 5000, 0, ce=100, **SEA)),
+    ("ingest", rep("radar-1", "S4", 30000, 9000, 0, ce=100, **SEA)),
+], [["new"], ["new"], ["correlate"], [], ["leave", "dissolve"]])
+
+# 19. Course without speed: course and speed tests are skipped; a later report
+#     without course makes it absent again.
+scenario("19-course-without-speed-is-skipped", "correlate-gnn", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, course=10, **AIR)),
+    ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, course=200, speed_ms=80, **AIR)),
+    ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
+], [["new"], ["new"], ["correlate"]])
+
+# 20. Distance pack: same source allowed, zero speeds, latest-report output.
+scenario("20-distance-same-source-zero-speed-latest", "correlate-distance", [
+    ("ingest", rep("net-a", "1", 0, 0, 0, course=0, speed_ms=0)),
+    ("ingest", rep("net-a", "2", 500, 50, 0, course=0, speed_ms=0)),
+    ("ingest", rep("net-a", "1", 1000, 0, 0, course=0, speed_ms=0)),
+    ("tick", 1500),
+    ("ingest", rep("net-a", "2", 2000, 1000, 0, course=0, speed_ms=0)),
+    ("tick", 2500),
+], [["new"], ["new", "correlate"], [], ["fused"], ["leave", "dissolve"], []])
+
+# 21. Wrong types: a required key of the wrong type rejects; an optional one is
+#     treated as absent.
+scenario("21-wrong-types", "correlate-gnn", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, uid_value=7)),
+    ("ingest", {"track.source_id": "radar-1", "uid": "T1", "time_ms": 0, "lat": "1.0", "lon": 1.0}),
+    ("ingest", {"track.source_id": "radar-1", "uid": "T1", "time_ms": 1.5, "lat": 1.0, "lon": 1.0}),
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce="30", hae=None, course="north", type=5)),
+    ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30)),
+], [["reject"], ["reject"], ["reject"], ["new"], ["new"]])
 
 
 def clean(x):

@@ -1,0 +1,15 @@
+# Plain distance gating for sources that report no position error, such as
+# two feeds of one sensor network. Tracks from the same source may be grouped,
+# and the fused output follows whichever member reported last.
+pack           correlate-distance
+version        0.1.0
+filter         accel_var=1 default_ce_m=25 vel_sigma_ms=2 unknown_vel_ms=50
+gate           distance max_m=200
+confirm        course max_deg=30 min_speed_ms=0
+confirm        speed max_pct=40 min_speed_ms=0
+confirm_count  1
+hold           distance max_m=400
+hold_failures  1
+stale_ms       30000
+same_source    allow
+output         latest
