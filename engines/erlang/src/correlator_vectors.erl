@@ -2,7 +2,8 @@
 %% vector (spec/correlate-load-vectors) (spec/vector-format.md).
 -module(correlator_vectors).
 -export([main/1]).
-%% Shared with filter_vectors: reading, reporting and the structural comparison.
+%% Shared with filter_vectors and fuse_vectors: reading, reporting and the
+%% structural comparison of spec/vector-format.md.
 -export([read/1, report/2, summarize/1, compare/3]).
 
 main([Root]) ->

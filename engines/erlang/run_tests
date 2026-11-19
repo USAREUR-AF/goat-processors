@@ -1,12 +1,16 @@
 #!/bin/sh
-# Build, then run the correlate vectors and the filter vectors (scenario and
-# load vectors each); non-zero when any vector fails.
+# Build, then run the correlate vectors (packs/correlate-*, spec/correlate-load-vectors),
+# the filter vectors (packs/filter-*, spec/filter-load-vectors) and the fuse vectors
+# (packs/fuse-*, spec/fuse-load-vectors); non-zero when any vector fails.
 set -e
 here="$(cd "$(dirname "$0")" && pwd)"
+root="$here/../.."
 "$here/build.sh"
 status=0
 echo "== correlate"
-erl -noshell -pa "$here/ebin" -run correlator_vectors main "$here/../.." || status=1
+erl -noshell -pa "$here/ebin" -run correlator_vectors main "$root" || status=1
 echo "== filter"
-erl -noshell -pa "$here/ebin" -run filter_vectors main "$here/../.." || status=1
+erl -noshell -pa "$here/ebin" -run filter_vectors main "$root" || status=1
+echo "== fuse"
+erl -noshell -pa "$here/ebin" -run fuse_vectors main "$root" || status=1
 exit $status
