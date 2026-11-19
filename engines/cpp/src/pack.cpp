@@ -139,6 +139,22 @@ Pack parse_pack(const std::string& text) {
             want_args(line, words, 1);
             p.keep_bonus = parse_number(line, words[1]);
             if (!(p.keep_bonus >= 0)) fail(line, "keep_bonus must be 0 or above");
+        } else if (d == "window" || d == "hypotheses") {
+            // correlate-assign.md "Pack": integers, 1 or above, one value.
+            want_args(line, words, 1);
+            std::int64_t v = parse_integer(line, words[1]);
+            if (v < 1) fail(line, d + " must be 1 or above");
+            (d == "window" ? p.window : p.hypotheses) = v;
+        } else if (d == "manoeuvre") {
+            // correlate.md "Pack": exactly accel_var, p_enter, p_leave.
+            auto kv = parse_params(line, words, 1, {"accel_var", "p_enter", "p_leave"});
+            ManoeuvreParams m;
+            m.accel_var = parse_number(line, kv["accel_var"]);
+            m.p_enter = parse_number(line, kv["p_enter"]);
+            m.p_leave = parse_number(line, kv["p_leave"]);
+            if (!(m.p_enter > 0) || !(m.p_leave > 0) || !(m.p_enter + m.p_leave < 1))
+                fail(line, "p_enter and p_leave must be above 0 with a sum below 1");
+            p.manoeuvre = m;
         } else if (d == "filter") {
             auto kv = parse_params(line, words, 1, {"accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms"});
             p.filter.accel_var = parse_number(line, kv["accel_var"]);
@@ -188,7 +204,7 @@ Pack parse_pack(const std::string& text) {
         refused = {"confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"};
     } else {
         required = {"pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms"};
-        refused = {"new_cost", "keep_bonus"};
+        refused = {"new_cost", "keep_bonus", "window", "hypotheses"};
     }
     for (const char* req : required)
         if (!seen.count(req)) throw PackError(std::string("pack.def: missing directive ") + req);
@@ -196,6 +212,12 @@ Pack parse_pack(const std::string& text) {
         if (seen.count(d))
             throw PackError(std::string("pack.def: directive ") + d + " is not allowed with method " +
                             (p.method_assign ? "assign" : "confirm"));
+    // correlate.md "Pack": checked once the whole file is read.
+    if (p.manoeuvre && !(p.manoeuvre->accel_var > p.filter.accel_var))
+        throw PackError("pack.def: manoeuvre accel_var must be above filter accel_var");
+    // correlate-assign.md "Pack".
+    if (p.hypotheses > 1 && p.window <= 1)
+        throw PackError("pack.def: hypotheses above 1 needs window above 1");
     return p;
 }
 

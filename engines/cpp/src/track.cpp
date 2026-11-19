@@ -42,7 +42,7 @@ void axis_predict(Axis& a, double dt, double q) {
     a.vv = b.vv + q * (dt * dt);
 }
 
-void axis_position_update(Axis& a, double z, double r) {
+double axis_position_update(Axis& a, double z, double r) {
     const Axis b = a;
     double s = b.pp + r, k1 = b.pp / s, k2 = b.pv / s, y = z - b.p;
     a.p = b.p + k1 * y;
@@ -50,9 +50,10 @@ void axis_position_update(Axis& a, double z, double r) {
     a.pp = (1 - k1) * b.pp;
     a.pv = (1 - k1) * b.pv;
     a.vv = b.vv - k2 * b.pv;
+    return y * y / s + std::log(s);
 }
 
-void axis_velocity_update(Axis& a, double z, double r) {
+double axis_velocity_update(Axis& a, double z, double r) {
     const Axis b = a;
     double s = b.vv + r, k1 = b.pv / s, k2 = b.vv / s, y = z - b.v;
     a.p = b.p + k1 * y;
@@ -60,6 +61,7 @@ void axis_velocity_update(Axis& a, double z, double r) {
     a.pp = b.pp - k1 * b.pv;
     a.pv = (1 - k2) * b.pv;
     a.vv = (1 - k2) * b.vv;
+    return y * y / s + std::log(s);
 }
 
 Filter filter_first(const FilterParams& f, const Point& z, const std::optional<Point>& vel, double ce) {

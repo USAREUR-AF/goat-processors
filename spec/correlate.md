@@ -1,6 +1,6 @@
 # Correlate specification
 
-Status: Written. Version 0.4. Every language's engine implements this document
+Status: Written. Version 0.5. Every language's engine implements this document
 and passes every vector. Engines are written from this document and the
 vectors, never from another engine's source.
 
@@ -116,6 +116,87 @@ step uses the values from the start of the step.
 `dt = (t - last_time_ms) / 1000` to a copy, which may be negative, and never
 changes the entity.
 
+## Two-model filter
+
+A pack may add the directive `manoeuvre accel_var=<q2> p_enter=<a>
+p_leave=<b>`. Each entity then keeps two constant-velocity filters instead of
+one, an interacting multiple model filter:
+
+| Model | Index | Acceleration variance |
+|---|---|---|
+| `quiet` | 1 | `q1`, the `filter` line's `accel_var` |
+| `manoeuvre` | 2 | `q2`, the `manoeuvre` line's `accel_var`; above `q1` |
+
+`a` is the probability per second of input time that a quiet target starts
+to manoeuvre, `b` the probability per second that a manoeuvring target goes
+quiet. Each model holds both axes `[p, v, pp, pv, vv]` as in Track estimate.
+Both axes share one pair of mode probabilities `mu1`, `mu2`. The entity's
+*filter* is the combination of the two models (step 5). Every test, cost,
+output and snapshot that this document or `correlate-assign.md` says reads
+"the filter" reads this combination, except a prediction, which follows
+Prediction below. Without the directive nothing in this
+section applies, and an entity has one filter as in Track estimate.
+
+**Switching over `dt` seconds** (`dt` 0 or above), with `pow` the IEEE-754
+power function:
+`s = a + b`; `l = pow(1 - s, dt)`; `t12 = a / s * (1 - l)`;
+`t21 = b / s * (1 - l)`; `t11 = 1 - t12`; `t22 = 1 - t21`.
+`tij` is the probability of model `j` at the end of `dt` given model `i` at
+its start. With `dt = 0`, `l = 1` and no switching happens.
+
+**First report.** Both models are the first-report filter of Track estimate,
+`mu1 = b / s`, `mu2 = a / s` (the long-run share of each model), and the
+entity's filter is that same first-report filter. No trace record.
+
+**Later reports**, with `dt = (time_ms - last_time_ms) / 1000`, in this
+order. Per-axis formulas apply to east and to north.
+
+1. **Mixing.** Predicted mode probabilities `c1 = t11*mu1 + t21*mu2`,
+   `c2 = t12*mu1 + t22*mu2`. For each model `j`: when `cj = 0`, its mixed
+   state is its own state. Otherwise `w1 = t1j*mu1 / cj`, `w2 = t2j*mu2 / cj`,
+   and per axis, with model 1's state `p1, v1, pp1, pv1, vv1` and model 2's
+   `p2, ...`, the mixed state is `blend(w1, w2)`:
+   `p = w1*p1 + w2*p2`; `v = w1*v1 + w2*v2`;
+   `d1 = p1 - p`, `e1 = v1 - v`, `d2 = p2 - p`, `e2 = v2 - v`;
+   `pp = w1*(pp1 + d1*d1) + w2*(pp2 + d2*d2)`;
+   `pv = w1*(pv1 + d1*e1) + w2*(pv2 + d2*e2)`;
+   `vv = w1*(vv1 + e1*e1) + w2*(vv2 + e2*e2)`.
+   Both mixed states are computed from the model states before mixing.
+2. **Predict and update**, each model from its mixed state: Track estimate
+   steps 1 to 3 with `dt`, the model's own acceleration variance, and the
+   report's measurements.
+3. **Likelihood**, per model. Each scalar update in step 2 has an innovation
+   `y` and its variance `s` (the `y` and `s` of Track estimate steps 2 and 3).
+   Its term is `y*y/s + ln(s)`. The terms are taken in the order east
+   position, north position, then, when a velocity was measured, east
+   velocity, north velocity, and added left to right from 0 to give `g`. The
+   model's log-likelihood is `lambda = -0.5 * g`. The constant of the normal
+   density is left out; it is the same for both models and cancels in step 4.
+4. **Mode probabilities.** `m` is the larger `lambda` of the models with
+   `cj` above 0. For each model, `ej = cj * exp(lambdaj - m)` when `cj` is
+   above 0, else `ej = 0`; then `muj = ej / (e1 + e2)`. The model whose
+   `lambda` is `m` has `ej = cj`, so the sum is above 0. When `lambdaj - m` is
+   so far below 0 that `exp` underflows, `ej` is exactly 0 and so is `muj`.
+   A model with `muj = 0` is not reset or skipped: on every later report it
+   is mixed by step 1 and updated by step 2 like the other. On the next
+   report with `dt` above 0, `cj` is above 0 again through switching; with
+   `dt = 0`, `cj = 0` and step 1 keeps its own state.
+5. **Combination.** Per axis, the entity's filter is `blend(mu1, mu2)` of
+   the two updated models, with the formulas of step 1.
+
+**Prediction** of an entity with two models to time `t`: each model is
+predicted by Track estimate step 1 with its own acceleration variance (`dt`
+may be negative) and the two predictions are combined with `blend(mu1, mu2)`
+using the current mode probabilities, unchanged. It never changes the
+entity.
+
+**Trace.** Each later report gives four records before any association
+record, `"stage":"filter"`, `"a"` the entity, `"limit":null`,
+`"pass":true`: `"test":"likelihood"` with `"b":"quiet"` and `value`
+`lambda1`, the same with `"b":"manoeuvre"` and `lambda2`, then
+`"test":"mode"` with `"b":"quiet"` and `mu1`, then with `"b":"manoeuvre"`
+and `mu2`.
+
 ## Tests
 
 A test compares entity A, the one just reported, with entity B predicted to
@@ -177,7 +258,9 @@ pack says `same_source allow`, a group never holds two entities with the same
   group that already holds an entity with A's `track.source_id` (both unless
   `same_source allow`). For each candidate, run the `gate` tests, then, if all
   passed, the `confirm` tests. The pair's count becomes count + 1 when every
-  test ran and passed, else 0. Counts are kept per unordered pair.
+  test ran and passed, else 0. Counts are kept per unordered pair: every
+  pair tested has an entry, 0 included, removed only when one of its
+  entities is dropped.
   Of the candidates whose count has reached `confirm_count`, the one with the
   smallest `d²` is chosen, ties to key order. `d²` is computed for this choice
   whether or not a `mahalanobis` test is in the pack. After every candidate
@@ -193,7 +276,8 @@ pack says `same_source allow`, a group never holds two entities with the same
    `now_ms - last_time_ms > stale_ms` of the pack, or when its last report had
    `stale_ms` and `now_ms >= stale_ms`. A stale entity in a group leaves it
    (event `leave`, reason `stale`), the group is dissolved if one member is
-   left, and the entity is removed (event `drop`), with every pair count that
+   left (as in hold: event `dissolve`, the last member ungrouped with its hold
+   failure count set to 0), and the entity is removed (event `drop`), with every pair count that
    names it.
 2. **Fused output**, groups in creation order. The primary member is chosen by
    the pack's `output` line: `priority` takes the lowest `priority` number for
@@ -224,10 +308,12 @@ events in the order they happen. For a tick: per stale entity `leave`,
 
 ## Trace
 
-Each test run is one trace record:
+Each test run is one trace record, and so is each filter record of
+Two-model filter:
 `{"stage", "a", "b", "test", "value", "limit", "pass"}`, plus
-`"skipped": true` for a skipped test. `stage` is `gate`, `confirm`, `hold` or
-`rank`; `a` and `b` are entity keys. A pair's count after its tests is a
+`"skipped": true` for a skipped test. `stage` is `gate`, `confirm`, `hold`,
+`rank` or `filter`; `a` and `b` are entity keys, except that `b` of a
+`filter` record names a model. A pair's count after its tests is a
 record with stage `confirm` (also when a `gate` test failed), `"test":"count"`,
 `value` the new count, `limit` the pack's `confirm_count`, and `pass` true
 when it has reached it. Records are in the order
@@ -238,7 +324,10 @@ the tests run.
 `snapshot()` returns `{"ref": [lat0, lon0] or null, "entities": {...},
 "groups": {...}, "counts": {...}, "next_group": n}`. Each entity holds
 `last_time_ms`, `group` (or null), `hold_failures` and `filter`
-(`{"east": [p, v, pp, pv, vv], "north": [...]}`); `groups` maps a group name
+(`{"east": [p, v, pp, pv, vv], "north": [...]}`). With the `manoeuvre`
+directive each entity also holds `models`
+(`{"quiet": {"east": [...], "north": [...]}, "manoeuvre": {...}}`) and
+`mode` (`[mu1, mu2]`), and `filter` is their combination; `groups` maps a group name
 to its members; `counts` maps `"<key>|<key>"` (keys in order) to the count.
 
 ## Pack
@@ -252,6 +341,7 @@ pack           <name>
 version        <semver>
 method         confirm
 filter         accel_var=<q> default_ce_m=<m> vel_sigma_ms=<m/s> unknown_vel_ms=<m/s>
+manoeuvre      accel_var=<q2> p_enter=<per s> p_leave=<per s>
 gate           <test> <param>=<value> ...
 confirm        <test> <param>=<value> ...
 hold           <test> <param>=<value> ...
@@ -266,6 +356,12 @@ priority       <source_id> <n>
 In `filter`, `default_ce_m`, `vel_sigma_ms` and `unknown_vel_ms` must be
 above 0 and `accel_var` 0 or above, or the pack does not load.
 
+`manoeuvre` is optional, appears at most once, takes exactly `accel_var`,
+`p_enter` and `p_leave`, and is valid with either method. The pack does not
+load unless `p_enter` and `p_leave` are above 0 with a sum below 1, and
+`manoeuvre`'s `accel_var` is above `filter`'s `accel_var`. That last rule is
+checked once the whole file is read, so `manoeuvre` may come before `filter`.
+
 `gate`, `confirm`, `hold` and `priority` repeat; their order is the order the
 tests run. Every other directive appears once, and `pack`, `version`,
 `filter`, `confirm_count`, `hold_failures`, `stale_ms` are required;
@@ -279,15 +375,26 @@ not parse is a load error. Numbers are decimal; `same` takes a string.
 ## Floats
 
 Engines use IEEE-754 binary64 and the formulas above in the order written.
-Vectors compare floats within `1e-6 * max(1, abs(want))`, and place no
-decision within that distance of a threshold.
+`x²` means `x*x`. `sin`, `cos`, `atan2`, `sqrt`, `hypot`, `pow`, `exp` and
+`ln` are the platform's binary64 functions. Every other operation is one
+correctly rounded binary64 operation: engines do not contract `a*b + c` into
+a fused multiply-add and do not keep intermediates in extended precision.
+The library functions may differ in the last bit between platforms, which
+the tolerance absorbs; vectors never rest a tie on their results. Vectors compare floats within
+`1e-6 * max(1, abs(want))`, and place no decision within that distance of a
+threshold: the vector generator refuses a test whose `value` is that close to
+its `limit`.
 
 ## Open points
 
-Two cases this version does not decide. No vector covers them, and engines
+Cases this version does not decide. No vector covers them, and engines
 may differ on them until a later version settles them with vectors.
 
 | Point | Section |
 |---|---|
 | An integer literal outside the signed 64-bit range | Reports |
 | `same` between booleans, arrays or objects | Tests |
+| Ranges of `confirm_count`, `hold_failures`, `stale_ms` (0, negative) and of test parameters (negative `max_m`, `err_min_m` above `err_max_m`, `gate` 0 or below) | Pack |
+| `priority` listing one source twice | Pack |
+| A repeated parameter within one `filter`, `manoeuvre` or test line | Pack |
+| Which decimal spellings a number may take (exponent, leading `+`, `.5`, `inf`, `nan`), and a `#` inside a value | Pack |

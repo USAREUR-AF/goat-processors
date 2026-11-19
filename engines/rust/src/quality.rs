@@ -241,11 +241,11 @@ impl Engine {
                 let (pe, pn) = predicted.unwrap();
                 let r_pos = ce * ce;
                 let r_vel = f.vel_sigma_ms * f.vel_sigma_ms;
-                let mut east = pe.update_position(e, r_pos);
-                let mut north = pn.update_position(n, r_pos);
+                let mut east = pe.update_position(e, r_pos).0;
+                let mut north = pn.update_position(n, r_pos).0;
                 if let Some((ve, vn)) = vel {
-                    east = east.update_velocity(ve, r_vel);
-                    north = north.update_velocity(vn, r_vel);
+                    east = east.update_velocity(ve, r_vel).0;
+                    north = north.update_velocity(vn, r_vel).0;
                 }
                 let entity = self.entities.get_mut(&key).unwrap();
                 entity.east = east;

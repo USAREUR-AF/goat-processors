@@ -2,7 +2,7 @@
 
 Implementations, in Java 17 with only the standard library, of
 
-- the correlator: `spec/correlate.md` (version 0.4) and `spec/correlate-assign.md` (version 0.2), package `correlator`;
+- the correlator: `spec/correlate.md` (version 0.5) and `spec/correlate-assign.md` (version 0.3), package `correlator`;
 - the filter: `spec/filter.md` (version 0.1), package `filter`;
 - the fuser: `spec/fuse.md` (version 0.1), package `fuse`;
 - quality: `spec/quality.md` (version 0.1), package `quality`.
@@ -13,17 +13,16 @@ All were written from the specifications and the vectors, without reading any ot
 
 | File | Spec section |
 |---|---|
-| `Pack.java` | Pack (`load_pack`, the `pack.def` parser, `method` and the directives each method allows) |
-| `Engine.java` | Frame, Track estimate, Tests, Association, Events, Trace, Snapshot (`ingest`, `tick`, `snapshot`); the section "method assign" holds correlate-assign.md: fused estimate, cost, per-source assignment (Hungarian method with potentials), its events, trace and snapshot |
-| `Reports.java` | correlate.md Reports: required keys and their check order, the optional-key rules, the entity key and key order. The filter uses it too, as filter.md Reports cites that section |
-| `Json.java` | the JSON reader and writer the vector tests use |
-| `VectorTest.java` | `spec/vector-format.md` for the correlator: `spec/correlate-load-vectors/` and `packs/correlate-*` only; also holds the structural comparison both tests use |
+| `Pack.java` | Pack (`load_pack`, the `pack.def` parser, `method`, `manoeuvre`, `window`, `hypotheses` and the directives each method allows) |
+| `Filter.java` | Track estimate (predict, position and velocity update, prediction; fuse and quality reuse its `Axis`) and Two-model filter (switching, mixing, per-model update, likelihood, mode probabilities, combination) |
+| `Engine.java` | Reports, Frame, Tests, Association, Events, Trace, Snapshot for method `confirm` (`ingest`, `tick`, `snapshot`); the two-model filter trace records; the `retiring` reject |
+| `Assign.java` | correlate-assign.md: Memberships, Assignment of one source (columns, entries, fused estimate, cost, apply), Ranking, Window (staleness and retiring, rows, sources over histories, commit, output), its trace and snapshot; the inverse-variance combination is `Engine.inverseVariance`, which fuse reuses |
+| `Json.java` | the JSON reader and writer the vector test uses |
+| `Reports.java` | Reports: required keys and their check order, the optional-key rules, the entity key and key order. The filter uses it too, as filter.md Reports cites that section |
+| `VectorTest.java` | `spec/vector-format.md` for the correlator: `spec/correlate-load-vectors/` and `packs/correlate-*` only; also holds the structural comparison the other tests use |
 
 The pack's `method` line selects which method the engine runs: `confirm` (or no
-line) runs `correlate.md`, `assign` runs `correlate-assign.md`. On a tie in the
-least total cost, which `correlate-assign.md` 0.2 leaves undefined, the
-Hungarian method's result stands (rows in key order; columns in creation order,
-then each row's `alone`).
+line) runs `correlate.md`, `assign` runs `correlate-assign.md`.
 
 ## Filter (`src/filter/`)
 
@@ -60,7 +59,7 @@ binary64 number.
 written from that specification, the sections of `correlate.md` it cites and the
 vectors. It reuses this engine's correlate code for those sections: the frame
 (`correlator.Engine.toPlane`) and the constant-velocity filter
-(`correlator.Engine.Axis`).
+(`correlator.Filter.Axis`).
 
 | File | Spec section |
 |---|---|
@@ -85,3 +84,14 @@ For a scenario vector it checks each step's events and trace, then the final
 snapshot. A failing vector prints the path of its first mismatch, for example
 `steps[1].trace[0].value: got 0.2777765689606809, want 0.2778`. The script
 exits non-zero when any vector fails.
+
+Floats: Java evaluates every `double` operation as one correctly rounded
+binary64 operation (strict semantics since Java 17) and never contracts into a
+fused multiply-add; the code calls no `Math.fma`.
+
+Ranked assignments are found by enumerating every assignment of the source's
+rows (column or *alone*, each column at most once, no forbidden entry) in
+ascending choice-vector order, then a stable sort by total, which is the
+Ranking order exactly. This is brute force, which is fine at vector sizes.
+
+No vector contradicts `correlate.md` or `correlate-assign.md`, so there is no `DISAGREEMENTS.md`.

@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::filter::{deg, rad, Axis, Frame};
+use crate::filter::{deg, rad, Axis, Frame, Measurement, Model, TwoModel};
 use crate::json::{obj, Json};
 use crate::pack::{Method, Output, Pack, Test};
 use crate::report;
@@ -22,11 +22,14 @@ struct Entity {
     source: String,
     last_time_ms: i64,
     group: Option<u64>,
-    /// `method assign`: the entity's system track.
+    /// `method assign`: the entity's system track in the committed membership.
     system: Option<u64>,
     hold_failures: u64,
+    /// The entity's filter; with two models, their combination.
     east: Axis,
     north: Axis,
+    /// With the pack's `manoeuvre` directive: the two models and `mu`.
+    imm: Option<TwoModel>,
     /// The entity's last accepted report.
     report: BTreeMap<String, Json>,
 }
@@ -57,10 +60,18 @@ impl Entity {
         }
     }
 
-    /// Prediction to time `t` (spec: Track estimate, Prediction).
-    fn predict(&self, t: i64, q: f64) -> (Axis, Axis) {
+    /// Prediction to time `t` (spec: Track estimate, Prediction; Two-model
+    /// filter, Prediction). Never changes the entity.
+    fn predict(&self, t: i64, pack: &Pack) -> (Axis, Axis) {
         let dt = (t - self.last_time_ms) as f64 / 1000.0;
-        (self.east.predict(dt, q), self.north.predict(dt, q))
+        let q1 = pack.filter.accel_var;
+        match (&self.imm, &pack.manoeuvre) {
+            (Some(two), Some(m)) => {
+                let p = two.predict(dt, [q1, m.accel_var]);
+                (p.east, p.north)
+            }
+            _ => (self.east.predict(dt, q1), self.north.predict(dt, q1)),
+        }
     }
 }
 
@@ -122,9 +133,12 @@ pub struct Engine {
     groups: BTreeMap<u64, BTreeSet<String>>,
     counts: BTreeMap<(String, String), u64>,
     next_group: u64,
-    /// `method assign`: system tracks by number, members in key order.
-    systems: BTreeMap<u64, BTreeSet<String>>,
-    next_system: u64,
+    /// `method assign`: the committed membership (correlate-assign.md Memberships).
+    committed: assign::Membership,
+    /// `method assign`: the histories, in rank order.
+    histories: Vec<assign::History>,
+    /// `method assign`: stale entities whose drop is not yet committed.
+    retiring: BTreeSet<String>,
     /// `method assign`: entities with an accepted report since the previous tick.
     reported: BTreeSet<String>,
 }
@@ -138,8 +152,9 @@ impl Engine {
             groups: BTreeMap::new(),
             counts: BTreeMap::new(),
             next_group: 1,
-            systems: BTreeMap::new(),
-            next_system: 1,
+            committed: assign::Membership::default(),
+            histories: vec![assign::History::default()],
+            retiring: BTreeSet::new(),
             reported: BTreeSet::new(),
         }
     }
@@ -161,6 +176,12 @@ impl Engine {
         };
         let report::Required { source, time_ms, lat, lon, .. } = required;
         let key = required.key();
+
+        // correlate-assign.md Window: a retiring entity's reports are refused.
+        if self.retiring.contains(&key) {
+            out.events.push(obj(vec![("ev", "reject".into()), ("entity", key.as_str().into()), ("reason", "retiring".into())]));
+            return out;
+        }
 
         if let Some(e) = self.entities.get(&key) {
             if time_ms < e.last_time_ms {
@@ -187,10 +208,15 @@ impl Engine {
             _ => None,
         };
 
+        let meas = Measurement { pos: (ze, zn), r_pos: ce * ce, vel, r_vel: f.vel_sigma_ms * f.vel_sigma_ms };
+        let manoeuvre = self.pack.manoeuvre.clone();
+
         match self.entities.get_mut(&key) {
             None => {
+                // Track estimate, first report; Two-model filter, first report.
                 let east = Axis::first(ze, vel.map(|v| v.0), ce, f.vel_sigma_ms, f.unknown_vel_ms);
                 let north = Axis::first(zn, vel.map(|v| v.1), ce, f.vel_sigma_ms, f.unknown_vel_ms);
+                let imm = manoeuvre.as_ref().map(|m| TwoModel::first(Model { east, north }, m.p_enter, m.p_leave));
                 self.entities.insert(
                     key.clone(),
                     Entity {
@@ -201,6 +227,7 @@ impl Engine {
                         hold_failures: 0,
                         east,
                         north,
+                        imm,
                         report: fields.clone(),
                     },
                 );
@@ -208,16 +235,27 @@ impl Engine {
             }
             Some(e) => {
                 let dt = (time_ms - e.last_time_ms) as f64 / 1000.0;
-                let r_pos = ce * ce;
-                let r_vel = f.vel_sigma_ms * f.vel_sigma_ms;
-                let mut east = e.east.predict(dt, f.accel_var).update_position(ze, r_pos);
-                let mut north = e.north.predict(dt, f.accel_var).update_position(zn, r_pos);
-                if let Some((ve, vn)) = vel {
-                    east = east.update_velocity(ve, r_vel);
-                    north = north.update_velocity(vn, r_vel);
+                match (&e.imm, &manoeuvre) {
+                    (Some(two), Some(m)) => {
+                        // Two-model filter, later reports, steps 1 to 5.
+                        let (next, mode) = two.step(dt, [f.accel_var, m.accel_var], m.p_enter, m.p_leave, &meas);
+                        let combined = next.combined();
+                        e.east = combined.east;
+                        e.north = combined.north;
+                        e.imm = Some(next);
+                        for (test, values) in [("likelihood", mode.lambda), ("mode", mode.mu)] {
+                            for (model, value) in ["quiet", "manoeuvre"].into_iter().zip(values) {
+                                out.trace.push(record("filter", &key, model, test, value.into(), Json::Null, true, false));
+                            }
+                        }
+                    }
+                    _ => {
+                        // Track estimate, later reports, steps 1 to 3.
+                        let (next, _) = Model { east: e.east, north: e.north }.step(dt, f.accel_var, &meas);
+                        e.east = next.east;
+                        e.north = next.north;
+                    }
                 }
-                e.east = east;
-                e.north = north;
                 e.last_time_ms = time_ms;
                 e.report = fields.clone();
             }
@@ -339,7 +377,7 @@ impl Engine {
     /// `d²` between A's filter and B predicted to A's time.
     fn d2(&self, a: &str, b: &str) -> f64 {
         let ea = &self.entities[a];
-        let (pe, pn) = self.entities[b].predict(ea.last_time_ms, self.pack.filter.accel_var);
+        let (pe, pn) = self.entities[b].predict(ea.last_time_ms, &self.pack);
         let r = ea.ce(self.pack.filter.default_ce_m).powi(2);
         (ea.east.p - pe.p).powi(2) / (pe.pp + r) + (ea.north.p - pn.p).powi(2) / (pn.pp + r)
     }
@@ -350,7 +388,7 @@ impl Engine {
         let eb = &self.entities[b];
         let dce = self.pack.filter.default_ce_m;
         let distance = || {
-            let (pe, pn) = eb.predict(ea.last_time_ms, self.pack.filter.accel_var);
+            let (pe, pn) = eb.predict(ea.last_time_ms, &self.pack);
             ((ea.east.p - pe.p).powi(2) + (ea.north.p - pn.p).powi(2)).sqrt()
         };
         // Both speeds present and at least min_speed_ms.
@@ -472,11 +510,10 @@ impl Engine {
         }
 
         // 2. Fused output, groups in creation order.
-        let q = self.pack.filter.accel_var;
         for (g, members) in &self.groups {
             let primary = self.primary(members);
             let e = &self.entities[primary];
-            let (pe, pn) = e.predict(now_ms, q);
+            let (pe, pn) = e.predict(now_ms, &self.pack);
             let frame = self.frame.expect("a group implies a reference");
             let (lat, lon) = frame.to_degrees(pe.p, pn.p);
             let (course, speed) = course_speed(&pe, &pn);
@@ -533,18 +570,17 @@ impl Engine {
             Some(f) => Json::Arr(vec![f.lat0.into(), f.lon0.into()]),
             None => Json::Null,
         };
-        let axis = |a: &Axis| Json::Arr(a.as_list().iter().map(|x| Json::Num(*x)).collect());
         let entities = self
             .entities
             .iter()
             .map(|(k, e)| {
-                let v = obj(vec![
+                let mut pairs = vec![
                     ("last_time_ms", e.last_time_ms.into()),
                     ("group", e.group.map_or(Json::Null, |g| group_name(g).into())),
                     ("hold_failures", (e.hold_failures as f64).into()),
-                    ("filter", obj(vec![("east", axis(&e.east)), ("north", axis(&e.north))])),
-                ]);
-                (k.clone(), v)
+                ];
+                pairs.extend(filter_json(e));
+                (k.clone(), obj(pairs))
             })
             .collect();
         let groups = self
@@ -577,4 +613,18 @@ fn course_speed(east: &Axis, north: &Axis) -> (f64, f64) {
 
 fn axis_json(a: &Axis) -> Json {
     Json::Arr(a.as_list().iter().map(|x| Json::Num(*x)).collect())
+}
+
+fn model_json(m: &Model) -> Json {
+    obj(vec![("east", axis_json(&m.east)), ("north", axis_json(&m.north))])
+}
+
+/// The snapshot's `filter`, plus `models` and `mode` with two models.
+fn filter_json(e: &Entity) -> Vec<(&'static str, Json)> {
+    let mut pairs = vec![("filter", model_json(&Model { east: e.east, north: e.north }))];
+    if let Some(two) = &e.imm {
+        pairs.push(("models", obj(vec![("quiet", model_json(&two.models[0])), ("manoeuvre", model_json(&two.models[1]))])));
+        pairs.push(("mode", Json::Arr(vec![two.mu[0].into(), two.mu[1].into()])));
+    }
+    pairs
 }

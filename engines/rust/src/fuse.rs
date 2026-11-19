@@ -157,11 +157,11 @@ impl Engine {
             Some(e) => {
                 let dt = (time_ms - e.last_time_ms) as f64 / 1000.0;
                 let (r_pos, r_vel) = (ce * ce, f.vel_sigma_ms * f.vel_sigma_ms);
-                let mut east = e.east.predict(dt, f.accel_var).update_position(ze, r_pos);
-                let mut north = e.north.predict(dt, f.accel_var).update_position(zn, r_pos);
+                let mut east = e.east.predict(dt, f.accel_var).update_position(ze, r_pos).0;
+                let mut north = e.north.predict(dt, f.accel_var).update_position(zn, r_pos).0;
                 if let Some((ve, vn)) = vel {
-                    east = east.update_velocity(ve, r_vel);
-                    north = north.update_velocity(vn, r_vel);
+                    east = east.update_velocity(ve, r_vel).0;
+                    north = north.update_velocity(vn, r_vel).0;
                 }
                 e.east = east;
                 e.north = north;

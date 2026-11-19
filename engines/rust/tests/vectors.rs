@@ -77,8 +77,10 @@ fn load_vectors() {
 #[test]
 fn shipped_packs_load() {
     let root = repo_root();
-    for name in ["correlate-gnn", "correlate-window", "correlate-distance", "correlate-assign"] {
-        load_pack(&root.join("packs").join(name)).unwrap_or_else(|e| panic!("{}: {}", name, e));
+    let packs = packs_with_prefix(&root, "correlate-");
+    assert!(!packs.is_empty(), "no correlate packs found");
+    for dir in packs {
+        load_pack(&dir).unwrap_or_else(|e| panic!("{}: {}", dir.display(), e));
     }
 }
 

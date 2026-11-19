@@ -1,7 +1,8 @@
 # goat-correlator: Go engine
 
-An implementation of `spec/correlate.md` (version 0.4, method `confirm`) and
-`spec/correlate-assign.md` (version 0.2, method `assign`) in Go, standard library only.
+An implementation of `spec/correlate.md` (version 0.5, method `confirm`, with
+the optional two-model filter) and `spec/correlate-assign.md` (version 0.3,
+method `assign`, with the multi-frame window) in Go, standard library only.
 The pack's `method` line selects which runs. The `fuse` package
 (`engines/go/fuse/`) implements `spec/fuse.md` (version 0.1).
 
@@ -15,25 +16,30 @@ reference to any other engine.
 | File | Contents |
 |---|---|
 | `pack.go` | `LoadPack(dir)` / `ParsePack(text)`: the `pack.def` reader (spec: Pack) |
-| `engine.go` | `New(pack)`, `Ingest(report)`, `Tick(now_ms)`, `Snapshot()`: frame, filter, tests, association, events and trace |
-| `assign.go` | method `assign`: system tracks, per-source exact least-cost assignment (shortest augmenting paths with potentials), inverse-variance fused estimate, its events, trace and snapshot |
-| `assign_test.go` | checks the assignment solver against brute force |
+| `engine.go` | `New(pack)`, `Ingest(report)`, `Tick(now_ms)`, `Snapshot()`: frame, Kalman axis steps, tests, association, events and trace |
+| `imm.go` | the per-entity filter: one model (Track estimate) or two (Two-model filter: switching, mixing, likelihood, mode probabilities, combination, prediction) |
+| `assign.go` | method `assign`: memberships and histories (Memberships), columns and entries of one source, ranked assignments by enumeration in choice-vector order (Ranking), the per-tick steps 1 to 5 (Window), fused estimate, snapshot |
+| `assign_test.go` | checks the ranked assignments follow the Ranking order on random tables |
+| `DISAGREEMENTS.md` | vectors that contradict the specification (none), and the points it leaves open |
+| `vectors_test.go` | runs every `packs/correlate-*` scenario vector and every `spec/correlate-load-vectors` vector with the structural comparison of `spec/vector-format.md` |
 | `reports.go` | `ReadReport`, `ToFloat`, `ToInt`, `IsInt`: the Reports rules of `spec/correlate.md`, exported for `filter/` |
 | `filter/pack.go` | filter `LoadPack` / `ParsePack` (spec/filter.md: Pack) |
 | `filter/geometry.go` | haversine distance, polygon test, reference prediction (spec/filter.md: Geometry) |
 | `filter/conditions.go` | every condition, its `value`, `limit` and true/false/unknown result (spec/filter.md: Conditions) |
 | `filter/engine.go` | `New`, `Ingest`, `Tick`, `Snapshot`: rules, decision, events, state, forgetting (spec/filter.md: Rules, Tick, Events, Trace, Snapshot) |
 | `filter/vectors_test.go` | runs every `packs/filter-*` vector and every `spec/filter-load-vectors` vector |
-| `DISAGREEMENTS.md` | vectors that contradict the specification (none), and the points it leaves open |
 | `shared.go` | the exported Frame, Track estimate filter and report checks the `fuse` package reuses (spec/fuse.md: Shared with correlate.md) |
 | `fuse/pack.go` | fuse `LoadPack(dir)` / `ParsePack(text)` (spec/fuse.md: Pack) |
 | `fuse/engine.go` | fuse `New`, `Ingest`, `Tick`, `Snapshot`: Reports, Groups, On each tick, Fused event, Height, Snapshot |
 | `fuse/kinematics.go` | the five kinematics methods, the covariance-intersection weight and fold, and the kinematics and intersect trace (spec/fuse.md: Kinematics) |
 | `fuse/attributes.go` | candidates, the five attribute rules, majority equality and the attribute trace (spec/fuse.md: Attributes) |
 | `fuse/vectors_test.go` | runs every `packs/fuse-*` scenario vector and every `spec/fuse-load-vectors` load vector |
-| `vectors_test.go` | runs every correlate scenario vector (`packs/correlate-*`) and every correlate load vector with the structural comparison of `spec/vector-format.md` |
 | `export.go` | the frame, filter and report checks exported for the quality module |
 | `quality/` | package `quality`: `spec/quality.md` (version 0.1), see below |
+
+Ranked assignments are found by brute force: every assignment of a source's
+tracks is enumerated, which is exact and fine at vector sizes but grows
+factorially with the number of tracks one source reports at once.
 
 ## Quality
 
@@ -58,6 +64,14 @@ Requires Go 1.26.
 cd engines/go
 go build ./...
 ```
+
+## Floats
+
+The spec forbids fused multiply-add and extended precision. Go's compiler may
+fuse `x*y + z` on some targets (arm64, ppc64le, s390x, riscv64, and amd64 with
+`GOAMD64=v3` or above); on amd64 with the default `GOAMD64=v1` it does not, and
+SSE2 arithmetic has no extended precision. Build and test on amd64 with
+`GOAMD64=v1` (the default) or `v2`.
 
 ## Run the vectors
 

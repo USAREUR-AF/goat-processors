@@ -13,10 +13,16 @@ func Deg(x float64) float64 { return deg(x) }
 func (a Axis) Predict(dt, q float64) Axis { return a.predict(dt, q) }
 
 // UpdatePos is step 2 of Track estimate: position update with z and r = ce².
-func (a Axis) UpdatePos(z, r float64) Axis { return a.updatePos(z, r) }
+func (a Axis) UpdatePos(z, r float64) Axis {
+	u, _, _ := a.updatePos(z, r)
+	return u
+}
 
 // UpdateVel is step 3 of Track estimate: velocity update with z and r = vel_sigma_ms².
-func (a Axis) UpdateVel(z, r float64) Axis { return a.updateVel(z, r) }
+func (a Axis) UpdateVel(z, r float64) Axis {
+	u, _, _ := a.updateVel(z, r)
+	return u
+}
 
 // List is the snapshot form [p, v, pp, pv, vv] (spec: Snapshot).
 func (a Axis) List() []any { return a.list() }

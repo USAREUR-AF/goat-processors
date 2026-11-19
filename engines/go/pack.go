@@ -35,6 +35,16 @@ type Pack struct {
 	Method       string // "confirm" or "assign"
 	NewCost      float64
 	KeepBonus    float64
+
+	// manoeuvre line (spec: correlate.md Two-model filter)
+	HasManoeuvre bool
+	ManoeuvreVar float64 // q2
+	PEnter       float64 // a
+	PLeave       float64 // b
+
+	// method assign window (spec: correlate-assign.md Window)
+	Window     int64 // n, default 1
+	Hypotheses int64 // k, default 1
 }
 
 // testParams lists every test and its parameters (spec: Tests table).
@@ -141,7 +151,7 @@ func oneValue(d string, rest []string) (string, error) {
 
 // ParsePack parses the text of a pack.def (spec: Pack).
 func ParsePack(text string) (*Pack, error) {
-	p := &Pack{SameSource: "forbid", Output: "priority", Priority: map[string]int64{}, Method: "confirm"}
+	p := &Pack{SameSource: "forbid", Output: "priority", Priority: map[string]int64{}, Method: "confirm", Window: 1, Hypotheses: 1}
 	seen := map[string]bool{}
 	for n, line := range strings.Split(text, "\n") {
 		if i := strings.IndexByte(line, '#'); i >= 0 {
@@ -174,6 +184,33 @@ func ParsePack(text string) (*Pack, error) {
 				}{{"accel_var", &p.AccelVar}, {"default_ce_m", &p.DefaultCeM}, {"vel_sigma_ms", &p.VelSigmaMs}, {"unknown_vel_ms", &p.UnknownVelMs}} {
 					if *f.p, err = parseFloat(m[f.k]); err != nil {
 						break
+					}
+				}
+			}
+		case "manoeuvre":
+			var m map[string]string
+			m, err = parseParams(rest, []string{"accel_var", "p_enter", "p_leave"})
+			if err == nil {
+				p.HasManoeuvre = true
+				for _, f := range []struct {
+					k string
+					p *float64
+				}{{"accel_var", &p.ManoeuvreVar}, {"p_enter", &p.PEnter}, {"p_leave", &p.PLeave}} {
+					if *f.p, err = parseFloat(m[f.k]); err != nil {
+						break
+					}
+				}
+			}
+		case "window", "hypotheses":
+			if v, err = oneValue(d, rest); err == nil {
+				var i int64
+				if i, err = parseInt(v); err == nil {
+					if i < 1 {
+						err = fmt.Errorf("%s must be 1 or above", d)
+					} else if d == "window" {
+						p.Window = i
+					} else {
+						p.Hypotheses = i
 					}
 				}
 			}
@@ -253,7 +290,7 @@ func ParsePack(text string) (*Pack, error) {
 	}
 	// Each method has its own directives (spec: correlate.md Pack, correlate-assign.md Pack).
 	required := []string{"pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms"}
-	refused := []string{"new_cost", "keep_bonus"}
+	refused := []string{"new_cost", "keep_bonus", "window", "hypotheses"}
 	if p.Method == "assign" {
 		required = []string{"pack", "version", "method", "filter", "new_cost", "keep_bonus", "stale_ms"}
 		refused = []string{"confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"}
@@ -268,12 +305,18 @@ func ParsePack(text string) (*Pack, error) {
 			return nil, fmt.Errorf("missing directive %q", d)
 		}
 	}
-	// Value ranges (spec: correlate.md 0.4 Pack, correlate-assign.md 0.2 Pack).
+	// Value ranges (spec: correlate.md Pack, correlate-assign.md Pack).
 	if !(p.DefaultCeM > 0 && p.VelSigmaMs > 0 && p.UnknownVelMs > 0 && p.AccelVar >= 0) {
 		return nil, fmt.Errorf("filter: default_ce_m, vel_sigma_ms, unknown_vel_ms must be above 0 and accel_var 0 or above")
 	}
 	if p.Method == "assign" && !(p.NewCost > 0 && p.KeepBonus >= 0) {
 		return nil, fmt.Errorf("new_cost must be above 0 and keep_bonus 0 or above")
+	}
+	if p.HasManoeuvre && !(p.PEnter > 0 && p.PLeave > 0 && p.PEnter+p.PLeave < 1 && p.ManoeuvreVar > p.AccelVar) {
+		return nil, fmt.Errorf("manoeuvre: p_enter and p_leave must be above 0 with a sum below 1, and accel_var above filter's")
+	}
+	if p.Hypotheses > 1 && p.Window == 1 {
+		return nil, fmt.Errorf("hypotheses above 1 needs window above 1")
 	}
 	return p, nil
 }

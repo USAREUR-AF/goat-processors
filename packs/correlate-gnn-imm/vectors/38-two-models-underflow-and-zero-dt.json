@@ -1,0 +1,253 @@
+{
+ "name": "38-two-models-underflow-and-zero-dt",
+ "pack": "correlate-gnn-imm",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/T1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 1000,
+    "lat": 1.0,
+    "lon": 1.899457355,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [],
+   "trace": [
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": "quiet",
+     "test": "likelihood",
+     "value": -423729.21190898685,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": "manoeuvre",
+     "test": "likelihood",
+     "value": -420177.4511128634,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": "quiet",
+     "test": "mode",
+     "value": 0.0,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": "manoeuvre",
+     "test": "mode",
+     "value": 1.0,
+     "limit": null,
+     "pass": true
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 1000,
+    "lat": 1.0,
+    "lon": 1.899457355,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [],
+   "trace": [
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": "quiet",
+     "test": "likelihood",
+     "value": -16806.551501624963,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": "manoeuvre",
+     "test": "likelihood",
+     "value": -16520.612457783205,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": "quiet",
+     "test": "mode",
+     "value": 0.0,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": "manoeuvre",
+     "test": "mode",
+     "value": 1.0,
+     "limit": null,
+     "pass": true
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 2000,
+    "lat": 1.0,
+    "lon": 1.900356813,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [],
+   "trace": [
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": "quiet",
+     "test": "likelihood",
+     "value": -1049066.1048519034,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": "manoeuvre",
+     "test": "likelihood",
+     "value": -1019569.1261089002,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": "quiet",
+     "test": "mode",
+     "value": 0.0,
+     "limit": null,
+     "pass": true
+    },
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": "manoeuvre",
+     "test": "mode",
+     "value": 1.0,
+     "limit": null,
+     "pass": true
+    }
+   ]
+  },
+  {
+   "tick": 2000,
+   "expect": [],
+   "trace": []
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {
+   "radar-1/T1": {
+    "last_time_ms": 2000,
+    "group": null,
+    "hold_failures": 0,
+    "filter": {
+     "east": [
+      121677.28950703875,
+      43185.425916317035,
+      671.6765140324962,
+      485.672082717873,
+      680.4529788281634
+     ],
+     "north": [
+      0.0,
+      0.0,
+      671.6765140324962,
+      485.672082717873,
+      680.4529788281634
+     ]
+    },
+    "models": {
+     "quiet": {
+      "east": [
+       122301.5439602253,
+       46778.902302831004,
+       665.0708672487018,
+       447.64714654953787,
+       461.5651366636174
+      ],
+      "north": [
+       0.0,
+       0.0,
+       665.0708672487018,
+       447.64714654953787,
+       461.5651366636174
+      ]
+     },
+     "manoeuvre": {
+      "east": [
+       121677.28950703875,
+       43185.425916317035,
+       671.6765140324962,
+       485.672082717873,
+       680.4529788281634
+      ],
+      "north": [
+       0.0,
+       0.0,
+       671.6765140324962,
+       485.672082717873,
+       680.4529788281634
+      ]
+     }
+    },
+    "mode": [
+     0.0,
+     1.0
+    ]
+   }
+  },
+  "groups": {},
+  "counts": {},
+  "next_group": 1
+ }
+}

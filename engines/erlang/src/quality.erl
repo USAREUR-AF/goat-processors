@@ -135,8 +135,9 @@ accept(Report, St0) ->
                  emit(#{<<"ev">> => <<"new">>, <<"entity">> => Key}, St6)};
             {ok, Old = #{filter := Filter}} when Advance ->
                 {Old#{last := T, last_pos := Z,
-                      filter := correlator_filter:update(Filter, (T - Last) / 1000, Z, Vel,
-                                                         MeasCe, F)},
+                      filter := element(1, correlator_filter:update(Filter, (T - Last) / 1000,
+                                                                     maps:get(<<"accel_var">>, F),
+                                                                     Z, Vel, MeasCe, F))},
                  St6};
             {ok, Old} ->
                 {Old, St6}
@@ -155,7 +156,7 @@ accept(Report, St0) ->
 %% the predicted plus the reported variance, east then north.
 nis(Key, Filter, Dt, {E, N}, Ce, F, St) ->
     #{east := {PE, _, PPE, _, _}, north := {PN, _, PPN, _, _}} =
-        correlator_filter:predict(Filter, Dt, F),
+        correlator_filter:predict(Filter, Dt, maps:get(<<"accel_var">>, F)),
     R = Ce * Ce,
     De = E - PE,
     Dn = N - PN,

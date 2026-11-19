@@ -13,7 +13,6 @@ const packDirs = vector_files.packDirs;
 
 test {
     _ = compare;
-    _ = @import("hungarian.zig");
 }
 
 // Load vectors: parsing `pack_def` fails exactly when `expect_error` is true.

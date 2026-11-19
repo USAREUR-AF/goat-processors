@@ -4,24 +4,27 @@ Four functions: correlate, filter, fuse and quality.
 
 ## Correlate and filter
 
-A C++17 implementation of `spec/filter.md` (version 0.1) and of `spec/correlate.md` (version 0.4, method `confirm`)
-and `spec/correlate-assign.md` (version 0.2, method `assign`), written from the
-specifications and the vectors. The pack's `method` line selects which runs. It uses only the standard library and has its
+A C++17 implementation of `spec/filter.md` (version 0.1), of `spec/correlate.md`
+(version 0.5, method `confirm`, with the two-model filter) and of
+`spec/correlate-assign.md` (version 0.3, method `assign`, with the multi-frame
+window), written from the specifications and the vectors. The pack's `method`
+line selects which correlate method runs. It uses only the standard library and has its
 own small JSON reader.
 
 | File | Spec section |
 |---|---|
-| `src/track.cpp` | correlate.md Frame, Track estimate; shared with fuse and quality |
+| `src/track.cpp` | correlate.md Frame, Track estimate (steps 1 to 3, each update returning its likelihood term for the two-model filter); shared with fuse and quality |
 | `src/pack.cpp` | Pack (`parse_pack`, `load_pack`) |
-| `src/engine.cpp` | Reports, Frame, Track estimate, Tests, Association, Events, Trace, Snapshot; then correlate-assign.md: Assignment (with `min_cost_assignment`, the Hungarian method with potentials), Events, Trace, Snapshot |
-| `src/report.cpp` | correlate.md "Reports": required keys, optional-key rules, `type` elements; shared by all three functions |
+| `src/engine.cpp` | correlate.md: Two-model filter (`filter_first`, `filter_update`, `predict`), Tests, Association, Events, Trace, Snapshot |
+| `src/assign.cpp` | correlate-assign.md: Memberships, Ranking (`rank_assignments`, brute force over every assignment), Assignment of one source (`rank_source`, `apply_assignment`), Window (`tick_assign`, steps 1 to 5), Snapshot |
+| `src/common.hpp` | helpers engine.cpp and assign.cpp both use |
+| `src/report.cpp` | correlate.md "Reports": required keys, optional-key rules, `type` elements; shared by all four functions |
 | `src/filter_pack.cpp` | filter.md "Pack": directives, rules, `when` lines, parameter sets, values |
 | `src/filter.cpp` | filter.md Geometry (distance, polygon, reference prediction), Conditions, Rules, Tick, Events, Trace, Snapshot |
 | `src/json.cpp` | JSON values for reports, events, trace and snapshot |
 | `test/run_vectors.cpp` | runs the correlate vectors |
 | `test/run_filter_vectors.cpp` | the same comparison for `packs/filter-*` and `spec/filter-load-vectors/` |
 | `test/vector_support.hpp` | the comparison in `spec/vector-format.md`, shared by the correlate, filter, fuse and quality runners |
-| `test/assignment_test.cpp` | `min_cost_assignment` against brute force on random matrices |
 
 API, in `src/engine.hpp` and `src/pack.hpp`:
 
@@ -53,8 +56,7 @@ scenario vector under `packs/correlate-*/vectors/` and checks each step's events
 trace, then the final snapshot. It also runs every load vector under
 `spec/correlate-load-vectors/`. The ctest test `filter_vectors` runs `run_filter_vectors <repo root>`: every
 scenario vector under `packs/filter-*/vectors/` and every load vector under
-`spec/filter-load-vectors/`. The ctest test `assignment` checks the
-assignment solver against brute force. `run_vectors` prints `PASS` or `FAIL` for each vector, and for a
+`spec/filter-load-vectors/`. `run_vectors` prints `PASS` or `FAIL` for each vector, and for a
 failure the path of the first mismatch, for example
 `steps[1].trace[0].value: number differs (...)`. You can also run it by hand:
 
@@ -62,6 +64,11 @@ failure the path of the first mismatch, for example
 build/cpp/run_vectors .
 build/cpp/run_quality_vectors .
 ```
+
+The build passes `-ffp-contract=off` (and `-msse2 -mfpmath=sse` on x86) to
+the correlator library, which holds the shared frame and filter, so no
+`a*b + c` becomes a fused multiply-add and no intermediate is kept in
+extended precision (correlate.md "Floats").
 
 ## Fuse
 

@@ -11,6 +11,17 @@ pub struct FilterParams {
     pub unknown_vel_ms: f64,
 }
 
+/// The `manoeuvre` directive (spec: correlate.md Two-model filter).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Manoeuvre {
+    /// `q2`, the manoeuvre model's acceleration variance.
+    pub accel_var: f64,
+    /// `a`, per second, quiet to manoeuvre.
+    pub p_enter: f64,
+    /// `b`, per second, manoeuvre to quiet.
+    pub p_leave: f64,
+}
+
 /// One named test with its parameters (spec: Tests).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Test {
@@ -56,6 +67,8 @@ pub struct Pack {
     pub method: Method,
     pub version: String,
     pub filter: FilterParams,
+    /// Present when the pack has the `manoeuvre` directive.
+    pub manoeuvre: Option<Manoeuvre>,
     pub gate: Vec<Test>,
     pub confirm: Vec<Test>,
     pub hold: Vec<Test>,
@@ -70,6 +83,10 @@ pub struct Pack {
     pub new_cost: f64,
     /// `method assign` only: subtracted from the entry of the current choice.
     pub keep_bonus: f64,
+    /// `method assign` only: `window <n>`, ticks a history spans (default 1).
+    pub window: usize,
+    /// `method assign` only: `hypotheses <k>`, histories kept (default 1).
+    pub hypotheses: usize,
 }
 
 impl Pack {
@@ -114,6 +131,14 @@ fn integer(s: &str) -> Result<i64, String> {
 fn count(s: &str) -> Result<u64, String> {
     let n = integer(s)?;
     u64::try_from(n).map_err(|_| format!("negative count: {:?}", s))
+}
+
+/// An integer 1 or above (`window`, `hypotheses`).
+fn positive(s: &str) -> Result<usize, String> {
+    match count(s)? {
+        0 => Err(format!("must be 1 or above: {:?}", s)),
+        n => usize::try_from(n).map_err(|_| format!("too large: {:?}", s)),
+    }
 }
 
 fn semver(s: &str) -> Result<String, String> {
@@ -227,6 +252,9 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
     let mut method = Method::Confirm;
     let mut new_cost = None;
     let mut keep_bonus = None;
+    let mut manoeuvre = None;
+    let mut window = None;
+    let mut hypotheses = None;
 
     for (lineno, raw) in text.lines().enumerate() {
         let line = raw.split('#').next().unwrap_or("");
@@ -271,6 +299,18 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
                 }
                 filter = Some(f);
             }
+            "manoeuvre" => {
+                let p = Params::parse(args, &["accel_var", "p_enter", "p_leave"]).map_err(at)?;
+                let m = Manoeuvre { accel_var: p.num("accel_var").map_err(at)?, p_enter: p.num("p_enter").map_err(at)?, p_leave: p.num("p_leave").map_err(at)? };
+                // p_enter and p_leave above 0 with a sum below 1; accel_var is
+                // checked against filter's once the whole file is read.
+                if !(m.p_enter > 0.0 && m.p_leave > 0.0 && m.p_enter + m.p_leave < 1.0) {
+                    return Err(at("manoeuvre p_enter and p_leave must be above 0 with a sum below 1".to_string()));
+                }
+                manoeuvre = Some(m);
+            }
+            "window" => window = Some(positive(one_arg(directive, args).map_err(at)?).map_err(at)?),
+            "hypotheses" => hypotheses = Some(positive(one_arg(directive, args).map_err(at)?).map_err(at)?),
             "gate" => gate.push(parse_test(args).map_err(at)?),
             "confirm" => confirm.push(parse_test(args).map_err(at)?),
             "hold" => hold.push(parse_test(args).map_err(at)?),
@@ -300,8 +340,14 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
     }
 
     let need = |what: &str| format!("missing required directive: {}", what);
+    let filter = filter.ok_or_else(|| need("filter"))?;
+    if let Some(m) = &manoeuvre {
+        if !(m.accel_var > filter.accel_var) {
+            return Err("manoeuvre accel_var must be above filter accel_var".to_string());
+        }
+    }
     let refused: &[&str] = match method {
-        Method::Confirm => &["new_cost", "keep_bonus"],
+        Method::Confirm => &["new_cost", "keep_bonus", "window", "hypotheses"],
         Method::Assign => &["confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"],
     };
     if let Some(d) = refused.iter().find(|d| seen.contains(**d)) {
@@ -314,6 +360,11 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
                 return Err("new_cost must be above 0".to_string());
             }
         }
+        // correlate-assign.md 0.3: hypotheses above 1 needs window above 1.
+        let (window, hypotheses) = (window.unwrap_or(1), hypotheses.unwrap_or(1));
+        if hypotheses > 1 && window == 1 {
+            return Err("hypotheses above 1 needs window above 1".to_string());
+        }
         if let Some(b) = keep_bonus {
             if !(b >= 0.0) {
                 return Err("keep_bonus must be 0 or above".to_string());
@@ -323,7 +374,8 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
             name: name.ok_or_else(|| need("pack"))?,
             method,
             version: version.ok_or_else(|| need("version"))?,
-            filter: filter.ok_or_else(|| need("filter"))?,
+            filter,
+            manoeuvre,
             gate,
             confirm,
             hold,
@@ -335,15 +387,20 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
             priority,
             new_cost: new_cost.ok_or_else(|| need("new_cost"))?,
             keep_bonus: keep_bonus.ok_or_else(|| need("keep_bonus"))?,
+            window,
+            hypotheses,
         });
     }
     Ok(Pack {
         method,
         new_cost: 0.0,
         keep_bonus: 0.0,
+        window: 1,
+        hypotheses: 1,
         name: name.ok_or_else(|| need("pack"))?,
         version: version.ok_or_else(|| need("version"))?,
-        filter: filter.ok_or_else(|| need("filter"))?,
+        filter,
+        manoeuvre,
         gate,
         confirm,
         hold,

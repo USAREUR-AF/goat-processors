@@ -55,10 +55,13 @@ struct Filter {
 
 // Step 1, predict by dt seconds with acceleration variance q.
 void axis_predict(Axis& a, double dt, double q);
-// Step 2, position update with measurement z and variance r.
-void axis_position_update(Axis& a, double z, double r);
-// Step 3, velocity update with measurement z and variance r.
-void axis_velocity_update(Axis& a, double z, double r);
+// Step 2, position update with measurement z and variance r. Returns the
+// innovation's likelihood term y*y/s + ln(s) (correlate.md "Two-model filter",
+// step 3); callers without two models ignore it.
+double axis_position_update(Axis& a, double z, double r);
+// Step 3, velocity update with measurement z and variance r. Returns the
+// likelihood term, as step 2.
+double axis_velocity_update(Axis& a, double z, double r);
 
 // First report.
 Filter filter_first(const FilterParams& f, const Point& z, const std::optional<Point>& vel, double ce);

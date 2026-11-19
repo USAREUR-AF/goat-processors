@@ -8,8 +8,8 @@ model; goat-processors reads that model.
 
 | Function | Status |
 |---|---|
-| correlate | Written (specification 0.4) and built in seven languages |
-| correlate, method assign | Written (specification 0.2) and built in seven languages |
+| correlate | Written (specification 0.5) and built in seven languages |
+| correlate, method assign | Written (specification 0.3) and built in seven languages |
 | filter | Written (specification 0.1) and built in seven languages |
 | fuse | Written (specification 0.1) and built in seven languages |
 | quality | Written (specification 0.1) and built in seven languages |
