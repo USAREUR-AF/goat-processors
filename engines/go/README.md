@@ -1,9 +1,10 @@
 # goat-correlator: Go engine
 
-An implementation of `spec/correlate.md` (version 0.7, method `confirm`, with
-the optional two-model filter and filter restart) and `spec/correlate-assign.md`
-(version 0.5, method `assign`, with the multi-frame window, its margin, and
-sensor bias) in Go, standard library only.
+An implementation of `spec/correlate.md` (version 0.8, method `confirm`, with
+the optional two-model filter, filter restart and time quality) and
+`spec/correlate-assign.md` (version 0.6, method `assign`, with the multi-frame
+window, its margin, sensor bias and the clock offset) in Go, standard library
+only.
 The pack's `method` line selects which runs. The `fuse` package
 (`engines/go/fuse/`) implements `spec/fuse.md` (version 0.2).
 
@@ -19,7 +20,8 @@ reference to any other engine.
 | `pack.go` | `LoadPack(dir)` / `ParsePack(text)`: the `pack.def` reader (spec: Pack) |
 | `engine.go` | `New(pack)`, `Ingest(report)`, `Tick(now_ms)`, `Snapshot()`: frame, Kalman axis steps, tests, association, events and trace |
 | `imm.go` | the per-entity filter: one model (Track estimate) or two (Two-model filter: switching, mixing, likelihood, mode probabilities, combination, prediction), and the restart test (Restart) |
-| `bias.go` | method `assign`, Sensor bias: per-pair offset state, moving B into A's frame for tests and costs, the per-tick update and its `bias` trace, the snapshot's `bias` |
+| `bias.go` | method `assign`, Sensor bias: per-pair offset state, moving B into A's frame for tests and costs (after B's timing variance), the per-tick update and its `bias` trace, the clock offset fit of Time offset, the snapshot's `bias` |
+| `time.go` | Time quality (`correlate.md` Reports, Track estimate "Measurement variance", Pack `time_default`): reading `time_error_ms` and `time_state`, the per-source defaults, the per-axis measurement and timing variance, the `time` trace record |
 | `assign.go` | method `assign`: memberships and histories (Memberships), columns and entries of one source, ranked assignments by enumeration in choice-vector order (Ranking), the per-tick steps 1 to 6 (Window, with restart leaves and `margin`), fused estimate, snapshot |
 | `assign_test.go` | checks the ranked assignments follow the Ranking order on random tables |
 | `DISAGREEMENTS.md` | vectors that contradict the specification (none), and the points it leaves open |
