@@ -17,6 +17,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: the committed vectors are what the scenarios produce
         run: python3 -I tools/make-vectors.py && git diff --exit-code -- packs
+      - name: the committed filter vectors are what the scenarios produce
+        run: python3 -I tools/make-filter-vectors.py && git diff --exit-code -- packs spec/filter-load-vectors
       - name: the committed fuse vectors are what the scenarios produce
         run: python3 -I tools/make-fuse-vectors.py && git diff --exit-code -- packs spec/fuse-load-vectors && test -z "$(git status --porcelain -- packs spec/fuse-load-vectors)"
   python:

@@ -1,0 +1,5 @@
+{
+ "name": "47-interval-zero",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 1000\nrule r drop\nwhen interval min_ms=0\n",
+ "expect_error": true
+}

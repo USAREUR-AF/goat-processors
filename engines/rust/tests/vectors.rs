@@ -1,12 +1,11 @@
-//! Runs every correlate scenario vector (packs/correlate-*) and every
-//! correlate load vector (spec/vector-format.md).
+//! Runs every correlate scenario vector (packs/correlate-*) and every correlate
+//! load vector (spec/correlate-load-vectors) (spec/vector-format.md).
 
 mod common;
 
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use common::{compare, json_files, read_json, repo_root};
+use common::{compare, json_files, packs_with_prefix, read_json, repo_root};
 use goat_correlator::{json, load_pack, parse_pack, Engine, Json};
 
 /// Runs one scenario vector; the first mismatch, if any.
@@ -31,10 +30,8 @@ fn run_scenario(root: &Path, path: &Path) -> Result<(), String> {
 #[test]
 fn scenario_vectors() {
     let root = repo_root();
-    let mut packs: Vec<PathBuf> = fs::read_dir(root.join("packs")).unwrap().map(|e| e.unwrap().path())
-        .filter(|p| p.file_name().map_or(false, |n| n.to_string_lossy().starts_with("correlate-")))
-        .collect();
-    packs.sort();
+    // Correlate vectors only: packs/correlate-*.
+    let packs = packs_with_prefix(&root, "correlate-");
     let mut ran = 0;
     let mut failures = Vec::new();
     for pack in packs {
