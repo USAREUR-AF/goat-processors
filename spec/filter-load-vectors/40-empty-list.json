@@ -1,0 +1,5 @@
+{
+ "name": "40-empty-list",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 1000\nrule r drop\nwhen uid in=\n",
+ "expect_error": true
+}
