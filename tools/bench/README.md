@@ -139,5 +139,5 @@ a scenario with false tracks has a GOSPA floor shared by every engine.
 
 | Engine | How |
 |---|---|
-| a pack of the Python engine | add its directory name to `PACKS` in `adapters.py`, run `report` |
+| a pack of the Python engine | add its directory name to `PACKS` in `adapters.py`, run `report`. The charts have eight color slots; past eight packs, name one in `CHART_OMIT` in `report.py` with the reason (it stays in every table) |
 | any other engine | run it on `build/bench/scenarios/*.json` (each `ingest` in order; at each `tick`, its picture), write `<scenario>.events.json` per scenario into one directory, run `score --events <dir>` |

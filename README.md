@@ -133,8 +133,14 @@ which `tools/bench/bench.py report` writes.
 | assign-imm | 50 random | 0.796 | 0.998 | 0.661 | 12 | 54 | 160 | 399.0 |
 | assign-window | 21 named | 0.929 | 1.000 | 0.867 | 2 | 2 | 2 | 115.7 |
 | assign-window | 50 random | 0.698 | 0.994 | 0.538 | 62 | 91 | 229 | 477.0 |
+| assign-bias | 21 named | 0.989 | 1.000 | 0.979 | 0 | 1 | 2 | 49.0 |
+| assign-bias | 50 random | 0.906 | 0.999 | 0.830 | 11 | 47 | 64 | 313.0 |
+| assign-full | 21 named | 0.997 | 1.000 | 0.994 | 0 | 0 | 0 | 41.4 |
+| assign-full | 50 random | 0.958 | 0.999 | 0.919 | 10 | 4 | 37 | 247.2 |
+| gnn-restart | 21 named | 0.956 | 0.997 | 0.919 | 3 | 2 | 1 | 89.6 |
+| gnn-restart | 50 random | 0.851 | 0.990 | 0.746 | 60 | 64 | 18 | 382.6 |
 
-Highest pairwise F1 over the random set: `correlate-window`, 0.934.
+Highest pairwise F1 over the random set: `correlate-assign-full`, 0.958.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/bench/random-dark.svg">
