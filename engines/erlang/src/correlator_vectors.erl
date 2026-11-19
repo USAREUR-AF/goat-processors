@@ -1,6 +1,8 @@
 %% Runs every scenario vector and load vector (spec/vector-format.md).
 -module(correlator_vectors).
 -export([main/1]).
+%% The structural comparison of spec/vector-format.md, shared with fuse_vectors.
+-export([compare/3, report/2, read/1]).
 
 main([Root]) ->
     Scenarios = lists:sort(filelib:wildcard(filename:join(Root, "packs/correlate-*/vectors/*.json"))),
