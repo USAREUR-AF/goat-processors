@@ -1,13 +1,14 @@
 %% Runs every scenario vector and load vector (spec/vector-format.md).
 -module(correlator_vectors).
--export([main/1]).
+%% compare/3 and report/2 are shared with quality_vectors.
+-export([main/1, compare/3, report/2]).
 
 main([Root]) ->
-    Scenarios = lists:sort(filelib:wildcard(filename:join(Root, "packs/*/vectors/*.json"))),
+    Scenarios = lists:sort(filelib:wildcard(filename:join(Root, "packs/correlate-*/vectors/*.json"))),
     Loads = lists:sort(filelib:wildcard(filename:join(Root, "spec/correlate-load-vectors/*.json"))),
     Results = [scenario(Root, F) || F <- Scenarios] ++ [load(F) || F <- Loads],
     Failed = [R || R <- Results, R =/= ok],
-    io:format("~b vectors, ~b passed, ~b failed~n",
+    io:format("correlate: ~b vectors, ~b passed, ~b failed~n",
               [length(Results), length(Results) - length(Failed), length(Failed)]),
     halt(case Failed of [] -> 0; _ -> 1 end).
 

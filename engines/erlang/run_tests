@@ -1,6 +1,10 @@
 #!/bin/sh
-# Build, then run every scenario vector and load vector; non-zero on failure.
+# Build, then run every correlate vector (packs/correlate-*, spec/correlate-load-vectors)
+# and every quality vector (packs/quality-*, spec/quality-load-vectors); non-zero on failure.
 set -e
 here="$(cd "$(dirname "$0")" && pwd)"
 "$here/build.sh"
-exec erl -noshell -pa "$here/ebin" -run correlator_vectors main "$here/../.."
+status=0
+erl -noshell -pa "$here/ebin" -run correlator_vectors main "$here/../.." || status=1
+erl -noshell -pa "$here/ebin" -run quality_vectors main "$here/../.." || status=1
+exit $status
