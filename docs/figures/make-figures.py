@@ -462,8 +462,8 @@ def fig_engines():
     words = {2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six", 7: "Seven", 8: "Eight", 9: "Nine"}
     title = "%s engines, written apart, must give the same answer on every vector" % words.get(len(present), len(present))
     f = SVG(W, 500, title,
-            "%d scenario vectors (%d steps, %d trace records) and %d load vectors sit at the centre. "
-            "tools/make-vectors.py states each decision by hand and the Python engine computes the numbers; "
+            "%d scenario vectors (%d steps, %d trace records) and %d load vectors sit at the center. "
+            "each generator under tools/ states its decisions by hand and the Python engine computes the numbers; "
             "the %s engines are written from the specification and the vectors alone and must reproduce every "
             "event, trace record and final snapshot." % (len(vs), steps, traces, loads,
                                                         ", ".join(name for _, name in present[1:])))

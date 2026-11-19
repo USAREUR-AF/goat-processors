@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 500" width="880" height="500" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, &apos;Segoe UI&apos;, &apos;Noto Sans&apos;, Helvetica, Arial, sans-serif">
 <title id="t">Seven engines, written apart, must give the same answer on every vector</title>
-<desc id="d">32 scenario vectors (152 steps, 472 trace records) and 21 load vectors sit at the centre. tools/make-vectors.py states each decision by hand and the Python engine computes the numbers; the Rust, Go, Java, C++, Erlang, Zig engines are written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot.</desc>
+<desc id="d">32 scenario vectors (152 steps, 472 trace records) and 21 load vectors sit at the center. each generator under tools/ states its decisions by hand and the Python engine computes the numbers; the Rust, Go, Java, C++, Erlang, Zig engines are written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot.</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#7d8590"/></marker></defs>
 <rect width="100%" height="100%" rx="12" fill="#0d1117"/>
 <text x="24" y="38" font-size="20" fill="#e6edf3" text-anchor="start" font-weight="600">Seven engines, written apart, must give the same answer on every vector</text>
