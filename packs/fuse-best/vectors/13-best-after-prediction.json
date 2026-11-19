@@ -1,0 +1,183 @@
+{
+ "name": "13-best-after-prediction",
+ "pack": "fuse-best",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "a",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "fuse.group": "s1",
+    "ce": 20
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/a",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-2",
+    "uid": "b",
+    "time_ms": 10000,
+    "lat": 1.0,
+    "lon": 1.000269837,
+    "fuse.group": "s1",
+    "ce": 25,
+    "hae": 800
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-2/b",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "tick": 10000,
+   "expect": [
+    {
+     "ev": "fused",
+     "group": "s1",
+     "members": [
+      "radar-1/a",
+      "radar-2/b"
+     ],
+     "from": "radar-2/b",
+     "lat": 1.0,
+     "lon": 1.000269837,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 25.0,
+     "hae": 800.0,
+     "hae_from": "radar-2/b",
+     "attributes": {}
+    }
+   ],
+   "trace": [
+    {
+     "stage": "kinematics",
+     "group": "s1",
+     "method": "best",
+     "candidates": [
+      {
+       "member": "radar-1/a",
+       "var": 2005800.0,
+       "time_ms": 0,
+       "rank": null
+      },
+      {
+       "member": "radar-2/b",
+       "var": 1250.0,
+       "time_ms": 10000,
+       "rank": null
+      }
+     ],
+     "winner": "radar-2/b"
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "track.simulated",
+     "rule": "max",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "track.confirmed",
+     "rule": "min",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "track.confidence",
+     "rule": "max",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {
+   "radar-1/a": {
+    "last_time_ms": 0,
+    "group": "s1",
+    "filter": {
+     "east": [
+      0.0,
+      0.0,
+      400.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      400.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 20,
+     "fuse.group": "s1",
+     "lat": 1.0,
+     "lon": 1.0,
+     "time_ms": 0,
+     "track.source_id": "radar-1",
+     "uid": "a"
+    }
+   },
+   "radar-2/b": {
+    "last_time_ms": 10000,
+    "group": "s1",
+    "filter": {
+     "east": [
+      29.999977027163613,
+      0.0,
+      625.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      625.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 25,
+     "fuse.group": "s1",
+     "hae": 800,
+     "lat": 1.0,
+     "lon": 1.000269837,
+     "time_ms": 10000,
+     "track.source_id": "radar-2",
+     "uid": "b"
+    }
+   }
+  }
+ }
+}

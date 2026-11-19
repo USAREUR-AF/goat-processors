@@ -1,0 +1,234 @@
+{
+ "name": "05-stale-members-drop",
+ "pack": "fuse-independent",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "fuse.group": "s1",
+    "ce": 30
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/T1",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "adsb",
+    "uid": "A7",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.000089946,
+    "fuse.group": "s1",
+    "ce": 30,
+    "stale_ms": 3000
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "adsb/A7",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "tick": 2999,
+   "expect": [
+    {
+     "ev": "fused",
+     "group": "s1",
+     "members": [
+      "adsb/A7",
+      "radar-1/T1"
+     ],
+     "from": null,
+     "lat": 1.0,
+     "lon": 1.000044973,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 213.1434176951015,
+     "attributes": {}
+    }
+   ],
+   "trace": [
+    {
+     "stage": "kinematics",
+     "group": "s1",
+     "method": "inverse_variance",
+     "candidates": [
+      {
+       "member": "adsb/A7",
+       "var": 181720.46602699402,
+       "time_ms": 0,
+       "rank": 0
+      },
+      {
+       "member": "radar-1/T1",
+       "var": 181720.46602699402,
+       "time_ms": 0,
+       "rank": 1
+      }
+     ],
+     "winner": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "type",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "callsign",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    }
+   ]
+  },
+  {
+   "tick": 3000,
+   "expect": [
+    {
+     "ev": "drop",
+     "entity": "adsb/A7",
+     "group": "s1"
+    },
+    {
+     "ev": "fused",
+     "group": "s1",
+     "members": [
+      "radar-1/T1"
+     ],
+     "from": null,
+     "lat": 1.0,
+     "lon": 1.0,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 301.5298492686918,
+     "attributes": {}
+    }
+   ],
+   "trace": [
+    {
+     "stage": "kinematics",
+     "group": "s1",
+     "method": "inverse_variance",
+     "candidates": [
+      {
+       "member": "radar-1/T1",
+       "var": 181840.5,
+       "time_ms": 0,
+       "rank": 1
+      }
+     ],
+     "winner": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "type",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "callsign",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    }
+   ]
+  },
+  {
+   "tick": 120000,
+   "expect": [
+    {
+     "ev": "fused",
+     "group": "s1",
+     "members": [
+      "radar-1/T1"
+     ],
+     "from": null,
+     "lat": 1.0,
+     "lon": 1.0,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 13994.31670357649,
+     "attributes": {}
+    }
+   ],
+   "trace": [
+    {
+     "stage": "kinematics",
+     "group": "s1",
+     "method": "inverse_variance",
+     "candidates": [
+      {
+       "member": "radar-1/T1",
+       "var": 391681800.0,
+       "time_ms": 0,
+       "rank": 1
+      }
+     ],
+     "winner": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "type",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "callsign",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    }
+   ]
+  },
+  {
+   "tick": 120001,
+   "expect": [
+    {
+     "ev": "drop",
+     "entity": "radar-1/T1",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {}
+ }
+}

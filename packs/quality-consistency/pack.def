@@ -1,0 +1,16 @@
+# Reported against observed error. For each report the squared distance from
+# the track's predicted position, divided by the predicted plus the reported
+# variance, has mean 2 (chi-square, 2 degrees of freedom) when the source's
+# reported error is honest. A source whose mean over its tracks stays above 6
+# on two ticks understates its error: its reports leave with ce doubled until
+# the mean falls below 3. A source that omits ce on more than half its reports
+# raises an alert. A track whose speed implied by successive positions differs
+# from its reported speed by more than 20 m/s on average is marked until the
+# difference falls below 10 m/s.
+pack     quality-consistency
+version  0.1.0
+filter   accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+window   window_ms=60000 min_samples=3 forget_ms=300000
+rule     overconfident   scope=source measure=nis_mean       op=> limit=6   for=2 clear=3   action=downgrade factor=2
+rule     no-error        scope=source measure=missing_ce     op=> limit=0.5 for=1 clear=0.5 action=alert
+rule     speed-mismatch  scope=entity measure=speed_err_mean op=> limit=20  for=1 clear=10  action=mark
