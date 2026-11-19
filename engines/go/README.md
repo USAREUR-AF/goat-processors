@@ -2,11 +2,13 @@
 
 An implementation of `spec/correlate.md` (version 0.4, method `confirm`) and
 `spec/correlate-assign.md` (version 0.2, method `assign`) in Go, standard library only.
-The pack's `method` line selects which runs.
+The pack's `method` line selects which runs. The `fuse` package
+(`engines/go/fuse/`) implements `spec/fuse.md` (version 0.1).
 
 The package `filter/` implements `spec/filter.md` (version 0.1), the keep/drop
 filter. It reads reports with the correlate engine's own reader
 (`reports.go`, spec/correlate.md Reports), which `spec/filter.md` cites.
+
 It was written from the specification and the vectors alone, without
 reference to any other engine.
 
@@ -23,7 +25,13 @@ reference to any other engine.
 | `filter/engine.go` | `New`, `Ingest`, `Tick`, `Snapshot`: rules, decision, events, state, forgetting (spec/filter.md: Rules, Tick, Events, Trace, Snapshot) |
 | `filter/vectors_test.go` | runs every `packs/filter-*` vector and every `spec/filter-load-vectors` vector |
 | `DISAGREEMENTS.md` | vectors that contradict the specification (none), and the points it leaves open |
-| `vectors_test.go` | runs every scenario vector and every load vector with the structural comparison of `spec/vector-format.md` |
+| `shared.go` | the exported Frame, Track estimate filter and report checks the `fuse` package reuses (spec/fuse.md: Shared with correlate.md) |
+| `fuse/pack.go` | fuse `LoadPack(dir)` / `ParsePack(text)` (spec/fuse.md: Pack) |
+| `fuse/engine.go` | fuse `New`, `Ingest`, `Tick`, `Snapshot`: Reports, Groups, On each tick, Fused event, Height, Snapshot |
+| `fuse/kinematics.go` | the five kinematics methods, the covariance-intersection weight and fold, and the kinematics and intersect trace (spec/fuse.md: Kinematics) |
+| `fuse/attributes.go` | candidates, the five attribute rules, majority equality and the attribute trace (spec/fuse.md: Attributes) |
+| `fuse/vectors_test.go` | runs every `packs/fuse-*` scenario vector and every `spec/fuse-load-vectors` load vector |
+| `vectors_test.go` | runs every correlate scenario vector and every load vector with the structural comparison of `spec/vector-format.md` |
 
 ## Build
 
@@ -48,3 +56,6 @@ snapshot. `TestLoadVectors` parses each `spec/correlate-load-vectors/*.json` (in
 `spec/filter-load-vectors/*.json`) and checks
 that it fails or succeeds as `expect_error` says. A failure prints the path of
 the first mismatch, for example `steps[2].trace[0].value: got ..., want ...`.
+
+`TestFuseScenarioVectors` and `TestFuseLoadVectors` (package `fuse`) do the same
+for `packs/fuse-*/vectors/*.json` and `spec/fuse-load-vectors/*.json`.
