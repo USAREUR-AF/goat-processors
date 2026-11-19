@@ -3,7 +3,7 @@
 ## Vectors that contradict the specification
 
 None. Every load vector (01 to 42) and every scenario vector (01 to 44)
-agrees with `spec/correlate.md` 0.5 and `spec/correlate-assign.md` 0.3 as
+agrees with `spec/correlate.md` 0.6 and `spec/correlate-assign.md` 0.4 as
 this engine reads them.
 
 ## Filter: vectors that contradict `filter.md` 0.1
@@ -21,11 +21,11 @@ None. Every filter load vector (01 to 50) and every filter scenario vector
 | Differences of two times (`near` age, `interval`, tick `age`) that overflow int64 | Computed in i128; a trace value outside int64 is written as a float. |
 | `version` | Any single token is accepted (load vector 03 uses `version 1`); no semver check. |
 
-## Points `correlate-assign.md` 0.3 leaves open
+## Points `correlate-assign.md` 0.4 leaves open
 
 None found. (The gate-record order left open in 0.2 is now stated in Trace.)
 
-## Points `correlate.md` 0.5 leaves open
+## Points `correlate.md` 0.6 leaves open
 
 | Point | This engine |
 |---|---|
@@ -53,14 +53,14 @@ q15) agrees with `spec/quality.md` 0.1 as this engine reads it.
 | `rule` followed directly by a parameter (`rule scope=entity ...`) | The first token is the name; `=` is not a name character, so it is a load error ("no name"). Load vector 19 agrees. |
 | `#` inside a token | Starts a comment anywhere on the line, as the Pack section says. |
 
-## `fuse.md` 0.1
+## `fuse.md` 0.2
 
 ### Vectors that contradict the specification
 
 None. Every fuse load vector (01 to 33) and every fuse scenario vector (01 to
-16) agrees with `spec/fuse.md` 0.1 as this engine reads it.
+16) agrees with `spec/fuse.md` 0.2 as this engine reads it.
 
-### Points `fuse.md` 0.1 leaves open
+### Points `fuse.md` 0.2 leaves open
 
 | Point | This engine |
 |---|---|

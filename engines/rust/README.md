@@ -1,7 +1,7 @@
 # goat-processors, rust engine
 
 An implementation of `spec/correlate.md` (version 0.4),
-`spec/correlate-assign.md` (version 0.2), `spec/fuse.md` (version 0.1), the filter
+`spec/correlate-assign.md` (version 0.4), `spec/fuse.md` (version 0.2), the filter
 function `spec/filter.md` (version 0.1) and `spec/quality.md` (version 0.1) in Rust,
 written from the
 specifications and the vectors only. The pack's `method` line selects which
@@ -18,7 +18,7 @@ its own small JSON reader (`src/json.rs`).
 | `src/filter_fn/pack.rs` | `filter.md` Pack: `filter_fn::load_pack(dir)` and `filter_fn::parse_pack(text)` |
 | `src/filter_fn/geometry.rs` | `filter.md` Geometry: distance, polygon, reference prediction |
 | `src/filter_fn/mod.rs` | `filter.md` Reports, Conditions, Rules, Tick, Events, Trace, Snapshot: `filter_fn::Engine` |
-| `src/fuse.rs` | `spec/fuse.md` Reports (validation, normalised report), Groups, On each tick, Fused event (with Height), Events, Trace, Snapshot: `fuse::Engine` |
+| `src/fuse.rs` | `spec/fuse.md` Reports (validation, normalized report), Groups, On each tick, Fused event (with Height), Events, Trace, Snapshot: `fuse::Engine` |
 | `src/fuse/pack.rs` | `spec/fuse.md` Pack: `fuse::load_pack(dir)` and `fuse::parse_pack(text)` |
 | `src/fuse/kinematics.rs` | `spec/fuse.md` Kinematics: `inverse_variance`, `covariance_intersection` (weight, fold), `best`, `priority`, `latest` |
 | `src/fuse/attributes.rs` | `spec/fuse.md` Attributes: candidates, the five rules, `majority` equality |
@@ -79,4 +79,4 @@ and `fuse_load_vectors` do the same for `packs/fuse-*/vectors/*.json` and
 see one line per vector.
 
 Points still open under correlate 0.4, correlate-assign 0.2, filter 0.1,
-fuse 0.1 and quality 0.1 are in `DISAGREEMENTS.md`.
+fuse 0.2 and quality 0.1 are in `DISAGREEMENTS.md`.

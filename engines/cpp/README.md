@@ -5,8 +5,8 @@ Four functions: correlate, filter, fuse and quality.
 ## Correlate and filter
 
 A C++17 implementation of `spec/filter.md` (version 0.1), of `spec/correlate.md`
-(version 0.5, method `confirm`, with the two-model filter) and of
-`spec/correlate-assign.md` (version 0.3, method `assign`, with the multi-frame
+(version 0.6, method `confirm`, with the two-model filter) and of
+`spec/correlate-assign.md` (version 0.4, method `assign`, with the multi-frame
 window), written from the specifications and the vectors. The pack's `method`
 line selects which correlate method runs. It uses only the standard library and has its
 own small JSON reader.
@@ -72,7 +72,7 @@ extended precision (correlate.md "Floats").
 
 ## Fuse
 
-A C++17 implementation of `spec/fuse.md` (version 0.1), in its own module
+A C++17 implementation of `spec/fuse.md` (version 0.2), in its own module
 (`corr::fuse`). It reuses the correlate engine's filter and frame from
 `src/track.cpp` and its report reading from `src/report.cpp`, as fuse.md
 "Shared with correlate.md" cites.
@@ -80,7 +80,7 @@ A C++17 implementation of `spec/fuse.md` (version 0.1), in its own module
 | File | Spec section |
 |---|---|
 | `src/fuse_pack.cpp` | Pack (`corr::fuse::parse_pack`, `corr::fuse::load_pack`) |
-| `src/fuse.cpp` | Reports (normalised report, `stale-report`), Groups (`new`, `move`, output order), On each tick, Kinematics (all five methods), Attributes (all five rules), Fused event, Height, Trace, Snapshot |
+| `src/fuse.cpp` | Reports (normalized report, `stale-report`), Groups (`new`, `move`, output order), On each tick, Kinematics (all five methods), Attributes (all five rules), Fused event, Height, Trace, Snapshot |
 | `test/run_fuse_vectors.cpp` | runs every vector under `packs/fuse-*/vectors/` and `spec/fuse-load-vectors/` |
 
 ```cpp

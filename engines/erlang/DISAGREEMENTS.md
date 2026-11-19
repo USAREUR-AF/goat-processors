@@ -4,8 +4,8 @@
 
 None. Every vector under `packs/*/vectors/`, `spec/correlate-load-vectors/`,
 `spec/filter-load-vectors/`, `spec/fuse-load-vectors/` and `spec/quality-load-vectors/`
-agrees with `spec/correlate.md` (0.5), `spec/correlate-assign.md` (0.3), `spec/filter.md` (0.1),
-`spec/fuse.md` (0.1) and `spec/quality.md` (0.1) as this engine reads them.
+agrees with `spec/correlate.md` (0.6), `spec/correlate-assign.md` (0.4), `spec/filter.md` (0.1),
+`spec/fuse.md` (0.2) and `spec/quality.md` (0.1) as this engine reads them.
 
 ## Open points the specifications leave undecided
 

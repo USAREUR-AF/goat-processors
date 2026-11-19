@@ -490,9 +490,9 @@ snapshot_entity(E) ->
     Base = #{<<"last_time_ms">> => maps:get(time, E),
              <<"filter">> => Filter(maps:get(filter, E))},
     case E of
-        #{models := {Quiet, Manoeuvre}, mode := {Mu1, Mu2}} ->
+        #{models := {Quiet, Maneuver}, mode := {Mu1, Mu2}} ->
             Base#{<<"models">> => #{<<"quiet">> => Filter(Quiet),
-                                    <<"manoeuvre">> => Filter(Manoeuvre)},
+                                    <<"maneuver">> => Filter(Maneuver)},
                   <<"mode">> => [Mu1, Mu2]};
         _ -> Base
     end.

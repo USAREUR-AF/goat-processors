@@ -28,9 +28,9 @@ struct Point {
     double east, north;
 };
 
-// Degrees to metres east and north of the reference (lat0, lon0).
+// Degrees to meters east and north of the reference (lat0, lon0).
 Point to_plane(double lat0, double lon0, double lat, double lon);
-// Metres east and north of the reference back to (lat, lon) in degrees.
+// Meters east and north of the reference back to (lat, lon) in degrees.
 std::pair<double, double> to_degrees(double lat0, double lon0, double east, double north);
 
 // ---- correlate.md "Reports" ------------------------------------------------

@@ -11,14 +11,14 @@ pub struct FilterParams {
     pub unknown_vel_ms: f64,
 }
 
-/// The `manoeuvre` directive (spec: correlate.md Two-model filter).
+/// The `maneuver` directive (spec: correlate.md Two-model filter).
 #[derive(Debug, Clone, PartialEq)]
-pub struct Manoeuvre {
-    /// `q2`, the manoeuvre model's acceleration variance.
+pub struct Maneuver {
+    /// `q2`, the maneuver model's acceleration variance.
     pub accel_var: f64,
-    /// `a`, per second, quiet to manoeuvre.
+    /// `a`, per second, quiet to maneuver.
     pub p_enter: f64,
-    /// `b`, per second, manoeuvre to quiet.
+    /// `b`, per second, maneuver to quiet.
     pub p_leave: f64,
 }
 
@@ -67,8 +67,8 @@ pub struct Pack {
     pub method: Method,
     pub version: String,
     pub filter: FilterParams,
-    /// Present when the pack has the `manoeuvre` directive.
-    pub manoeuvre: Option<Manoeuvre>,
+    /// Present when the pack has the `maneuver` directive.
+    pub maneuver: Option<Maneuver>,
     pub gate: Vec<Test>,
     pub confirm: Vec<Test>,
     pub hold: Vec<Test>,
@@ -252,7 +252,7 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
     let mut method = Method::Confirm;
     let mut new_cost = None;
     let mut keep_bonus = None;
-    let mut manoeuvre = None;
+    let mut maneuver = None;
     let mut window = None;
     let mut hypotheses = None;
 
@@ -299,15 +299,15 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
                 }
                 filter = Some(f);
             }
-            "manoeuvre" => {
+            "maneuver" => {
                 let p = Params::parse(args, &["accel_var", "p_enter", "p_leave"]).map_err(at)?;
-                let m = Manoeuvre { accel_var: p.num("accel_var").map_err(at)?, p_enter: p.num("p_enter").map_err(at)?, p_leave: p.num("p_leave").map_err(at)? };
+                let m = Maneuver { accel_var: p.num("accel_var").map_err(at)?, p_enter: p.num("p_enter").map_err(at)?, p_leave: p.num("p_leave").map_err(at)? };
                 // p_enter and p_leave above 0 with a sum below 1; accel_var is
                 // checked against filter's once the whole file is read.
                 if !(m.p_enter > 0.0 && m.p_leave > 0.0 && m.p_enter + m.p_leave < 1.0) {
-                    return Err(at("manoeuvre p_enter and p_leave must be above 0 with a sum below 1".to_string()));
+                    return Err(at("maneuver p_enter and p_leave must be above 0 with a sum below 1".to_string()));
                 }
-                manoeuvre = Some(m);
+                maneuver = Some(m);
             }
             "window" => window = Some(positive(one_arg(directive, args).map_err(at)?).map_err(at)?),
             "hypotheses" => hypotheses = Some(positive(one_arg(directive, args).map_err(at)?).map_err(at)?),
@@ -341,9 +341,9 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
 
     let need = |what: &str| format!("missing required directive: {}", what);
     let filter = filter.ok_or_else(|| need("filter"))?;
-    if let Some(m) = &manoeuvre {
+    if let Some(m) = &maneuver {
         if !(m.accel_var > filter.accel_var) {
-            return Err("manoeuvre accel_var must be above filter accel_var".to_string());
+            return Err("maneuver accel_var must be above filter accel_var".to_string());
         }
     }
     let refused: &[&str] = match method {
@@ -360,7 +360,7 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
                 return Err("new_cost must be above 0".to_string());
             }
         }
-        // correlate-assign.md 0.3: hypotheses above 1 needs window above 1.
+        // correlate-assign.md 0.4: hypotheses above 1 needs window above 1.
         let (window, hypotheses) = (window.unwrap_or(1), hypotheses.unwrap_or(1));
         if hypotheses > 1 && window == 1 {
             return Err("hypotheses above 1 needs window above 1".to_string());
@@ -375,7 +375,7 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
             method,
             version: version.ok_or_else(|| need("version"))?,
             filter,
-            manoeuvre,
+            maneuver,
             gate,
             confirm,
             hold,
@@ -400,7 +400,7 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         name: name.ok_or_else(|| need("pack"))?,
         version: version.ok_or_else(|| need("version"))?,
         filter,
-        manoeuvre,
+        maneuver,
         gate,
         confirm,
         hold,

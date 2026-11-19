@@ -31,9 +31,9 @@ std::optional<std::string> group_of(const Json& report) {
     return g->string;
 }
 
-// fuse.md "Reports", the normalised report: every key removed that is `null`,
+// fuse.md "Reports", the normalized report: every key removed that is `null`,
 // or that correlate.md Reports or the `fuse.group` rule treats as absent.
-Json normalise(const Json& r) {
+Json normalize(const Json& r) {
     Json out = Json::make_object();
     for (const auto& kv : r.object) {
         const std::string& key = kv.first;
@@ -112,8 +112,8 @@ Output Engine::ingest(const Json& r) {
         return out;
     }
 
-    // Every value read from here on comes from the normalised report.
-    Json report = normalise(r);
+    // Every value read from here on comes from the normalized report.
+    Json report = normalize(r);
     const double lat = report.find("lat")->number, lon = report.find("lon")->number;
 
     // correlate.md "Frame": the reference is the first accepted report.

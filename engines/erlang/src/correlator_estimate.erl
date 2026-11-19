@@ -1,7 +1,7 @@
 %% An entity's estimate: one filter (correlate.md "Track estimate"), or two
 %% models combined (correlate.md "Two-model filter") when the pack has a
-%% manoeuvre line. The estimate lives in the entity map under `filter`, plus
-%% `models` => {Quiet, Manoeuvre} and `mode` => {Mu1, Mu2} with two models.
+%% maneuver line. The estimate lives in the entity map under `filter`, plus
+%% `models` => {Quiet, Maneuver} and `mode` => {Mu1, Mu2} with two models.
 -module(correlator_estimate).
 -export([init/4, update/6, predict/3]).
 
@@ -10,7 +10,7 @@
 init(Z, Vel, Ce, Pack) ->
     F = maps:get(filter, Pack),
     Filter = correlator_filter:init(Z, Vel, Ce, F),
-    case maps:find(manoeuvre, Pack) of
+    case maps:find(maneuver, Pack) of
         error -> #{filter => Filter};
         {ok, M} ->
             #{<<"p_enter">> := A, <<"p_leave">> := B} = M,
@@ -23,7 +23,7 @@ init(Z, Vel, Ce, Pack) ->
 update(Est, Dt, Z, Vel, Ce, Pack) ->
     F = maps:get(filter, Pack),
     Q1 = maps:get(<<"accel_var">>, F),
-    case maps:find(manoeuvre, Pack) of
+    case maps:find(maneuver, Pack) of
         error ->
             {Filter, _} = correlator_filter:update(maps:get(filter, Est), Dt, Q1, Z, Vel, Ce, F),
             {#{filter => Filter}, []};
@@ -47,8 +47,8 @@ update(Est, Dt, Z, Vel, Ce, Pack) ->
             %% Step 5, combination.
             {#{filter => blend(NewMu1, NewMu2, New1, New2),
                models => {New1, New2}, mode => {NewMu1, NewMu2}},
-             [{<<"likelihood">>, <<"quiet">>, L1}, {<<"likelihood">>, <<"manoeuvre">>, L2},
-              {<<"mode">>, <<"quiet">>, NewMu1}, {<<"mode">>, <<"manoeuvre">>, NewMu2}]}
+             [{<<"likelihood">>, <<"quiet">>, L1}, {<<"likelihood">>, <<"maneuver">>, L2},
+              {<<"mode">>, <<"quiet">>, NewMu1}, {<<"mode">>, <<"maneuver">>, NewMu2}]}
     end.
 
 %% Switching over Dt seconds: {t11, t12, t21, t22}.
@@ -100,7 +100,7 @@ blend_axis(W1, W2, {P1, V1, PP1, PV1, VV1}, {P2, V2, PP2, PV2, VV2}) ->
 %% variance, combined with the current mode probabilities.
 predict(Ent, Dt, Pack) ->
     Q1 = maps:get(<<"accel_var">>, maps:get(filter, Pack)),
-    case maps:find(manoeuvre, Pack) of
+    case maps:find(maneuver, Pack) of
         error -> correlator_filter:predict(maps:get(filter, Ent), Dt, Q1);
         {ok, #{<<"accel_var">> := Q2}} ->
             {Model1, Model2} = maps:get(models, Ent),

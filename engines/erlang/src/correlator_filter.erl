@@ -12,7 +12,7 @@ wrap(X) when X > 180 -> wrap(X - 360);
 wrap(X) when X =< -180 -> wrap(X + 360);
 wrap(X) -> X.
 
-%% Frame: degrees to metres east and north of {Lat0, Lon0}.
+%% Frame: degrees to meters east and north of {Lat0, Lon0}.
 to_plane({Lat0, Lon0}, Lat, Lon) ->
     DLon = wrap(Lon - Lon0),
     {?R * rad(DLon) * math:cos(rad(Lat0)), ?R * rad(Lat - Lat0)}.

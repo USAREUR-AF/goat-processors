@@ -77,8 +77,8 @@ type Entity struct {
 	Source       string
 	LastTime     int64
 	East, North  Axis       // the filter; with two models, their combination
-	Models       *[2]Model  // with the manoeuvre line: quiet, manoeuvre (spec: Two-model filter)
-	Mode         [2]float64 // with the manoeuvre line: mu1, mu2
+	Models       *[2]Model  // with the maneuver line: quiet, maneuver (spec: Two-model filter)
+	Mode         [2]float64 // with the maneuver line: mu1, mu2
 	Ce           float64
 	Last         map[string]any // the last accepted report
 	Group        string
@@ -160,14 +160,14 @@ func pairKey(a, b string) string {
 	return a + "|" + b
 }
 
-// toPlane converts degrees to metres east and north of the reference (spec: Frame).
+// toPlane converts degrees to meters east and north of the reference (spec: Frame).
 func (g *Engine) toPlane(lat, lon float64) (float64, float64) {
 	lat0, lon0 := g.ref[0], g.ref[1]
 	dlon := wrap180(lon - lon0)
 	return earthR * rad(dlon) * math.Cos(rad(lat0)), earthR * rad(lat-lat0)
 }
 
-// toDegrees converts plane metres back to degrees (spec: Frame).
+// toDegrees converts plane meters back to degrees (spec: Frame).
 func (g *Engine) toDegrees(east, north float64) (float64, float64) {
 	lat0, lon0 := g.ref[0], g.ref[1]
 	lat := lat0 + deg(north/earthR)

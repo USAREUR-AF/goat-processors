@@ -1,11 +1,11 @@
-%% The fuse engine (spec/fuse.md, version 0.1): load_pack, ingest, tick,
+%% The fuse engine (spec/fuse.md, version 0.2): load_pack, ingest, tick,
 %% snapshot. Frame and the per-entity filter are correlate.md's, shared with
 %% the correlator through correlator_filter.
 %%
 %% State is a value; ingest and tick return {Events, Trace, NewState}.
 %% An entity is #{time, group, filter, report}: last_time_ms, the group name
 %% (a binary, or null for its own unnamed group), the filter
-%% #{east => {P, V, PP, PV, VV}, north => ...} and the last normalised report.
+%% #{east => {P, V, PP, PV, VV}, north => ...} and the last normalized report.
 -module(fuse).
 -export([load_pack/1, new/1, ingest/2, tick/2, snapshot/1]).
 
@@ -26,14 +26,14 @@ new(Pack) -> #{pack => Pack, ref => none, entities => #{}}.
 %% ================================================================ Reports
 
 %% fuse.md "Reports": reject a missing required key; ignore a stale report;
-%% otherwise accept the normalised report.
+%% otherwise accept the normalized report.
 ingest(Report, St) ->
     case [K || {K, Type} <- ?REQUIRED, not typed(Type, maps:get(K, Report, null))] of
         [Missing | _] ->
             {[#{<<"ev">> => <<"reject">>, <<"reason">> => <<"missing:", Missing/binary>>}],
              [], St};
         [] ->
-            R = normalise(Report),
+            R = normalize(Report),
             Key = <<(maps:get(<<"track.source_id">>, R))/binary, "/",
                     (maps:get(<<"uid">>, R))/binary>>,
             T = maps:get(<<"time_ms">>, R),
@@ -52,9 +52,9 @@ typed(integer, V) -> is_integer(V);
 typed(number, V) -> is_number(V);
 typed(positive, V) -> is_number(V) andalso V > 0.
 
-%% The normalised report: every null key removed, and every optional key that
+%% The normalized report: every null key removed, and every optional key that
 %% is treated as absent.
-normalise(Report) ->
+normalize(Report) ->
     maps:filter(fun(_K, null) -> false;
                    (K, V) ->
                         case lists:keyfind(K, 1, ?OPTIONAL) of

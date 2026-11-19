@@ -184,7 +184,7 @@ def render_all(res):
             "Pairwise association F1 per scenario", "1.0 is every pair of tracks grouped exactly as in truth",
             rows, packs, f1, mode, vmax=1.0, fmt_s="{:.2f}")
         files[os.path.join(FIG, "gospa-%s.svg" % mode)] = grouped_bars(
-            "GOSPA per scenario, mean over ticks", "metres, c = 500 m, p = 2; lower is better",
+            "GOSPA per scenario, mean over ticks", "meters, c = 500 m, p = 2; lower is better",
             rows, packs, gs, mode, fmt_s="{:.0f}")
         files[os.path.join(FIG, "random-%s.svg" % mode)] = panels(
             "Seeded random set: %d scenarios pooled" % len(random),

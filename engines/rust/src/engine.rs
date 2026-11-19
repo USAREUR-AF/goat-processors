@@ -28,7 +28,7 @@ struct Entity {
     /// The entity's filter; with two models, their combination.
     east: Axis,
     north: Axis,
-    /// With the pack's `manoeuvre` directive: the two models and `mu`.
+    /// With the pack's `maneuver` directive: the two models and `mu`.
     imm: Option<TwoModel>,
     /// The entity's last accepted report.
     report: BTreeMap<String, Json>,
@@ -65,7 +65,7 @@ impl Entity {
     fn predict(&self, t: i64, pack: &Pack) -> (Axis, Axis) {
         let dt = (t - self.last_time_ms) as f64 / 1000.0;
         let q1 = pack.filter.accel_var;
-        match (&self.imm, &pack.manoeuvre) {
+        match (&self.imm, &pack.maneuver) {
             (Some(two), Some(m)) => {
                 let p = two.predict(dt, [q1, m.accel_var]);
                 (p.east, p.north)
@@ -209,14 +209,14 @@ impl Engine {
         };
 
         let meas = Measurement { pos: (ze, zn), r_pos: ce * ce, vel, r_vel: f.vel_sigma_ms * f.vel_sigma_ms };
-        let manoeuvre = self.pack.manoeuvre.clone();
+        let maneuver = self.pack.maneuver.clone();
 
         match self.entities.get_mut(&key) {
             None => {
                 // Track estimate, first report; Two-model filter, first report.
                 let east = Axis::first(ze, vel.map(|v| v.0), ce, f.vel_sigma_ms, f.unknown_vel_ms);
                 let north = Axis::first(zn, vel.map(|v| v.1), ce, f.vel_sigma_ms, f.unknown_vel_ms);
-                let imm = manoeuvre.as_ref().map(|m| TwoModel::first(Model { east, north }, m.p_enter, m.p_leave));
+                let imm = maneuver.as_ref().map(|m| TwoModel::first(Model { east, north }, m.p_enter, m.p_leave));
                 self.entities.insert(
                     key.clone(),
                     Entity {
@@ -235,7 +235,7 @@ impl Engine {
             }
             Some(e) => {
                 let dt = (time_ms - e.last_time_ms) as f64 / 1000.0;
-                match (&e.imm, &manoeuvre) {
+                match (&e.imm, &maneuver) {
                     (Some(two), Some(m)) => {
                         // Two-model filter, later reports, steps 1 to 5.
                         let (next, mode) = two.step(dt, [f.accel_var, m.accel_var], m.p_enter, m.p_leave, &meas);
@@ -244,7 +244,7 @@ impl Engine {
                         e.north = combined.north;
                         e.imm = Some(next);
                         for (test, values) in [("likelihood", mode.lambda), ("mode", mode.mu)] {
-                            for (model, value) in ["quiet", "manoeuvre"].into_iter().zip(values) {
+                            for (model, value) in ["quiet", "maneuver"].into_iter().zip(values) {
                                 out.trace.push(record("filter", &key, model, test, value.into(), Json::Null, true, false));
                             }
                         }
@@ -623,7 +623,7 @@ fn model_json(m: &Model) -> Json {
 fn filter_json(e: &Entity) -> Vec<(&'static str, Json)> {
     let mut pairs = vec![("filter", model_json(&Model { east: e.east, north: e.north }))];
     if let Some(two) = &e.imm {
-        pairs.push(("models", obj(vec![("quiet", model_json(&two.models[0])), ("manoeuvre", model_json(&two.models[1]))])));
+        pairs.push(("models", obj(vec![("quiet", model_json(&two.models[0])), ("maneuver", model_json(&two.models[1]))])));
         pairs.push(("mode", Json::Arr(vec![two.mu[0].into(), two.mu[1].into()])));
     }
     pairs

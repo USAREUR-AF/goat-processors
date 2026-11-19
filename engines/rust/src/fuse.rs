@@ -1,4 +1,4 @@
-//! Fuse, spec/fuse.md version 0.1: one estimate per group of entities that
+//! Fuse, spec/fuse.md version 0.2: one estimate per group of entities that
 //! `fuse.group` says describe one object.
 //!
 //! `fuse::load_pack`, then `fuse::Engine::new(pack)` with `ingest`, `tick`,
@@ -27,7 +27,7 @@ struct Entity {
     group: Option<String>,
     east: Axis,
     north: Axis,
-    /// The last normalised report.
+    /// The last normalized report.
     report: BTreeMap<String, Json>,
 }
 
@@ -61,10 +61,10 @@ fn missing_required(fields: &BTreeMap<String, Json>) -> Option<&'static str> {
     })
 }
 
-/// The normalised report: every key removed that is `null`, an optional
+/// The normalized report: every key removed that is `null`, an optional
 /// correlate key of the wrong type, a `ce` of 0 or below, or an unusable
 /// `fuse.group` (not a string, or empty).
-fn normalise(fields: &BTreeMap<String, Json>) -> BTreeMap<String, Json> {
+fn normalize(fields: &BTreeMap<String, Json>) -> BTreeMap<String, Json> {
     fields
         .iter()
         .filter(|(key, value)| match key.as_str() {
@@ -130,7 +130,7 @@ impl Engine {
             }
         }
 
-        let report = normalise(fields);
+        let report = normalize(fields);
         let group = report.get("fuse.group").and_then(Json::as_str).map(str::to_string);
 
         // Frame: the reference is the first accepted report.

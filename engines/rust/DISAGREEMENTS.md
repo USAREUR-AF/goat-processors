@@ -1,7 +1,7 @@
-# Open points under correlate 0.5 and correlate-assign 0.3
+# Open points under correlate 0.6 and correlate-assign 0.4
 
-No vector contradicts `spec/correlate.md` (version 0.5) or
-`spec/correlate-assign.md` (version 0.3) as this engine reads them: scenario
+No vector contradicts `spec/correlate.md` (version 0.6) or
+`spec/correlate-assign.md` (version 0.4) as this engine reads them: scenario
 vectors 01 to 44 and load vectors 01 to 42 pass.
 
 ## Readings the engine takes
@@ -26,16 +26,16 @@ vector decides either.
 | 1 | Tests (`same`) | `same` compares strings byte for byte and numbers by value; a string never equals a number | The spec does not say how other JSON values compare (`true`, arrays, objects). The engine compares them structurally: `true` equals `true` but never `1`, and arrays and objects are equal when their elements are, with numbers inside them compared by value. |
 | 2 | Reports | An integer is a number written without a fraction or an exponent | The spec sets no range. The engine holds integers as 64-bit signed values. An integer literal outside that range is read as a non-integer number, so `time_ms` or `stale_ms` with that value counts as missing or absent. |
 
-# Open points under fuse 0.1
+# Open points under fuse 0.2
 
-No vector contradicts `spec/fuse.md` (version 0.1) as this engine reads it:
+No vector contradicts `spec/fuse.md` (version 0.2) as this engine reads it:
 scenario vectors `fuse-*` 01 to 16 and fuse load vectors 01 to 33 pass. The
 two points `spec/fuse.md` lists under "Open points" are decided here as
 follows; no vector covers either.
 
 | # | Spec section | What the spec says | What the engine does |
 |---|---|---|---|
-| 1 | Reports | An integer literal outside the signed 64-bit range is open (as `correlate.md`) | As under correlate: read as a non-integer number, so `time_ms` with that value is `missing:time_ms` and `stale_ms` is removed from the normalised report. A `stale_ms` line in a pack outside that range does not load. |
+| 1 | Reports | An integer literal outside the signed 64-bit range is open (as `correlate.md`) | As under correlate: read as a non-integer number, so `time_ms` with that value is `missing:time_ms` and `stale_ms` is removed from the normalized report. A `stale_ms` line in a pack outside that range does not load. |
 | 2 | Attributes | `majority`, `max`, `min` between integers above 2^53 are open | Two values written as integers compare exactly as 64-bit integers; an integer against a non-integer compares as binary64. |
 
 # Filter 0.1

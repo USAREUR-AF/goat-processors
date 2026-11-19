@@ -1,5 +1,5 @@
 {
  "name": "20-assign-without-gate",
- "pack_def": "# Correlate by assignment: every track in one system track, decided at each\n# tick by the least-cost assignment of each source's tracks. A track joins a\n# system track when it is within the 99 % region of the system track's fused\n# estimate (cost below new_cost = 9.21, chi-square 2 degrees of freedom), and\n# passes the gate against every member. keep_bonus favours the current choice.\npack        correlate-assign\nversion     0.1.0\nmethod      assign\nfilter      accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\nnew_cost    9.21\nkeep_bonus  2\nstale_ms    120000",
+ "pack_def": "# Correlate by assignment: every track in one system track, decided at each\n# tick by the least-cost assignment of each source's tracks. A track joins a\n# system track when it is within the 99 % region of the system track's fused\n# estimate (cost below new_cost = 9.21, chi-square 2 degrees of freedom), and\n# passes the gate against every member. keep_bonus favors the current choice.\npack        correlate-assign\nversion     0.1.0\nmethod      assign\nfilter      accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\nnew_cost    9.21\nkeep_bonus  2\nstale_ms    120000",
  "expect_error": false
 }

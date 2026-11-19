@@ -458,7 +458,7 @@ public final class Engine {
         return out;
     }
 
-    /** Spec: Frame, degrees to metres east and north of the reference (lat0, lon0). */
+    /** Spec: Frame, degrees to meters east and north of the reference (lat0, lon0). */
     public static double[] toPlane(double lat0, double lon0, double lat, double lon) {
         double dlon = wrapLon(lon - lon0);
         return new double[] {R * rad(dlon) * Math.cos(rad(lat0)), R * rad(lat - lat0)};

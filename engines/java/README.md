@@ -2,9 +2,9 @@
 
 Implementations, in Java 17 with only the standard library, of
 
-- the correlator: `spec/correlate.md` (version 0.5) and `spec/correlate-assign.md` (version 0.3), package `correlator`;
+- the correlator: `spec/correlate.md` (version 0.6) and `spec/correlate-assign.md` (version 0.4), package `correlator`;
 - the filter: `spec/filter.md` (version 0.1), package `filter`;
-- the fuser: `spec/fuse.md` (version 0.1), package `fuse`;
+- the fuser: `spec/fuse.md` (version 0.2), package `fuse`;
 - quality: `spec/quality.md` (version 0.1), package `quality`.
 
 All were written from the specifications and the vectors, without reading any other engine.
@@ -13,7 +13,7 @@ All were written from the specifications and the vectors, without reading any ot
 
 | File | Spec section |
 |---|---|
-| `Pack.java` | Pack (`load_pack`, the `pack.def` parser, `method`, `manoeuvre`, `window`, `hypotheses` and the directives each method allows) |
+| `Pack.java` | Pack (`load_pack`, the `pack.def` parser, `method`, `maneuver`, `window`, `hypotheses` and the directives each method allows) |
 | `Filter.java` | Track estimate (predict, position and velocity update, prediction; fuse and quality reuse its `Axis`) and Two-model filter (switching, mixing, per-model update, likelihood, mode probabilities, combination) |
 | `Engine.java` | Reports, Frame, Tests, Association, Events, Trace, Snapshot for method `confirm` (`ingest`, `tick`, `snapshot`); the two-model filter trace records; the `retiring` reject |
 | `Assign.java` | correlate-assign.md: Memberships, Assignment of one source (columns, entries, fused estimate, cost, apply), Ranking, Window (staleness and retiring, rows, sources over histories, commit, output), its trace and snapshot; the inverse-variance combination is `Engine.inverseVariance`, which fuse reuses |

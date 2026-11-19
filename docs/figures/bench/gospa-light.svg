@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="670" height="1456" viewBox="0 0 670 1456" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="GOSPA per scenario, mean over ticks">
 <rect width="100%" height="100%" fill="#fcfcfb"/>
 <text x="16" y="26" font-size="15" font-weight="600" fill="#0b0b0b">GOSPA per scenario, mean over ticks</text>
-<text x="16" y="45" font-size="12" fill="#52514e">metres, c = 500 m, p = 2; lower is better</text>
+<text x="16" y="45" font-size="12" fill="#52514e">meters, c = 500 m, p = 2; lower is better</text>
 <rect x="16" y="56" width="10" height="10" rx="2" fill="#2a78d6"/>
 <text x="30" y="65" font-size="12" fill="#52514e">gnn</text>
 <rect x="65" y="56" width="10" height="10" rx="2" fill="#eb6834"/>

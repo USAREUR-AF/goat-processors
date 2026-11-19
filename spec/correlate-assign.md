@@ -1,8 +1,10 @@
 # Correlate by assignment specification
 
-Status: Written. Version 0.3. A second method for the correlate function.
+Status: Written. Version 0.4. A second method for the correlate function.
 Engines implement it from this document, [correlate.md](correlate.md) and the
 vectors, never from another engine's source.
+Version 0.4 takes the pack line `maneuver` (it was `manoeuvre` in 0.3);
+behavior is otherwise unchanged.
 
 ## What this method does
 
@@ -32,7 +34,7 @@ It differs from the `confirm` method of `correlate.md` in four ways:
 
 These sections of `correlate.md` apply unchanged: Reports (keys, types,
 rejects, entity key), Frame, Track estimate (the per-entity filter, updated on
-each accepted report), Two-model filter (when the pack has `manoeuvre`),
+each accepted report), Two-model filter (when the pack has `maneuver`),
 Tests (every test and its trace record), Floats.
 
 ## Memberships
@@ -243,7 +245,7 @@ The two-model filter records of `correlate.md` come from `ingest`.
 `{"ref", "entities", "systems", "next_system", "reported"}`. Each entity
 holds `last_time_ms`, `system` (its committed system track, or null) and
 `filter` as in `correlate.md` (with `models` and `mode` when the pack has
-`manoeuvre`); `systems` maps each committed system track name to its
+`maneuver`); `systems` maps each committed system track name to its
 members in key order; `next_system` is the committed counter; `reported`
 lists, in key order, the entities that reported since the previous tick.
 
@@ -263,7 +265,7 @@ pack        <name>
 version     <semver>
 method      assign
 filter      accel_var=<q> default_ce_m=<m> vel_sigma_ms=<m/s> unknown_vel_ms=<m/s>
-manoeuvre   accel_var=<q2> p_enter=<per s> p_leave=<per s>
+maneuver   accel_var=<q2> p_enter=<per s> p_leave=<per s>
 gate        <test> <param>=<value> ...
 new_cost    <number>
 keep_bonus  <number>
@@ -273,12 +275,12 @@ hypotheses  <k>
 ```
 
 `pack`, `version`, `filter`, `new_cost`, `keep_bonus` and `stale_ms` are
-required and appear once; `manoeuvre`, `window` and `hypotheses` are optional
+required and appear once; `maneuver`, `window` and `hypotheses` are optional
 and appear at most once; `gate` repeats and may be absent, in which case every
 column entry passes. `new_cost` must be above 0 and `keep_bonus` 0 or above.
 `window` and `hypotheses` are integers, 1 or above, written as one value.
 `hypotheses` above 1 needs `window` above 1. Otherwise the pack does not
-load. `manoeuvre` follows `correlate.md`.
+load. `maneuver` follows `correlate.md`.
 
 A `method` value other than `confirm` or `assign` does not load. `method`
 may appear anywhere in the file; which directives are required or refused is

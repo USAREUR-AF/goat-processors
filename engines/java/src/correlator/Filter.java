@@ -88,12 +88,12 @@ public final class Filter {
     }
 
     /** Model names of Two-model filter, index 0 is model 1. */
-    static final String[] MODEL = {"quiet", "manoeuvre"};
+    static final String[] MODEL = {"quiet", "maneuver"};
 
     private final Pack pack;
     /** The entity's filter: the only one, or the combination of the two models. */
     Axis[] axes;
-    /** With {@code manoeuvre}: models[j] is model j+1's {east, north}; mu[j] its mode probability. */
+    /** With {@code maneuver}: models[j] is model j+1's {east, north}; mu[j] its mode probability. */
     Axis[][] models;
     double[] mu;
 
@@ -103,7 +103,7 @@ public final class Filter {
         double vv = m.hasVel ? pack.velSigma * pack.velSigma : pack.unknownVel * pack.unknownVel;
         axes = new Axis[2];
         for (int k = 0; k < 2; k++) axes[k] = new Axis(m.z[k], m.hasVel ? m.zv[k] : 0, m.r, 0, vv);
-        if (pack.manoeuvre) {
+        if (pack.maneuver) {
             models = new Axis[][] {{axes[0].copy(), axes[1].copy()}, {axes[0].copy(), axes[1].copy()}};
             double s = pack.pEnter + pack.pLeave;
             mu = new double[] {pack.pLeave / s, pack.pEnter / s};
@@ -120,7 +120,7 @@ public final class Filter {
 
     /** Model j's acceleration variance (index 0 is {@code quiet}). */
     private double q(int j) {
-        return j == 0 ? pack.accelVar : pack.manoeuvreAccelVar;
+        return j == 0 ? pack.accelVar : pack.maneuverAccelVar;
     }
 
     /**
@@ -128,7 +128,7 @@ public final class Filter {
      * {@code [lambda1, lambda2, mu1, mu2]}, or null with one filter.
      */
     double[] update(double dt, Measurement m) {
-        if (!pack.manoeuvre) {
+        if (!pack.maneuver) {
             for (int k = 0; k < 2; k++) predictAndUpdate(axes[k], k, dt, pack.accelVar, m);
             return null;
         }
@@ -199,7 +199,7 @@ public final class Filter {
     Axis[] predicted(double dt) {
         Axis[] out = new Axis[2];
         for (int k = 0; k < 2; k++) {
-            if (!pack.manoeuvre) {
+            if (!pack.maneuver) {
                 out[k] = axes[k].copy();
                 out[k].predict(dt, pack.accelVar);
             } else {
@@ -215,7 +215,7 @@ public final class Filter {
     /** Snapshot: {@code filter}, and with two models {@code models} and {@code mode}. */
     void putSnapshot(Map<String, Object> entity) {
         entity.put("filter", axesMap(axes));
-        if (!pack.manoeuvre) return;
+        if (!pack.maneuver) return;
         Map<String, Object> ms = new LinkedHashMap<>();
         for (int j = 0; j < 2; j++) ms.put(MODEL[j], axesMap(models[j]));
         entity.put("models", ms);

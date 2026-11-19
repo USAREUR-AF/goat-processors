@@ -1,4 +1,4 @@
-// Package fuse is the Go engine of spec/fuse.md (version 0.1): it combines the
+// Package fuse is the Go engine of spec/fuse.md (version 0.2): it combines the
 // reports of the entities named into one group by `fuse.group` into one fused
 // estimate per group at each tick.
 //
@@ -28,7 +28,7 @@ type Entity struct {
 	LastTime    int64
 	East, North Axis
 	Group       string         // the fuse.group of the last accepted report; "" for none
-	Report      map[string]any // the last normalised report
+	Report      map[string]any // the last normalized report
 }
 
 // predicted returns copies of both axes predicted to t (correlate.md: Track
@@ -70,9 +70,9 @@ func nameOrNull(group string) any {
 // requiredKeys are checked in the order of the correlate.md Reports table.
 var requiredKeys = []string{"track.source_id", "uid", "time_ms", "lat", "lon"}
 
-// normalise removes every key that correlate.md Reports treats as absent, and a
-// `fuse.group` that is not a non-empty string (Reports: the normalised report).
-func normalise(report map[string]any) map[string]any {
+// normalize removes every key that correlate.md Reports treats as absent, and a
+// `fuse.group` that is not a non-empty string (Reports: the normalized report).
+func normalize(report map[string]any) map[string]any {
 	out := correlator.CleanReport(report)
 	if g, ok := out["fuse.group"].(string); !ok || g == "" {
 		delete(out, "fuse.group")
@@ -100,7 +100,7 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 		return []Obj{{"ev": "stale-report", "entity": key, "time_ms": t, "last_time_ms": e.LastTime}}, trace
 	}
 
-	r := normalise(report)
+	r := normalize(report)
 	group, _ := r["fuse.group"].(string)
 
 	// correlate.md Frame: the first accepted report fixes the reference.

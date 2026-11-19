@@ -1,4 +1,4 @@
-//! `method assign` (spec/correlate-assign.md 0.3): system tracks, ranked
+//! `method assign` (spec/correlate-assign.md 0.4): system tracks, ranked
 //! per-source assignments at each tick, a window of histories, and the
 //! inverse-variance fused estimate.
 //!

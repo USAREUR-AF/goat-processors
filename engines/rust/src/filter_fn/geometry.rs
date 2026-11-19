@@ -4,7 +4,7 @@
 
 use crate::filter::{deg, rad, wrap180 as wrap, R};
 
-/// Distance (haversine) from point 1 to point 2, in metres, in the spec's order.
+/// Distance (haversine) from point 1 to point 2, in meters, in the spec's order.
 pub fn distance(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     // 1.
     let p1 = rad(lat1);

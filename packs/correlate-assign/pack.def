@@ -2,7 +2,7 @@
 # tick by the least-cost assignment of each source's tracks. A track joins a
 # system track when it is within the 99 % region of the system track's fused
 # estimate (cost below new_cost = 9.21, chi-square 2 degrees of freedom), and
-# passes the gate against every member. keep_bonus favours the current choice.
+# passes the gate against every member. keep_bonus favors the current choice.
 pack        correlate-assign
 version     0.1.0
 method      assign

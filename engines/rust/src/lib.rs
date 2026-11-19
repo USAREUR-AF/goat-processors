@@ -1,5 +1,5 @@
-//! goat-processors rust engine: correlate specification 0.5 (spec/correlate.md)
-//! and its method assign 0.3 (spec/correlate-assign.md), selected by the pack's `method`.
+//! goat-processors rust engine: correlate specification 0.6 (spec/correlate.md)
+//! and its method assign 0.4 (spec/correlate-assign.md), selected by the pack's `method`.
 //!
 //! `load_pack`, then `Engine::new(pack)` with `ingest`, `tick`, `snapshot`.
 //!

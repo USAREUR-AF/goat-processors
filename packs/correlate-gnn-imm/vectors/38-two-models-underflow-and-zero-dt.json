@@ -46,7 +46,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "likelihood",
      "value": -420177.4511128634,
      "limit": null,
@@ -64,7 +64,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "mode",
      "value": 1.0,
      "limit": null,
@@ -97,7 +97,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "likelihood",
      "value": -16520.612457783205,
      "limit": null,
@@ -115,7 +115,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "mode",
      "value": 1.0,
      "limit": null,
@@ -148,7 +148,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "likelihood",
      "value": -1019569.1261089002,
      "limit": null,
@@ -166,7 +166,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "mode",
      "value": 1.0,
      "limit": null,
@@ -223,7 +223,7 @@
        461.5651366636174
       ]
      },
-     "manoeuvre": {
+     "maneuver": {
       "east": [
        121677.28950703875,
        43185.425916317035,

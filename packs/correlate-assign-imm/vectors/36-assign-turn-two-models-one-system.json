@@ -166,7 +166,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "likelihood",
      "value": -13.84857809766741,
      "limit": null,
@@ -184,7 +184,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "mode",
      "value": 0.36118026714838963,
      "limit": null,
@@ -217,7 +217,7 @@
     {
      "stage": "filter",
      "a": "adsb/A7",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "likelihood",
      "value": -13.84857809766741,
      "limit": null,
@@ -235,7 +235,7 @@
     {
      "stage": "filter",
      "a": "adsb/A7",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "mode",
      "value": 0.36118026714838963,
      "limit": null,
@@ -395,7 +395,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "likelihood",
      "value": -10.852364305337812,
      "limit": null,
@@ -413,7 +413,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "mode",
      "value": 0.10529324250164501,
      "limit": null,
@@ -446,7 +446,7 @@
     {
      "stage": "filter",
      "a": "adsb/A7",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "likelihood",
      "value": -11.155094396047744,
      "limit": null,
@@ -464,7 +464,7 @@
     {
      "stage": "filter",
      "a": "adsb/A7",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "mode",
      "value": 0.25636235659969736,
      "limit": null,
@@ -624,7 +624,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "likelihood",
      "value": -11.690916902634392,
      "limit": null,
@@ -642,7 +642,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "mode",
      "value": 0.992709687579244,
      "limit": null,
@@ -675,7 +675,7 @@
     {
      "stage": "filter",
      "a": "adsb/A7",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "likelihood",
      "value": -11.719967469761455,
      "limit": null,
@@ -693,7 +693,7 @@
     {
      "stage": "filter",
      "a": "adsb/A7",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "mode",
      "value": 0.9949749821989845,
      "limit": null,
@@ -853,7 +853,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "likelihood",
      "value": -11.027016012753462,
      "limit": null,
@@ -871,7 +871,7 @@
     {
      "stage": "filter",
      "a": "radar-1/T1",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "mode",
      "value": 0.6086721308315108,
      "limit": null,
@@ -904,7 +904,7 @@
     {
      "stage": "filter",
      "a": "adsb/A7",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "likelihood",
      "value": -11.150014118268926,
      "limit": null,
@@ -922,7 +922,7 @@
     {
      "stage": "filter",
      "a": "adsb/A7",
-     "b": "manoeuvre",
+     "b": "maneuver",
      "test": "mode",
      "value": 0.6270919320552807,
      "limit": null,
@@ -1100,7 +1100,7 @@
        86.66714189372465
       ]
      },
-     "manoeuvre": {
+     "maneuver": {
       "east": [
        3030.0088615369777,
        76.14184308996217,
@@ -1158,7 +1158,7 @@
        78.55550328424795
       ]
      },
-     "manoeuvre": {
+     "maneuver": {
       "east": [
        2857.1770416309896,
        112.69899434310763,

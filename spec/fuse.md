@@ -1,9 +1,11 @@
 # Fuse specification
 
-Status: Written. Version 0.1. Every language's engine implements this document
+Status: Written. Version 0.2. Every language's engine implements this document
 and passes every vector. Engines are written from this document,
 [correlate.md](correlate.md), [vector-format.md](vector-format.md) and the
 vectors, never from another engine's source.
+Version 0.2 changes spelling only (`normalized`); behavior is unchanged
+from 0.1.
 
 ## What fuse does
 
@@ -76,11 +78,11 @@ Validation follows `correlate.md` Reports, with these differences:
 - A report with a missing required key is rejected with
   `{"ev":"reject","reason":"missing:<key>"}` as in `correlate.md`.
 
-The **normalised report** is the report with every key removed that is `null`,
+The **normalized report** is the report with every key removed that is `null`,
 or that `correlate.md` Reports or the first rule above treats as absent (an
 optional key of the wrong type, a `ce` of 0 or below, an unusable
 `fuse.group`). Every value fuse reads later (`hae`, `stale_ms`, `fuse.group`,
-attribute values) comes from the entity's last normalised report. A key absent
+attribute values) comes from the entity's last normalized report. A key absent
 from that report is absent, whatever earlier reports held.
 
 ## Groups
@@ -303,7 +305,7 @@ A report gives no trace. A tick gives, per group in output order:
 `snapshot()` returns `{"ref": [lat0, lon0] or null, "entities": {...}}`. Each
 entity, in key order, holds `last_time_ms`, `group` (the name or `null`),
 `filter` (`{"east": [p, v, pp, pv, vv], "north": [...]}`) and `report` (its
-last normalised report). The snapshot is the whole state: two engines with
+last normalized report). The snapshot is the whole state: two engines with
 equal snapshots decide every later call the same way.
 
 ## Pack

@@ -10,7 +10,7 @@ pub const Entity = struct {
     source: []const u8,
     last_time_ms: i64,
     report: json.ObjectMap,
-    // The entity's filter; with `manoeuvre`, the combination of `imm`'s two models.
+    // The entity's filter; with `maneuver`, the combination of `imm`'s two models.
     filter: kalman.Filter,
     imm: ?imm.State,
     group: ?u64,
@@ -49,7 +49,7 @@ pub const Entity = struct {
     // spec "Two-model filter", prediction.
     pub fn predictedTo(self: Entity, t_ms: i64, pack: pack_mod.Pack) kalman.Filter {
         const dt = @as(f64, @floatFromInt(t_ms - self.last_time_ms)) / 1000.0;
-        if (self.imm) |st| return imm.predict(st, pack.manoeuvre.?, pack.filter.accel_var, dt);
+        if (self.imm) |st| return imm.predict(st, pack.maneuver.?, pack.filter.accel_var, dt);
         return self.filter.predict(dt, pack.filter.accel_var);
     }
 };
