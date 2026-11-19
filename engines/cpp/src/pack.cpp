@@ -134,15 +134,22 @@ Pack parse_pack(const std::string& text) {
         } else if (d == "new_cost") {
             want_args(line, words, 1);
             p.new_cost = parse_number(line, words[1]);
+            if (!(p.new_cost > 0)) fail(line, "new_cost must be above 0");
         } else if (d == "keep_bonus") {
             want_args(line, words, 1);
             p.keep_bonus = parse_number(line, words[1]);
+            if (!(p.keep_bonus >= 0)) fail(line, "keep_bonus must be 0 or above");
         } else if (d == "filter") {
             auto kv = parse_params(line, words, 1, {"accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms"});
             p.filter.accel_var = parse_number(line, kv["accel_var"]);
             p.filter.default_ce_m = parse_number(line, kv["default_ce_m"]);
             p.filter.vel_sigma_ms = parse_number(line, kv["vel_sigma_ms"]);
             p.filter.unknown_vel_ms = parse_number(line, kv["unknown_vel_ms"]);
+            // correlate.md 0.4 "Pack": ranges of the filter parameters.
+            if (!(p.filter.default_ce_m > 0) || !(p.filter.vel_sigma_ms > 0) ||
+                !(p.filter.unknown_vel_ms > 0))
+                fail(line, "default_ce_m, vel_sigma_ms and unknown_vel_ms must be above 0");
+            if (!(p.filter.accel_var >= 0)) fail(line, "accel_var must be 0 or above");
         } else if (d == "gate") {
             p.gate.push_back(parse_test(line, words));
         } else if (d == "confirm") {

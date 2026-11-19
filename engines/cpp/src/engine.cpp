@@ -796,6 +796,9 @@ Json Engine::snapshot_assign() const {
     }
     s["systems"] = systems;
     s["next_system"] = next_system_;
+    Json reported = Json::make_array();
+    for (const auto& k : reported_) reported.push(k);   // std::set: key order
+    s["reported"] = reported;
     return s;
 }
 
