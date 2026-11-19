@@ -1,21 +1,27 @@
-%% Method assign (spec/correlate-assign.md): system tracks, per-source ranked
+%% Method assign (spec/correlate-assign.md 0.5): system tracks, per-source ranked
 %% assignments at each tick, kept as the best `hypotheses` histories over a
-%% window of `window` ticks, and the inverse-variance fused estimate.
+%% window of `window` ticks (only near-ties with `margin`), the optional sensor
+%% bias per pair of sources, and the inverse-variance fused estimate.
 %% Reports, frame, track estimate and tests are shared with correlator.
 %%
 %% Data, as in the spec's Memberships section:
 %%   membership  #{systems => #{N => [Entity]}, next => N}   (system track sN)
 %%   record      #{cost, choices => [[Entity, Chosen]], events, membership}
 %%   history     [record], oldest first
-%% The state holds the committed membership, the histories in rank order, and
-%% the retiring entities.
+%% The state holds the committed membership, the histories in rank order, the
+%% retiring entities, the restarted entities (pack line restart) and the
+%% sensor bias state per pair of sources (pack line bias):
+%%   bias        #{{S, T} => #{oe, we, on, wn, var, n}}   (pair key "S|T", S < T)
 -module(correlator_assign).
 -export([new/1, tick/2, snapshot/1]).
+%% Shared with correlator: Sensor bias, moving B into A's frame for a test.
+-export([move/4]).
 
 -import(correlator, [emit/2, record/2, entity/2, value/2]).
 
 new(Pack) ->
     #{pack => Pack, ref => none, entities => #{}, reported => #{}, retiring => #{},
+      restarted => #{}, bias => #{},
       committed => #{systems => #{}, next => 1},
       histories => [[]],
       events => [], trace => []}.
@@ -71,8 +77,13 @@ tick(Now, St0) ->
     Stale = [K || K <- lists:sort(maps:keys(Ents)),
                   not maps:is_key(K, maps:get(retiring, St0)),
                   correlator:is_stale(maps:get(K, Ents), Now, St0)],
-    Histories = [H ++ [stale_record(latest(H, St0), Stale)] || H <- maps:get(histories, St0)],
-    St1 = St0#{histories := Histories,
+    %% Restarted entities (correlate.md "Restart") that are not stale leave
+    %% their system track in the same new record; none is restarted after.
+    Restarted = [K || K <- lists:sort(maps:keys(maps:get(restarted, St0))),
+                      not lists:member(K, Stale)],
+    Histories = [H ++ [stale_record(latest(H, St0), Stale, Restarted)]
+                 || H <- maps:get(histories, St0)],
+    St1 = St0#{histories := Histories, restarted := #{},
                retiring := maps:merge(maps:get(retiring, St0), maps:from_keys(Stale, true))},
     %% 2. Rows: entities reported since the previous tick, not found stale,
     %% grouped by source.
@@ -82,14 +93,15 @@ tick(Now, St0) ->
     %% 3. Sources, in key order.
     St2 = lists:foldl(fun(Src, S) -> source(Src, [K || K <- Reported, Source(K) =:= Src], S) end,
                       St1, lists:usort([Source(K) || K <- Reported])),
-    %% 4. Commit; 5. Output.
-    St3 = output(Now, commit(St2)),
+    %% 4. Commit; 5. Bias; 6. Output.
+    St3 = output(Now, bias_update(Now, Reported, commit(St2))),
     correlator:finish(St3#{reported := #{}}).
 
 %% Step 1: a copy of the latest membership with cost 0 and no choices, in which
-%% each stale entity leaves its system track and is dropped.
-stale_record(Mem0, Stale) ->
-    {Mem, Evs} =
+%% each stale entity leaves its system track and is dropped, then each
+%% restarted entity leaves its system track.
+stale_record(Mem0, Stale, Restarted) ->
+    {Mem1, Evs1} =
         lists:foldl(fun(K, Acc = {M, _}) ->
                             {M1, E1} = case system_of(K, M) of
                                            none -> Acc;
@@ -97,6 +109,13 @@ stale_record(Mem0, Stale) ->
                                        end,
                             {M1, E1 ++ [#{<<"ev">> => <<"drop">>, <<"entity">> => K}]}
                     end, {Mem0, []}, Stale),
+    {Mem, Evs} =
+        lists:foldl(fun(K, Acc = {M, _}) ->
+                            case system_of(K, M) of
+                                none -> Acc;
+                                S -> leave(K, S, <<"restart">>, Acc)
+                            end
+                    end, {Mem1, Evs1}, Restarted),
     #{cost => 0.0, choices => [], events => Evs, membership => Mem}.
 
 %% Step 3, one source: every history in rank order gives one candidate per
@@ -112,15 +131,25 @@ source(Src, R, St0) ->
                     lists:zip(lists:seq(0, length(maps:get(histories, St0)) - 1),
                               maps:get(histories, St0))),
     Ordered = lists:sort(fun candidate_before/2, Candidates),
-    Numbered = lists:zip(lists:seq(0, length(Ordered) - 1), Ordered),
+    %% The first k candidates are kept; with margin, of those only the ones
+    %% whose total is at most cut = best + m, best the first candidate's total.
+    [{Best, _, _, _} | _] = Ordered,
+    Cut = case maps:find(margin, maps:get(pack, St1)) of
+              error -> null;
+              {ok, M} -> Best + M
+          end,
+    Numbered = [{I, C, I < K andalso (Cut =:= null orelse Total =< Cut)}
+                || {I, C = {Total, _, _, _}} <- lists:zip(lists:seq(0, length(Ordered) - 1),
+                                                          Ordered)],
     St2 = case window(St1) > 1 of
               false -> St1;
               true ->
-                  lists:foldl(fun({I, {Total, H, Rank, _}}, S) ->
-                                      record(history_trace(H, Rank, <<"total">>, Total, I < K), S)
+                  lists:foldl(fun({_I, {Total, H, Rank, _}, Kept}, S) ->
+                                      record((history_trace(H, Rank, <<"total">>, Total, Kept))
+                                             #{<<"limit">> := Cut}, S)
                               end, St1, Numbered)
           end,
-    St2#{histories := [History || {I, {_, _, _, History}} <- Numbered, I < K]}.
+    St2#{histories := [History || {_, {_, _, _, History}, true} <- Numbered]}.
 
 %% Candidates are ordered by their total, then by h, then by r.
 candidate_before({T1, H1, R1, _}, {T2, H2, R2, _}) ->
@@ -192,10 +221,14 @@ commit(St0 = #{histories := Histories = [Best | _]}) ->
                  histories := [tl(H) || {H, true} <- lists:zip(Histories, Kept)]}
     end.
 
-%% Step 5, output: one system per committed system track, then (window above
+%% Step 6, output: one system per committed system track (with margin, per
+%% system track of the best history's latest membership), then (window above
 %% 1) one provisional per system track of the best history.
 output(Now, St0) ->
-    #{systems := Systems} = maps:get(committed, St0),
+    #{systems := Systems} = case maps:is_key(margin, maps:get(pack, St0)) of
+                                false -> maps:get(committed, St0);
+                                true -> latest(hd(maps:get(histories, St0)), St0)
+                            end,
     St1 = lists:foldl(fun(S, Acc) -> emit(system_event(S, maps:get(S, Systems), Now, Acc), Acc) end,
                       St0, lists:sort(maps:keys(Systems))),
     case window(St1) > 1 of
@@ -212,7 +245,7 @@ output(Now, St0) ->
 %% Event system: fused estimate of all members at Now, hae from the member with
 %% the greatest last_time_ms whose last report has one (ties to key order).
 system_event(S, Ms, Now, St) ->
-    #{east := {PE, VE, _, _}, north := {PN, VN, _, _}} = fused(Ms, Now, St),
+    #{east := {PE, VE, _, _}, north := {PN, VN, _, _}} = fused(Ms, Now, none, St),
     {Lat, Lon} = correlator_filter:from_plane(maps:get(ref, St), PE, PN),
     Ev = #{<<"ev">> => <<"system">>, <<"system">> => system_name(S), <<"members">> => Ms,
            <<"lat">> => Lat, <<"lon">> => Lon, <<"course">> => correlator:course(VE, VN),
@@ -301,10 +334,11 @@ gate(Tests, A, [B | Bs], St0) ->
         {false, St1} -> {false, St1}
     end.
 
-%% Cost: d² of A's filter against the fused estimate of Ms at A's time.
+%% Cost: d² of A's filter against the fused estimate of Ms at A's time, each
+%% member moved into A's frame (Sensor bias) before the fused estimate.
 cost(A, Ms, St) ->
     EA = entity(A, St),
-    Fused = fused(Ms, maps:get(time, EA), St),
+    Fused = fused(Ms, maps:get(time, EA), maps:get(source, EA), St),
     Axis = fun(Ax) ->
                    {PA, _, PPA, _, _} = maps:get(Ax, maps:get(filter, EA)),
                    {P, _, PP, _} = maps:get(Ax, Fused),
@@ -313,9 +347,15 @@ cost(A, Ms, St) ->
     Axis(east) + Axis(north).
 
 %% Fused estimate of Ms at time T, per axis {P, V, PP, VV}; sums over members
-%% in key order.
-fused(Ms, T, St) ->
-    Preds = [correlator:predict(entity(M, St), T, St) || M <- Ms],
+%% in key order. With FrameSrc a source, each member's prediction is first
+%% moved into that source's frame (Sensor bias); with none (output) no
+%% member is moved.
+fused(Ms, T, FrameSrc, St) ->
+    Preds = [case FrameSrc of
+                 none -> Pred;
+                 _ -> move(Pred, FrameSrc, maps:get(source, E), St)
+             end
+             || M <- Ms, E <- [entity(M, St)], Pred <- [correlator:predict(E, T, St)]],
     Sum = fun(L) -> lists:foldl(fun(X, Acc) -> Acc + X end, 0, L) end,
     Axis = fun(Ax) ->
                    As = [maps:get(Ax, P) || P <- Preds],
@@ -357,6 +397,91 @@ apply_choice(A, B, Acc = {Mem = #{systems := Systems}, _}) ->
                 S2 -> join(A, S2, Acc1)
             end
     end.
+
+%% ---------------------------------------------------------------- sensor bias
+
+%% A pair's state, or the state of a pair with none stored:
+%% o = 0, w = 0, var = s², n = 0.
+bias_state(Pair, St) ->
+    #{<<"sigma_m">> := Sigma} = maps:get(bias, maps:get(pack, St)),
+    maps:get(Pair, maps:get(bias, St),
+             #{oe => 0.0, we => 0.0, on => 0.0, wn => 0.0, var => Sigma * Sigma, n => 0}).
+
+%% Moving B into A's frame: B's prediction Pred (source BSrc) as seen by
+%% source ASrc. p + o from pair "BSrc|ASrc" when BSrc is first, p - o from
+%% pair "ASrc|BSrc" when ASrc is first; pp + var either way. Never moved
+%% without the pack line bias, or between two entities of one source.
+move(Pred, ASrc, BSrc, St) ->
+    case maps:is_key(bias, maps:get(pack, St)) of
+        false -> Pred;
+        true when ASrc =:= BSrc -> Pred;
+        true ->
+            {Pair, Sign} = case BSrc < ASrc of
+                               true -> {{BSrc, ASrc}, 1};
+                               false -> {{ASrc, BSrc}, -1}
+                           end,
+            #{oe := OE, on := ON, var := Var} = bias_state(Pair, St),
+            Shift = fun({P, V, PP, PV, VV}, O) -> {P + Sign * O, V, PP + Var, PV, VV} end,
+            Pred#{east := Shift(maps:get(east, Pred), OE),
+                  north := Shift(maps:get(north, Pred), ON)}
+    end.
+
+%% Window step 5, Sensor bias "Update": per committed system track in creation
+%% order, its members that are not retiring in key order, each pair X < Y of
+%% two different sources with at least one of them among the tick's rows.
+bias_update(Now, Rows, St0) ->
+    case maps:find(bias, maps:get(pack, St0)) of
+        error -> St0;
+        {ok, Params} ->
+            #{systems := Systems} = maps:get(committed, St0),
+            Retiring = maps:get(retiring, St0),
+            Pairs = [{X, Y}
+                     || S <- lists:sort(maps:keys(Systems)),
+                        Ms <- [[M || M <- maps:get(S, Systems), not maps:is_key(M, Retiring)]],
+                        X <- Ms, Y <- Ms, X < Y,
+                        maps:get(source, entity(X, St0)) =/= maps:get(source, entity(Y, St0)),
+                        lists:member(X, Rows) orelse lists:member(Y, Rows)],
+            lists:foldl(fun({X, Y}, S) -> bias_pair(X, Y, Now, Params, S) end, St0, Pairs)
+    end.
+
+bias_pair(X, Y, Now, #{<<"sigma_m">> := Sigma, <<"floor_m">> := Floor, <<"gate">> := Gate}, St0) ->
+    %% 1. ES is the entity whose source is first in key order, ET the other;
+    %% both predicted to now (not moved).
+    [ES, ET] = lists:sort(fun(P, Q) -> maps:get(source, entity(P, St0))
+                                           =< maps:get(source, entity(Q, St0)) end, [X, Y]),
+    Pair = {maps:get(source, entity(ES, St0)), maps:get(source, entity(ET, St0))},
+    PredS = correlator:predict(entity(ES, St0), Now, St0),
+    PredT = correlator:predict(entity(ET, St0), Now, St0),
+    Axis = fun(Ax) ->
+                   {PS, _, PPS, _, _} = maps:get(Ax, PredS),
+                   {PT, _, PPT, _, _} = maps:get(Ax, PredT),
+                   {PT - PS, PPS + PPT}
+           end,
+    {YE, RE} = Axis(east),
+    {YN, RN} = Axis(north),
+    State0 = #{oe := OE, we := WE, on := ON, wn := WN, var := Var, n := N} = bias_state(Pair, St0),
+    %% 2. d² with the pair's state.
+    D2 = (YE - OE) * (YE - OE) / (Var + RE) + (YN - ON) * (YN - ON) / (Var + RN),
+    %% 3. Accepted when d² < gate: the state is updated and stored.
+    Accepted = D2 < Gate,
+    {State, St1} =
+        case Accepted of
+            false -> {State0, St0};
+            true ->
+                N1 = N + 1,
+                Var1 = max(Sigma * Sigma / (N1 + 1), Floor * Floor),
+                WE1 = WE + 1 / RE,
+                WN1 = WN + 1 / RN,
+                New = #{oe => OE + ((1 / RE) / WE1) * (YE - OE), we => WE1,
+                        on => ON + ((1 / RN) / WN1) * (YN - ON), wn => WN1,
+                        var => Var1, n => N1},
+                {New, St0#{bias := (maps:get(bias, St0))#{Pair => New}}}
+        end,
+    %% 4. Trace, with the state after step 3.
+    record(#{<<"stage">> => <<"bias">>, <<"a">> => X, <<"b">> => Y, <<"test">> => <<"offset">>,
+             <<"value">> => D2, <<"limit">> => Gate, <<"pass">> => Accepted,
+             <<"east">> => maps:get(oe, State), <<"north">> => maps:get(on, State),
+             <<"var">> => maps:get(var, State), <<"pairs">> => maps:get(n, State)}, St1).
 
 %% ---------------------------------------------------------------- ranking
 
@@ -405,10 +530,29 @@ snapshot(St) ->
              <<"systems">> => systems_json(Systems),
              <<"next_system">> => Next,
              <<"reported">> => lists:sort([K || K <- maps:keys(Reported), maps:is_key(K, Ents)])},
+    Pack = maps:get(pack, St),
+    WithRestart = case maps:is_key(restart, Pack) of
+                      false -> Base;
+                      true -> Base#{<<"restarted">> =>
+                                        lists:sort(maps:keys(maps:get(restarted, St)))}
+                  end,
+    WithBias = case maps:is_key(bias, Pack) of
+                   false -> WithRestart;
+                   true ->
+                       WithRestart#{<<"bias">> =>
+                                        maps:from_list(
+                                          [{<<S/binary, "|", T/binary>>,
+                                            #{<<"east">> => OE, <<"weight_east">> => WE,
+                                              <<"north">> => ON, <<"weight_north">> => WN,
+                                              <<"var">> => Var, <<"pairs">> => N}}
+                                           || {{S, T}, #{oe := OE, we := WE, on := ON, wn := WN,
+                                                         var := Var, n := N}}
+                                                  <- maps:to_list(maps:get(bias, St))])}
+               end,
     case window(St) > 1 of
-        false -> Base;
+        false -> WithBias;
         true ->
-            Base#{<<"retiring">> => lists:sort(maps:keys(Retiring)),
+            WithBias#{<<"retiring">> => lists:sort(maps:keys(Retiring)),
                   <<"histories">> =>
                       [#{<<"total">> => total(H),
                          <<"records">> =>
