@@ -30,6 +30,7 @@ struct FilterParams {
 struct Pack {
     std::string name;
     std::string version;
+    bool method_assign = false;                // method, default confirm (spec correlate-assign.md)
     FilterParams filter;
     std::vector<TestSpec> gate, confirm, hold;
     std::int64_t confirm_count = 0;
@@ -38,6 +39,8 @@ struct Pack {
     bool same_source_allow = false;            // same_source, default forbid
     bool output_latest = false;                // output, default priority
     std::map<std::string, std::int64_t> priority;
+    double new_cost = 0;                       // method assign only
+    double keep_bonus = 0;                     // method assign only
 };
 
 // Parses the text of a pack.def; throws PackError on any load error.
