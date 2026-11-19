@@ -5,20 +5,21 @@ Four functions: correlate, filter, fuse and quality.
 ## Correlate and filter
 
 A C++17 implementation of `spec/filter.md` (version 0.1), of `spec/correlate.md`
-(version 0.7, method `confirm`, with the two-model filter and the filter
-restart) and of `spec/correlate-assign.md` (version 0.5, method `assign`, with
-the multi-frame window, its margin, and sensor bias), written from the specifications and the vectors. The pack's `method`
+(version 0.8, method `confirm`, with the two-model filter, the filter
+restart and time quality) and of `spec/correlate-assign.md` (version 0.6,
+method `assign`, with the multi-frame window, its margin, sensor bias and the
+clock offset), written from the specifications and the vectors. The pack's `method`
 line selects which correlate method runs. It uses only the standard library and has its
 own small JSON reader.
 
 | File | Spec section |
 |---|---|
 | `src/track.cpp` | correlate.md Frame, Track estimate (steps 1 to 3, each update returning its likelihood term for the two-model filter); shared with fuse and quality |
-| `src/pack.cpp` | Pack (`parse_pack`, `load_pack`) |
-| `src/engine.cpp` | correlate.md: Two-model filter (`filter_first`, `filter_update`, `predict`), Restart (`restart_test`, and its use in `ingest`), Tests, Association, Events, Trace, Snapshot |
-| `src/assign.cpp` | correlate-assign.md: Memberships, Ranking (`rank_assignments`, brute force over every assignment), Assignment of one source (`rank_source`, `apply_assignment`), Sensor bias (`bias_state`, `predict_into_frame`, `bias_update`), Window (`tick_assign`, steps 1 to 6, with `margin`), Snapshot |
+| `src/pack.cpp` | Pack (`parse_pack`, `load_pack`), with `time_default` and `time_offset` |
+| `src/engine.cpp` | correlate.md: Reports "Time quality" (in `ingest`), Track estimate Measurement variance (`measurement_variance`, the `time` record, `predict_for_comparison` for the timing variance), Two-model filter (`filter_first`, `filter_update`, `predict`), Restart (`restart_test`, and its use in `ingest`), Tests, Association, Events, Trace, Snapshot |
+| `src/assign.cpp` | correlate-assign.md: Memberships, Ranking (`rank_assignments`, brute force over every assignment), Assignment of one source (`rank_source`, `apply_assignment`), Sensor bias (`bias_state`, `predict_into_frame`, `bias_update`, and Time offset in `fit_time_offset`), Window (`tick_assign`, steps 1 to 6, with `margin`), Snapshot |
 | `src/common.hpp` | helpers engine.cpp and assign.cpp both use |
-| `src/report.cpp` | correlate.md "Reports": required keys, optional-key rules, `type` elements; shared by all four functions |
+| `src/report.cpp` | correlate.md "Reports": required keys, optional-key rules, `type` elements, the time quality keys (`time_error_at`, `time_state_at`); shared by all four functions |
 | `src/filter_pack.cpp` | filter.md "Pack": directives, rules, `when` lines, parameter sets, values |
 | `src/filter.cpp` | filter.md Geometry (distance, polygon, reference prediction), Conditions, Rules, Tick, Events, Trace, Snapshot |
 | `src/json.cpp` | JSON values for reports, events, trace and snapshot |

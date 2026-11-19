@@ -36,4 +36,17 @@ std::optional<std::int64_t> stale_ms_at(const Json& r);
 // absent when `type` is absent or has fewer elements. An empty element is "".
 std::optional<std::string> type_element(const Json& r, size_t index);
 
+// correlate.md "Reports", "Time quality": a `time_error_ms` that is a finite
+// number, 0 or above; any other value (wrong type, negative, not finite) is
+// absent. Never a reject.
+std::optional<double> time_error_at(const Json& r);
+
+// correlate.md "Reports", "Time quality": a `time_state` that is one of
+// `coherent`, `drifting`, `free-running`, compared byte for byte; any other
+// value is absent. Never a reject.
+std::optional<std::string> time_state_at(const Json& r);
+
+// The three time states correlate.md names.
+bool is_time_state(const std::string& s);
+
 } // namespace corr::report
