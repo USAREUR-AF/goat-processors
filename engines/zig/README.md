@@ -5,7 +5,7 @@ the two-model filter, the filter restart and the time quality of a report),
 `spec/correlate-assign.md` (version 0.6, method `assign`, with the multi-frame
 window and its margin, the filter restart, the sensor bias and its clock
 offset), `spec/filter.md` (version 0.1) and
-`spec/quality.md` (version 0.1) in Zig 0.13.0, standard library only. It also
+`spec/quality.md` (version 0.2, with time quality) in Zig 0.13.0, standard library only. It also
 implements `spec/fuse.md` (version 0.2), the function fuse, as its own module
 that reuses the correlate Frame, Track estimate and report helpers. It was
 written from the specifications and the vectors,
@@ -35,14 +35,16 @@ engine decides them, are in `DISAGREEMENTS.md`.
 | `src/filter.zig` | `filter.md` Reports, Conditions, Rules, Tick, Events, Trace, Snapshot; reads reports with `entity.zig`'s correlate key readers |
 | `src/filter_vectors_test.zig` | runs `spec/filter-load-vectors/` and the `packs/filter-*` scenario vectors |
 
-Quality (`spec/quality.md`) reuses `frame.zig` (Frame), `kalman.zig` (Track
-estimate), the `filter` type of `pack.zig` and the key readers of `entity.zig`:
+Quality (`spec/quality.md` 0.2) reuses `frame.zig` (Frame), `kalman.zig` (Track
+estimate), the `filter`, `TimeState` and `TimeDefault` types of `pack.zig`, and
+the key readers of `entity.zig`, among them the reading of a report's own
+`time_error_ms` and `time_state` (correlate.md 0.8, Time quality, step 1):
 
 | File | Spec section |
 |---|---|
-| `src/quality_pack.zig` | Pack, Rules (the rule line, `Op` with its condition and clear test) |
+| `src/quality_pack.zig` | Pack (line ends, control characters, `time_default` with quality's number grammar), Rules (the rule line, `Op` with its condition and clear test), the time state codes |
 | `src/quality_measures.zig` | Order, the record of Samples, Window, Entity measures, Source measures |
-| `src/quality.zig` | Reports, Order, Frame and filter, Samples, Rules (evaluation, actions), Forwarding, Tick, Ingest, Events, Trace, Snapshot |
+| `src/quality.zig` | Reports (Time quality, steps 2 and 3), Order, Frame and filter, Input clock, Samples, Rules (evaluation, actions), Forwarding, Tick, Ingest, Events, Trace, Snapshot |
 | `src/quality_vectors_test.zig` | runs `spec/quality-load-vectors/` and the `packs/quality-*` vectors |
 
 ## Floats
