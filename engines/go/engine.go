@@ -239,12 +239,11 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 func isInt(v any) bool {
 	switch x := v.(type) {
 	case json.Number:
+		// Written without fraction or exponent: 1000, not 1000.0 or 1e3.
 		_, err := x.Int64()
-		return err == nil
+		return err == nil && !strings.ContainsAny(string(x), ".eE")
 	case int, int64:
 		return true
-	case float64:
-		return x == math.Trunc(x) && !math.IsInf(x, 0)
 	}
 	return false
 }
@@ -265,14 +264,22 @@ func validKey(k string, v any) bool {
 	return true
 }
 
-// cleanOptional returns a copy of the report without optional keys that are null
-// or of the wrong type, which are treated as absent (spec: Reports).
+// cleanOptional returns a copy of the report without keys that are null, optional
+// keys of the wrong type, and a ce of 0 or below, all treated as absent (spec: Reports).
 func cleanOptional(r map[string]any) map[string]any {
 	out := make(map[string]any, len(r))
 	for k, v := range r {
+		if v == nil {
+			continue
+		}
 		switch k {
 		case "hae", "ce", "course", "speed_ms", "type", "stale_ms":
-			if v == nil || !validKey(k, v) {
+			if !validKey(k, v) {
+				continue
+			}
+		}
+		if k == "ce" {
+			if c, _ := toFloat(v); c <= 0 {
 				continue
 			}
 		}
