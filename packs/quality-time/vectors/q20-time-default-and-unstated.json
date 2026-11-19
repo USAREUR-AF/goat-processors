@@ -1,0 +1,1207 @@
+{
+ "name": "q20-time-default-and-unstated",
+ "pack": "quality-time",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "net-a",
+    "uid": "N1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.0
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "net-a/N1"
+    },
+    {
+     "ev": "pass",
+     "entity": "net-a/N1",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "net-a",
+      "uid": "N1",
+      "time_ms": 0,
+      "lat": 1.0,
+      "lon": 1.0
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "order",
+     "value": "first",
+     "inputs": [
+      0,
+      null
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "time_error",
+     "value": 150.0,
+     "inputs": [
+      null,
+      150.0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "time_state",
+     "value": "drifting",
+     "inputs": [
+      null,
+      "drifting"
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      0,
+      null
+     ]
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 0,
+    "lat": 1.0,
+    "lon": 1.004497287
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/T1"
+    },
+    {
+     "ev": "pass",
+     "entity": "radar-1/T1",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "radar-1",
+      "uid": "T1",
+      "time_ms": 0,
+      "lat": 1.0,
+      "lon": 1.004497287
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "order",
+     "value": "first",
+     "inputs": [
+      0,
+      null
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "lateness",
+     "value": 0,
+     "inputs": [
+      0,
+      0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      0,
+      null
+     ]
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "net-a",
+    "uid": "N1",
+    "time_ms": 1000,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_error_ms": -5,
+    "time_state": "unsure"
+   },
+   "expect": [
+    {
+     "ev": "pass",
+     "entity": "net-a/N1",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "net-a",
+      "uid": "N1",
+      "time_ms": 1000,
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_error_ms": -5,
+      "time_state": "unsure"
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "order",
+     "value": "advance",
+     "inputs": [
+      1000,
+      0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "interval",
+     "value": 1000,
+     "inputs": [
+      1000,
+      0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "lateness",
+     "value": -1000,
+     "inputs": [
+      0,
+      1000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "time_error",
+     "value": 150.0,
+     "inputs": [
+      null,
+      150.0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "time_state",
+     "value": "drifting",
+     "inputs": [
+      null,
+      "drifting"
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      1000,
+      0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "nis",
+     "value": 0.0,
+     "inputs": [
+      0.0,
+      0.0,
+      15000.25,
+      15000.25
+     ]
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 1000,
+    "lat": 1.0,
+    "lon": 1.004497287,
+    "time_state": "unsure",
+    "time_error_ms": "5"
+   },
+   "expect": [
+    {
+     "ev": "pass",
+     "entity": "radar-1/T1",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "radar-1",
+      "uid": "T1",
+      "time_ms": 1000,
+      "lat": 1.0,
+      "lon": 1.004497287,
+      "time_state": "unsure",
+      "time_error_ms": "5"
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "order",
+     "value": "advance",
+     "inputs": [
+      1000,
+      0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "interval",
+     "value": 1000,
+     "inputs": [
+      1000,
+      0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "lateness",
+     "value": 0,
+     "inputs": [
+      1000,
+      1000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      1000,
+      0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "nis",
+     "value": 0.0,
+     "inputs": [
+      0.0,
+      0.0,
+      15000.25,
+      15000.25
+     ]
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "net-a",
+    "uid": "N1",
+    "time_ms": 2000,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_error_ms": 20
+   },
+   "expect": [
+    {
+     "ev": "pass",
+     "entity": "net-a/N1",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "net-a",
+      "uid": "N1",
+      "time_ms": 2000,
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_error_ms": 20
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "order",
+     "value": "advance",
+     "inputs": [
+      2000,
+      1000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "interval",
+     "value": 1000,
+     "inputs": [
+      2000,
+      1000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "lateness",
+     "value": -1000,
+     "inputs": [
+      1000,
+      2000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "time_error",
+     "value": 20.0,
+     "inputs": [
+      20.0,
+      150.0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "time_state",
+     "value": "drifting",
+     "inputs": [
+      null,
+      "drifting"
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      2000,
+      1000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "nis",
+     "value": 0.0,
+     "inputs": [
+      0.0,
+      0.0,
+      11250.812490625158,
+      11250.812490625158
+     ]
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 2000,
+    "lat": 1.0,
+    "lon": 1.004497287
+   },
+   "expect": [
+    {
+     "ev": "pass",
+     "entity": "radar-1/T1",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "radar-1",
+      "uid": "T1",
+      "time_ms": 2000,
+      "lat": 1.0,
+      "lon": 1.004497287
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "order",
+     "value": "advance",
+     "inputs": [
+      2000,
+      1000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "interval",
+     "value": 1000,
+     "inputs": [
+      2000,
+      1000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "lateness",
+     "value": 0,
+     "inputs": [
+      2000,
+      2000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      2000,
+      1000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "nis",
+     "value": 0.0,
+     "inputs": [
+      0.0,
+      0.0,
+      11250.812490625158,
+      11250.812490625158
+     ]
+    }
+   ]
+  },
+  {
+   "tick": 2000,
+   "expect": [
+    {
+     "ev": "quality",
+     "scope": "entity",
+     "subject": "net-a/N1",
+     "measures": {
+      "reports": 3,
+      "interval_last": null,
+      "interval_mean": null,
+      "interval_max": null,
+      "age": 0,
+      "latency_mean": null,
+      "latency_max": null,
+      "lateness_mean": null,
+      "lateness_max": null,
+      "lateness_min": null,
+      "nis_mean": null,
+      "speed_err_mean": null,
+      "out_of_order": 0,
+      "duplicate": 0,
+      "source_out_of_order": 0,
+      "missing_ce": 1.0,
+      "missing_vel": 1.0,
+      "missing_hae": 1.0,
+      "time_error_mean": 106.66666666666667,
+      "time_error_max": 150.0,
+      "time_state_last": 1,
+      "time_state_worst": 1,
+      "missing_time": 0.0
+     }
+    },
+    {
+     "ev": "quality",
+     "scope": "entity",
+     "subject": "radar-1/T1",
+     "measures": {
+      "reports": 3,
+      "interval_last": null,
+      "interval_mean": null,
+      "interval_max": null,
+      "age": 0,
+      "latency_mean": null,
+      "latency_max": null,
+      "lateness_mean": 0.0,
+      "lateness_max": 0,
+      "lateness_min": 0,
+      "nis_mean": null,
+      "speed_err_mean": null,
+      "out_of_order": 0,
+      "duplicate": 0,
+      "source_out_of_order": 0,
+      "missing_ce": 1.0,
+      "missing_vel": 1.0,
+      "missing_hae": 1.0,
+      "time_error_mean": null,
+      "time_error_max": null,
+      "time_state_last": null,
+      "time_state_worst": null,
+      "missing_time": 1.0
+     }
+    },
+    {
+     "ev": "quality",
+     "scope": "source",
+     "subject": "net-a",
+     "measures": {
+      "reports": 3,
+      "interval_last": null,
+      "interval_mean": null,
+      "interval_max": null,
+      "age": 0,
+      "latency_mean": null,
+      "latency_max": null,
+      "lateness_mean": null,
+      "lateness_max": null,
+      "lateness_min": null,
+      "nis_mean": null,
+      "speed_err_mean": null,
+      "out_of_order": 0,
+      "duplicate": 0,
+      "source_out_of_order": 0,
+      "missing_ce": 1.0,
+      "missing_vel": 1.0,
+      "missing_hae": 1.0,
+      "time_error_mean": 106.66666666666667,
+      "time_error_max": 150.0,
+      "time_state_last": 1,
+      "time_state_worst": 1,
+      "missing_time": 0.0,
+      "entities": 1
+     }
+    },
+    {
+     "ev": "action-start",
+     "rule": "time-error",
+     "scope": "source",
+     "subject": "net-a",
+     "action": "mark",
+     "value": 150.0
+    },
+    {
+     "ev": "quality",
+     "scope": "source",
+     "subject": "radar-1",
+     "measures": {
+      "reports": 3,
+      "interval_last": null,
+      "interval_mean": null,
+      "interval_max": null,
+      "age": 0,
+      "latency_mean": null,
+      "latency_max": null,
+      "lateness_mean": 0.0,
+      "lateness_max": 0,
+      "lateness_min": 0,
+      "nis_mean": null,
+      "speed_err_mean": null,
+      "out_of_order": 0,
+      "duplicate": 0,
+      "source_out_of_order": 0,
+      "missing_ce": 1.0,
+      "missing_vel": 1.0,
+      "missing_hae": 1.0,
+      "time_error_mean": null,
+      "time_error_max": null,
+      "time_state_last": null,
+      "time_state_worst": null,
+      "missing_time": 1.0,
+      "entities": 1
+     }
+    },
+    {
+     "ev": "action-start",
+     "rule": "time-unstated",
+     "scope": "source",
+     "subject": "radar-1",
+     "action": "alert",
+     "value": 1.0
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "behind",
+     "subject": "net-a",
+     "measure": "lateness_mean",
+     "value": null,
+     "limit": 2000.0,
+     "pass": false,
+     "count": 0,
+     "active": false
+    },
+    {
+     "stage": "rule",
+     "rule": "ahead",
+     "subject": "net-a",
+     "measure": "lateness_max",
+     "value": null,
+     "limit": -1500.0,
+     "pass": false,
+     "count": 0,
+     "active": false
+    },
+    {
+     "stage": "rule",
+     "rule": "source-disorder",
+     "subject": "net-a",
+     "measure": "source_out_of_order",
+     "value": 0,
+     "limit": 3.0,
+     "pass": false,
+     "count": 0,
+     "active": false
+    },
+    {
+     "stage": "rule",
+     "rule": "free-running",
+     "subject": "net-a",
+     "measure": "time_state_worst",
+     "value": 1,
+     "limit": 2.0,
+     "pass": false,
+     "count": 0,
+     "active": false
+    },
+    {
+     "stage": "rule",
+     "rule": "time-error",
+     "subject": "net-a",
+     "measure": "time_error_max",
+     "value": 150.0,
+     "limit": 100.0,
+     "pass": true,
+     "count": 0,
+     "active": true
+    },
+    {
+     "stage": "rule",
+     "rule": "time-unstated",
+     "subject": "net-a",
+     "measure": "missing_time",
+     "value": 0.0,
+     "limit": 0.5,
+     "pass": false,
+     "count": 0,
+     "active": false
+    },
+    {
+     "stage": "rule",
+     "rule": "behind",
+     "subject": "radar-1",
+     "measure": "lateness_mean",
+     "value": 0.0,
+     "limit": 2000.0,
+     "pass": false,
+     "count": 0,
+     "active": false
+    },
+    {
+     "stage": "rule",
+     "rule": "ahead",
+     "subject": "radar-1",
+     "measure": "lateness_max",
+     "value": 0,
+     "limit": -1500.0,
+     "pass": false,
+     "count": 0,
+     "active": false
+    },
+    {
+     "stage": "rule",
+     "rule": "source-disorder",
+     "subject": "radar-1",
+     "measure": "source_out_of_order",
+     "value": 0,
+     "limit": 3.0,
+     "pass": false,
+     "count": 0,
+     "active": false
+    },
+    {
+     "stage": "rule",
+     "rule": "free-running",
+     "subject": "radar-1",
+     "measure": "time_state_worst",
+     "value": null,
+     "limit": 2.0,
+     "pass": false,
+     "count": 0,
+     "active": false
+    },
+    {
+     "stage": "rule",
+     "rule": "time-error",
+     "subject": "radar-1",
+     "measure": "time_error_max",
+     "value": null,
+     "limit": 100.0,
+     "pass": false,
+     "count": 0,
+     "active": false
+    },
+    {
+     "stage": "rule",
+     "rule": "time-unstated",
+     "subject": "radar-1",
+     "measure": "missing_time",
+     "value": 1.0,
+     "limit": 0.5,
+     "pass": true,
+     "count": 0,
+     "active": true
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "net-a",
+    "uid": "N1",
+    "time_ms": 3000,
+    "lat": 1.0,
+    "lon": 1.0
+   },
+   "expect": [
+    {
+     "ev": "pass",
+     "entity": "net-a/N1",
+     "rules": [
+      "time-error"
+     ],
+     "withheld": false,
+     "report": {
+      "track.source_id": "net-a",
+      "uid": "N1",
+      "time_ms": 3000,
+      "lat": 1.0,
+      "lon": 1.0,
+      "quality.marks": [
+       "time-error"
+      ]
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "order",
+     "value": "advance",
+     "inputs": [
+      3000,
+      2000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "interval",
+     "value": 1000,
+     "inputs": [
+      3000,
+      2000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "lateness",
+     "value": -1000,
+     "inputs": [
+      2000,
+      3000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "time_error",
+     "value": 150.0,
+     "inputs": [
+      null,
+      150.0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "time_state",
+     "value": "drifting",
+     "inputs": [
+      null,
+      "drifting"
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      3000,
+      2000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "net-a/N1",
+     "sample": "nis",
+     "value": 0.0,
+     "inputs": [
+      0.0,
+      0.0,
+      7779.0678373852625,
+      7779.0678373852625
+     ]
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 3000,
+    "lat": 1.0,
+    "lon": 1.004497287
+   },
+   "expect": [
+    {
+     "ev": "pass",
+     "entity": "radar-1/T1",
+     "rules": [],
+     "withheld": false,
+     "report": {
+      "track.source_id": "radar-1",
+      "uid": "T1",
+      "time_ms": 3000,
+      "lat": 1.0,
+      "lon": 1.004497287
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "order",
+     "value": "advance",
+     "inputs": [
+      3000,
+      2000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "interval",
+     "value": 1000,
+     "inputs": [
+      3000,
+      2000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "lateness",
+     "value": 0,
+     "inputs": [
+      3000,
+      3000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      3000,
+      2000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "nis",
+     "value": 0.0,
+     "inputs": [
+      0.0,
+      0.0,
+      7779.0678373852625,
+      7779.0678373852625
+     ]
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "last_tick": 2000,
+  "entities": {
+   "net-a/N1": {
+    "source": "net-a",
+    "last_time_ms": 3000,
+    "last_pos": [
+     0.0,
+     0.0
+    ],
+    "filter": {
+     "east": [
+      0.0,
+      0.0,
+      1696.561833544727,
+      714.603678771529,
+      477.2356866621217
+     ],
+     "north": [
+      0.0,
+      0.0,
+      1696.561833544727,
+      714.603678771529,
+      477.2356866621217
+     ]
+    },
+    "window": [
+     {
+      "wt": 0,
+      "time_ms": 0,
+      "order": "first",
+      "interval": null,
+      "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": 150.0,
+      "time_state": "drifting",
+      "nis": null,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     },
+     {
+      "wt": 1000,
+      "time_ms": 1000,
+      "order": "advance",
+      "interval": 1000,
+      "latency": null,
+      "lateness": -1000,
+      "source_out_of_order": false,
+      "time_error": 150.0,
+      "time_state": "drifting",
+      "nis": 0.0,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     },
+     {
+      "wt": 2000,
+      "time_ms": 2000,
+      "order": "advance",
+      "interval": 1000,
+      "latency": null,
+      "lateness": -1000,
+      "source_out_of_order": false,
+      "time_error": 20.0,
+      "time_state": "drifting",
+      "nis": 0.0,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     },
+     {
+      "wt": 3000,
+      "time_ms": 3000,
+      "order": "advance",
+      "interval": 1000,
+      "latency": null,
+      "lateness": -1000,
+      "source_out_of_order": false,
+      "time_error": 150.0,
+      "time_state": "drifting",
+      "nis": 0.0,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     }
+    ]
+   },
+   "radar-1/T1": {
+    "source": "radar-1",
+    "last_time_ms": 3000,
+    "last_pos": [
+     500.0000247724928,
+     0.0
+    ],
+    "filter": {
+     "east": [
+      500.0000247724928,
+      0.0,
+      1696.561833544727,
+      714.603678771529,
+      477.2356866621217
+     ],
+     "north": [
+      0.0,
+      0.0,
+      1696.561833544727,
+      714.603678771529,
+      477.2356866621217
+     ]
+    },
+    "window": [
+     {
+      "wt": 0,
+      "time_ms": 0,
+      "order": "first",
+      "interval": null,
+      "latency": null,
+      "lateness": 0,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
+      "nis": null,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     },
+     {
+      "wt": 1000,
+      "time_ms": 1000,
+      "order": "advance",
+      "interval": 1000,
+      "latency": null,
+      "lateness": 0,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
+      "nis": 0.0,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     },
+     {
+      "wt": 2000,
+      "time_ms": 2000,
+      "order": "advance",
+      "interval": 1000,
+      "latency": null,
+      "lateness": 0,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
+      "nis": 0.0,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     },
+     {
+      "wt": 3000,
+      "time_ms": 3000,
+      "order": "advance",
+      "interval": 1000,
+      "latency": null,
+      "lateness": 0,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
+      "nis": 0.0,
+      "speed_err": null,
+      "ce": false,
+      "vel": false,
+      "hae": false
+     }
+    ]
+   }
+  },
+  "rules": {
+   "behind": {
+    "net-a": {
+     "count": 0,
+     "active": false
+    },
+    "radar-1": {
+     "count": 0,
+     "active": false
+    }
+   },
+   "ahead": {
+    "net-a": {
+     "count": 0,
+     "active": false
+    },
+    "radar-1": {
+     "count": 0,
+     "active": false
+    }
+   },
+   "source-disorder": {
+    "net-a": {
+     "count": 0,
+     "active": false
+    },
+    "radar-1": {
+     "count": 0,
+     "active": false
+    }
+   },
+   "free-running": {
+    "net-a": {
+     "count": 0,
+     "active": false
+    },
+    "radar-1": {
+     "count": 0,
+     "active": false
+    }
+   },
+   "time-error": {
+    "net-a": {
+     "count": 0,
+     "active": true
+    },
+    "radar-1": {
+     "count": 0,
+     "active": false
+    }
+   },
+   "time-unstated": {
+    "net-a": {
+     "count": 0,
+     "active": false
+    },
+    "radar-1": {
+     "count": 0,
+     "active": true
+    }
+   }
+  }
+ }
+}

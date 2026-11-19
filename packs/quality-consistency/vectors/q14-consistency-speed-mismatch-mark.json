@@ -43,6 +43,16 @@
       0,
       null
      ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      0,
+      null
+     ]
     }
    ]
   },
@@ -89,6 +99,16 @@
      "entity": "radar-1/T1",
      "sample": "interval",
      "value": 10000,
+     "inputs": [
+      10000,
+      0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
      "inputs": [
       10000,
       0
@@ -169,6 +189,16 @@
     {
      "stage": "sample",
      "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      20000,
+      10000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
      "sample": "nis",
      "value": 3.809047432750486e-06,
      "inputs": [
@@ -241,6 +271,16 @@
     {
      "stage": "sample",
      "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      30000,
+      20000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
      "sample": "nis",
      "value": 7.445407959987113e-05,
      "inputs": [
@@ -277,13 +317,22 @@
       "age": 0,
       "latency_mean": null,
       "latency_max": null,
+      "lateness_mean": null,
+      "lateness_max": null,
+      "lateness_min": null,
       "nis_mean": 0.3319322575420533,
       "speed_err_mean": 40.00000124856092,
       "out_of_order": 0,
       "duplicate": 0,
+      "source_out_of_order": 0,
       "missing_ce": 0.0,
       "missing_vel": 1.0,
-      "missing_hae": 1.0
+      "missing_hae": 1.0,
+      "time_error_mean": null,
+      "time_error_max": null,
+      "time_state_last": null,
+      "time_state_worst": null,
+      "missing_time": 1.0
      }
     },
     {
@@ -306,13 +355,22 @@
       "age": 0,
       "latency_mean": null,
       "latency_max": null,
+      "lateness_mean": null,
+      "lateness_max": null,
+      "lateness_min": null,
       "nis_mean": 0.3319322575420533,
       "speed_err_mean": 40.00000124856092,
       "out_of_order": 0,
       "duplicate": 0,
+      "source_out_of_order": 0,
       "missing_ce": 0.0,
       "missing_vel": 1.0,
       "missing_hae": 1.0,
+      "time_error_mean": null,
+      "time_error_max": null,
+      "time_state_last": null,
+      "time_state_worst": null,
+      "missing_time": 1.0,
       "entities": 1
      }
     }
@@ -409,6 +467,16 @@
     {
      "stage": "sample",
      "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      40000,
+      30000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
      "sample": "nis",
      "value": 1.0343865778152488e-06,
      "inputs": [
@@ -478,6 +546,16 @@
      "entity": "radar-1/T1",
      "sample": "interval",
      "value": 10000,
+     "inputs": [
+      50000,
+      40000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
      "inputs": [
       50000,
       40000
@@ -563,6 +641,16 @@
     {
      "stage": "sample",
      "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      60000,
+      50000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
      "sample": "nis",
      "value": 2.3566710518909717e-08,
      "inputs": [
@@ -632,6 +720,16 @@
      "entity": "radar-1/T1",
      "sample": "interval",
      "value": 10000,
+     "inputs": [
+      70000,
+      60000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
      "inputs": [
       70000,
       60000
@@ -717,6 +815,16 @@
     {
      "stage": "sample",
      "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      80000,
+      70000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
      "sample": "nis",
      "value": 3.5107887668872385e-10,
      "inputs": [
@@ -786,6 +894,16 @@
      "entity": "radar-1/T1",
      "sample": "interval",
      "value": 10000,
+     "inputs": [
+      90000,
+      80000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
      "inputs": [
       90000,
       80000
@@ -871,6 +989,16 @@
     {
      "stage": "sample",
      "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      100000,
+      90000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
      "sample": "nis",
      "value": 3.756303349735066e-12,
      "inputs": [
@@ -907,13 +1035,22 @@
       "age": 0,
       "latency_mean": null,
       "latency_max": null,
+      "lateness_mean": null,
+      "lateness_max": null,
+      "lateness_min": null,
       "nis_mean": 7.641777479807037e-08,
       "speed_err_mean": 5.3574391761420275e-06,
       "out_of_order": 0,
       "duplicate": 0,
+      "source_out_of_order": 0,
       "missing_ce": 0.0,
       "missing_vel": 1.0,
-      "missing_hae": 1.0
+      "missing_hae": 1.0,
+      "time_error_mean": null,
+      "time_error_max": null,
+      "time_state_last": null,
+      "time_state_worst": null,
+      "missing_time": 1.0
      }
     },
     {
@@ -937,13 +1074,22 @@
       "age": 0,
       "latency_mean": null,
       "latency_max": null,
+      "lateness_mean": null,
+      "lateness_max": null,
+      "lateness_min": null,
       "nis_mean": 7.641777479807037e-08,
       "speed_err_mean": 5.3574391761420275e-06,
       "out_of_order": 0,
       "duplicate": 0,
+      "source_out_of_order": 0,
       "missing_ce": 0.0,
       "missing_vel": 1.0,
       "missing_hae": 1.0,
+      "time_error_mean": null,
+      "time_error_max": null,
+      "time_state_last": null,
+      "time_state_worst": null,
+      "missing_time": 1.0,
       "entities": 1
      }
     }
@@ -1022,6 +1168,10 @@
       "order": "advance",
       "interval": 10000,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": 4.3284210921417136e-07,
       "speed_err": 4.954500951726004e-06,
       "ce": true,
@@ -1034,6 +1184,10 @@
       "order": "advance",
       "interval": 10000,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": 2.3566710518909717e-08,
       "speed_err": 6.163316811580444e-06,
       "ce": true,
@@ -1046,6 +1200,10 @@
       "order": "advance",
       "interval": 10000,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": 1.7345044986332815e-09,
       "speed_err": 4.954501036991132e-06,
       "ce": true,
@@ -1058,6 +1216,10 @@
       "order": "advance",
       "interval": 10000,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": 3.5107887668872385e-10,
       "speed_err": 6.1633167263153155e-06,
       "ce": true,
@@ -1070,6 +1232,10 @@
       "order": "advance",
       "interval": 10000,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": 8.489376669472179e-12,
       "speed_err": 4.954500951726004e-06,
       "ce": true,
@@ -1082,6 +1248,10 @@
       "order": "advance",
       "interval": 10000,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": 3.756303349735066e-12,
       "speed_err": 4.954498578513267e-06,
       "ce": true,

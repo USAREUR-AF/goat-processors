@@ -1,9 +1,17 @@
 # Quality specification
 
-Status: Written. Version 0.1. Every language's engine implements this document
-and passes every vector. Engines are written from this document,
-[correlate.md](correlate.md) (for the sections it names) and the vectors,
-never from another engine's source.
+Status: Written. Version 0.2. Every language's engine implements this document
+and passes every vector.
+
+Version 0.2 adds time quality: lateness against an input clock built from the
+other sources (Input clock), reports out of order within a source, and the
+time error and time state each report states (Reports, Time quality). It
+settles three cases 0.1 left open: a forwarded `ce` that overflows
+(Forwarding), line ends and whitespace in `pack.def` (Pack), and two reports
+whose keys collide (Reports). Every 0.1 measure keeps its value.
+
+Engines are written from this document, [correlate.md](correlate.md) (for the
+sections it names) and the vectors, never from another engine's source.
 
 ## What quality does
 
@@ -21,6 +29,9 @@ error inflated, or withheld.
 | whether its reported speed agrees with its movement | successive positions against `speed_ms` |
 | how many reports are out of order or repeat a time | report times |
 | how often optional keys are missing | `ce`, `course` with `speed_ms`, `hae` |
+| how far a report's time is behind or ahead of the other sources | `time_ms` against the input clock |
+| how often a source's reports go back in time across its tracks | report times within one source |
+| how good the stamping clock says it is | `time_error_ms`, `time_state`, or the pack's `time_default` |
 
 An engine has four operations:
 
@@ -51,11 +62,19 @@ A report is a map from shared-model key to value. Quality reads these keys:
 | `speed_ms` | number, m/s | no | reported speed; with `course`, a velocity measurement |
 | `hae` | number, m | no | read only for the missing-key rate |
 | `received_ms` | int | no | time the report reached the system that produced it, epoch ms |
+| `time_error_ms` | number, ms | no | error bound of the stamping clock (Time quality) |
+| `time_state` | string | no | state of the stamping clock (Time quality) |
 | `quality.marks` | list of strings | no | marks from an earlier quality stage; extended on output |
 
 The entity key is `<track.source_id>/<uid>`. Keys are compared as byte
 strings; "key order" means ascending byte order. The source of an entity is
-the `track.source_id` of its first accepted report.
+the `track.source_id` of its first accepted report. Two reports whose keys are
+equal are one entity even when their sources differ: source `a/b` with uid
+`c` and source `a` with uid `b/c` both give `a/b/c`, and that entity's source
+is the one of the report that created it. Everything that reads "the
+report's source" (`time_default`, lateness, source order, actions) uses the
+report's own `track.source_id`; everything that reads "the entity's source"
+(source measures, source rules) uses the entity's.
 
 Types, missing required keys and the `reject` event follow
 [correlate.md](correlate.md), section Reports: the required keys are checked
@@ -66,6 +85,27 @@ below. `received_ms` must be an integer. A boolean is never a number.
 
 Unlike correlate, a report earlier than its entity's latest report is **not**
 rejected: quality counts it (see Order).
+
+### Time quality
+
+The keys `time_error_ms` and `time_state`, their valid values, and the pack
+directive `time_default` are those of [correlate.md](correlate.md), section
+Reports, Time quality (version 0.8). Quality resolves each key the same way,
+per key, with one difference at the last step:
+
+1. the report's own valid value;
+2. otherwise the pack's `time_default` for the report's `track.source_id`,
+   when it gives that key;
+3. otherwise the value is **unstated**. Correlate takes error 0 and
+   `coherent` here; quality does not, because a quality measure is never 0 for
+   lack of data. An unstated value takes no sample and counts in
+   `missing_time` (state only).
+
+A time state has a code for measures: `coherent` 0, `drifting` 1,
+`free-running` 2. Higher is worse.
+
+The time error is measured on its own and is not added to the measurement
+variance of `nis`.
 
 ## Order
 
@@ -90,7 +130,10 @@ section Frame. The reference is the `lat`/`lon` of the first report the engine
 accepts, of any order, and it never moves.
 
 Each entity keeps the filter of [correlate.md](correlate.md), section Track
-estimate, with the pack's `filter` parameters: created by its `first` report,
+estimate, the single constant-velocity model (a quality pack has no
+`maneuver`, `restart` or `bias` directive, and the time error adds nothing to
+the measurement variance), with the pack's `filter` parameters: created by
+its `first` report,
 predicted and updated by each `advance` report, untouched by `duplicate` and
 `out-of-order` reports. The measurement error is the report's `ce` (or
 `default_ce_m`). Measures always use the report as received; an action never
@@ -98,6 +141,26 @@ changes what quality measures.
 
 Each entity also keeps `last_pos`, the plane position of its latest `first`
 or `advance` report as reported (not filtered).
+
+## Input clock
+
+Quality has no clock of its own. At each report, the *input clock* is built
+from the entities that exist just before the report is applied:
+
+1. For each source other than the report's `track.source_id`, its latest
+   time is the greatest `last` among the entities whose source it is.
+2. The input clock is the median of those latest times: sorted ascending,
+   the middle value for an odd count, the mean of the two middle values
+   (`(a + b) / 2` in binary64) for an even count.
+3. With no other source, there is no input clock.
+
+The *source latest* of the report is the greatest `last` among the entities
+whose source is the report's `track.source_id`, including the report's own
+entity; none when there is no such entity.
+
+A median of the other sources, not their greatest time, keeps one source
+whose clock runs ahead from making every other source read as late. Ticks do
+not move the input clock.
 
 ## Samples
 
@@ -108,6 +171,10 @@ the report, these samples are taken:
 |---|---|---|
 | `interval` | order `advance` | `t - last`, ms (an integer) |
 | `latency` | `received_ms` present, any order | `received_ms - t`, ms (an integer; may be negative) |
+| `lateness` | an input clock exists, any order | `clock - t`, ms: positive when the report is behind the other sources, negative when ahead |
+| `time_error` | a time error is stated (report or default) | the time error, ms |
+| `time_state` | a time state is stated (report or default) | the state |
+| `source_order` | always | `out-of-order` when a source latest exists and `t` is below it, else `in-order` |
 | `nis` | order `advance` | below |
 | `speed_err` | order `advance` and `speed_ms` present | below |
 
@@ -125,11 +192,16 @@ freedom, mean 2; a mean well above 2 means the source understates its error.
 `speed_err = abs(implied - speed_ms)`, m/s. `last_pos` is the value before
 this report.
 
+`lateness` is an integer when the clock is one, and a binary64 when the
+clock is the mean of two middle values.
+
 Each report also records three presence flags: `ce` (a valid `ce`), `vel`
 (valid `course` and valid `speed_ms`), `hae` (a valid `hae`).
 
-The report's *record* holds `wt`, `time_ms`, `order`, the four samples (null
-when not taken) and the three flags. It is appended to the entity's window in
+The report's *record* holds `wt`, `time_ms`, `order`, the samples
+`interval`, `latency`, `lateness`, `nis`, `speed_err`, `time_error`,
+`time_state` (null when not taken), `source_out_of_order` (true when the
+`source_order` sample is `out-of-order`) and the three flags. It is appended to the entity's window in
 arrival order.
 
 ## Window
@@ -157,13 +229,22 @@ than `k` records hold it. Absent is never written as 0.
 | `age` | `now_ms - last`, the entity's latest accepted time; always present, may be negative | ms |
 | `latency_mean` | mean of the `latency` samples; statistic | ms |
 | `latency_max` | largest `latency` sample; statistic | ms |
+| `lateness_mean` | mean of the `lateness` samples; statistic | ms |
+| `lateness_max` | largest `lateness` sample; statistic | ms |
+| `lateness_min` | smallest `lateness` sample; statistic | ms |
 | `nis_mean` | mean of the `nis` samples; statistic | none |
 | `speed_err_mean` | mean of the `speed_err` samples; statistic | m/s |
 | `out_of_order` | records in `W` with order `out-of-order`; always present | count |
 | `duplicate` | records in `W` with order `duplicate`; always present | count |
+| `source_out_of_order` | records in `W` whose `source_out_of_order` is true; always present | count |
 | `missing_ce` | records in `W` without `ce`, divided by `reports`; null when `reports < k` | fraction |
 | `missing_vel` | the same for `vel` | fraction |
 | `missing_hae` | the same for `hae` | fraction |
+| `time_error_mean` | mean of the `time_error` samples; statistic | ms |
+| `time_error_max` | largest `time_error` sample; statistic | ms |
+| `time_state_last` | code of the `time_state` of the last record in `W` that holds one; statistic | code |
+| `time_state_worst` | largest code among the `time_state` samples; statistic | code |
+| `missing_time` | records in `W` without a `time_state` sample, divided by `reports`; null when `reports < k` | fraction |
 
 A mean is `s / n` where `s` starts at 0.0 and adds each sample in window order
 in binary64, and `n` is the number of samples. A fraction is `count / reports`
@@ -178,9 +259,10 @@ in entity key order.
 
 | Measure | Aggregate | Empty (no present value) |
 |---|---|---|
-| `reports`, `out_of_order`, `duplicate` | sum | — (always present) |
-| `interval_last`, `interval_mean`, `latency_mean`, `nis_mean`, `speed_err_mean`, `missing_ce`, `missing_vel`, `missing_hae` | mean over entities: `s / n` as above, in key order | null |
-| `interval_max`, `latency_max` | largest | null |
+| `reports`, `out_of_order`, `duplicate`, `source_out_of_order` | sum | — (always present) |
+| `interval_last`, `interval_mean`, `latency_mean`, `lateness_mean`, `nis_mean`, `speed_err_mean`, `missing_ce`, `missing_vel`, `missing_hae`, `time_error_mean`, `missing_time` | mean over entities: `s / n` as above, in key order | null |
+| `interval_max`, `latency_max`, `lateness_max`, `time_error_max`, `time_state_last`, `time_state_worst` | largest | null |
+| `lateness_min` | smallest | null |
 | `age` | smallest (the freshest entity) | — (always present) |
 | `entities` | number of entities of the source | — |
 
@@ -240,7 +322,9 @@ than `alert`, in pack order; their rule names are the event's `rules`.
   it treated as absent), with these changes:
   - **`ce`**, when at least one `downgrade` is in force: `x` is the report's
     valid `ce`, or `default_ce_m` when it has none; `x = x * factor` for each
-    `downgrade` in pack order; the forwarded `ce` is `x`.
+    `downgrade` in pack order; the forwarded `ce` is `x`, or the largest
+    finite binary64 (`1.7976931348623157e308`) when `x` overflowed to
+    infinity.
   - **`quality.marks`**, when at least one `mark` is in force: start from the
     received `quality.marks` when it is a list whose items are all strings,
     else from an empty list; append each `mark` rule name in pack order that
@@ -273,9 +357,10 @@ A tick with no entities gives no events.
 ## Ingest
 
 `ingest(report)`, in this order: check the required keys (reject ends it);
-set the reference if there is none; find the order; take the samples
-(`interval`, `latency`, `nis`, `speed_err`, in that order, each only when its
-table row says); create the entity (event `new`) or update its filter,
+set the reference if there is none; find the order; build the input clock
+and the source latest; take the samples (`interval`, `latency`, `lateness`,
+`time_error`, `time_state`, `source_order`, `nis`, `speed_err`, in that
+order, each only when its table row says); create the entity (event `new`) or update its filter,
 `last` and `last_pos` as the order says; append the record; emit `pass`.
 
 ## Events
@@ -308,6 +393,10 @@ On ingest, one record per sample, in the order taken, preceded by the order:
 | `order` | the order | `[t, last]`, `last` null for `first` |
 | `interval` | `t - last` | `[t, last]` |
 | `latency` | `received_ms - t` | `[received_ms, t]` |
+| `lateness` | `clock - t` | `[clock, t]` |
+| `time_error` | the time error | `[report value, default value]`, each null when not given |
+| `time_state` | the state | `[report value, default value]`, each null when not given |
+| `source_order` | `in-order` or `out-of-order` | `[t, source latest]`, the latest null when none |
 | `nis` | `nis` | `[de, dn, se, sn]` |
 | `speed_err` | `speed_err` | `[implied, speed_ms]` |
 
@@ -331,8 +420,9 @@ state after the evaluation.
  "rules": {<rule name>: {<subject>: {"count": n, "active": bool}}}}
 ```
 
-A record is `{"wt", "time_ms", "order", "interval", "latency", "nis",
-"speed_err", "ce", "vel", "hae"}`, the samples null when not taken and the
+A record is `{"wt", "time_ms", "order", "interval", "latency", "lateness",
+"source_out_of_order", "time_error", "time_state", "nis", "speed_err", "ce",
+"vel", "hae"}`, the samples null when not taken, `source_out_of_order` and the
 flags booleans. `rules` holds every rule of the pack, with `{}` when it has no
 state. The snapshot is the whole state: two engines with equal snapshots
 decide every later call the same way.
@@ -340,30 +430,45 @@ decide every later call the same way.
 ## Pack
 
 A pack is a directory `packs/quality-<name>/` holding `pack.def` and
-`vectors/`. `pack.def` is line-oriented UTF-8; `#` starts a comment; blank
-lines are ignored; tokens are separated by spaces or tabs. Each line is a
-directive and its values.
+`vectors/`. `pack.def` is UTF-8, read line by line:
+
+1. Lines end at LF (U+000A). One CR (U+000D) at the end of a line is
+   removed, so CRLF files load. A final LF does not start another line.
+2. A line that then holds a control character (U+0000 to U+001F other than
+   tab, or U+007F) is a load error. A CR anywhere else in a line is one.
+3. `#` starts a comment that runs to the end of the line.
+4. Space and tab at the start and end are removed; a line left empty is
+   ignored.
+5. Tokens are separated by runs of space and tab, and by nothing else. Any
+   other character, such as U+00A0, is part of a token.
+
+Each line is a directive and its values.
 
 ```
 pack     <name>
 version  <semver>
 filter   accel_var=<q> default_ce_m=<m> vel_sigma_ms=<m/s> unknown_vel_ms=<m/s>
 window   window_ms=<ms> min_samples=<n> forget_ms=<ms>
+time_default  <source_id> error_ms=<ms> state=<coherent | drifting | free-running>
 rule     <name> scope=<s> measure=<m> op=<op> limit=<x> for=<n> clear=<x> action=<a> [factor=<f>]
 ```
 
 `pack`, `version`, `filter` and `window` are required and appear once. `rule`
-repeats, may be absent, and its order is pack order.
+repeats, may be absent, and its order is pack order. `time_default` has the
+grammar of [correlate.md](correlate.md), section Pack: optional, at most once
+per source id, the source id first (a token without `=`) and then `error_ms`,
+`state` or both; its `error_ms` is a number of this section's grammar.
 
 **Values.** A *number* is written `-?[0-9]+(\.[0-9]+)?` and read as the
-nearest binary64. An *integer* is written `[0-9]+`. A rule name is one or more
+nearest binary64; a number whose nearest binary64 is infinite is a load
+error. An *integer* is written `[0-9]+`. A rule name is one or more
 of `A-Z a-z 0-9 . _ -`.
 
 Any of these is a load error:
 
 | Directive | Error |
 |---|---|
-| any | an unknown directive; `pack`, `version`, `filter` or `window` repeated or missing |
+| any | a control character (Pack, step 2); an unknown directive; `pack`, `version`, `filter` or `window` repeated or missing |
 | `pack`, `version` | not exactly one value |
 | `filter`, `window`, `rule` | a parameter without `=`; a repeated, unknown or missing parameter |
 | `filter` | a value that is not a number; `accel_var` below 0; `default_ce_m`, `vel_sigma_ms` or `unknown_vel_ms` 0 or below |
@@ -374,6 +479,7 @@ Any of these is a load error:
 | `rule` | `limit` or `clear` not a number; `for` not an integer or below 1 |
 | `rule` | `clear` above `limit` for op `>` or `>=`; `clear` below `limit` for op `<` or `<=` |
 | `rule` | `downgrade` without `factor`; `factor` with another action; `factor` not a number or below 1 |
+| `time_default` | no source id; a source id given on an earlier `time_default`; no parameter; a parameter other than `error_ms` and `state`; `error_ms` not a number or below 0; `state` not `coherent`, `drifting` or `free-running` |
 
 ## Packs
 
@@ -381,6 +487,8 @@ Any of these is a load error:
 |---|---|---|
 | `quality-feed` | `silent` (age, alert), `slow` (mean interval, mark), `late` (worst latency, drop), `source-latent` (source mean latency, alert), `disorder` (out-of-order reports, mark) | feed health: freshness, regularity, latency, order |
 | `quality-consistency` | `overconfident` (source `nis_mean`, downgrade ×2), `no-error` (source `missing_ce`, alert), `speed-mismatch` (`speed_err_mean`, mark) | reported against observed error |
+| `quality-time` | `behind` (source `lateness_mean`, alert), `ahead` (source `lateness_max`, mark), `source-disorder` (`source_out_of_order`, alert), `free-running` (`time_state_worst`, downgrade ×4), `time-error` (`time_error_max`, mark), `time-unstated` (`missing_time`, alert); a `time_default` for `net-a` | time quality of each source |
+| `quality-edge` | `huge` (downgrade by 10^300) | conformance only: overflow of a forwarded `ce`, key collision |
 
 ## Vectors
 
@@ -396,7 +504,7 @@ Engines use IEEE-754 binary64 and the formulas above in the order written.
 Vectors compare floats within `1e-6 * max(1, abs(want))` (vector-format.md).
 No vector places a decision on a float measure within that distance of a
 `limit` or `clear`; vectors do test integer measures (`age`, counts,
-intervals) exactly at a `limit`.
+intervals, time state codes) exactly at a `limit`.
 
 ## Open points
 
@@ -406,6 +514,3 @@ differ on them until a later version settles them with vectors.
 | Point | Section |
 |---|---|
 | An integer literal outside the signed 64-bit range | Reports (as correlate.md) |
-| Two sources whose key strings collide (`a/b` with uid `c` and `a` with uid `b/c`) | Reports |
-| A forwarded `ce` that overflows binary64 after many `downgrade` factors | Forwarding |
-| Whitespace other than space and tab inside a `pack.def` line | Pack |

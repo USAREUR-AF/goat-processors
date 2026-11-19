@@ -1,0 +1,5 @@
+{
+ "name": "57-time-default-same-source-twice",
+ "pack_def": "pack     t\nversion  0.1.0\nfilter   accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\nwindow   window_ms=60000 min_samples=3 forget_ms=300000\ntime_default net-a state=drifting\ntime_default net-a error_ms=5\n",
+ "expect_error": true
+}

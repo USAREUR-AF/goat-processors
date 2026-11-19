@@ -1,0 +1,23 @@
+# Time quality of each source. The input clock for a report is the median of
+# the latest report times of the other sources; lateness is that clock minus
+# the report's time. A source whose reports average more than 2 s behind the
+# others on two ticks raises an alert until the mean is below 1 s. A source
+# whose reports are all more than 1.5 s ahead of the others is marked until
+# its least-ahead report is within 0.5 s. Three reports in the window earlier
+# than their source's latest report raise an alert. A source whose clock is
+# free-running has its error inflated four times while any free-running report
+# is in the window. A stated time error above 100 ms marks a source until it
+# falls below 50 ms. A source that states no time state on more than half its
+# reports raises an alert. net-a states no time; its clock is known to drift
+# with an error of up to 150 ms.
+pack          quality-time
+version       0.1.0
+filter        accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+window        window_ms=60000 min_samples=3 forget_ms=300000
+time_default  net-a error_ms=150 state=drifting
+rule          behind           scope=source measure=lateness_mean       op=>  limit=2000  for=2 clear=1000 action=alert
+rule          ahead            scope=source measure=lateness_max        op=<  limit=-1500 for=1 clear=-500 action=mark
+rule          source-disorder  scope=source measure=source_out_of_order op=>= limit=3     for=1 clear=1    action=alert
+rule          free-running     scope=source measure=time_state_worst    op=>= limit=2     for=1 clear=2    action=downgrade factor=4
+rule          time-error       scope=source measure=time_error_max      op=>  limit=100   for=1 clear=50   action=mark
+rule          time-unstated    scope=source measure=missing_time        op=>  limit=0.5   for=1 clear=0.5  action=alert

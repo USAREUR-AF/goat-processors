@@ -1,0 +1,9 @@
+# Edge values for conformance, not for operational use. One downgrade with a
+# factor of 10^300 makes a forwarded ce overflow binary64, so the forwarded
+# value is the largest finite binary64. min_samples 1 makes every statistic
+# present from the first sample.
+pack     quality-edge
+version  0.1.0
+filter   accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+window   window_ms=60000 min_samples=1 forget_ms=300000
+rule     huge  scope=entity measure=reports op=>= limit=2 for=1 clear=1 action=downgrade factor=1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
