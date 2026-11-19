@@ -9,7 +9,7 @@ from these documents and the vectors, never from another engine's source.
 | correlate, method assign | [correlate-assign.md](correlate-assign.md) | Written, version 0.2; seven engines built | every track in one system track; per-source least-cost assignment at each tick; members fused by uncertainty weight |
 | fuse | — | Designed, not built | combines the measurements of a group's members into one estimate weighted by each member's uncertainty, instead of reporting one member |
 | filter | — | Designed, not built | keeps or drops entities by rule: inside or outside an area, within a distance of a reference such as own ship, by environment, identity or source |
-| quality | — | Designed, not built | measures each source and track (update interval, latency, reported against observed error, gaps, staleness) and states the action a rule attaches to a measurement: mark, downgrade, drop or alert |
+| quality | [quality.md](quality.md) | Written, version 0.1; Python built | measures each entity and source from its reports (update interval, age, latency, normalized innovation squared against reported error, implied against reported speed, order, missing keys) and applies the action a rule attaches to a measure: mark, downgrade, drop or alert |
 
 ## What every function shares
 

@@ -17,6 +17,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: the committed vectors are what the scenarios produce
         run: python3 -I tools/make-vectors.py && git diff --exit-code -- packs
+      - name: the committed quality vectors are what the scenarios produce
+        run: python3 -I tools/make-quality-vectors.py && git diff --exit-code -- packs spec/quality-load-vectors
   python:
     runs-on: ubuntu-latest
     timeout-minutes: 10
