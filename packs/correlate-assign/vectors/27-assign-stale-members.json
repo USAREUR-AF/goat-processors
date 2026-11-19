@@ -229,6 +229,7 @@
   ],
   "entities": {},
   "systems": {},
-  "next_system": 2
+  "next_system": 2,
+  "reported": []
  }
 }

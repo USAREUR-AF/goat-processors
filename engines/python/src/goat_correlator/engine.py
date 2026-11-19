@@ -1,4 +1,4 @@
-"""Correlate engine (spec/correlate.md, version 0.3). Standard library only."""
+"""Correlate engine (spec/correlate.md 0.4, spec/correlate-assign.md 0.2). Standard library only."""
 
 import math
 import os
@@ -120,6 +120,8 @@ def parse_pack(text):
             if set(kv) != set(FILTER_PARAMS):
                 raise PackError("line %d: filter needs exactly %s" % (i, ", ".join(FILTER_PARAMS)))
             p.filter = {k: _num(v, i) for k, v in kv.items()}
+            if p.filter["accel_var"] < 0 or min(p.filter[k] for k in ("default_ce_m", "vel_sigma_ms", "unknown_vel_ms")) <= 0:
+                raise PackError("line %d: filter variances must be above 0 (accel_var 0 or above)" % i)
         elif d in ("gate", "confirm", "hold"):
             if not args:
                 raise PackError("line %d: %s needs a test" % (i, d))
@@ -156,6 +158,8 @@ def parse_pack(text):
             if len(args) != 1:
                 raise PackError("line %d: %s takes one value" % (i, d))
             setattr(p, d, _num(args[0], i))
+            if (d == "new_cost" and p.new_cost <= 0) or (d == "keep_bonus" and p.keep_bonus < 0):
+                raise PackError("line %d: new_cost must be above 0 and keep_bonus 0 or above" % i)
         else:
             raise PackError("line %d: unknown directive %s" % (i, d))
     if p.method == "assign":
@@ -759,6 +763,7 @@ class AssignEngine(Engine):
                          for k, e in sorted(self.entities.items())},
             "systems": {s: list(self.systems[s]) for s in self.system_order},
             "next_system": self.next_system,
+            "reported": sorted(self.reported),
         }
 
 

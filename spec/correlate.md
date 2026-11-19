@@ -1,6 +1,6 @@
 # Correlate specification
 
-Status: Written. Version 0.3. Every language's engine implements this document
+Status: Written. Version 0.4. Every language's engine implements this document
 and passes every vector. Engines are written from this document and the
 vectors, never from another engine's source.
 
@@ -262,6 +262,9 @@ same_source    forbid | allow
 output         priority | latest
 priority       <source_id> <n>
 ```
+
+In `filter`, `default_ce_m`, `vel_sigma_ms` and `unknown_vel_ms` must be
+above 0 and `accel_var` 0 or above, or the pack does not load.
 
 `gate`, `confirm`, `hold` and `priority` repeat; their order is the order the
 tests run. Every other directive appears once, and `pack`, `version`,

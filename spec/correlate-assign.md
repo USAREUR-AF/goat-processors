@@ -1,6 +1,6 @@
 # Correlate by assignment specification
 
-Status: Written. Version 0.1. A second method for the correlate function.
+Status: Written. Version 0.2. A second method for the correlate function.
 Engines implement it from this document, [correlate.md](correlate.md) and the
 vectors, never from another engine's source.
 
@@ -43,8 +43,10 @@ predict each member's filter to `t` (Track estimate, prediction), then
 A's filter and `p`, `pp` the fused estimate of M.
 
 **On each tick** at `now_ms`, after staleness (below), take the entities that
-had an accepted report since the previous tick (since the start, for the first
-tick). Group them by `track.source_id` and take the sources in key order. For
+had an accepted report since the previous `tick` call (since the start, for
+the first), by call order and whatever their `time_ms`; an entity counts once
+however many reports it had, and an entity dropped as stale in this tick is
+not among them. Group them by `track.source_id` and take the sources in key order. For
 one source S, with its reported entities R (key order):
 
 1. **Columns.** Every system track whose members, leaving out the entities of
@@ -52,14 +54,17 @@ one source S, with its reported entities R (key order):
    the track's *others*. Columns are in creation order.
 2. **Entries.** For each entity A of R and each column T: run the pack's
    `gate` tests between A and each of T's others in key order (as in
-   `correlate.md`, the other predicted to A's time; stop at the first failure).
+   `correlate.md`, the other predicted to A's time). The first failing test
+   ends the entry: no further test runs against that other or against T's
+   later others.
    If every test passed, the entry is `d²` of A against T's others, minus
    `keep_bonus` when A is a member of T; otherwise the entry is forbidden.
    Each A also has its own entry *alone*, cost `new_cost`, minus `keep_bonus`
    when A is now the only member of its system track.
 3. **Assignment.** Choose for each A either one column or *alone*, each column
-   chosen at most once, with the least total cost. Vectors are written so the
-   least total is unique.
+   chosen at most once, with the least total cost. This version defines no
+   rule between assignments of equal least total; vectors are written so the
+   least total is unique, and engines may choose differently on a tie.
 4. **Apply**, entities of R in key order:
    - A chose the column it is already in, or chose *alone* and is already
      alone: nothing.
@@ -68,7 +73,9 @@ one source S, with its reported entities R (key order):
      chosen column (event `join`), or starts a new system track alone (event
      `start`).
 
-The memberships after one source are the ones the next source sees.
+The memberships after one source are the ones the next source sees. A system
+track holds at most one entity per source once a source's events are all
+applied; between two of those events it may briefly hold two.
 
 **Staleness**, first in each tick, entities in key order, by the rule of
 `correlate.md`: a stale entity leaves its system track (event `leave`, reason
@@ -108,9 +115,12 @@ entities in key order and, per entity, columns in creation order then
 
 ## Snapshot
 
-`{"ref", "entities", "systems", "next_system"}`. Each entity holds
-`last_time_ms`, `system` and `filter` as in `correlate.md`; `systems` maps a
-system track name to its members in key order.
+`{"ref", "entities", "systems", "next_system", "reported"}`. Each entity
+holds `last_time_ms`, `system` (null until its first tick) and `filter` as in
+`correlate.md`; `systems` maps a system track name to its members in key
+order; `reported` lists, in key order, the entities that reported since the
+previous tick. The snapshot is the whole state: two engines with equal
+snapshots decide every later call the same way.
 
 ## Pack
 
@@ -127,7 +137,10 @@ keep_bonus  <number>
 stale_ms    <ms>
 ```
 
-All but `gate` are required and appear once; `gate` repeats. `confirm`,
+All but `gate` are required and appear once; `gate` repeats and may be
+absent, in which case every column entry passes. `new_cost` must be above 0
+and `keep_bonus` 0 or above, or the pack does not load. A `method` value other
+than `confirm` or `assign` does not load. `confirm`,
 `hold`, `confirm_count`, `hold_failures`, `same_source`, `output` and
 `priority` are load errors with `method assign`. A pack with no `method` line
 uses `method confirm` (`correlate.md`); `method confirm` may also be written.

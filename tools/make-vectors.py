@@ -336,6 +336,25 @@ scenario("30-assign-only-reported-tracks-decide", "correlate-assign", [
 ], [["new"], ["start", "system"], ["new"], ["join", "system"], ["system"]])
 
 
+# 31. A failed gate test against one of a system track's others ends that
+#     entry: no test runs against its later others (trace).
+scenario("31-assign-gate-failure-ends-entry", "correlate-assign", [
+    ("ingest", rep("adsb", "A1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("eo-2", "E1", 0, 10, 0, ce=30, **AIR)),
+    ("tick", 0),
+    ("ingest", rep("radar-1", "T1", 0, 5, 0, ce=30, **SEA)),
+    ("tick", 0),
+], [["new"], ["new"], ["start", "join", "system"], ["new"], ["start", "system", "system"]])
+
+# 32. The snapshot lists the entities that reported since the previous tick.
+scenario("32-assign-snapshot-holds-reported", "correlate-assign", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("tick", 500),
+    ("ingest", rep("adsb", "A7", 1000, 10, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
+], [["new"], ["start", "system"], ["new"], []])
+
+
 def clean(x):
     """Write negative zero as zero."""
     if isinstance(x, float):
