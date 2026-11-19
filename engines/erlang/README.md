@@ -27,8 +27,8 @@ own packs (`packs/fuse-*`). The local plane frame and the filter are `correlator
 
 ## Correlator
 
-An implementation of `spec/correlate.md` (version 0.7), method `confirm`, and
-`spec/correlate-assign.md` (version 0.5), method `assign`, in Erlang/OTP, standard library
+An implementation of `spec/correlate.md` (version 0.8), method `confirm`, and
+`spec/correlate-assign.md` (version 0.6), method `assign`, in Erlang/OTP, standard library
 only. The pack's `method` line selects which runs. JSON is read with OTP 27's `json` module.
 
 It also implements `spec/quality.md` (version 0.1), function quality, as its own
@@ -37,10 +37,10 @@ quality.md cites from correlate.md.
 
 | File | Contents |
 |---|---|
-| `src/correlator.erl` | `load_pack/1`, `new/1`, `ingest/2`, `tick/2`, `snapshot/1`: reports, the filter restart test (`restart` line), tests, association, events, trace, snapshot |
-| `src/correlator_assign.erl` | method `assign`: memberships and histories, per-source ranked assignments (every assignment enumerated, then ordered by the Ranking rule), the multi-frame window and commit with its optional `margin`, restarted entities leaving their system track, the per-pair-of-sources sensor bias (`bias` line), inverse-variance fused estimate, its events, trace and snapshot |
+| `src/correlator.erl` | `load_pack/1`, `new/1`, `ingest/2`, `tick/2`, `snapshot/1`: reports and their time quality (`time_error_ms`, `time_state`, the `time_default` line), the measurement variance and timing variance, the filter restart test (`restart` line), tests, association, events, trace, snapshot |
+| `src/correlator_assign.erl` | method `assign`: memberships and histories, per-source ranked assignments (every assignment enumerated, then ordered by the Ranking rule), the multi-frame window and commit with its optional `margin`, restarted entities leaving their system track, the per-pair-of-sources sensor bias (`bias` line) with its clock offset fit (`time_offset` line), inverse-variance fused estimate, its events, trace and snapshot |
 | `src/correlator_estimate.erl` | an entity's estimate: one filter, or the two-model filter (`maneuver` line) with mixing, likelihood, mode probabilities, combination and prediction |
-| `src/correlator_filter.erl` | the local plane frame and the two-axis constant-velocity Kalman filter |
+| `src/correlator_filter.erl` | the local plane frame and the two-axis constant-velocity Kalman filter, with a measurement variance per axis |
 | `src/correlator_pack.erl` | `pack.def` parsing and validation |
 | `src/correlator_vectors.erl` | the correlate vector runner, and the reading, reporting and structural comparison of `spec/vector-format.md` that the filter, fuse and quality runners share |
 | `src/quality.erl` | quality: `load_pack/1`, `new/1`, `ingest/2`, `tick/2`, `snapshot/1`: reports, order, samples, window, entity and source measures, rules, forwarding, tick, events, trace, snapshot |

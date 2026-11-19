@@ -1,4 +1,5 @@
 #include "pack.hpp"
+#include "report.hpp"
 
 #include <cstdlib>
 #include <fstream>
@@ -118,7 +119,7 @@ Pack parse_pack(const std::string& text) {
         if (words.empty()) continue;
 
         const std::string& d = words[0];
-        bool repeats = d == "gate" || d == "confirm" || d == "hold" || d == "priority";
+        bool repeats = d == "gate" || d == "confirm" || d == "hold" || d == "priority" || d == "time_default";
         if (!seen.insert(d).second && !repeats) fail(line, "repeated directive: " + d);
 
         if (d == "pack") {
@@ -161,6 +162,41 @@ Pack parse_pack(const std::string& text) {
             double g = parse_number(line, kv["gate"]);
             if (!(g > 0)) fail(line, "restart gate must be above 0");
             p.restart_gate = g;
+        } else if (d == "time_default") {
+            // correlate.md "Pack": the source id (a first token without '='),
+            // then error_ms, state or both, each at most once; at most one
+            // line per source.
+            if (words.size() < 2 || words[1].find('=') != std::string::npos)
+                fail(line, "time_default needs a source id");
+            if (words.size() < 3) fail(line, "time_default needs error_ms, state or both");
+            TimeDefault td;
+            for (size_t k = 2; k < words.size(); ++k) {
+                size_t eq = words[k].find('=');
+                if (eq == std::string::npos || eq == 0) fail(line, "parameter without '=': " + words[k]);
+                std::string name = words[k].substr(0, eq), value = words[k].substr(eq + 1);
+                if (name == "error_ms") {
+                    if (td.error_ms) fail(line, "repeated parameter: error_ms");
+                    double ms = parse_number(line, value);
+                    if (!(ms >= 0)) fail(line, "time_default error_ms must be 0 or above");
+                    td.error_ms = ms;
+                } else if (name == "state") {
+                    if (td.state) fail(line, "repeated parameter: state");
+                    if (!report::is_time_state(value))
+                        fail(line, "time_default state is coherent, drifting or free-running");
+                    td.state = value;
+                } else {
+                    fail(line, "unknown parameter: " + name);
+                }
+            }
+            if (!p.time_default.emplace(words[1], td).second)
+                fail(line, "repeated time_default source: " + words[1]);
+        } else if (d == "time_offset") {
+            // correlate-assign.md "Pack": exactly sigma_ms, above 0; needs bias
+            // (checked once the whole file is read).
+            auto kv = parse_params(line, words, 1, {"sigma_ms"});
+            double t = parse_number(line, kv["sigma_ms"]);
+            if (!(t > 0)) fail(line, "time_offset sigma_ms must be above 0");
+            p.time_offset_sigma_ms = t;
         } else if (d == "bias") {
             // correlate-assign.md "Pack": exactly sigma_m, floor_m, gate; sigma_m
             // and gate above 0, floor_m above 0 and at most sigma_m.
@@ -228,7 +264,7 @@ Pack parse_pack(const std::string& text) {
         refused = {"confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"};
     } else {
         required = {"pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms"};
-        refused = {"new_cost", "keep_bonus", "window", "hypotheses", "margin", "bias"};
+        refused = {"new_cost", "keep_bonus", "window", "hypotheses", "margin", "bias", "time_offset"};
     }
     for (const char* req : required)
         if (!seen.count(req)) throw PackError(std::string("pack.def: missing directive ") + req);
@@ -243,6 +279,7 @@ Pack parse_pack(const std::string& text) {
     if (p.hypotheses > 1 && p.window <= 1)
         throw PackError("pack.def: hypotheses above 1 needs window above 1");
     if (p.margin && p.hypotheses <= 1) throw PackError("pack.def: margin needs hypotheses above 1");
+    if (p.time_offset_sigma_ms && !p.bias) throw PackError("pack.def: time_offset needs bias");
     return p;
 }
 

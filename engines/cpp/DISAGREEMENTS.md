@@ -1,8 +1,9 @@
 # Open points
 
-No vector contradicts correlate.md 0.7 or correlate-assign.md 0.5 as this
-engine reads them, including the new `restart`, `bias` and `margin` vectors
-(scenario vectors 45-53, load vectors 43-60). The 0.4/0.2 entries on ties in the least total and on
+No vector contradicts correlate.md 0.8 or correlate-assign.md 0.6 as this
+engine reads them, including the new time quality and time offset vectors
+(scenario vectors 54-56, load vectors 61-73) and the earlier `restart`, `bias`
+and `margin` vectors (scenario vectors 45-53, load vectors 43-60). The 0.4/0.2 entries on ties in the least total and on
 where `method` may appear are settled by these versions (Ranking; Pack) and
 removed. The entries below are points the specifications leave open, and
 the reading this engine takes. No vector covers any of them.
@@ -25,12 +26,21 @@ the reading this engine takes. No vector covers any of them.
 - A load error. The same holds for `restart` and `bias` lines, which take
   exactly their named parameters.
 
+## A repeated parameter or an empty value on a `time_default` line (correlate.md "Pack")
+
+- correlate.md 0.8 makes a repeated `error_ms` or `state` a load error; the
+  engine also refuses a parameter with an empty name (`=20`), and an empty
+  `state=` value, which is not one of the three states. An empty
+  `error_ms=` does not parse as a number.
+
 ## Decimal spellings in `pack.def` (correlate.md "Open points")
 
 - A number may have a leading sign, a fraction, an exponent, and `.5` or `5.`;
   `inf` and `nan` do not parse. This includes the values of `restart`,
   `bias` and `margin`. `window` and `hypotheses` take digits with an
   optional sign only. `#` always starts a comment, inside a value too.
+  `time_default error_ms` and `time_offset sigma_ms` take the same number
+  spellings.
 
 ## How ranked assignments are found (correlate-assign.md "Ranking")
 

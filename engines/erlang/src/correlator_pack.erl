@@ -1,4 +1,4 @@
-%% Pack: load and parse pack.def (correlate.md 0.7 "Pack", correlate-assign.md 0.5 "Pack").
+%% Pack: load and parse pack.def (correlate.md 0.8 "Pack", correlate-assign.md 0.6 "Pack").
 -module(correlator_pack).
 -export([load_pack/1, parse/1]).
 %% Shared with filter_pack (filter.md "Pack": the same line syntax).
@@ -8,21 +8,24 @@
 %% confirm; correlate-assign.md "Pack" for assign.
 -define(CONFIRM, {[<<"pack">>, <<"version">>, <<"filter">>, <<"confirm_count">>,
                    <<"hold_failures">>, <<"stale_ms">>],
-                  [<<"gate">>, <<"confirm">>, <<"hold">>, <<"priority">>],
+                  [<<"gate">>, <<"confirm">>, <<"hold">>, <<"priority">>, <<"time_default">>],
                   [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"maneuver">>,
                    <<"restart">>, <<"confirm_count">>, <<"hold_failures">>, <<"stale_ms">>, <<"same_source">>,
                    <<"output">>]}).
 -define(ASSIGN, {[<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"new_cost">>,
                   <<"keep_bonus">>, <<"stale_ms">>],
-                 [<<"gate">>],
+                 [<<"gate">>, <<"time_default">>],
                  [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"maneuver">>,
                   <<"restart">>, <<"new_cost">>, <<"keep_bonus">>, <<"stale_ms">>,
-                  <<"bias">>, <<"window">>, <<"hypotheses">>, <<"margin">>]}).
+                  <<"bias">>, <<"time_offset">>, <<"window">>, <<"hypotheses">>, <<"margin">>]}).
 -define(FILTER_PARAMS, [<<"accel_var">>, <<"default_ce_m">>, <<"vel_sigma_ms">>,
                         <<"unknown_vel_ms">>]).
 -define(MANEUVER_PARAMS, [<<"accel_var">>, <<"p_enter">>, <<"p_leave">>]).
 -define(RESTART_PARAMS, [<<"gate">>]).
 -define(BIAS_PARAMS, [<<"sigma_m">>, <<"floor_m">>, <<"gate">>]).
+-define(TIME_OFFSET_PARAMS, [<<"sigma_ms">>]).
+%% Reports, "Time quality": the three clock states.
+-define(TIME_STATES, [<<"coherent">>, <<"drifting">>, <<"free-running">>]).
 
 load_pack(Dir) ->
     case file:read_file(filename:join(Dir, "pack.def")) of
@@ -65,8 +68,10 @@ build(Directives) ->
     [fail({missing, N}) || N <- Required, count(N, Names) =:= 0],
     Base = case Method of
                confirm -> #{method => confirm, gate => [], confirm => [], hold => [],
-                            priority => [], same_source => forbid, output => priority};
-               assign -> #{method => assign, gate => [], window => 1, hypotheses => 1}
+                            priority => [], same_source => forbid, output => priority,
+                            time_default => #{}};
+               assign -> #{method => assign, gate => [], window => 1, hypotheses => 1,
+                           time_default => #{}}
            end,
     P = lists:foldl(fun directive/2, Base, Directives),
     check_ranges(P),
@@ -104,6 +109,13 @@ check_ranges(P) ->
             Floor =< Sig orelse fail({above_sigma, floor_m});
         _ -> ok
     end,
+    %% time_offset: sigma_ms above 0, and needs bias (correlate-assign.md "Pack").
+    case P of
+        #{time_offset := #{<<"sigma_ms">> := TS}} ->
+            TS > 0 orelse fail({not_above_zero, sigma_ms}),
+            maps:is_key(bias, P) orelse fail(time_offset_without_bias);
+        _ -> ok
+    end,
     %% margin: above 0, and needs hypotheses above 1 (correlate-assign.md "Pack").
     case P of
         #{margin := M, hypotheses := HK} ->
@@ -136,6 +148,9 @@ directive([<<"restart">> | Params], P) ->
     P#{restart => number_params(params(Params, ?RESTART_PARAMS))};
 directive([<<"bias">> | Params], P) ->
     P#{bias => number_params(params(Params, ?BIAS_PARAMS))};
+directive([<<"time_offset">> | Params], P) ->
+    P#{time_offset => number_params(params(Params, ?TIME_OFFSET_PARAMS))};
+directive([<<"time_default">> | Rest], P) -> time_default(Rest, P);
 directive([<<"margin">>, M], P) -> P#{margin => number(M)};
 directive([<<"maneuver">> | Params], P) ->
     P#{maneuver => number_params(params(Params, ?MANEUVER_PARAMS))};
@@ -153,6 +168,37 @@ directive([<<"output">>, <<"latest">>], P) -> P#{output := latest};
 directive([<<"priority">>, Source, N], P) ->
     P#{priority := [{Source, number(N)} | maps:get(priority, P)]};
 directive(D, _) -> fail({bad_directive, D}).
+
+%% time_default <source_id> error_ms=<ms> state=<state> (correlate.md "Pack"):
+%% the source id is a first token without "=", then error_ms, state or both,
+%% each at most once; error_ms a number 0 or above, state one of the three
+%% clock states. At most one line per source. Stored as
+%% time_default => #{Source => #{<<"error_ms">> => Ms, <<"state">> => State}},
+%% holding only the keys the line gives.
+time_default([Source | Tokens], P) ->
+    binary:match(Source, <<"=">>) =:= nomatch orelse fail({time_default_no_source, Source}),
+    Defaults = maps:get(time_default, P),
+    maps:is_key(Source, Defaults) andalso fail({time_default_repeated, Source}),
+    Given = params(Tokens, [K || {K, _} <- params_given(Tokens)]),
+    map_size(Given) > 0 orelse fail({time_default_no_params, Source}),
+    Default = maps:map(fun(<<"error_ms">>, V) ->
+                               Ms = number(V),
+                               Ms >= 0 orelse fail({below_zero, error_ms}),
+                               Ms;
+                          (<<"state">>, V) ->
+                               lists:member(V, ?TIME_STATES) orelse fail({bad_state, V}),
+                               V;
+                          (K, _) -> fail({time_default_param, K})
+                       end, Given),
+    P#{time_default := Defaults#{Source => Default}};
+time_default([], _P) -> fail(time_default_no_source).
+
+%% The name=value pairs of Tokens, for a line whose parameters are each optional.
+params_given(Tokens) ->
+    [case binary:split(T, <<"=">>) of
+         [K, V] -> {K, V};
+         _ -> fail({bad_param, T})
+     end || T <- Tokens].
 
 %% Tests table: each test's parameters, exactly.
 test_params(<<"distance">>) -> [<<"max_m">>];

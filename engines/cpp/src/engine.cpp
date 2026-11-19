@@ -48,15 +48,17 @@ Filter blend(double w1, double w2, const Filter& m1, const Filter& m2) {
 }
 
 // Spec "Track estimate", steps 1 to 3 on one filter, with acceleration
-// variance q. Returns g, the likelihood terms added left to right from 0 in
+// variance q and the report's position variance r_east, r_north
+// (Measurement variance). Returns g, the likelihood terms added left to right from 0 in
 // the order east position, north position, east velocity, north velocity.
 double kalman_step(Filter& f, double dt, double q, double z_east, double z_north,
-                   const double* vel_east, const double* vel_north, double r_pos, double r_vel) {
+                   const double* vel_east, const double* vel_north, double r_east, double r_north,
+                   double r_vel) {
     axis_predict(f.east, dt, q);
     axis_predict(f.north, dt, q);
     double term[4] = {0, 0, 0, 0};
-    term[0] = axis_position_update(f.east, z_east, r_pos);
-    term[1] = axis_position_update(f.north, z_north, r_pos);
+    term[0] = axis_position_update(f.east, z_east, r_east);
+    term[1] = axis_position_update(f.north, z_north, r_north);
     if (vel_east) {
         term[2] = axis_velocity_update(f.east, *vel_east, r_vel);
         term[3] = axis_velocity_update(f.north, *vel_north, r_vel);
@@ -75,7 +77,7 @@ Json filter_record(const std::string& entity, const char* test, const char* mode
     Json rec = Json::make_object();
     rec["stage"] = "filter";
     rec["a"] = entity;
-    rec["b"] = model;
+    rec["b"] = model ? Json(model) : Json();   // null for the `time` record
     rec["test"] = test;
     rec["value"] = value;
     rec["limit"] = Json();
@@ -99,11 +101,39 @@ std::pair<double, double> Engine::to_degrees(double east, double north) const {
 
 // ---- Track estimate --------------------------------------------------------
 
-void Engine::filter_first(Entity& e, const Point& z, const std::optional<Point>& vel, double ce) const {
+// correlate.md "Track estimate", Measurement variance. `e` is the entity for a
+// later report (its prediction to time_ms gives the velocity), or null for a
+// first report (the measured velocity, or 0 without one). `te` is the
+// report's time error in ms (Reports, "Time quality").
+MeasurementVariance Engine::measurement_variance(const Entity* e, std::int64_t time_ms,
+                                                 const std::optional<Point>& vel, double ce, double te) const {
+    MeasurementVariance mv;
+    const double ce2 = ce * ce;
+    if (te == 0) {
+        mv.r = {ce2, ce2};
+        mv.timing = {0, 0};
+        return mv;
+    }
+    const double ts = te / 1000;
+    Point v = {0, 0};
+    if (e) {
+        Filter p = predict(*e, time_ms);
+        v = {p.east.v, p.north.v};
+    } else if (vel) {
+        v = *vel;
+    }
+    const double de = v.east * ts, dn = v.north * ts;
+    mv.timing = {de * de, dn * dn};
+    mv.r = {ce2 + mv.timing.east, ce2 + mv.timing.north};
+    return mv;
+}
+
+// First report: per axis pp = r, that axis's measurement variance.
+void Engine::filter_first(Entity& e, const Point& z, const std::optional<Point>& vel, const Point& r) const {
     const auto& f = pack_.filter;
     double vv = vel ? f.vel_sigma_ms * f.vel_sigma_ms : f.unknown_vel_ms * f.unknown_vel_ms;
-    e.filter.east = {z.east, vel ? vel->east : 0.0, ce * ce, 0.0, vv};
-    e.filter.north = {z.north, vel ? vel->north : 0.0, ce * ce, 0.0, vv};
+    e.filter.east = {z.east, vel ? vel->east : 0.0, r.east, 0.0, vv};
+    e.filter.north = {z.north, vel ? vel->north : 0.0, r.north, 0.0, vv};
     // Spec "Two-model filter", First report: both models are this filter,
     // with the long-run share of each model.
     if (pack_.maneuver) {
@@ -114,14 +144,14 @@ void Engine::filter_first(Entity& e, const Point& z, const std::optional<Point>&
     }
 }
 
-void Engine::filter_update(Entity& e, const Point& z, const std::optional<Point>& vel, double ce, double dt,
-                           Output& out) const {
+void Engine::filter_update(Entity& e, const Point& z, const std::optional<Point>& vel, const Point& r,
+                           double dt, Output& out) const {
     const auto& f = pack_.filter;
-    const double r_pos = ce * ce, r_vel = f.vel_sigma_ms * f.vel_sigma_ms;
+    const double r_vel = f.vel_sigma_ms * f.vel_sigma_ms;
     const double* ve = vel ? &vel->east : nullptr;
     const double* vn = vel ? &vel->north : nullptr;
     if (!pack_.maneuver) {
-        kalman_step(e.filter, dt, f.accel_var, z.east, z.north, ve, vn, r_pos, r_vel);
+        kalman_step(e.filter, dt, f.accel_var, z.east, z.north, ve, vn, r.east, r.north, r_vel);
         return;
     }
 
@@ -153,7 +183,7 @@ void Engine::filter_update(Entity& e, const Point& z, const std::optional<Point>
     double lambda[2];
     for (int j = 0; j < 2; ++j) {
         e.models[j] = mixed[j];
-        double g = kalman_step(e.models[j], dt, q[j], z.east, z.north, ve, vn, r_pos, r_vel);
+        double g = kalman_step(e.models[j], dt, q[j], z.east, z.north, ve, vn, r.east, r.north, r_vel);
         lambda[j] = -0.5 * g;
     }
 
@@ -192,16 +222,28 @@ Filter Engine::predict(const Entity& e, std::int64_t t) const {
                  step1(e.models[1], pack_.maneuver->accel_var));
 }
 
+// correlate.md "Track estimate": B predicted to t to be compared with another
+// entity, with B's timing variance added to the predicted pp on each axis
+// before any other change to the prediction (Tests, rank, and
+// correlate-assign.md Cost). Restart, the bias update and output use
+// `predict`, without it.
+Filter Engine::predict_for_comparison(const Entity& b, std::int64_t t) const {
+    Filter f = predict(b, t);
+    f.east.pp = f.east.pp + b.timing.east;
+    f.north.pp = f.north.pp + b.timing.north;
+    return f;
+}
+
 // correlate.md "Restart": for a later report, before the filter update.
 // Returns true when the report updates the filter (no `restart` directive, or
 // d² < g); writes the `restart` record first of the report's records.
-bool Engine::restart_test(const Entity& e, std::int64_t time_ms, const Point& z, double ce, Output& out) const {
+bool Engine::restart_test(const Entity& e, std::int64_t time_ms, const Point& z, const Point& r,
+                          Output& out) const {
     if (!pack_.restart_gate) return true;
     const double g = *pack_.restart_gate;
     Filter p = predict(e, time_ms);
-    double r = ce * ce;
     double de = z.east - p.east.p, dn = z.north - p.north.p;
-    double d2 = de * de / (p.east.pp + r) + dn * dn / (p.north.pp + r);
+    double d2 = de * de / (p.east.pp + r.east) + dn * dn / (p.north.pp + r.north);
     Json rec = Json::make_object();
     rec["stage"] = "filter";
     rec["a"] = e.key;
@@ -214,9 +256,16 @@ bool Engine::restart_test(const Entity& e, std::int64_t time_ms, const Point& z,
     return d2 < g;
 }
 
-// Snapshot: `filter`, and with `maneuver` also `models` and `mode`.
+// Snapshot: `filter`, `time` when the last report had a time error above 0,
+// and with `maneuver` also `models` and `mode`.
 void Engine::filter_json(const Entity& e, Json& into) const {
     into["filter"] = filter_json_of(e.filter);
+    if (e.time_error_ms > 0) {
+        Json time = Json::make_object();
+        time["var_east"] = e.timing.east;
+        time["var_north"] = e.timing.north;
+        into["time"] = time;
+    }
     if (!pack_.maneuver) return;
     Json models = Json::make_object();
     models["quiet"] = filter_json_of(e.models[0]);
@@ -234,11 +283,12 @@ double Engine::ce_of(const Entity& e) const {
     return ce_at(e.last).value_or(pack_.filter.default_ce_m);
 }
 
-// Spec "Tests": d² = sum over east, north of (pa - pb)² / (pp_b + ce_a²).
+// Spec "Tests": d² = sum over east, north of (pa - pb)² / (pp_b + r_a), with
+// `b` B's prediction for comparison (its timing variance added) and r_a A's
+// measurement variance on that axis (ce_a² when A's time error is 0).
 double Engine::d2(const Entity& a, const Filter& b) const {
-    double ce = ce_of(a), r = ce * ce;
     double de = a.filter.east.p - b.east.p, dn = a.filter.north.p - b.north.p;
-    return de * de / (b.east.pp + r) + dn * dn / (b.north.pp + r);
+    return de * de / (b.east.pp + a.r.east) + dn * dn / (b.north.pp + a.r.north);
 }
 
 Engine::TestResult Engine::run_test(const TestSpec& t, const Entity& a, const Entity& b,
@@ -352,7 +402,7 @@ void Engine::hold(Entity& a, Output& out) {
     for (const std::string& bk : groups_.at(a.group)) {
         if (bk == a.key) continue;
         const Entity& b = entities_.at(bk);
-        if (run_stage("hold", pack_.hold, a, b, predict(b, a.last_time_ms), out)) {
+        if (run_stage("hold", pack_.hold, a, b, predict_for_comparison(b, a.last_time_ms), out)) {
             any = true;
             break;
         }
@@ -375,7 +425,7 @@ void Engine::associate(Entity& a, Output& out) {
             if (b.source == a.source) continue;
             if (b.group && group_has_source(b.group, a.source)) continue;
         }
-        Filter bp = predict(b, a.last_time_ms);
+        Filter bp = predict_for_comparison(b, a.last_time_ms);
         bool ok = run_stage("gate", pack_.gate, a, b, bp, out) && run_stage("confirm", pack_.confirm, a, b, bp, out);
 
         std::int64_t& count = counts_[pair_key(a.key, b.key)];
@@ -396,7 +446,7 @@ void Engine::associate(Entity& a, Output& out) {
     std::string chosen;
     double best = 0;
     for (const std::string& bk : reached) {
-        double v = d2(a, predict(entities_.at(bk), a.last_time_ms));
+        double v = d2(a, predict_for_comparison(entities_.at(bk), a.last_time_ms));
         Json rec = Json::make_object();
         rec["stage"] = "rank";
         rec["a"] = a.key;
@@ -474,29 +524,57 @@ Output Engine::ingest(const Json& r) {
     std::optional<Point> vel = measured_velocity(r);
     double ce = ce_at(r).value_or(pack_.filter.default_ce_m);
 
-    if (it == entities_.end()) {
+    // correlate.md "Reports", "Time quality": per key, the report's own
+    // value, else the pack's time_default for this source, else error 0 and
+    // state coherent.
+    const auto td = pack_.time_default.find(source);
+    const TimeDefault* defaults = td == pack_.time_default.end() ? nullptr : &td->second;
+    double te = 0;
+    if (auto own = report::time_error_at(r)) te = *own;
+    else if (defaults && defaults->error_ms) te = *defaults->error_ms;
+    std::string time_state = "coherent";
+    if (auto own = report::time_state_at(r)) time_state = *own;
+    else if (defaults && defaults->state) time_state = *defaults->state;
+
+    // correlate.md "Track estimate", Measurement variance, and its `time`
+    // record before any other record of this report.
+    const bool first = it == entities_.end();
+    const MeasurementVariance mv = measurement_variance(first ? nullptr : &it->second, time_ms, vel, ce, te);
+    if (te > 0) {
+        Json rec = filter_record(key, "time", nullptr, te);
+        rec["var_east"] = mv.timing.east;
+        rec["var_north"] = mv.timing.north;
+        out.trace.push(rec);
+    }
+
+    if (first) {
         Entity e;
         e.key = key;
         e.source = source;
-        filter_first(e, z, vel, ce);
+        filter_first(e, z, vel, mv.r);
         it = entities_.emplace(key, std::move(e)).first;
         Json ev = event("new");
         ev["entity"] = key;
         out.events.push(ev);
-    } else if (restart_test(it->second, time_ms, z, ce, out)) {
+    } else if (restart_test(it->second, time_ms, z, mv.r, out)) {
         double dt = static_cast<double>(time_ms - it->second.last_time_ms) / 1000;
-        filter_update(it->second, z, vel, ce, dt, out);
+        filter_update(it->second, z, vel, mv.r, dt, out);
     } else {
         // correlate.md "Restart": the filter starts again from this report as
-        // a first report; the entity keeps its key, group, pair counts and
-        // hold failure count. With method assign it is restarted until the
-        // next tick.
-        filter_first(it->second, z, vel, ce);
+        // a first report, with pp this report's measurement variance (found
+        // above from the prediction's velocity); the entity keeps its key,
+        // group, pair counts and hold failure count. With method assign it is
+        // restarted until the next tick.
+        filter_first(it->second, z, vel, mv.r);
         if (pack_.method_assign) restarted_.insert(key);
     }
     Entity& a = it->second;
     a.last_time_ms = time_ms;
     a.last = r;
+    a.time_error_ms = te;
+    a.time_state = time_state;
+    a.r = mv.r;
+    a.timing = mv.timing;
 
     if (pack_.method_assign) {
         reported_.insert(a.key);    // decided at the next tick

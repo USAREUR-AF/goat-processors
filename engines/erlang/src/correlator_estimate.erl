@@ -2,14 +2,16 @@
 %% models combined (correlate.md "Two-model filter") when the pack has a
 %% maneuver line. The estimate lives in the entity map under `filter`, plus
 %% `models` => {Quiet, Maneuver} and `mode` => {Mu1, Mu2} with two models.
+%% R is the report's measurement variance per axis, {REast, RNorth}
+%% (correlate.md "Track estimate", Measurement variance).
 -module(correlator_estimate).
 -export([init/4, update/6, predict/3]).
 
 %% First report. Two models: both are the first-report filter, mu1 = b / s,
 %% mu2 = a / s, and the combination is that same filter.
-init(Z, Vel, Ce, Pack) ->
+init(Z, Vel, R, Pack) ->
     F = maps:get(filter, Pack),
-    Filter = correlator_filter:init(Z, Vel, Ce, F),
+    Filter = correlator_filter:init_r(Z, Vel, R, F),
     case maps:find(maneuver, Pack) of
         error -> #{filter => Filter};
         {ok, M} ->
@@ -20,12 +22,12 @@ init(Z, Vel, Ce, Pack) ->
 
 %% Later report Dt seconds after the last. Returns {Estimate, Records}, the
 %% records being [{Test, Model, Value}] for the trace (none with one model).
-update(Est, Dt, Z, Vel, Ce, Pack) ->
+update(Est, Dt, Z, Vel, R, Pack) ->
     F = maps:get(filter, Pack),
     Q1 = maps:get(<<"accel_var">>, F),
     case maps:find(maneuver, Pack) of
         error ->
-            {Filter, _} = correlator_filter:update(maps:get(filter, Est), Dt, Q1, Z, Vel, Ce, F),
+            {Filter, _} = correlator_filter:update_r(maps:get(filter, Est), Dt, Q1, Z, Vel, R, F),
             {#{filter => Filter}, []};
         {ok, M} ->
             #{<<"accel_var">> := Q2, <<"p_enter">> := A, <<"p_leave">> := B} = M,
@@ -38,8 +40,8 @@ update(Est, Dt, Z, Vel, Ce, Pack) ->
             Mixed1 = mix(C1, T11 * Mu1, T21 * Mu2, Model1, Model2, Model1),
             Mixed2 = mix(C2, T12 * Mu1, T22 * Mu2, Model1, Model2, Model2),
             %% Step 2, predict and update; step 3, likelihood.
-            {New1, Terms1} = correlator_filter:update(Mixed1, Dt, Q1, Z, Vel, Ce, F),
-            {New2, Terms2} = correlator_filter:update(Mixed2, Dt, Q2, Z, Vel, Ce, F),
+            {New1, Terms1} = correlator_filter:update_r(Mixed1, Dt, Q1, Z, Vel, R, F),
+            {New2, Terms2} = correlator_filter:update_r(Mixed2, Dt, Q2, Z, Vel, R, F),
             L1 = likelihood(Terms1),
             L2 = likelihood(Terms2),
             %% Step 4, mode probabilities.

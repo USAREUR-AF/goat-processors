@@ -2,7 +2,7 @@
 
 Implementations, in Java 17 with only the standard library, of
 
-- the correlator: `spec/correlate.md` (version 0.7) and `spec/correlate-assign.md` (version 0.5), package `correlator`;
+- the correlator: `spec/correlate.md` (version 0.8) and `spec/correlate-assign.md` (version 0.6), package `correlator`;
 - the filter: `spec/filter.md` (version 0.1), package `filter`;
 - the fuser: `spec/fuse.md` (version 0.2), package `fuse`;
 - quality: `spec/quality.md` (version 0.1), package `quality`.
@@ -13,13 +13,13 @@ All were written from the specifications and the vectors, without reading any ot
 
 | File | Spec section |
 |---|---|
-| `Pack.java` | Pack (`load_pack`, the `pack.def` parser, `method`, `maneuver`, `restart`, `bias`, `window`, `hypotheses`, `margin` and the directives each method allows) |
-| `Filter.java` | Track estimate (predict, position and velocity update, prediction; fuse and quality reuse its `Axis`) and Two-model filter (switching, mixing, per-model update, likelihood, mode probabilities, combination) |
-| `Engine.java` | Reports, Frame, Tests, Association, Events, Trace, Snapshot for method `confirm` (`ingest`, `tick`, `snapshot`); the two-model filter trace records; Restart (the `restart` test and the filter started again); the `retiring` reject; the Sensor bias move in the `distance`, `window` and `mahalanobis` tests |
-| `Assign.java` | correlate-assign.md: Memberships, Assignment of one source (columns, entries, fused estimate, cost, apply), Ranking, Window (staleness and retiring, the `restart` leave, rows, sources over histories with `margin`, commit, bias update, output), its trace and snapshot; the inverse-variance combination is `Engine.inverseVariance`, which fuse reuses |
-| `Bias.java` | correlate-assign.md, Sensor bias: the per-pair-of-sources state, moving B into A's frame, the update at each tick and its `bias` trace record, the `bias` snapshot |
+| `Pack.java` | Pack (`load_pack`, the `pack.def` parser, `method`, `maneuver`, `restart`, `time_default`, `bias`, `time_offset`, `window`, `hypotheses`, `margin` and the directives each method allows) |
+| `Filter.java` | Track estimate (first report with `pp = r`, predict, position update with the per-axis measurement variance, velocity update, prediction; fuse and quality reuse its `Axis`) and Two-model filter (switching, mixing, per-model update, likelihood, mode probabilities, combination) |
+| `Engine.java` | Reports, Frame, Tests, Association, Events, Trace, Snapshot for method `confirm` (`ingest`, `tick`, `snapshot`); the two-model filter trace records; Track estimate, Measurement variance (the per-axis `r`, the timing variance, the `time` trace record, the timing variance of B added to every comparison and the `time` snapshot entry); Restart (the `restart` test and the filter started again); the `retiring` reject; the Sensor bias move in the `distance`, `window` and `mahalanobis` tests |
+| `Assign.java` | correlate-assign.md: Memberships, Assignment of one source (columns, entries, fused estimate, cost with both timing variances, apply), Ranking, Window (staleness and retiring, the `restart` leave, rows, sources over histories with `margin`, commit, bias update, output), its trace and snapshot; the inverse-variance combination is `Engine.inverseVariance`, which fuse reuses |
+| `Bias.java` | correlate-assign.md, Sensor bias: the per-pair-of-sources state, moving B into A's frame, the update at each tick and its `bias` trace record, the `bias` snapshot; Time offset (the clock offset `tau`, the sums `S1` to `S8` and the closed-form fit) |
 | `Json.java` | the JSON reader and writer the vector test uses |
-| `Reports.java` | Reports: required keys and their check order, the optional-key rules, the entity key and key order. The filter uses it too, as filter.md Reports cites that section |
+| `Reports.java` | Reports: required keys and their check order, the optional-key rules, the entity key and key order, Time quality (time error and time state per key: the report, the pack's `time_default`, else 0 and `coherent`). The filter uses it too, as filter.md Reports cites that section |
 | `VectorTest.java` | `spec/vector-format.md` for the correlator: `spec/correlate-load-vectors/` and `packs/correlate-*` only; also holds the structural comparison the other tests use |
 
 The pack's `method` line selects which method the engine runs: `confirm` (or no
@@ -95,4 +95,4 @@ rows (column or *alone*, each column at most once, no forbidden entry) in
 ascending choice-vector order, then a stable sort by total, which is the
 Ranking order exactly. This is brute force, which is fine at vector sizes.
 
-No vector contradicts `correlate.md` or `correlate-assign.md`, so there is no `DISAGREEMENTS.md`.
+No vector contradicts `correlate.md` 0.8 or `correlate-assign.md` 0.6, so there is no `DISAGREEMENTS.md`.

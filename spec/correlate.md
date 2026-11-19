@@ -1,10 +1,11 @@
 # Correlate specification
 
-Status: Written. Version 0.7. Every language's engine implements this document
+Status: Written. Version 0.8. Every language's engine implements this document
 and passes every vector. Engines are written from this document and the
 vectors, never from another engine's source.
-Version 0.7 adds the optional `restart` directive (Restart); a pack without
-it behaves as in 0.6. Version 0.6 spelled the pack line `maneuver` (it was
+Version 0.8 adds the time quality of a report (Reports, "Time quality") and
+the pack directive `time_default`; a report and pack without them behave as
+in 0.7. Version 0.7 added the optional `restart` directive (Restart). Version 0.6 spelled the pack line `maneuver` (it was
 `manoeuvre` in 0.5).
 
 ## What the correlator does
@@ -46,6 +47,8 @@ A report is a map from shared-model key to value, the entity
 | `speed_ms` | float, m/s | no | with `course`, a velocity measurement |
 | `type` | string | no | CoT type token; its third `-`-separated element is the environment `@env` (`a-f-A-M-F` gives `A`) |
 | `stale_ms` | int | no | absolute time after which the report is stale |
+| `time_error_ms` | float, ms | no | error bound of the clock that stamped `time_ms`, against the fabric's common time (Time quality) |
+| `time_state` | string | no | state of that clock: `coherent`, `drifting` or `free-running` (Time quality) |
 | any other key | | no | read only by a `same` test that names it |
 
 The entity key is `<track.source_id>/<uid>`. Keys are compared as byte
@@ -64,6 +67,37 @@ is accepted where a number is required. A `null` value for any key is the
 same as the key being absent. A report whose `time_ms` is earlier than its entity's last report is
 rejected with `{"ev":"reject","entity":<key>,"reason":"out-of-order"}`.
 A rejected report changes no state.
+
+### Time quality
+
+`time_ms` comes from the clock of the node that stamped the report. That
+clock may be out of step with the other nodes' clocks. Two optional keys
+state how far, as the stamping node measured it:
+
+| Key | Meaning |
+|---|---|
+| `time_error_ms` | the bound, in milliseconds, on how far `time_ms` may be from the common time the nodes keep among themselves (their internal coherence, not their agreement with UTC); 0 or above |
+| `time_state` | `coherent`: the clock is in step with the others within `time_error_ms`. `drifting`: the clock is moving away from the others and is being corrected. `free-running`: the clock runs on its own oscillator with no correction, and its error grows with time |
+
+`time_error_ms` is a number, finite and 0 or above; a value of the wrong type,
+negative or not finite is treated as absent. `time_state` is one of the three
+strings above, compared byte for byte; any other value, or a value of the
+wrong type, is treated as absent. Neither key causes a reject.
+
+A pack may give a source defaults with `time_default` (Pack). The **time
+error** and **time state** of a report are found per key, independently:
+
+1. the report's own key, when present (not absent by the rules above);
+2. otherwise the pack's `time_default` for the report's `track.source_id`,
+   when it gives that key;
+3. otherwise time error 0 and time state `coherent`: the time is exact, as in
+   every version before 0.8.
+
+Correlate uses the time error (Track estimate, Measurement variance; and,
+with method `assign`, the time offset of `correlate-assign.md`). It does not
+use the time state in this version; it is read by the quality function.
+The correlator never reads a clock. Time quality comes only from reports and
+the pack, so two runs on the same input decide the same way.
 
 ## Frame
 
@@ -91,8 +125,34 @@ symmetric covariance `pp`, `pv`, `vv`. Parameters come from the pack's
 Velocity measurement, when the report has both `course` and `speed_ms`:
 `ve = speed_ms * sin(rad(course))`, `vn = speed_ms * cos(rad(course))`.
 
+**Measurement variance.** Each report has a position variance per axis,
+`r_east` and `r_north`. With `ce` the report's `ce` or `default_ce_m`, and `te`
+the report's time error (Reports, Time quality) in milliseconds:
+
+- when `te` is 0, `r_east = r_north = ce²`;
+- otherwise, with `ts = te / 1000` and the velocity `(v_e, v_n)` taken from
+  the entity's prediction to the report's `time_ms` (for its first report:
+  the measured velocity, or 0 without one),
+  `r_east = ce² + (v_e*ts)²` and `r_north = ce² + (v_n*ts)²`. A position
+  stamped up to `ts` seconds off lies up to `v*ts` along the track from the
+  true one.
+
+When `te` is above 0 (and only then), the trace gets
+`{"stage":"filter","a":<entity>,"b":null,"test":"time","value":te,"limit":null,"pass":true,"var_east":(v_e*ts)²,"var_north":(v_n*ts)²}`,
+before any other record of that report.
+
+The entity keeps its last report's `r_east` and `r_north`, and its **timing
+variance** `(v_e*ts)²`, `(v_n*ts)²` (0 and 0 when `te` is 0). A filter's
+covariance does not hold the timing error, which displaces every report of a
+clock the same way; so wherever another entity B is predicted to be compared
+with A (Tests; `correlate-assign.md`, Cost), B's timing variance is added to
+the predicted `pp` on each axis, before any other change to that prediction
+(such as the move of `correlate-assign.md`, Sensor bias). This includes the
+`d²` of the `rank` record. Predictions that are not a comparison with
+another entity (Restart, the bias update, output) do not get it.
+
 **First report.** Per axis: `p` = measured position, `v` = measured velocity
-or 0, `pp = ce²`, `pv = 0`, `vv = vel_sigma_ms²` when a velocity was measured,
+or 0, `pp = r` (that axis's measurement variance), `pv = 0`, `vv = vel_sigma_ms²` when a velocity was measured,
 else `unknown_vel_ms²`.
 
 **Later reports**, per axis, with `dt = (time_ms - last_time_ms) / 1000`:
@@ -102,7 +162,8 @@ else `unknown_vel_ms²`.
    `pp = pp + 2*dt*pv + dt²*vv + q*dt⁴/4`;
    `pv = pv + dt*vv + q*dt³/2`;
    `vv = vv + q*dt²`.
-2. Position update with measurement `z` and `r = ce²`:
+2. Position update with measurement `z` and `r` that axis's measurement
+   variance:
    `s = pp + r`, `k1 = pp/s`, `k2 = pv/s`, `y = z - p`;
    `p = p + k1*y`, `v = v + k2*y`;
    `pp = (1-k1)*pp`, `pv = (1-k1)*pv`, `vv = vv - k2*pv_before`.
@@ -211,19 +272,22 @@ off for many reports.
 For each later report of an entity (one that passed every reject check), before
 the filter update: predict the entity to the report's `time_ms` (Track
 estimate, Prediction; with two models, Two-model filter, Prediction), and
-with `e`, `n` the report's position in the plane and `ce` the report's `ce`
-or `default_ce_m`:
+with `e`, `n` the report's position in the plane and `r_east`, `r_north`
+its measurement variance (Track estimate):
 
-`d² = (e - pe)² / (pp_e + ce²) + (n - pn)² / (pp_n + ce²)`
+`d² = (e - pe)² / (pp_e + r_east) + (n - pn)² / (pp_n + r_north)`
 
 where `pe`, `pp_e` and `pn`, `pp_n` are the prediction's east and north `p`
 and `pp`. The trace gets
 `{"stage":"filter","a":<entity>,"b":null,"test":"restart","value":d²,"limit":g,"pass":<d² < g>}`,
-before any other record of that report.
+after the `time` record, when there is one, and before any other record of
+that report.
 
 When `pass` is true the report updates the filter as in Track estimate (or
 Two-model filter). Otherwise the filter starts again from this report as a
-first report: one filter, or both models and the mode probabilities `b / s`,
+first report, with `pp` on each axis this report's measurement variance as
+already found above (from the prediction's velocity), and the entity keeps
+this report's timing variance: one filter, or both models and the mode probabilities `b / s`,
 `a / s`, as in First report. No `new` event is given and the entity keeps
 its key, its group, its pair counts and its hold failure count. With method `assign` the entity is also
 *restarted* until the next tick ([correlate-assign.md](correlate-assign.md),
@@ -246,8 +310,10 @@ B's predicted position.
 | `altitude` | `max_m` | `abs(hae_a - hae_b)`, m | `value <= max_m` |
 | `same` | `key` | — | the two values are equal, or both absent |
 
-`d² = sum over east, north of (pa - pb)² / (pp_b + ce_a²)`, with `pb` and
-`pp_b` from B's prediction and `pa` from A's filter.
+`d² = sum over east, north of (pa - pb)² / (pp_b + r_a)`, with `pb` and
+`pp_b` from B's prediction (with B's timing variance added, Track estimate),
+`pa` from A's filter and `r_a` A's measurement variance on that axis, which is
+`ce_a²` when A's last report has time error 0.
 
 Within a stage (`gate`, `confirm`, or `hold` against one member), tests run
 in pack order and stop at the first that fails; the tests after it are not
@@ -345,7 +411,8 @@ Two-model filter:
 `{"stage", "a", "b", "test", "value", "limit", "pass"}`, plus
 `"skipped": true` for a skipped test. `stage` is `gate`, `confirm`, `hold`,
 `rank` or `filter`; `a` and `b` are entity keys, except that `b` of a
-`filter` record names a model, and is null for the `restart` record. A pair's count after its tests is a
+`filter` record names a model, and is null for the `time` and `restart`
+records. A pair's count after its tests is a
 record with stage `confirm` (also when a `gate` test failed), `"test":"count"`,
 `value` the new count, `limit` the pack's `confirm_count`, and `pass` true
 when it has reached it. Records are in the order
@@ -356,7 +423,9 @@ the tests run.
 `snapshot()` returns `{"ref": [lat0, lon0] or null, "entities": {...},
 "groups": {...}, "counts": {...}, "next_group": n}`. Each entity holds
 `last_time_ms`, `group` (or null), `hold_failures` and `filter`
-(`{"east": [p, v, pp, pv, vv], "north": [...]}`). With the `maneuver`
+(`{"east": [p, v, pp, pv, vv], "north": [...]}`). An entity whose last
+report had a time error above 0 also holds `time`:
+`{"var_east", "var_north"}`, its timing variance (Track estimate). With the `maneuver`
 directive each entity also holds `models`
 (`{"quiet": {"east": [...], "north": [...]}, "maneuver": {...}}`) and
 `mode` (`[mu1, mu2]`), and `filter` is their combination; `groups` maps a group name
@@ -375,6 +444,7 @@ method         confirm
 filter         accel_var=<q> default_ce_m=<m> vel_sigma_ms=<m/s> unknown_vel_ms=<m/s>
 maneuver       accel_var=<q2> p_enter=<per s> p_leave=<per s>
 restart        gate=<g>
+time_default   <source_id> error_ms=<ms> state=<coherent | drifting | free-running>
 gate           <test> <param>=<value> ...
 confirm        <test> <param>=<value> ...
 hold           <test> <param>=<value> ...
@@ -397,6 +467,13 @@ checked once the whole file is read, so `maneuver` may come before `filter`.
 
 `restart` is optional, appears at most once, takes exactly `gate`, which must
 be above 0, and is valid with either method.
+
+`time_default` is optional, valid with either method, and repeats, at most
+once per source: a second line for the same `<source_id>` is a load error.
+It takes the source id, a first token without `=`, and then `error_ms`,
+`state` or both, at least one, each at most once;
+`error_ms` is a number 0 or above and `state` one of `coherent`, `drifting`,
+`free-running`. Any other parameter or value is a load error.
 
 `gate`, `confirm`, `hold` and `priority` repeat; their order is the order the
 tests run. Every other directive appears once, and `pack`, `version`,

@@ -42,6 +42,13 @@ struct BiasParams {
     double gate = 0;        // g
 };
 
+// correlate.md "Reports", "Time quality" and "Pack": one `time_default` line,
+// the defaults of one source; each key is absent when the line does not give it.
+struct TimeDefault {
+    std::optional<double> error_ms;
+    std::optional<std::string> state;
+};
+
 struct Pack {
     std::string name;
     std::string version;
@@ -49,6 +56,7 @@ struct Pack {
     FilterParams filter;
     std::optional<ManeuverParams> maneuver;  // optional, either method
     std::optional<double> restart_gate;      // correlate.md "Restart": optional, either method
+    std::map<std::string, TimeDefault> time_default;   // correlate.md "Time quality", by source id
     std::vector<TestSpec> gate, confirm, hold;
     std::int64_t confirm_count = 0;
     std::int64_t hold_failures = 0;
@@ -62,6 +70,7 @@ struct Pack {
     std::int64_t hypotheses = 1;               // method assign only
     std::optional<BiasParams> bias;            // method assign only (correlate-assign.md "Sensor bias")
     std::optional<double> margin;              // method assign only (correlate-assign.md "Window")
+    std::optional<double> time_offset_sigma_ms;   // method assign only, needs bias (Sensor bias, "Time offset")
 };
 
 // Parses the text of a pack.def; throws PackError on any load error.

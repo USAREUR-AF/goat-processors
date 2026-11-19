@@ -24,13 +24,13 @@ fn distance(a: Entity, b_pred: kalman.Filter) f64 {
     return @sqrt(de * de + dn * dn);
 }
 
-// `d²` of spec "Tests", also the `rank` of spec "Association".
-pub fn mahalanobis(a: Entity, b_pred: kalman.Filter, default_ce_m: f64) f64 {
-    const ce_a = a.ce(default_ce_m);
-    const r = ce_a * ce_a;
+// `d²` of spec "Tests", also the `rank` of spec "Association". `b_pred` is B's
+// prediction with its timing variance already added (`predictedForComparison`);
+// `r_a` is A's measurement variance on that axis (ce_a² when its time error is 0).
+pub fn mahalanobis(a: Entity, b_pred: kalman.Filter) f64 {
     const de = a.filter.east.p - b_pred.east.p;
     const dn = a.filter.north.p - b_pred.north.p;
-    return de * de / (b_pred.east.pp + r) + dn * dn / (b_pred.north.pp + r);
+    return de * de / (b_pred.east.pp + a.r_east) + dn * dn / (b_pred.north.pp + a.r_north);
 }
 
 // Spec 0.2: every value comes from the last accepted report; skipped when absent or below `min_speed_ms`.
@@ -92,7 +92,7 @@ pub fn run(t: pack_mod.Test, a: Entity, b: Entity, b_pred: kalman.Filter, filter
             return .{ .value = num(d), .limit = num(limit), .pass = d < limit };
         },
         .mahalanobis => |p| {
-            const d2 = mahalanobis(a, b_pred, filter.default_ce_m);
+            const d2 = mahalanobis(a, b_pred);
             return .{ .value = num(d2), .limit = num(p.gate), .pass = d2 < p.gate };
         },
         .course => |p| {

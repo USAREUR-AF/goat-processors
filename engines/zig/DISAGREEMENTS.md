@@ -2,8 +2,8 @@
 
 ## Vectors that contradict the specification
 
-None. Every load vector (01 to 60) and every scenario vector (01 to 53)
-agrees with `spec/correlate.md` 0.7 and `spec/correlate-assign.md` 0.5 as
+None. Every load vector (01 to 73) and every scenario vector (01 to 56)
+agrees with `spec/correlate.md` 0.8 and `spec/correlate-assign.md` 0.6 as
 this engine reads them.
 
 ## Filter: vectors that contradict `filter.md` 0.1
@@ -21,7 +21,7 @@ None. Every filter load vector (01 to 50) and every filter scenario vector
 | Differences of two times (`near` age, `interval`, tick `age`) that overflow int64 | Computed in i128; a trace value outside int64 is written as a float. |
 | `version` | Any single token is accepted (load vector 03 uses `version 1`); no semver check. |
 
-## Points `correlate-assign.md` 0.5 leaves open
+## Points `correlate-assign.md` 0.6 leaves open
 
 None found. (The gate-record order left open in 0.2 is now stated in Trace.)
 Readings this engine takes where the text could be read more than one way:
@@ -29,12 +29,17 @@ Readings this engine takes where the text could be read more than one way:
 | Point | This engine |
 |---|---|
 | "among the tick's rows" in the Sensor bias update | The rows of Window step 2: the entities reported since the previous tick, an entity found stale in step 1 not among them. |
+| `time` in an entity of the `assign` snapshot | Written as in `correlate.md` Snapshot (the entity's `filter` "as in `correlate.md`"); scenario vector 56 agrees. |
+| The bias `offset` record of a pair not accepted, with `time_offset` | `time_offset_ms` is the stored `tau` (0 for a pair with no stored state), the state after step 3 as for `east` and `north`. |
 | A restarted entity that is also stale at the tick | It leaves with reason `stale` and gets `drop`; it gives no `leave` with reason `restart` (Window step 1, "that is not stale"). |
 
-## Points `correlate.md` 0.7 leaves open
+## Points `correlate.md` 0.8 leaves open
 
 | Point | This engine |
 |---|---|
+| A `time_error_ms` written as an integer literal outside the signed 64-bit range | `std.json` keeps it as a number string, read as the nearest binary64: a number, so present when finite. |
+| A `time_default` source id that holds `=` | Not a source id ("a first token without `=`"): a load error. |
+| The prediction a later report's measurement variance and its Restart test read | One prediction of the entity to the report's `time_ms`, taken before the update, serves both. |
 | An integer literal outside the signed 64-bit range | `std.json` does not return it as an integer, so it is the wrong type where an integer is required. |
 | `same` between booleans, arrays or objects | Compared structurally: equal when of the same kind and equal element by element. |
 

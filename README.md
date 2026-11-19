@@ -21,8 +21,8 @@ exactly, down to every trace record.
 
 | Function | What it does | Specification | Packs | Vectors | Status |
 |---|---|---|---:|---:|---|
-| correlate | decides which tracks from different sources are one object, groups them, emits one estimate per group | [correlate.md](spec/correlate.md) 0.7 | 5 | 27 | Built in seven languages |
-| correlate, method assign | every track in one system track; per-source least-cost assignment at each tick; members fused by uncertainty weight | [correlate-assign.md](spec/correlate-assign.md) 0.5 | 5 | 26 | Built in seven languages |
+| correlate | decides which tracks from different sources are one object, groups them, emits one estimate per group | [correlate.md](spec/correlate.md) 0.8 | 6 | 29 | Built in seven languages |
+| correlate, method assign | every track in one system track; per-source least-cost assignment at each tick; members fused by uncertainty weight | [correlate-assign.md](spec/correlate-assign.md) 0.6 | 6 | 27 | Built in seven languages |
 | fuse | combines the members of each group named by `fuse.group` into one estimate: inverse variance, covariance intersection, best, priority or latest; one rule per attribute | [fuse.md](spec/fuse.md) 0.2 | 5 | 16 | Built in seven languages |
 | filter | keeps or drops each report by the first matching rule: inside or outside a circle or polygon, within a distance of a reference such as own ship, by environment, affiliation, source, identity or any key, and thins a feed by interval | [filter.md](spec/filter.md) 0.1 | 3 | 27 | Built in seven languages |
 | quality | measures each entity and source from its reports (update interval, age, latency, normalized innovation squared against reported error, implied against reported speed, order, missing keys, lateness against the other sources, the stated time error and time state) and applies the action a rule attaches to a measure: mark, downgrade, drop or alert | [quality.md](spec/quality.md) 0.2 | 4 | 22 | Built in Python |
@@ -87,7 +87,7 @@ entry and every choice:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/seven-engines-dark.svg">
-  <img alt="111 scenario vectors (728 steps, 3479 trace records) and 188 load vectors sit at the center. each generator under tools/ states its decisions by hand and the Python engine computes the numbers; the Rust, Go, Java, C++, Erlang, Zig engines are written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot." src="docs/figures/seven-engines-light.svg">
+  <img alt="114 scenario vectors (766 steps, 3753 trace records) and 201 load vectors sit at the center. each generator under tools/ states its decisions by hand and the Python engine computes the numbers; the Rust, Go, Java, C++, Erlang, Zig engines are written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot." src="docs/figures/seven-engines-light.svg">
 </picture>
 
 The Python engine and `tools/make-*-vectors.py` write the vectors; each
@@ -99,15 +99,15 @@ the vector is changed only through the specification.
 
 | Language | Engine | Lines of source | Runs every vector with |
 |---|---|---:|---|
-| Python | [`engines/python`](engines/python) | 2,348 | `cd engines/python && PYTHONPATH=src python3 -m unittest discover -s tests` |
-| Rust | [`engines/rust`](engines/rust) | 4,793 | `cd engines/rust && cargo test` |
-| Go | [`engines/go`](engines/go) | 2,143 | `cd engines/go && go test ./...` |
-| Java | [`engines/java`](engines/java) | 4,055 | `engines/java/build.sh` |
-| C++ | [`engines/cpp`](engines/cpp) | 4,352 | `cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir build/cpp` |
-| Erlang | [`engines/erlang`](engines/erlang) | 2,975 | `engines/erlang/run_tests` |
-| Zig | [`engines/zig`](engines/zig) | 5,040 | `cd engines/zig && zig build test` |
+| Python | [`engines/python`](engines/python) | 2,471 | `cd engines/python && PYTHONPATH=src python3 -m unittest discover -s tests` |
+| Rust | [`engines/rust`](engines/rust) | 5,074 | `cd engines/rust && cargo test` |
+| Go | [`engines/go`](engines/go) | 2,393 | `cd engines/go && go test ./...` |
+| Java | [`engines/java`](engines/java) | 4,258 | `engines/java/build.sh` |
+| C++ | [`engines/cpp`](engines/cpp) | 4,566 | `cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir build/cpp` |
+| Erlang | [`engines/erlang`](engines/erlang) | 3,175 | `engines/erlang/run_tests` |
+| Zig | [`engines/zig`](engines/zig) | 5,324 | `cd engines/zig && zig build test` |
 
-Each engine runs all 111 scenario vectors (728 steps, 3,479 trace records) and 188 load vectors on every pull request and every push to `main`.
+Each engine runs all 114 scenario vectors (766 steps, 3,753 trace records) and 201 load vectors on every pull request and every push to `main`.
 
 ## Benchmark
 
@@ -162,7 +162,7 @@ Highest pairwise F1 over the random set: `correlate-assign-full`, 0.958.
 | Path | What |
 |---|---|
 | [`spec/`](spec/) | one specification per function, the shared [vector format](spec/vector-format.md), load vectors |
-| [`packs/`](packs/) | 20 rule packs, each with its `pack.def` and its scenario vectors (111 in all) |
+| [`packs/`](packs/) | 22 rule packs, each with its `pack.def` and its scenario vectors (114 in all) |
 | [`engines/`](engines/) | one independent engine per language, each with its test runner |
 | [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), this README's generator (`readme/`) |
 | [`docs/`](docs/) | the benchmark results and the figures, each drawn by a script from the vectors |

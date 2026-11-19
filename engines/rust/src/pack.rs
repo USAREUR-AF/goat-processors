@@ -33,6 +33,34 @@ pub struct Bias {
     pub gate: f64,
 }
 
+/// The state of a clock (spec: correlate.md Reports, Time quality).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TimeState {
+    Coherent,
+    Drifting,
+    FreeRunning,
+}
+
+impl TimeState {
+    /// One of `coherent`, `drifting`, `free-running`, compared byte for byte.
+    pub fn parse(s: &str) -> Option<TimeState> {
+        match s {
+            "coherent" => Some(TimeState::Coherent),
+            "drifting" => Some(TimeState::Drifting),
+            "free-running" => Some(TimeState::FreeRunning),
+            _ => None,
+        }
+    }
+}
+
+/// One `time_default <source_id> error_ms=<ms> state=<state>` line (spec:
+/// correlate.md Pack, Time quality); either key may be absent, not both.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TimeDefault {
+    pub error_ms: Option<f64>,
+    pub state: Option<TimeState>,
+}
+
 /// One named test with its parameters (spec: Tests).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Test {
@@ -104,6 +132,12 @@ pub struct Pack {
     pub bias: Option<Bias>,
     /// `method assign` only: `margin <m>` (correlate-assign.md Window).
     pub margin: Option<f64>,
+    /// `time_default` lines by source id (correlate.md Pack), with either method.
+    pub time_default: BTreeMap<String, TimeDefault>,
+    /// `method assign` only: `time_offset sigma_ms=<t>`, the prior standard
+    /// deviation of a pair's clock offset in ms (correlate-assign.md Sensor
+    /// bias, Time offset).
+    pub time_offset: Option<f64>,
 }
 
 impl Pack {
@@ -275,6 +309,8 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
     let mut restart = None;
     let mut bias = None;
     let mut margin = None;
+    let mut time_default: BTreeMap<String, TimeDefault> = BTreeMap::new();
+    let mut time_offset = None;
 
     for (lineno, raw) in text.lines().enumerate() {
         let line = raw.split('#').next().unwrap_or("");
@@ -283,7 +319,7 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         let directive = *directive;
         let at = |e: String| format!("line {}: {}", lineno + 1, e);
 
-        let repeats = matches!(directive, "gate" | "confirm" | "hold" | "priority");
+        let repeats = matches!(directive, "gate" | "confirm" | "hold" | "priority" | "time_default");
         if !repeats && !seen.insert(directive.to_string()) {
             return Err(at(format!("repeated directive: {}", directive)));
         }
@@ -348,6 +384,49 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
                 }
                 bias = Some(b);
             }
+            "time_default" => {
+                // correlate.md 0.8 Pack: a source id (a first token without
+                // `=`), then `error_ms` (a number 0 or above), `state` (one of
+                // the three states) or both, each at most once; at most one
+                // line per source.
+                let (source, params) = match args.split_first() {
+                    Some((s, rest)) if !s.contains('=') => (*s, rest),
+                    _ => return Err(at("time_default needs a source id".to_string())),
+                };
+                let mut d = TimeDefault { error_ms: None, state: None };
+                for a in params {
+                    let (k, v) = a.split_once('=').ok_or_else(|| at(format!("parameter without '=': {:?}", a)))?;
+                    match k {
+                        "error_ms" if d.error_ms.is_none() => {
+                            let ms = decimal(v).map_err(at)?;
+                            if !(ms >= 0.0) {
+                                return Err(at("time_default error_ms must be 0 or above".to_string()));
+                            }
+                            d.error_ms = Some(ms);
+                        }
+                        "state" if d.state.is_none() => {
+                            d.state = Some(TimeState::parse(v).ok_or_else(|| at(format!("unknown time state: {:?}", v)))?);
+                        }
+                        _ => return Err(at(format!("unknown or repeated time_default parameter: {:?}", k))),
+                    }
+                }
+                if d.error_ms.is_none() && d.state.is_none() {
+                    return Err(at("time_default needs error_ms, state or both".to_string()));
+                }
+                if time_default.insert(source.to_string(), d).is_some() {
+                    return Err(at(format!("second time_default for source {:?}", source)));
+                }
+            }
+            "time_offset" => {
+                // correlate-assign.md 0.6 Sensor bias, Time offset: exactly
+                // `sigma_ms`, above 0; it needs `bias` (checked at the end).
+                let p = Params::parse(args, &["sigma_ms"]).map_err(at)?;
+                let t = p.num("sigma_ms").map_err(at)?;
+                if !(t > 0.0) {
+                    return Err(at("time_offset sigma_ms must be above 0".to_string()));
+                }
+                time_offset = Some(t);
+            }
             "margin" => {
                 // correlate-assign.md 0.5 Window: one number above 0.
                 let m = decimal(one_arg(directive, args).map_err(at)?).map_err(at)?;
@@ -394,7 +473,7 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         }
     }
     let refused: &[&str] = match method {
-        Method::Confirm => &["new_cost", "keep_bonus", "window", "hypotheses", "margin", "bias"],
+        Method::Confirm => &["new_cost", "keep_bonus", "window", "hypotheses", "margin", "bias", "time_offset"],
         Method::Assign => &["confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"],
     };
     if let Some(d) = refused.iter().find(|d| seen.contains(**d)) {
@@ -415,6 +494,10 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         // correlate-assign.md 0.5: margin needs hypotheses above 1.
         if margin.is_some() && hypotheses == 1 {
             return Err("margin needs hypotheses above 1".to_string());
+        }
+        // correlate-assign.md 0.6: time_offset needs bias.
+        if time_offset.is_some() && bias.is_none() {
+            return Err("time_offset needs bias".to_string());
         }
         if let Some(b) = keep_bonus {
             if !(b >= 0.0) {
@@ -443,6 +526,8 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
             hypotheses,
             bias,
             margin,
+            time_default,
+            time_offset,
         });
     }
     Ok(Pack {
@@ -453,6 +538,8 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         hypotheses: 1,
         bias: None,
         margin: None,
+        time_default,
+        time_offset: None,
         name: name.ok_or_else(|| need("pack"))?,
         version: version.ok_or_else(|| need("version"))?,
         filter,

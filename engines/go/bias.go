@@ -3,6 +3,8 @@ package correlator
 // Sensor bias (spec/correlate-assign.md, Sensor bias): one position offset per
 // unordered pair of sources, used to move one source's predictions into the
 // other's frame, and learned at each tick from the committed system tracks.
+// With the time_offset line each pair also has a clock offset tau, fitted with
+// the position offset (Sensor bias, Time offset).
 
 // BiasState is the stored state of one pair "<S>|<T>" (S before T in key
 // order): how far T's positions sit east and north of S's.
@@ -11,6 +13,11 @@ type BiasState struct {
 	ONorth, WNorth float64 // offset o and weight sum w, north
 	Var            float64 // var, both axes
 	Pairs          int64   // n, the count of accepted pairs
+
+	// With time_offset (Time offset): tau, in seconds, how far T's clock is
+	// ahead of S's, and the sums S1 to S8 of the least-squares fit.
+	Tau  float64
+	Sums [8]float64
 }
 
 // biasState returns the state of pair key, or the state a pair with none
@@ -29,22 +36,35 @@ func (g *Engine) moveInto(b, a *Entity, be, bn Axis) (Axis, Axis) {
 	if !g.pack.HasBias || a.Source == b.Source {
 		return be, bn
 	}
+	key := a.Source + "|" + b.Source
 	if b.Source < a.Source {
-		st := g.biasState(b.Source + "|" + a.Source)
-		be.P, be.PP = be.P+st.OEast, be.PP+st.Var
-		bn.P, bn.PP = bn.P+st.ONorth, bn.PP+st.Var
+		key = b.Source + "|" + a.Source
+	}
+	st := g.biasState(key)
+	// The offset on each axis: o, or with time_offset o - v*tau, v being B's
+	// predicted velocity on that axis.
+	oe, on := st.OEast, st.ONorth
+	if g.pack.HasTimeOffset {
+		oe = st.OEast - be.V*st.Tau
+		on = st.ONorth - bn.V*st.Tau
+	}
+	if b.Source < a.Source {
+		be.P, be.PP = be.P+oe, be.PP+st.Var
+		bn.P, bn.PP = bn.P+on, bn.PP+st.Var
 	} else {
-		st := g.biasState(a.Source + "|" + b.Source)
-		be.P, be.PP = be.P-st.OEast, be.PP+st.Var
-		bn.P, bn.PP = bn.P-st.ONorth, bn.PP+st.Var
+		be.P, be.PP = be.P-oe, be.PP+st.Var
+		bn.P, bn.PP = bn.P-on, bn.PP+st.Var
 	}
 	return be, bn
 }
 
-// predictedFor returns B predicted to A's time and moved into A's frame: the
-// prediction every test between A and B reads (correlate.md Tests; Sensor bias).
+// predictedFor returns B predicted to A's time, with B's timing variance
+// added to its pp (correlate.md Track estimate, Measurement variance) and then
+// moved into A's frame: the prediction every test between A and B reads
+// (correlate.md Tests; Sensor bias).
 func (g *Engine) predictedFor(b, a *Entity) (Axis, Axis) {
 	be, bn := g.predicted(b, a.LastTime)
+	be, bn = withTimingVariance(b, be, bn)
 	return g.moveInto(b, a, be, bn)
 }
 
@@ -78,8 +98,15 @@ func (g *Engine) updateBias(now int64, rows map[string]bool) []Obj {
 				ye, re := te.P-se.P, se.PP+te.PP
 				yn, rn := tn.P-sn.P, sn.PP+tn.PP
 
-				// 2. d² with the pair's state.
-				de, dn := ye-st.OEast, yn-st.ONorth
+				// 2. d² with the pair's state; with time_offset the expected
+				// offset is o - v*tau, v the mean of the two predicted velocities.
+				var de, dn, ve, vn float64
+				if p.HasTimeOffset {
+					ve, vn = (se.V+te.V)/2, (sn.V+tn.V)/2
+					de, dn = ye-(st.OEast-ve*st.Tau), yn-(st.ONorth-vn*st.Tau)
+				} else {
+					de, dn = ye-st.OEast, yn-st.ONorth
+				}
 				d2 := de*de/(st.Var+re) + dn*dn/(st.Var+rn)
 
 				// 3. Accept below the gate.
@@ -90,18 +117,26 @@ func (g *Engine) updateBias(now int64, rows map[string]bool) []Obj {
 					if floor := p.BiasFloor * p.BiasFloor; st.Var < floor {
 						st.Var = floor
 					}
-					st.WEast = st.WEast + 1/re
-					st.OEast = st.OEast + ((1/re)/st.WEast)*(ye-st.OEast)
-					st.WNorth = st.WNorth + 1/rn
-					st.ONorth = st.ONorth + ((1/rn)/st.WNorth)*(yn-st.ONorth)
+					if p.HasTimeOffset {
+						g.fitTimeOffset(&st, 1/re, 1/rn, ve, vn, ye, yn)
+					} else {
+						st.WEast = st.WEast + 1/re
+						st.OEast = st.OEast + ((1/re)/st.WEast)*(ye-st.OEast)
+						st.WNorth = st.WNorth + 1/rn
+						st.ONorth = st.ONorth + ((1/rn)/st.WNorth)*(yn-st.ONorth)
+					}
 					stored := st
 					g.bias[key] = &stored
 				}
 
 				// 4. Trace, with the state after step 3.
-				out = append(out, Obj{"stage": "bias", "a": x.Key, "b": y.Key, "test": "offset",
+				rec := Obj{"stage": "bias", "a": x.Key, "b": y.Key, "test": "offset",
 					"value": d2, "limit": p.BiasGate, "pass": accepted,
-					"east": st.OEast, "north": st.ONorth, "var": st.Var, "pairs": st.Pairs})
+					"east": st.OEast, "north": st.ONorth, "var": st.Var, "pairs": st.Pairs}
+				if p.HasTimeOffset {
+					rec["time_offset_ms"] = st.Tau * 1000
+				}
+				out = append(out, rec)
 			}
 		}
 	}
@@ -112,8 +147,49 @@ func (g *Engine) updateBias(now int64, rows map[string]bool) []Obj {
 func (g *Engine) biasSnapshot() Obj {
 	out := Obj{}
 	for k, st := range g.bias {
-		out[k] = Obj{"east": st.OEast, "weight_east": st.WEast, "north": st.ONorth,
+		o := Obj{"east": st.OEast, "weight_east": st.WEast, "north": st.ONorth,
 			"weight_north": st.WNorth, "var": st.Var, "pairs": st.Pairs}
+		if g.pack.HasTimeOffset {
+			sums := make([]any, 8)
+			for i, v := range st.Sums {
+				sums[i] = v
+			}
+			o["time_offset_ms"], o["sums"] = st.Tau*1000, sums
+		}
+		out[k] = o
 	}
 	return out
+}
+
+// fitTimeOffset adds one accepted pair to the sums and solves the weighted
+// least-squares fit of y = o - v*tau (Sensor bias, Time offset). we, wn are
+// 1/r on east and north; ve, vn the mean predicted velocities; ye, yn the
+// observed offsets. n and var have already changed as in step 3.
+func (g *Engine) fitTimeOffset(st *BiasState, we, wn, ve, vn, ye, yn float64) {
+	p := g.pack
+	S := &st.Sums
+	S[0] = S[0] + we                    // S1
+	S[1] = S[1] + wn                    // S2
+	S[2] = S[2] + we*ve                 // S3
+	S[3] = S[3] + wn*vn                 // S4
+	S[4] = S[4] + (we*ve*ve + wn*vn*vn) // S5
+	S[5] = S[5] + we*ye                 // S6
+	S[6] = S[6] + wn*yn                 // S7
+	S[7] = S[7] + (we*ve*ye + wn*vn*yn) // S8
+
+	po := 1 / (p.BiasSigma * p.BiasSigma)
+	ts := p.TimeOffsetSigmaMs / 1000
+	pt := 1 / (ts * ts)
+	a11 := po + S[0]
+	a22 := po + S[1]
+	a13 := -S[2]
+	a23 := -S[3]
+	a33 := pt + S[4]
+	b1 := S[5]
+	b2 := S[6]
+	b3 := -S[7]
+	st.Tau = (b3 - a13*b1/a11 - a23*b2/a22) / (a33 - a13*a13/a11 - a23*a23/a22)
+	st.OEast = (b1 - a13*st.Tau) / a11
+	st.ONorth = (b2 - a23*st.Tau) / a22
+	st.WEast, st.WNorth = S[0], S[1]
 }

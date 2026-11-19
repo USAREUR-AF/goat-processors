@@ -1,8 +1,8 @@
-# Open points under correlate 0.7 and correlate-assign 0.5
+# Open points under correlate 0.8 and correlate-assign 0.6
 
-No vector contradicts `spec/correlate.md` (version 0.7) or
-`spec/correlate-assign.md` (version 0.5) as this engine reads them: scenario
-vectors 01 to 53 and load vectors 01 to 60 pass.
+No vector contradicts `spec/correlate.md` (version 0.8) or
+`spec/correlate-assign.md` (version 0.6) as this engine reads them: scenario
+vectors 01 to 56 and load vectors 01 to 73 pass.
 
 ## Readings the engine takes
 
@@ -20,6 +20,10 @@ down because the text could be read another way.
 | 7 | correlate-assign.md Sensor bias, Update | The update runs at every tick, also when nothing is committed, and always on the committed membership; with no pair from the tick's rows it adds no trace record (vector 45, step 9). |
 | 8 | correlate-assign.md Window, step 3 | With `margin`, a candidate is kept when it is among the first `k` and its total is at most `cut`; its `total` record has `pass` true exactly then, and `limit` `cut` (vectors 49 to 53). |
 | 9 | correlate-assign.md Sensor bias | Only the `distance`, `window` and `mahalanobis` tests and the Cost move B; the Restart test compares an entity with its own prediction and moves nothing, and so does the fused estimate for output. |
+| 10 | correlate.md Reports, Time quality | `time_error_ms` and `time_state` are resolved per key on every accepted report, after the reject checks; a rejected report gives no `time` record. A present `time_error_ms` of 0 is the report's value and wins over the pack's default (vector 54, step 5, gives no `time` record although radar-1 has `error_ms=500`); an absent or invalid one falls back to the default (vector 54, steps 7 and 8). |
+| 11 | correlate.md Track estimate, Measurement variance | With two models, the velocity for `(v*ts)²` on a later report is that of the combined prediction (Two-model filter, Prediction), and the per-axis `r` is used in both models' position updates and so in their likelihood terms. The same `r` is used by the Restart test and, after a failed one, as the first-report `pp`. |
+| 12 | correlate.md Tests; correlate-assign.md Cost | B's timing variance is added only where `pp` is read (`mahalanobis`, `rank`, the Cost); `distance` and `window` read no `pp`, so time quality does not change them. When the time error is 0 the added variance is exactly 0, so earlier vectors are unchanged bit for bit. |
+| 13 | correlate-assign.md Sensor bias, Time offset | Without `time_offset`, the move and the update use `o` itself, not `o - v*0`, and the snapshot and `bias` trace carry no `time_offset_ms` or `sums`. With it, `w` is no longer updated as a running sum but set to `S1` and `S2` after each accepted pair. |
 
 ## Points the spec leaves open
 

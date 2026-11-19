@@ -64,13 +64,13 @@ public final class Filter {
     /** The measurements of one report, in the plane. */
     static final class Measurement {
         final double[] z;      // east, north position
-        final double r;        // ce²
+        final double[] r;      // east, north measurement variance (Track estimate, Measurement variance)
         final boolean hasVel;
         final double[] zv;     // east, north velocity
 
-        Measurement(double[] z, double ce, boolean hasVel, double ve, double vn) {
+        Measurement(double[] z, double[] r, boolean hasVel, double ve, double vn) {
             this.z = z;
-            this.r = ce * ce;
+            this.r = r;
             this.hasVel = hasVel;
             this.zv = new double[] {ve, vn};
         }
@@ -97,12 +97,12 @@ public final class Filter {
     Axis[][] models;
     double[] mu;
 
-    /** Track estimate, first report (and Two-model filter, first report). */
+    /** Track estimate, first report (and Two-model filter, first report): pp is that axis's r. */
     Filter(Pack pack, Measurement m) {
         this.pack = pack;
         double vv = m.hasVel ? pack.velSigma * pack.velSigma : pack.unknownVel * pack.unknownVel;
         axes = new Axis[2];
-        for (int k = 0; k < 2; k++) axes[k] = new Axis(m.z[k], m.hasVel ? m.zv[k] : 0, m.r, 0, vv);
+        for (int k = 0; k < 2; k++) axes[k] = new Axis(m.z[k], m.hasVel ? m.zv[k] : 0, m.r[k], 0, vv);
         if (pack.maneuver) {
             models = new Axis[][] {{axes[0].copy(), axes[1].copy()}, {axes[0].copy(), axes[1].copy()}};
             double s = pack.pEnter + pack.pLeave;
@@ -161,7 +161,7 @@ public final class Filter {
             for (int k = 0; k < 2; k++) ax[k].predict(dt, q(j));
             // Terms in the order east position, north position, east velocity, north velocity.
             double g = 0;
-            for (int k = 0; k < 2; k++) g += ax[k].updatePosition(m.z[k], m.r);
+            for (int k = 0; k < 2; k++) g += ax[k].updatePosition(m.z[k], m.r[k]);
             if (m.hasVel)
                 for (int k = 0; k < 2; k++) g += ax[k].updateVelocity(m.zv[k], pack.velSigma * pack.velSigma);
             lambda[j] = -0.5 * g;
@@ -184,7 +184,7 @@ public final class Filter {
     /** Track estimate steps 1 to 3 on one axis k. */
     private void predictAndUpdate(Axis ax, int k, double dt, double q, Measurement m) {
         ax.predict(dt, q);
-        ax.updatePosition(m.z[k], m.r);
+        ax.updatePosition(m.z[k], m.r[k]);
         if (m.hasVel) ax.updateVelocity(m.zv[k], pack.velSigma * pack.velSigma);
     }
 

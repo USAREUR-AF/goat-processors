@@ -15,12 +15,18 @@ import correlator.Engine.Entity;
  */
 final class Bias {
 
-    /** State of one pair {@code "<S>|<T>"}: per axis the offset o and weight sum w, one var, the count n. */
+    /**
+     * State of one pair {@code "<S>|<T>"}: per axis the offset o and weight sum w, one var, the
+     * count n; with {@code time_offset} also the clock offset tau (seconds) and the sums S1 to S8
+     * ({@code sums[0]} is S1).
+     */
     static final class PairState {
         final double[] o = new double[2];
         final double[] w = new double[2];
         double var;
         long n;
+        double tau;
+        final double[] sums = new double[8];
 
         PairState(double sigma) {
             var = sigma * sigma;
@@ -44,7 +50,8 @@ final class Bias {
     /**
      * Moving B into A's frame: B's prediction (east, north; copies the caller owns) becomes
      * p + o from pair "b_src|a_src" when b_src is first, or p - o from pair "a_src|b_src" when
-     * a_src is first; pp + var either way. Two entities of one source are never moved.
+     * a_src is first; pp + var either way. With {@code time_offset}, o - v*tau is used in place of
+     * o, v B's predicted velocity on that axis. Two entities of one source are never moved.
      */
     void moveInto(String aSource, String bSource, Filter.Axis[] predictedB) {
         int c = Engine.KEY_ORDER.compare(bSource, aSource);
@@ -52,7 +59,8 @@ final class Bias {
         PairState st = c < 0 ? read(bSource, aSource) : read(aSource, bSource);
         double sign = c < 0 ? 1 : -1;
         for (int k = 0; k < 2; k++) {
-            predictedB[k].p = predictedB[k].p + sign * st.o[k];
+            double offset = pack.timeOffset ? st.o[k] - predictedB[k].v * st.tau : st.o[k];
+            predictedB[k].p = predictedB[k].p + sign * offset;
             predictedB[k].pp = predictedB[k].pp + st.var;
         }
     }
@@ -90,15 +98,18 @@ final class Bias {
         Filter.Axis[] axS = {ps.east, ps.north}, axT = {pt.east, pt.north};
         String key = es.source + "|" + et.source;
         PairState st = read(es.source, et.source);
-        double[] yy = new double[2], r = new double[2];
+        double[] yy = new double[2], r = new double[2], v = new double[2];
         for (int k = 0; k < 2; k++) {
             yy[k] = axT[k].p - axS[k].p;
             r[k] = axS[k].pp + axT[k].pp;
+            // Time offset: the object's velocity, v = (v_ES + v_ET) / 2.
+            v[k] = (axS[k].v + axT[k].v) / 2;
         }
-        // 2. d² = sum over east, north of (y - o)² / (var + r), with the pair's state.
+        // 2. d² = sum over east, north of (y - o)² / (var + r), with the pair's state; with
+        //    time_offset, (y - (o - v*tau))².
         double d2 = 0;
         for (int k = 0; k < 2; k++) {
-            double d = yy[k] - st.o[k];
+            double d = pack.timeOffset ? yy[k] - (st.o[k] - v[k] * st.tau) : yy[k] - st.o[k];
             d2 += d * d / (st.var + r[k]);
         }
         // 3. Accepted when d² < g: n + 1; var = s² / (n + 1), no less than f²; per axis the
@@ -109,10 +120,13 @@ final class Bias {
             double s2 = pack.biasSigma * pack.biasSigma, f2 = pack.biasFloor * pack.biasFloor;
             double var = s2 / (st.n + 1);
             st.var = var < f2 ? f2 : var;
-            for (int k = 0; k < 2; k++) {
-                double wBefore = st.w[k], oBefore = st.o[k];
-                st.w[k] = wBefore + 1 / r[k];
-                st.o[k] = oBefore + ((1 / r[k]) / st.w[k]) * (yy[k] - oBefore);
+            if (pack.timeOffset) fitTimeOffset(st, r, v, yy);
+            else {
+                for (int k = 0; k < 2; k++) {
+                    double wBefore = st.w[k], oBefore = st.o[k];
+                    st.w[k] = wBefore + 1 / r[k];
+                    st.o[k] = oBefore + ((1 / r[k]) / st.w[k]) * (yy[k] - oBefore);
+                }
             }
             pairs.put(key, st);
         }
@@ -129,7 +143,41 @@ final class Bias {
         m.put("north", st.o[1]);
         m.put("var", st.var);
         m.put("pairs", st.n);
+        if (pack.timeOffset) m.put("time_offset_ms", st.tau * 1000);
         trace.add(m);
+    }
+
+    /**
+     * Time offset, an accepted pair: the sums S1 to S8 (each += one addition of the whole
+     * right-hand side), then the weighted least-squares fit of y = o - v*tau over every accepted
+     * pair, with priors of 0 for o (standard deviation s) and tau (standard deviation t ms), in
+     * the closed form as written. The weight sum w of each axis is S1 and S2.
+     */
+    private void fitTimeOffset(PairState st, double[] r, double[] v, double[] y) {
+        double[] S = st.sums;
+        double we = 1 / r[0], wn = 1 / r[1];
+        double ve = v[0], vn = v[1], ye = y[0], yn = y[1];
+        S[0] = S[0] + we;
+        S[1] = S[1] + wn;
+        S[2] = S[2] + we * ve;
+        S[3] = S[3] + wn * vn;
+        S[4] = S[4] + (we * ve * ve + wn * vn * vn);
+        S[5] = S[5] + we * ye;
+        S[6] = S[6] + wn * yn;
+        S[7] = S[7] + (we * ve * ye + wn * vn * yn);
+        double s = pack.biasSigma, t = pack.timeOffsetSigmaMs;
+        double po = 1 / (s * s);
+        double tSeconds = t / 1000;
+        double pt = 1 / (tSeconds * tSeconds);
+        double a11 = po + S[0], a22 = po + S[1];
+        double a13 = -S[2], a23 = -S[3];
+        double a33 = pt + S[4];
+        double b1 = S[5], b2 = S[6], b3 = -S[7];
+        st.tau = (b3 - a13 * b1 / a11 - a23 * b2 / a22) / (a33 - a13 * a13 / a11 - a23 * a23 / a22);
+        st.o[0] = (b1 - a13 * st.tau) / a11;
+        st.o[1] = (b2 - a23 * st.tau) / a22;
+        st.w[0] = S[0];
+        st.w[1] = S[1];
     }
 
     /** Snapshot: each stored pair key, in key order, to its state. */
@@ -144,6 +192,12 @@ final class Bias {
             m.put("weight_north", st.w[1]);
             m.put("var", st.var);
             m.put("pairs", st.n);
+            if (pack.timeOffset) {
+                m.put("time_offset_ms", st.tau * 1000);
+                List<Object> sums = new ArrayList<>();
+                for (double x : st.sums) sums.add(x);
+                m.put("sums", sums);
+            }
             out.put(p.getKey(), m);
         }
         return out;
