@@ -322,6 +322,82 @@
     }
    ],
    "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 3000,
+    "lat": 1.0,
+    "lon": 1.005396744,
+    "time_error_ms": -5,
+    "course": 90,
+    "speed_ms": 200,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [],
+   "trace": [
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": null,
+     "test": "time",
+     "value": 500.0,
+     "limit": null,
+     "pass": true,
+     "var_east": 9999.999988754238,
+     "var_north": 3.6147414709143326e-29
+    },
+    {
+     "stage": "hold",
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "test": "mahalanobis",
+     "value": 3.4987778816511685,
+     "limit": 18.42,
+     "pass": true
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 4000,
+    "lat": 1.0,
+    "lon": 1.007195659,
+    "time_error_ms": true,
+    "course": 90,
+    "speed_ms": 200,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [],
+   "trace": [
+    {
+     "stage": "filter",
+     "a": "radar-1/T1",
+     "b": null,
+     "test": "time",
+     "value": 500.0,
+     "limit": null,
+     "pass": true,
+     "var_east": 9999.999993523317,
+     "var_north": 3.503917027659361e-29
+    },
+    {
+     "stage": "hold",
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "test": "mahalanobis",
+     "value": 3.4708597598825603,
+     "limit": 18.42,
+     "pass": true
+    }
+   ]
   }
  ],
  "snapshot": {
@@ -352,24 +428,28 @@
     }
    },
    "radar-1/T1": {
-    "last_time_ms": 2000,
+    "last_time_ms": 4000,
     "group": "g1",
-    "hold_failures": 1,
+    "hold_failures": 0,
     "filter": {
      "east": [
-      399.9999620109992,
-      199.99999988754237,
-      772.8175604759572,
-      1.7769457854720037,
-      8.84111738089182
+      799.9999669107668,
+      200.00000000356428,
+      697.3074681485765,
+      10.618435977083962,
+      6.081626847650584
      ],
      "north": [
-      1.202344538429051e-14,
-      1.2024544017823433e-14,
-      308.20838356490276,
-      8.234781518598872,
-      8.71836884605092
+      2.319977868637629e-14,
+      1.1610851913255683e-14,
+      199.25184111937062,
+      9.832620633980806,
+      5.847186058652813
      ]
+    },
+    "time": {
+     "var_east": 9999.999993523317,
+     "var_north": 3.503917027659361e-29
     }
    }
   },

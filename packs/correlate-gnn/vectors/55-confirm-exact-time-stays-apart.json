@@ -179,6 +179,78 @@
    "tick": 2500,
    "expect": [],
    "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 3000,
+    "lat": 1.0,
+    "lon": 1.005396744,
+    "time_error_ms": -5,
+    "course": 90,
+    "speed_ms": 200,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [],
+   "trace": [
+    {
+     "stage": "gate",
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "test": "mahalanobis",
+     "value": 27.92191283167059,
+     "limit": 9.21,
+     "pass": false
+    },
+    {
+     "stage": "confirm",
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "test": "count",
+     "value": 0,
+     "limit": 2,
+     "pass": false
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 4000,
+    "lat": 1.0,
+    "lon": 1.007195659,
+    "time_error_ms": true,
+    "course": 90,
+    "speed_ms": 200,
+    "ce": 30,
+    "type": "a-f-A-M-F",
+    "track.simulated": 0
+   },
+   "expect": [],
+   "trace": [
+    {
+     "stage": "gate",
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "test": "mahalanobis",
+     "value": 26.237681436276667,
+     "limit": 9.21,
+     "pass": false
+    },
+    {
+     "stage": "confirm",
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "test": "count",
+     "value": 0,
+     "limit": 2,
+     "pass": false
+    }
+   ]
   }
  ],
  "snapshot": {
@@ -209,23 +281,23 @@
     }
    },
    "radar-1/T1": {
-    "last_time_ms": 2000,
+    "last_time_ms": 4000,
     "group": null,
     "hold_failures": 0,
     "filter": {
      "east": [
-      399.9999946566461,
-      199.99999956525485,
-      308.20838356490276,
-      8.234781518598872,
-      8.71836884605092
+      799.9999974698997,
+      199.99999996987415,
+      199.25184111937062,
+      9.832620633980806,
+      5.847186058652813
      ],
      "north": [
-      1.202344538429051e-14,
-      1.2024544017823433e-14,
-      308.20838356490276,
-      8.234781518598872,
-      8.71836884605092
+      2.319977868637629e-14,
+      1.1610851913255683e-14,
+      199.25184111937062,
+      9.832620633980806,
+      5.847186058652813
      ]
     }
    }

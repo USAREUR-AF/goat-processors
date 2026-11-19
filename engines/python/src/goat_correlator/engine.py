@@ -355,6 +355,7 @@ class _Entity:
         self.mode = None    # [mu_quiet, mu_maneuver]
         self.r_meas = None  # per-axis measurement variance of the last report
         self.t_var = (0.0, 0.0)  # per-axis timing variance of the last report
+        self.time_err = 0.0      # time error of the last report, ms
 
     def ce(self, pack):
         v = self.report.get("ce")
@@ -375,6 +376,8 @@ def _filter_snap(e):
     if e.models is not None:
         out["models"] = {MODELS[j]: {"east": list(m[0]), "north": list(m[1])} for j, m in enumerate(e.models)}
         out["mode"] = list(e.mode)
+    if e.time_err > 0:
+        out["time"] = {"var_east": e.t_var[0], "var_north": e.t_var[1]}
     return out
 
 
@@ -656,6 +659,7 @@ class Engine:
         ent.report = dict(report)
         ent.r_meas = (re_, rn_)
         ent.t_var = (ae, an)
+        ent.time_err = te
         ent.last_time_ms = t
         return ent
 

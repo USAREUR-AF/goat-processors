@@ -177,7 +177,8 @@ stored, and `o` is no longer a running mean:
 - In the update, per axis `v = (v_ES + v_ET) / 2` from the two predictions to
   `now_ms`, and step 2 uses `(y - (o - v*tau))²` in place of `(y - o)²`.
 - When the pair is accepted, `n` and `var` change as in step 3, and with
-  `we = 1/r_east`, `wn = 1/r_north`, `ve`, `vn`, `ye`, `yn` of this pair:
+  `we`, `wn` = `1/r` of step 1 on east and north, and `ve`, `vn`, `ye`, `yn`
+  of this pair:
   `S1 += we`; `S2 += wn`; `S3 += we*ve`; `S4 += wn*vn`;
   `S5 += we*ve*ve + wn*vn*vn`; `S6 += we*ye`; `S7 += wn*yn`;
   `S8 += we*ve*ye + wn*vn*yn` (each `+=` one addition of the whole

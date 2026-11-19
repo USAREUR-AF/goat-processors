@@ -135,16 +135,21 @@ the report's time error (Reports, Time quality) in milliseconds:
   the measured velocity, or 0 without one),
   `r_east = ce² + (v_e*ts)²` and `r_north = ce² + (v_n*ts)²`. A position
   stamped up to `ts` seconds off lies up to `v*ts` along the track from the
-  true one. The trace gets
-  `{"stage":"filter","a":<entity>,"b":null,"test":"time","value":te,"limit":null,"pass":true,"var_east":(v_e*ts)²,"var_north":(v_n*ts)²}`,
-  before any other record of that report.
+  true one.
+
+When `te` is above 0 (and only then), the trace gets
+`{"stage":"filter","a":<entity>,"b":null,"test":"time","value":te,"limit":null,"pass":true,"var_east":(v_e*ts)²,"var_north":(v_n*ts)²}`,
+before any other record of that report.
 
 The entity keeps its last report's `r_east` and `r_north`, and its **timing
 variance** `(v_e*ts)²`, `(v_n*ts)²` (0 and 0 when `te` is 0). A filter's
 covariance does not hold the timing error, which displaces every report of a
 clock the same way; so wherever another entity B is predicted to be compared
 with A (Tests; `correlate-assign.md`, Cost), B's timing variance is added to
-the predicted `pp` on each axis.
+the predicted `pp` on each axis, before any other change to that prediction
+(such as the move of `correlate-assign.md`, Sensor bias). This includes the
+`d²` of the `rank` record. Predictions that are not a comparison with
+another entity (Restart, the bias update, output) do not get it.
 
 **First report.** Per axis: `p` = measured position, `v` = measured velocity
 or 0, `pp = r` (that axis's measurement variance), `pv = 0`, `vv = vel_sigma_ms²` when a velocity was measured,
@@ -280,7 +285,9 @@ that report.
 
 When `pass` is true the report updates the filter as in Track estimate (or
 Two-model filter). Otherwise the filter starts again from this report as a
-first report: one filter, or both models and the mode probabilities `b / s`,
+first report, with `pp` on each axis this report's measurement variance as
+already found above (from the prediction's velocity), and the entity keeps
+this report's timing variance: one filter, or both models and the mode probabilities `b / s`,
 `a / s`, as in First report. No `new` event is given and the entity keeps
 its key, its group, its pair counts and its hold failure count. With method `assign` the entity is also
 *restarted* until the next tick ([correlate-assign.md](correlate-assign.md),
@@ -416,7 +423,9 @@ the tests run.
 `snapshot()` returns `{"ref": [lat0, lon0] or null, "entities": {...},
 "groups": {...}, "counts": {...}, "next_group": n}`. Each entity holds
 `last_time_ms`, `group` (or null), `hold_failures` and `filter`
-(`{"east": [p, v, pp, pv, vv], "north": [...]}`). With the `maneuver`
+(`{"east": [p, v, pp, pv, vv], "north": [...]}`). An entity whose last
+report had a time error above 0 also holds `time`:
+`{"var_east", "var_north"}`, its timing variance (Track estimate). With the `maneuver`
 directive each entity also holds `models`
 (`{"quiet": {"east": [...], "north": [...]}, "maneuver": {...}}`) and
 `mode` (`[mu1, mu2]`), and `filter` is their combination; `groups` maps a group name
@@ -461,7 +470,8 @@ be above 0, and is valid with either method.
 
 `time_default` is optional, valid with either method, and repeats, at most
 once per source: a second line for the same `<source_id>` is a load error.
-It takes the source id and then `error_ms`, `state` or both, at least one;
+It takes the source id, a first token without `=`, and then `error_ms`,
+`state` or both, at least one, each at most once;
 `error_ms` is a number 0 or above and `state` one of `coherent`, `drifting`,
 `free-running`. Any other parameter or value is a load error.
 

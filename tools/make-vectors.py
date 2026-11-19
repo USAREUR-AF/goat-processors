@@ -683,6 +683,8 @@ TIMED = [
     ("tick", 1500),
     ("ingest", rep("radar-1", "T1", 2000, 400, 0, time_error_ms=0, time_state="unsynced", **E200)),
     ("tick", 2500),
+    ("ingest", rep("radar-1", "T1", 3000, 600, 0, time_error_ms=-5, **E200)),
+    ("ingest", rep("radar-1", "T1", 4000, 800, 0, time_error_ms=True, **E200)),
 ]
 # 54. radar-1 trails the adsb by 200 m along a 200 m/s track. The pack gives
 #     radar-1 a time error of 500 ms, so each radar-1 report adds
@@ -690,14 +692,16 @@ TIMED = [
 #     on two reports in a row and the pair correlates. The report at 2 s says
 #     time_error_ms 0, which overrides the pack (no `time` record), and an
 #     unknown time_state, which is ignored: the hold test fails once, which
-#     does not yet dissolve the group.
+#     does not yet dissolve the group. At 3 s and 4 s, time_error_ms -5 and
+#     true are not numbers 0 or above, so they count as absent and the pack's
+#     500 ms applies again (trace `time`).
 scenario("54-confirm-time-error-widens-gate", "correlate-gnn-time", TIMED,
-         [["new"], ["new"], ["correlate"], [], ["fused"], [], ["fused"]])
+         [["new"], ["new"], ["correlate"], [], ["fused"], [], ["fused"], [], []])
 
 # 55. The same reports with no time quality: 200 m against 30 m errors fails
 #     the gate every time and the pair never correlates.
 scenario("55-confirm-exact-time-stays-apart", "correlate-gnn", TIMED,
-         [["new"], ["new"], [], [], [], [], []])
+         [["new"], ["new"], [], [], [], [], [], [], []])
 
 CLOCK = []
 for i in range(4):
