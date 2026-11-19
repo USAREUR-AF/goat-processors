@@ -1,13 +1,14 @@
 # goat-correlator: java engine
 
-An implementation of `spec/correlate.md` (version 0.3) in Java 17, using only the
+An implementation of `spec/correlate.md` (version 0.3) and `spec/correlate-assign.md`
+(version 0.1) in Java 17, using only the
 standard library. It was written from the specification and the vectors,
 without reading any other engine.
 
 | File | Spec section |
 |---|---|
-| `src/correlator/Pack.java` | Pack (`load_pack`, the `pack.def` parser) |
-| `src/correlator/Engine.java` | Frame, Track estimate, Tests, Association, Events, Trace, Snapshot (`ingest`, `tick`, `snapshot`) |
+| `src/correlator/Pack.java` | Pack (`load_pack`, the `pack.def` parser, `method` and the directives each method allows) |
+| `src/correlator/Engine.java` | Frame, Track estimate, Tests, Association, Events, Trace, Snapshot (`ingest`, `tick`, `snapshot`); the section "method assign" holds correlate-assign.md: fused estimate, cost, per-source assignment (Hungarian method with potentials), its events, trace and snapshot |
 | `src/correlator/Json.java` | the JSON reader and writer the vector test uses |
 | `src/correlator/VectorTest.java` | `spec/vector-format.md`: runs every vector and compares the results structurally |
 
@@ -19,11 +20,13 @@ engines/java/build.sh
 
 The script compiles with `javac --release 17` into `engines/java/build/`. It
 then runs every load vector in `spec/correlate-load-vectors/` and every scenario vector
-in `packs/*/vectors/` (`correlate-gnn`, `correlate-window`, `correlate-distance`). For a scenario vector it checks each step's events and
+in `packs/*/vectors/` (`correlate-assign`, `correlate-distance`, `correlate-gnn`, `correlate-window`). For a scenario vector it checks each step's events and
 trace, then the final snapshot. A failing vector prints the path of its first
 mismatch, for example
 `steps[1].trace[0].value: got 0.2777765689606809, want 0.2778`. The script
 exits non-zero when any vector fails.
 
-No point of the spec is open for this engine under version 0.3, so there is
-no `DISAGREEMENTS.md`.
+The pack's `method` line selects which method the engine runs: `confirm` (or no
+line) runs `correlate.md`, `assign` runs `correlate-assign.md`. No vector
+contradicts either specification. The points `correlate-assign.md` 0.1 leaves
+open, and what this engine does on each, are in `DISAGREEMENTS.md`.
