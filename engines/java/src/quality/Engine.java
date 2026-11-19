@@ -3,6 +3,7 @@ package quality;
 import correlator.Filter.Axis;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -13,9 +14,10 @@ import java.util.TreeSet;
 import static correlator.Engine.KEY_ORDER;
 
 /**
- * The quality function: load_pack, ingest, tick, snapshot (spec/quality.md).
+ * The quality function: load_pack, ingest, tick, snapshot (spec/quality.md, version 0.2).
  * The frame and the per-entity filter are the correlate engine's own
- * (correlator.Engine.toPlane and correlator.Filter.Axis), as quality.md cites them.
+ * (correlator.Engine.toPlane and correlator.Filter.Axis), as quality.md cites them, and so is
+ * the reading of a report's time keys (correlator.Reports, correlate.md 0.8, Time quality).
  */
 public final class Engine {
 
@@ -32,7 +34,11 @@ public final class Engine {
         long wt, timeMs;
         String order;
         Long interval, latency;
-        Double nis, speedErr;
+        /** A Long when the input clock is an integer, a Double when it is a mean of two. */
+        Number lateness;
+        Double nis, speedErr, timeError;
+        String timeState;
+        boolean sourceOutOfOrder;
         boolean ce, vel, hae;
 
         Map<String, Object> toMap() {
@@ -42,6 +48,10 @@ public final class Engine {
             m.put("order", order);
             m.put("interval", interval);
             m.put("latency", latency);
+            m.put("lateness", lateness);
+            m.put("source_out_of_order", sourceOutOfOrder);
+            m.put("time_error", timeError);
+            m.put("time_state", timeState);
             m.put("nis", nis);
             m.put("speed_err", speedErr);
             m.put("ce", ce);
@@ -142,7 +152,12 @@ public final class Engine {
         rec.hae = hae != null;
         res.trace.add(sample(key, "order", order, t, last));
 
-        // Samples, in the order interval, latency, nis, speed_err.
+        // Input clock and source latest, from the entities as they are before this report.
+        Number clock = inputClock(source);
+        Long sourceLatest = latestOf(source);
+
+        // Samples, in the order interval, latency, lateness, time_error, time_state,
+        // source_order, nis, speed_err.
         if (order.equals("advance")) {
             rec.interval = t - last;
             res.trace.add(sample(key, "interval", rec.interval, t, last));
@@ -151,6 +166,24 @@ public final class Engine {
             rec.latency = received - t;
             res.trace.add(sample(key, "latency", rec.latency, received, t));
         }
+        if (clock != null) {
+            // clock - t: an integer when the clock is one, else binary64.
+            rec.lateness = clock instanceof Long ? (Number) ((Long) clock - t) : (Number) (clock.doubleValue() - t);
+            res.trace.add(sample(key, "lateness", rec.lateness, clock, t));
+        }
+        // Reports, Time quality: per key, the report's valid value, else the pack's
+        // time_default for the report's own source, else unstated (no sample).
+        Double ownError = correlator.Reports.reportTimeError(report);
+        Double defaultError = pack.defaultErrorMs.get(source);
+        rec.timeError = ownError != null ? ownError : defaultError;
+        if (rec.timeError != null) res.trace.add(sample(key, "time_error", rec.timeError, ownError, defaultError));
+        String ownState = correlator.Reports.reportTimeState(report);
+        String defaultState = pack.defaultState.get(source);
+        rec.timeState = ownState != null ? ownState : defaultState;
+        if (rec.timeState != null) res.trace.add(sample(key, "time_state", rec.timeState, ownState, defaultState));
+        // source_order: always taken.
+        rec.sourceOutOfOrder = sourceLatest != null && t < sourceLatest;
+        res.trace.add(sample(key, "source_order", rec.sourceOutOfOrder ? "out-of-order" : "in-order", t, sourceLatest));
         double r = (ce != null ? ce : pack.defaultCe) * (ce != null ? ce : pack.defaultCe);
         if (order.equals("advance")) {
             // nis: predict the filter to t (correlate.md, Track estimate, step 1); the
@@ -206,6 +239,37 @@ public final class Engine {
         return res;
     }
 
+    /**
+     * Spec: Input clock. The latest time of each source other than {@code reportSource} (the
+     * greatest {@code last} of the entities whose source it is), and their median: the middle
+     * value (a Long) for an odd count, {@code (a + b) / 2} in binary64 (a Double) for an even
+     * count; null with no other source.
+     */
+    private Number inputClock(String reportSource) {
+        TreeMap<String, Long> latest = new TreeMap<>(KEY_ORDER);
+        for (Entity ent : entities.values())
+            if (!ent.source.equals(reportSource)) latest.merge(ent.source, ent.last, Math::max);
+        if (latest.isEmpty()) return null;
+        List<Long> times = new ArrayList<>(latest.values());
+        Collections.sort(times);
+        int c = times.size();
+        if (c % 2 == 1) return times.get(c / 2);
+        double a = times.get(c / 2 - 1), b = times.get(c / 2);
+        return (a + b) / 2;
+    }
+
+    /**
+     * Spec: Input clock, the source latest: the greatest {@code last} among the entities whose
+     * source is {@code source} (the report's own entity included when its source is that one);
+     * null when there is none.
+     */
+    private Long latestOf(String source) {
+        Long best = null;
+        for (Entity ent : entities.values())
+            if (ent.source.equals(source) && (best == null || ent.last > best)) best = ent.last;
+        return best;
+    }
+
     /** Spec: Forwarding, the `pass` event for an accepted report of entity a. */
     private Map<String, Object> pass(Entity a, Map<String, Object> report, Double validCe) {
         // Actions in force other than alert, in pack order.
@@ -234,7 +298,8 @@ public final class Engine {
         if (downgrade) {
             double x = validCe != null ? validCe : pack.defaultCe;
             for (Pack.Rule rule : inForce) if (rule.action.equals("downgrade")) x = x * rule.factor;
-            out.put("ce", x);
+            // An x that overflowed to infinity is forwarded as the largest finite binary64.
+            out.put("ce", Double.isInfinite(x) ? Double.MAX_VALUE : x);
         }
         if (mark) {
             List<Object> marks = new ArrayList<>();
@@ -323,23 +388,30 @@ public final class Engine {
     private Map<String, Object> entityMeasures(Entity ent, long now) {
         List<Record> w = ent.window;
         long k = pack.minSamples;
-        List<Long> intervals = new ArrayList<>(), latencies = new ArrayList<>();
-        List<Double> nis = new ArrayList<>(), speedErr = new ArrayList<>();
-        long outOfOrder = 0, duplicate = 0, noCe = 0, noVel = 0, noHae = 0;
+        List<Long> intervals = new ArrayList<>(), latencies = new ArrayList<>(), stateCodes = new ArrayList<>();
+        List<Number> lateness = new ArrayList<>();
+        List<Double> nis = new ArrayList<>(), speedErr = new ArrayList<>(), timeErrors = new ArrayList<>();
+        long outOfOrder = 0, duplicate = 0, sourceOutOfOrder = 0, noCe = 0, noVel = 0, noHae = 0, noTime = 0;
         for (Record rec : w) {
             if (rec.interval != null) intervals.add(rec.interval);
             if (rec.latency != null) latencies.add(rec.latency);
+            if (rec.lateness != null) lateness.add(rec.lateness);
             if (rec.nis != null) nis.add(rec.nis);
             if (rec.speedErr != null) speedErr.add(rec.speedErr);
+            if (rec.timeError != null) timeErrors.add(rec.timeError);
+            if (rec.timeState != null) stateCodes.add(stateCode(rec.timeState));
+            else noTime++;
             if (rec.order.equals("out-of-order")) outOfOrder++;
             if (rec.order.equals("duplicate")) duplicate++;
+            if (rec.sourceOutOfOrder) sourceOutOfOrder++;
             if (!rec.ce) noCe++;
             if (!rec.vel) noVel++;
             if (!rec.hae) noHae++;
         }
         long reports = w.size();
         boolean enoughIntervals = intervals.size() >= k, enoughLatencies = latencies.size() >= k;
-        boolean enoughReports = reports >= k;
+        boolean enoughLateness = lateness.size() >= k, enoughErrors = timeErrors.size() >= k;
+        boolean enoughStates = stateCodes.size() >= k, enoughReports = reports >= k;
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("reports", reports);
@@ -349,13 +421,22 @@ public final class Engine {
         m.put("age", now - ent.last);
         m.put("latency_mean", enoughLatencies ? mean(latencies) : null);
         m.put("latency_max", enoughLatencies ? max(latencies) : null);
+        m.put("lateness_mean", enoughLateness ? mean(lateness) : null);
+        m.put("lateness_max", enoughLateness ? max(lateness) : null);
+        m.put("lateness_min", enoughLateness ? min(lateness) : null);
         m.put("nis_mean", nis.size() >= k ? mean(nis) : null);
         m.put("speed_err_mean", speedErr.size() >= k ? mean(speedErr) : null);
         m.put("out_of_order", outOfOrder);
         m.put("duplicate", duplicate);
+        m.put("source_out_of_order", sourceOutOfOrder);
         m.put("missing_ce", enoughReports ? (double) noCe / reports : null);
         m.put("missing_vel", enoughReports ? (double) noVel / reports : null);
         m.put("missing_hae", enoughReports ? (double) noHae / reports : null);
+        m.put("time_error_mean", enoughErrors ? mean(timeErrors) : null);
+        m.put("time_error_max", enoughErrors ? max(timeErrors) : null);
+        m.put("time_state_last", enoughStates ? stateCodes.get(stateCodes.size() - 1) : null);
+        m.put("time_state_worst", enoughStates ? max(stateCodes) : null);
+        m.put("missing_time", enoughReports ? (double) noTime / reports : null);
         return m;
     }
 
@@ -366,14 +447,18 @@ public final class Engine {
             List<Number> present = new ArrayList<>();
             for (Map<String, Object> em : members) if (em.get(name) != null) present.add((Number) em.get(name));
             switch (name) {
-                case "reports": case "out_of_order": case "duplicate": {
+                case "reports": case "out_of_order": case "duplicate": case "source_out_of_order": {
                     long s = 0;
                     for (Number x : present) s += x.longValue();
                     m.put(name, s);
                     break;
                 }
-                case "interval_max": case "latency_max":
+                case "interval_max": case "latency_max": case "lateness_max": case "time_error_max":
+                case "time_state_last": case "time_state_worst":
                     m.put(name, present.isEmpty() ? null : max(present));
+                    break;
+                case "lateness_min":
+                    m.put(name, present.isEmpty() ? null : min(present));
                     break;
                 case "age": {
                     long min = Long.MAX_VALUE;
@@ -396,11 +481,35 @@ public final class Engine {
         return s / xs.size();
     }
 
-    /** The largest of integer samples (interval, latency). */
-    private static Long max(List<? extends Number> xs) {
-        long best = Long.MIN_VALUE;
-        for (Number x : xs) best = Math.max(best, x.longValue());
+    /**
+     * The largest of a non-empty list, kept as given (an integer sample stays an integer).
+     * Two integers compare exactly; any other pair compares as binary64.
+     */
+    private static Number max(List<? extends Number> xs) {
+        Number best = xs.get(0);
+        for (Number x : xs) if (compare(x, best) > 0) best = x;
         return best;
+    }
+
+    /** The smallest of a non-empty list, as {@link #max}. */
+    private static Number min(List<? extends Number> xs) {
+        Number best = xs.get(0);
+        for (Number x : xs) if (compare(x, best) < 0) best = x;
+        return best;
+    }
+
+    private static int compare(Number x, Number y) {
+        if (x instanceof Long && y instanceof Long) return Long.compare((Long) x, (Long) y);
+        return Double.compare(x.doubleValue(), y.doubleValue());
+    }
+
+    /** Spec: Reports, Time quality: the code of a time state (higher is worse). */
+    private static long stateCode(String state) {
+        switch (state) {
+            case "coherent": return 0;
+            case "drifting": return 1;
+            default: return 2; // free-running
+        }
     }
 
     /** Spec: Rules, Evaluation; one trace record per rule (spec: Trace). */
