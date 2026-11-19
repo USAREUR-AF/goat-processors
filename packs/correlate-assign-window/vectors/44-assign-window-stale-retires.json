@@ -8,7 +8,7 @@
     "uid": "T1",
     "time_ms": 0,
     "lat": 1.0,
-    "lon": 1.0,
+    "lon": 1.00062962,
     "ce": 30,
     "type": "a-f-A-M-F",
     "track.simulated": 0
@@ -88,7 +88,7 @@
      "a": "radar-1/T1",
      "b": "adsb/A7",
      "test": "mahalanobis",
-     "value": 0.05555588224221405,
+     "value": 1.9999969369563213,
      "limit": 18.42,
      "pass": true,
      "h": 0
@@ -118,7 +118,7 @@
      "a": "radar-1/T1",
      "b": "s1",
      "test": "cost",
-     "value": 0.05555588224221405,
+     "value": 1.9999969369563209,
      "limit": null,
      "pass": true,
      "h": 0
@@ -138,7 +138,7 @@
      "a": "radar-1/T1",
      "b": "s1",
      "test": "choice",
-     "value": 0.05555588224221405,
+     "value": 1.9999969369563209,
      "limit": null,
      "pass": true,
      "h": 0,
@@ -160,7 +160,7 @@
      "a": 0,
      "b": 0,
      "test": "total",
-     "value": 9.265555882242214,
+     "value": 11.209996936956323,
      "limit": null,
      "pass": true
     },
@@ -196,7 +196,7 @@
       "radar-1/T1"
      ],
      "lat": 1.0,
-     "lon": 1.000044973,
+     "lon": 1.000359783,
      "course": 0.0,
      "speed_ms": 0.0
     },
@@ -215,7 +215,7 @@
      "a": 0,
      "b": null,
      "test": "commit",
-     "value": 9.265555882242214,
+     "value": 11.209996936956323,
      "limit": null,
      "pass": true
     },
@@ -255,7 +255,7 @@
       "radar-1/T1"
      ],
      "lat": 1.0,
-     "lon": 1.000089528757826,
+     "lon": 1.000092449443766,
      "course": 0.0,
      "speed_ms": 0.0
     },
@@ -315,7 +315,7 @@
     "uid": "T1",
     "time_ms": 121500,
     "lat": 1.0,
-    "lon": 1.0,
+    "lon": 1.00062962,
     "ce": 30,
     "type": "a-f-A-M-F",
     "track.simulated": 0
@@ -379,7 +379,7 @@
     "uid": "T1",
     "time_ms": 122500,
     "lat": 1.0,
-    "lon": 1.0,
+    "lon": 1.00062962,
     "ce": 30,
     "type": "a-f-A-M-F",
     "track.simulated": 0
@@ -396,7 +396,7 @@
  "snapshot": {
   "ref": [
    1.0,
-   1.0
+   1.00062962
   ],
   "entities": {
    "adsb/A7": {
@@ -404,7 +404,7 @@
     "system": "s1",
     "filter": {
      "east": [
-      10.000029401756041,
+      -59.999954054327226,
       0.0,
       899.9935200910362,
       10.799844482212162,

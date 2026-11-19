@@ -133,7 +133,8 @@ quiet. Each model holds both axes `[p, v, pp, pv, vv]` as in Track estimate.
 Both axes share one pair of mode probabilities `mu1`, `mu2`. The entity's
 *filter* is the combination of the two models (step 5). Every test, cost,
 output and snapshot that this document or `correlate-assign.md` says reads
-"the filter" reads this combination. Without the directive nothing in this
+"the filter" reads this combination, except a prediction, which follows
+Prediction below. Without the directive nothing in this
 section applies, and an entity has one filter as in Track estimate.
 
 **Switching over `dt` seconds** (`dt` 0 or above), with `pow` the IEEE-754
@@ -176,7 +177,8 @@ order. Per-axis formulas apply to east and to north.
    above 0, else `ej = 0`; then `muj = ej / (e1 + e2)`. The model whose
    `lambda` is `m` has `ej = cj`, so the sum is above 0. When `lambdaj - m` is
    so far below 0 that `exp` underflows, `ej` is exactly 0 and so is `muj`.
-   A model with `muj = 0` keeps its state and is still updated. On the next
+   A model with `muj = 0` is not reset or skipped: on every later report it
+   is mixed by step 1 and updated by step 2 like the other. On the next
    report with `dt` above 0, `cj` is above 0 again through switching; with
    `dt = 0`, `cj = 0` and step 1 keeps its own state.
 5. **Combination.** Per axis, the entity's filter is `blend(mu1, mu2)` of
@@ -256,7 +258,9 @@ pack says `same_source allow`, a group never holds two entities with the same
   group that already holds an entity with A's `track.source_id` (both unless
   `same_source allow`). For each candidate, run the `gate` tests, then, if all
   passed, the `confirm` tests. The pair's count becomes count + 1 when every
-  test ran and passed, else 0. Counts are kept per unordered pair.
+  test ran and passed, else 0. Counts are kept per unordered pair: every
+  pair tested has an entry, 0 included, removed only when one of its
+  entities is dropped.
   Of the candidates whose count has reached `confirm_count`, the one with the
   smallest `d²` is chosen, ties to key order. `d²` is computed for this choice
   whether or not a `mahalanobis` test is in the pack. After every candidate
@@ -272,7 +276,8 @@ pack says `same_source allow`, a group never holds two entities with the same
    `now_ms - last_time_ms > stale_ms` of the pack, or when its last report had
    `stale_ms` and `now_ms >= stale_ms`. A stale entity in a group leaves it
    (event `leave`, reason `stale`), the group is dissolved if one member is
-   left, and the entity is removed (event `drop`), with every pair count that
+   left (as in hold: event `dissolve`, the last member ungrouped with its hold
+   failure count set to 0), and the entity is removed (event `drop`), with every pair count that
    names it.
 2. **Fused output**, groups in creation order. The primary member is chosen by
    the pack's `output` line: `priority` takes the lowest `priority` number for
@@ -371,18 +376,25 @@ not parse is a load error. Numbers are decimal; `same` takes a string.
 
 Engines use IEEE-754 binary64 and the formulas above in the order written.
 `x²` means `x*x`. `sin`, `cos`, `atan2`, `sqrt`, `hypot`, `pow`, `exp` and
-`ln` are the platform's binary64 functions; they may differ in the last bit
-between platforms, which the tolerance absorbs. Vectors compare floats within
+`ln` are the platform's binary64 functions. Every other operation is one
+correctly rounded binary64 operation: engines do not contract `a*b + c` into
+a fused multiply-add and do not keep intermediates in extended precision.
+The library functions may differ in the last bit between platforms, which
+the tolerance absorbs; vectors never rest a tie on their results. Vectors compare floats within
 `1e-6 * max(1, abs(want))`, and place no decision within that distance of a
 threshold: the vector generator refuses a test whose `value` is that close to
 its `limit`.
 
 ## Open points
 
-Two cases this version does not decide. No vector covers them, and engines
+Cases this version does not decide. No vector covers them, and engines
 may differ on them until a later version settles them with vectors.
 
 | Point | Section |
 |---|---|
 | An integer literal outside the signed 64-bit range | Reports |
 | `same` between booleans, arrays or objects | Tests |
+| Ranges of `confirm_count`, `hold_failures`, `stale_ms` (0, negative) and of test parameters (negative `max_m`, `err_min_m` above `err_max_m`, `gate` 0 or below) | Pack |
+| `priority` listing one source twice | Pack |
+| A repeated parameter within one `filter`, `manoeuvre` or test line | Pack |
+| Which decimal spellings a number may take (exponent, leading `+`, `.5`, `inf`, `nan`), and a `#` inside a value | Pack |

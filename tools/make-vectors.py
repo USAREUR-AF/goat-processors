@@ -530,17 +530,18 @@ scenario("43-assign-window-equal-totals-keep-rank-order", "correlate-assign-wind
 
 # 44. Window 2: a stale entity is dropped from every history at once and
 #     retires; its drop is committed one tick later; a report for it meanwhile
-#     is rejected; after the drop the key is new again.
+#     is rejected; the retiring member, 60 m off, still pulls the committed
+#     estimate; after the drop the key is new again.
 scenario("44-assign-window-stale-retires", "correlate-assign-window", [
-    ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 0, 70, 0, ce=30, **AIR)),
     ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
     ("tick", 500),
     ("tick", 1000),
     ("ingest", rep("adsb", "A7", 100000, 10, 0, ce=30, **AIR)),
     ("tick", 121000),
-    ("ingest", rep("radar-1", "T1", 121500, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 121500, 70, 0, ce=30, **AIR)),
     ("tick", 122000),
-    ("ingest", rep("radar-1", "T1", 122500, 0, 0, ce=30, **AIR)),
+    ("ingest", rep("radar-1", "T1", 122500, 70, 0, ce=30, **AIR)),
 ], [["new"], ["new"], ["provisional"], ["start", "join", "system", "provisional"], [],
     ["system", "provisional"], ["reject"], ["leave", "drop", "system", "provisional"], ["new"]])
 

@@ -161,7 +161,8 @@ number of ticks a history spans and the number of histories kept.
    copy that has the assignment applied to its membership. The copy's events
    are the record's events followed by the apply events. Its choices are the
    record's choices followed by this source's. Its cost is the record's cost
-   plus the assignment total. Candidates are ordered by their total, then by
+   plus the assignment total, and its total is recomputed from its records
+   as in Memberships (not the parent's total plus the assignment total). Candidates are ordered by their total, then by
    `h`, then by `r`. The first `k` are the histories for the next source,
    in that order.
 4. **Commit**, when the best history (rank 0) has `n` records. Its oldest
@@ -224,15 +225,17 @@ With `window 1` the trace of a source is:
 - After the assignment, each entity of R in key order gets
   `{"stage":"assign","a":<entity>,"b":<chosen>,"test":"choice","value":<its entry>,"limit":null,"pass":true}`.
 
-With `window` above 1, per source, for each history `h` in rank order: its
-gate and cost records as above, each with the added key `"h":<h>`. Then, per
-ranked assignment `r` in rank order, its choice records with the added keys
-`"h":<h>` and `"r":<r>`. After every history of the source: one record per
+With `window` above 1, per source, for each history `h` in rank order, all
+of `h`'s records before the next history's: its gate and cost records as
+above, each with the added key `"h":<h>`, then, per ranked assignment `r` in
+rank order, its choice records with the added keys `"h":<h>` and `"r":<r>`.
+After every history of the source: one record per
 candidate in candidate order,
 `{"stage":"history","a":<h>,"b":<r>,"test":"total","value":<candidate total>,"limit":null,"pass":<true when kept>}`.
 When a tick is committed: one record per history in rank order before
 pruning,
-`{"stage":"history","a":<rank>,"b":null,"test":"commit","value":<its total>,"limit":null,"pass":<true when kept>}`.
+`{"stage":"history","a":<rank>,"b":null,"test":"commit","value":<its total>,"limit":null,"pass":<true when kept>}`,
+the total still including the record being committed.
 The two-model filter records of `correlate.md` come from `ingest`.
 
 ## Snapshot
@@ -287,4 +290,5 @@ confirm` (`correlate.md`); `method confirm` may also be written.
 
 ## Open points
 
-None for this method beyond those of `correlate.md`.
+None for this method beyond those of `correlate.md` (the Pack rows there
+apply to the shared directives).
