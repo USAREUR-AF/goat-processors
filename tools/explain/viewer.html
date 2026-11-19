@@ -417,7 +417,7 @@ function drawPlan() {
 })();
 
 // ---------------------------------------------------------------- strip of steps
-const KIND = { new: "k-new", correlate: "k-form", join: "k-form", start: "k-form", leave: "k-end", dissolve: "k-end", drop: "k-end", end: "k-end", reject: "k-bad", fused: "k-out", system: "k-out" };
+const KIND = { new: "k-new", correlate: "k-form", join: "k-form", start: "k-form", provisional: "k-form", leave: "k-end", dissolve: "k-end", drop: "k-end", end: "k-end", reject: "k-bad", fused: "k-out", system: "k-out" };
 const KCOL = { "k-new": "var(--mute)", "k-form": "var(--good)", "k-end": "var(--warn)", "k-bad": "var(--crit)", "k-out": "var(--accent)" };
 function drawStrip() {
   const svg = $("strip"), w = svg.clientWidth || 600, hh = 58;
