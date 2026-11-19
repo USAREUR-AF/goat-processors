@@ -128,6 +128,12 @@ which `tools/bench/bench.py report` writes.
 | distance | 50 random | 0.807 | 0.996 | 0.678 | 21 | 76 | 14 | 418.1 |
 | assign | 21 named | 0.937 | 1.000 | 0.881 | 0 | 2 | 2 | 109.6 |
 | assign | 50 random | 0.715 | 0.997 | 0.558 | 15 | 99 | 130 | 474.7 |
+| gnn-imm | 21 named | 0.968 | 0.996 | 0.941 | 3 | 2 | 1 | 69.8 |
+| gnn-imm | 50 random | 0.884 | 0.993 | 0.796 | 71 | 55 | 21 | 344.2 |
+| assign-imm | 21 named | 0.971 | 1.000 | 0.944 | 0 | 2 | 2 | 72.4 |
+| assign-imm | 50 random | 0.796 | 0.998 | 0.661 | 12 | 54 | 160 | 399.0 |
+| assign-window | 21 named | 0.929 | 1.000 | 0.867 | 2 | 2 | 2 | 115.7 |
+| assign-window | 50 random | 0.698 | 0.994 | 0.538 | 62 | 91 | 229 | 477.0 |
 
 Highest pairwise F1 over the random set: `correlate-window`, 0.934.
 
