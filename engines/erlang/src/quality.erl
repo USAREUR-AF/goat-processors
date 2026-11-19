@@ -1,7 +1,9 @@
-%% The quality engine: load_pack, new, ingest, tick, snapshot (spec/quality.md).
+%% The quality engine: load_pack, new, ingest, tick, snapshot (spec/quality.md 0.2).
 %% State is a value; ingest and tick return {Events, Trace, NewState}.
 %% The frame and the filter are correlator_filter's (correlate.md "Frame",
-%% "Track estimate"), as quality.md "Frame and filter" cites them.
+%% "Track estimate"), as quality.md "Frame and filter" cites them; the time
+%% keys are read by correlator:time_keys/2 (correlate.md 0.8 "Time quality",
+%% steps 1 and 2), as quality.md "Time quality" cites them.
 %% Explicit recursion and folds stand in for lists:mapfoldl, which OTP 27.3
 %% miscompiles when a case on its result follows.
 -module(quality).
@@ -49,8 +51,8 @@ entity_key(R) ->
 %% ---------------------------------------------------------------- ingest
 
 %% Ingest: check the required keys (reject ends it); set the reference; find
-%% the order; take the samples; create or update the entity; append the
-%% record; emit pass.
+%% the order; build the input clock and the source latest; take the samples;
+%% create or update the entity; append the record; emit pass.
 ingest(Report, St) ->
     case [K || {K, Type} <- ?REQUIRED, not typed(Type, maps:get(K, Report, null))] of
         [Missing | _] ->
@@ -97,7 +99,13 @@ accept(Report, St0) ->
          end,
     St2 = sample(Key, <<"order">>, Order, [T, Last], St1),
 
-    %% Samples, in the order interval, latency, nis, speed_err.
+    %% Input clock and source latest, from the entities before this report.
+    Source = maps:get(<<"track.source_id">>, Report),
+    Clock = input_clock(Source, maps:get(entities, St1)),
+    SourceLatest = source_latest(Source, maps:get(entities, St1)),
+
+    %% Samples, in the order interval, latency, lateness, time_error,
+    %% time_state, source_order, nis, speed_err.
     Advance = Order =:= <<"advance">>,
     {Interval, St3} =
         case Advance of
@@ -109,48 +117,104 @@ accept(Report, St0) ->
             null -> {null, St3};
             _ -> take(Key, <<"latency">>, Received - T, [Received, T], St3)
         end,
-    {Nis, St5} =
+    {Lateness, St5} =
+        case Clock of
+            none -> {null, St4};
+            _ -> take(Key, <<"lateness">>, Clock - T, [Clock, T], St4)
+        end,
+    {{ReportTe, DefaultTe}, {ReportState, DefaultState}} =
+        correlator:time_keys(Report, maps:get(time_default, Pack)),
+    {TimeError, St6} = time_sample(Key, <<"time_error">>, ReportTe, DefaultTe, St5),
+    {TimeState, St7} = time_sample(Key, <<"time_state">>, ReportState, DefaultState, St6),
+    SourceOrder = case SourceLatest of
+                      none -> <<"in-order">>;
+                      _ when T < SourceLatest -> <<"out-of-order">>;
+                      _ -> <<"in-order">>
+                  end,
+    St8 = sample(Key, <<"source_order">>, SourceOrder,
+                 [T, case SourceLatest of none -> null; _ -> SourceLatest end], St7),
+    {Nis, St9} =
         case Advance of
             true -> nis(Key, maps:get(filter, element(2, Existing)), (T - Last) / 1000,
-                        Z, MeasCe, F, St4);
-            false -> {null, St4}
+                        Z, MeasCe, F, St8);
+            false -> {null, St8}
         end,
-    {SpeedErr, St6} =
+    {SpeedErr, St10} =
         case Advance andalso Speed =/= null of
             true ->
                 {LE, LN} = maps:get(last_pos, element(2, Existing)),
                 Dt = (T - Last) / 1000,
                 Implied = math:sqrt((E - LE) * (E - LE) + (N - LN) * (N - LN)) / Dt,
-                take(Key, <<"speed_err">>, abs(Implied - Speed), [Implied, Speed], St5);
-            false -> {null, St5}
+                take(Key, <<"speed_err">>, abs(Implied - Speed), [Implied, Speed], St9);
+            false -> {null, St9}
         end,
 
     %% Create the entity (event new) or update filter, last and last_pos.
-    {Ent0, St7} =
+    {Ent0, St11} =
         case Existing of
             error ->
-                {#{source => maps:get(<<"track.source_id">>, Report), last => T,
+                {#{source => Source, last => T,
                    last_pos => Z, filter => correlator_filter:init(Z, Vel, MeasCe, F),
                    window => []},
-                 emit(#{<<"ev">> => <<"new">>, <<"entity">> => Key}, St6)};
+                 emit(#{<<"ev">> => <<"new">>, <<"entity">> => Key}, St10)};
             {ok, Old = #{filter := Filter}} when Advance ->
                 {Old#{last := T, last_pos := Z,
                       filter := element(1, correlator_filter:update(Filter, (T - Last) / 1000,
                                                                      maps:get(<<"accel_var">>, F),
                                                                      Z, Vel, MeasCe, F))},
-                 St6};
+                 St10};
             {ok, Old} ->
-                {Old, St6}
+                {Old, St10}
         end,
 
     %% The record, appended in arrival order.
     Record = #{<<"wt">> => Wt, <<"time_ms">> => T, <<"order">> => Order,
-               <<"interval">> => Interval, <<"latency">> => Latency, <<"nis">> => Nis,
-               <<"speed_err">> => SpeedErr, <<"ce">> => Ce =/= null,
+               <<"interval">> => Interval, <<"latency">> => Latency,
+               <<"lateness">> => Lateness,
+               <<"source_out_of_order">> => SourceOrder =:= <<"out-of-order">>,
+               <<"time_error">> => TimeError, <<"time_state">> => TimeState,
+               <<"nis">> => Nis, <<"speed_err">> => SpeedErr, <<"ce">> => Ce =/= null,
                <<"vel">> => Vel =/= none, <<"hae">> => Hae =/= null},
     Ent = Ent0#{window := maps:get(window, Ent0) ++ [Record]},
-    St8 = St7#{entities := (maps:get(entities, St7))#{Key => Ent}},
-    emit(pass(Key, Ent, Report, Ce, St8), St8).
+    St12 = St11#{entities := (maps:get(entities, St11))#{Key => Ent}},
+    emit(pass(Key, Source, Report, Ce, St12), St12).
+
+%% Input clock: for each source other than the report's, its latest time is
+%% the greatest last among the entities whose source it is; the clock is the
+%% median of those times (the mean of the two middle values, in binary64, for
+%% an even count), or none with no other source.
+input_clock(Source, Entities) ->
+    median(lists:sort([L || Src := L <- latest_by_source(Entities), Src =/= Source])).
+
+median([]) -> none;
+median(Sorted) ->
+    N = length(Sorted),
+    case N rem 2 of
+        1 -> lists:nth(N div 2 + 1, Sorted);
+        0 -> (float(lists:nth(N div 2, Sorted)) + float(lists:nth(N div 2 + 1, Sorted))) / 2
+    end.
+
+%% Source latest: the greatest last among the entities whose source is the
+%% report's track.source_id (its own entity included when that is its
+%% source), or none.
+source_latest(Source, Entities) ->
+    maps:get(Source, latest_by_source(Entities), none).
+
+%% #{Source => greatest last among its entities}.
+latest_by_source(Entities) ->
+    maps:fold(fun(_, #{source := Src, last := L}, Acc) ->
+                      case Acc of
+                          #{Src := M} when M >= L -> Acc;
+                          _ -> Acc#{Src => L}
+                      end
+              end, #{}, Entities).
+
+%% Samples, time_error and time_state (quality.md "Time quality"): the
+%% report's valid value, otherwise the time_default's; otherwise unstated, no
+%% sample. The trace inputs are [report value, default value].
+time_sample(_Key, _Name, null, null, St) -> {null, St};
+time_sample(Key, Name, null, Default, St) -> take(Key, Name, Default, [null, Default], St);
+time_sample(Key, Name, Own, Default, St) -> take(Key, Name, Own, [Own, Default], St).
 
 %% Samples, nis: predict to t, compare with the report's position against
 %% the predicted plus the reported variance, east then north.
@@ -174,8 +238,10 @@ take(Key, Name, Value, Inputs, St) -> {Value, sample(Key, Name, Value, Inputs, S
 
 %% ---------------------------------------------------------------- forwarding
 
-%% Forwarding: the actions in force other than alert, in pack order.
-pass(Key, #{source := Src}, Report, Ce, St = #{pack := Pack}) ->
+%% Forwarding: the actions in force other than alert, in pack order. Source
+%% rules are those of the report's own track.source_id (quality.md "Reports"),
+%% which differs from the entity's source only when keys collide.
+pass(Key, Src, Report, Ce, St = #{pack := Pack}) ->
     InForce = [R || R = #{action := A} <- maps:get(rules, Pack), A =/= <<"alert">>,
                     active(R, subject(R, Key, Src), St)],
     Names = [maps:get(name, R) || R <- InForce],
@@ -195,7 +261,8 @@ active(#{name := Name}, Subject, #{rules := Rules}) ->
         _ -> false
     end.
 
-%% ce: the valid ce or default_ce_m, times each downgrade factor in pack order.
+%% ce: the valid ce or default_ce_m, times each downgrade factor in pack
+%% order; the largest finite binary64 when that overflows to infinity.
 downgrade(InForce, Ce, Pack, Report) ->
     case [Fa || #{action := <<"downgrade">>, factor := Fa} <- InForce] of
         [] -> Report;
@@ -203,7 +270,15 @@ downgrade(InForce, Ce, Pack, Report) ->
             X0 = case Ce of null -> maps:get(<<"default_ce_m">>, maps:get(filter, Pack));
                      _ -> Ce
                  end,
-            Report#{<<"ce">> => lists:foldl(fun(Fa, X) -> X * Fa end, X0, Factors)}
+            Report#{<<"ce">> => multiply(X0, Factors)}
+    end.
+
+%% OTP raises badarith where IEEE-754 gives infinity; every factor is at least
+%% 1, so once infinite x stays infinite, and the result is the largest finite
+%% binary64.
+multiply(X0, Factors) ->
+    try lists:foldl(fun(Fa, X) -> X * Fa end, X0, Factors)
+    catch error:badarith -> 1.7976931348623157e308
     end.
 
 %% quality.marks: the received list when it is all strings, else empty; then
@@ -337,13 +412,32 @@ entity_measures(#{window := W, last := Last}, Now, K) ->
       <<"age">> => Now - Last,
       <<"latency_mean">> => Stat(<<"latency">>, fun mean/1),
       <<"latency_max">> => Stat(<<"latency">>, fun lists:max/1),
+      <<"lateness_mean">> => Stat(<<"lateness">>, fun mean/1),
+      <<"lateness_max">> => Stat(<<"lateness">>, fun lists:max/1),
+      <<"lateness_min">> => Stat(<<"lateness">>, fun lists:min/1),
       <<"nis_mean">> => Stat(<<"nis">>, fun mean/1),
       <<"speed_err_mean">> => Stat(<<"speed_err">>, fun mean/1),
       <<"out_of_order">> => Count(<<"out-of-order">>),
       <<"duplicate">> => Count(<<"duplicate">>),
+      <<"source_out_of_order">> => length([R || R = #{<<"source_out_of_order">> := true} <- W]),
       <<"missing_ce">> => Missing(<<"ce">>),
       <<"missing_vel">> => Missing(<<"vel">>),
-      <<"missing_hae">> => Missing(<<"hae">>)}.
+      <<"missing_hae">> => Missing(<<"hae">>),
+      <<"time_error_mean">> => Stat(<<"time_error">>, fun mean/1),
+      <<"time_error_max">> => Stat(<<"time_error">>, fun lists:max/1),
+      <<"time_state_last">> => Stat(<<"time_state">>, fun(Ss) -> state_code(lists:last(Ss)) end),
+      <<"time_state_worst">> =>
+          Stat(<<"time_state">>, fun(Ss) -> lists:max([state_code(S) || S <- Ss]) end),
+      <<"missing_time">> =>
+          case Reports < K of
+              true -> null;
+              false -> length([R || R = #{<<"time_state">> := null} <- W]) / Reports
+          end}.
+
+%% Time quality: the code of a time state; higher is worse.
+state_code(<<"coherent">>) -> 0;
+state_code(<<"drifting">>) -> 1;
+state_code(<<"free-running">>) -> 2.
 
 %% A mean is s / n, s starting at 0.0 and adding each value in order.
 mean(Vs) -> lists:foldl(fun(V, S) -> S + V end, 0.0, Vs) / length(Vs).
@@ -358,13 +452,18 @@ source_measures(Mine) ->
                   end
           end,
     Sum = fun(M) -> lists:sum(Present(M)) end,
-    Means = [<<"interval_last">>, <<"interval_mean">>, <<"latency_mean">>, <<"nis_mean">>,
-             <<"speed_err_mean">>, <<"missing_ce">>, <<"missing_vel">>, <<"missing_hae">>],
+    Sums = [<<"reports">>, <<"out_of_order">>, <<"duplicate">>, <<"source_out_of_order">>],
+    Means = [<<"interval_last">>, <<"interval_mean">>, <<"latency_mean">>,
+             <<"lateness_mean">>, <<"nis_mean">>, <<"speed_err_mean">>, <<"missing_ce">>,
+             <<"missing_vel">>, <<"missing_hae">>, <<"time_error_mean">>, <<"missing_time">>],
+    Largest = [<<"interval_max">>, <<"latency_max">>, <<"lateness_max">>,
+               <<"time_error_max">>, <<"time_state_last">>, <<"time_state_worst">>],
     maps:from_list(
-      [{M, Sum(M)} || M <- [<<"reports">>, <<"out_of_order">>, <<"duplicate">>]] ++
+      [{M, Sum(M)} || M <- Sums] ++
       [{M, Agg(M, fun mean/1)} || M <- Means] ++
-      [{M, Agg(M, fun lists:max/1)} || M <- [<<"interval_max">>, <<"latency_max">>]] ++
-      [{<<"age">>, lists:min(Present(<<"age">>))},
+      [{M, Agg(M, fun lists:max/1)} || M <- Largest] ++
+      [{<<"lateness_min">>, Agg(<<"lateness_min">>, fun lists:min/1)},
+       {<<"age">>, lists:min(Present(<<"age">>))},
        {<<"entities">>, length(Mine)}]).
 
 %% ---------------------------------------------------------------- rules

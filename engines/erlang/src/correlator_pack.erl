@@ -3,6 +3,8 @@
 -export([load_pack/1, parse/1]).
 %% Shared with filter_pack (filter.md "Pack": the same line syntax).
 -export([split_line/1]).
+%% Shared with quality_pack (quality.md "Pack", time_default).
+-export([time_default_line/3]).
 
 %% Directives per method: {Required, Repeating, Once}. correlate.md "Pack" for
 %% confirm; correlate-assign.md "Pack" for assign.
@@ -169,20 +171,26 @@ directive([<<"priority">>, Source, N], P) ->
     P#{priority := [{Source, number(N)} | maps:get(priority, P)]};
 directive(D, _) -> fail({bad_directive, D}).
 
-%% time_default <source_id> error_ms=<ms> state=<state> (correlate.md "Pack"):
-%% the source id is a first token without "=", then error_ms, state or both,
-%% each at most once; error_ms a number 0 or above, state one of the three
-%% clock states. At most one line per source. Stored as
-%% time_default => #{Source => #{<<"error_ms">> => Ms, <<"state">> => State}},
-%% holding only the keys the line gives.
-time_default([Source | Tokens], P) ->
+%% time_default <source_id> error_ms=<ms> state=<state> (correlate.md "Pack").
+time_default(Tokens, P) ->
+    P#{time_default := time_default_line(Tokens, maps:get(time_default, P), fun number/1)}.
+
+%% One time_default line, shared with quality_pack (quality.md "Pack": the
+%% same grammar, with quality's own number grammar): the source id is a
+%% first token without "=", then error_ms, state or both, each at most once;
+%% error_ms a number (read by Number) 0 or above, state one of the three
+%% clock states. At most one line per source. Returns Defaults with the line
+%% added, Defaults being
+%% #{Source => #{<<"error_ms">> => Ms, <<"state">> => State}},
+%% holding only the keys the line gives. A load error throws {pack_error, _},
+%% which quality_pack catches as its own.
+time_default_line([Source | Tokens], Defaults, Number) ->
     binary:match(Source, <<"=">>) =:= nomatch orelse fail({time_default_no_source, Source}),
-    Defaults = maps:get(time_default, P),
     maps:is_key(Source, Defaults) andalso fail({time_default_repeated, Source}),
     Given = params(Tokens, [K || {K, _} <- params_given(Tokens)]),
     map_size(Given) > 0 orelse fail({time_default_no_params, Source}),
     Default = maps:map(fun(<<"error_ms">>, V) ->
-                               Ms = number(V),
+                               Ms = Number(V),
                                Ms >= 0 orelse fail({below_zero, error_ms}),
                                Ms;
                           (<<"state">>, V) ->
@@ -190,8 +198,8 @@ time_default([Source | Tokens], P) ->
                                V;
                           (K, _) -> fail({time_default_param, K})
                        end, Given),
-    P#{time_default := Defaults#{Source => Default}};
-time_default([], _P) -> fail(time_default_no_source).
+    Defaults#{Source => Default};
+time_default_line([], _Defaults, _Number) -> fail(time_default_no_source).
 
 %% The name=value pairs of Tokens, for a line whose parameters are each optional.
 params_given(Tokens) ->

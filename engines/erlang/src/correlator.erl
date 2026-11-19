@@ -9,6 +9,8 @@
 %% Shared with correlator_assign (correlate-assign.md "Shared with correlate.md").
 -export([validate/1, entity_key/1, emit/2, record/2, finish/1, entity/2, put_entity/3, value/2,
          run_tests/5, is_stale/3, predict/3, course/2, snapshot_entity/1, add_timing/2]).
+%% Shared with quality (quality.md "Time quality", steps 1 and 2).
+-export([time_keys/2]).
 
 %% Reports: required keys in table order with their type; optional keys with
 %% their type. A key of the wrong type is missing (required) or absent (optional).
@@ -153,25 +155,39 @@ accept(Key, Report, St0) ->
     end.
 
 %% Reports, "Time quality": {TimeError, TimeState} of a report, each key
-%% found independently: the report's own key when present; otherwise the
-%% pack's time_default for the report's source, when it gives that key;
-%% otherwise time error 0 and state coherent. time_error_ms is present when
-%% it is a finite number 0 or above (JSON numbers decoded by OTP are always
-%% finite); time_state when it is one of the three states, byte for byte. Any
-%% other value is absent, never a reject. Correlate keeps the time state but
-%% does not use it in this version.
+%% found independently by steps 1 and 2 (time_keys/2); at step 3, when
+%% neither gives a value, time error 0 and state coherent. Correlate keeps
+%% the time state but does not use it in this version.
 time_quality(Report, Pack) ->
-    Source = maps:get(<<"track.source_id">>, Report),
-    Default = maps:get(Source, maps:get(time_default, Pack), #{}),
-    Te = case maps:get(<<"time_error_ms">>, Report, null) of
-             Ms when is_number(Ms), Ms >= 0 -> Ms;
-             _ -> maps:get(<<"error_ms">>, Default, 0)
-         end,
-    State = case maps:get(<<"time_state">>, Report, null) of
-                S when S =:= <<"coherent">>; S =:= <<"drifting">>; S =:= <<"free-running">> -> S;
-                _ -> maps:get(<<"state">>, Default, <<"coherent">>)
-            end,
-    {Te, State}.
+    {{ReportTe, DefaultTe}, {ReportState, DefaultState}} =
+        time_keys(Report, maps:get(time_default, Pack)),
+    {first_given([ReportTe, DefaultTe], 0), first_given([ReportState, DefaultState], <<"coherent">>)}.
+
+%% Reports, "Time quality", steps 1 and 2, shared with quality (quality.md
+%% "Time quality"): {{ReportError, DefaultError}, {ReportState, DefaultState}},
+%% each null when not given. The report's value is its valid one:
+%% time_error_ms a finite number 0 or above (JSON numbers decoded by OTP are
+%% always finite), time_state one of the three states, byte for byte; any
+%% other value is absent, never a reject. The default is the time_default
+%% for the report's track.source_id, when it gives that key. Defaults is the
+%% pack's #{Source => #{<<"error_ms">> => Ms, <<"state">> => State}}.
+time_keys(Report, Defaults) ->
+    Default = maps:get(maps:get(<<"track.source_id">>, Report), Defaults, #{}),
+    ReportTe = case maps:get(<<"time_error_ms">>, Report, null) of
+                   Ms when is_number(Ms), Ms >= 0 -> Ms;
+                   _ -> null
+               end,
+    ReportState = case maps:get(<<"time_state">>, Report, null) of
+                      S when S =:= <<"coherent">>; S =:= <<"drifting">>;
+                             S =:= <<"free-running">> -> S;
+                      _ -> null
+                  end,
+    {{ReportTe, maps:get(<<"error_ms">>, Default, null)},
+     {ReportState, maps:get(<<"state">>, Default, null)}}.
+
+first_given([null | Rest], Otherwise) -> first_given(Rest, Otherwise);
+first_given([V | _], _Otherwise) -> V;
+first_given([], Otherwise) -> Otherwise.
 
 %% Track estimate, "Measurement variance". Returns {R, Timing, St} with
 %% R = {r_east, r_north} and Timing = {(v_e*ts)², (v_n*ts)²}:
