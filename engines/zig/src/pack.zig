@@ -21,6 +21,13 @@ pub const Filter = struct {
     unknown_vel_ms: f64,
 };
 
+// correlate.md "Two-model filter": the `manoeuvre` line.
+pub const Manoeuvre = struct {
+    accel_var: f64,
+    p_enter: f64,
+    p_leave: f64,
+};
+
 pub const Output = enum { priority, latest };
 
 // Spec "Pack": `method confirm` (correlate.md) or `method assign` (correlate-assign.md).
@@ -33,6 +40,7 @@ pub const Pack = struct {
     version: []const u8,
     method: Method,
     filter: Filter,
+    manoeuvre: ?Manoeuvre,
     gate: []const Test,
     confirm: []const Test,
     hold: []const Test,
@@ -45,6 +53,8 @@ pub const Pack = struct {
     // correlate-assign.md "Pack".
     new_cost: f64,
     keep_bonus: f64,
+    window: i64,
+    hypotheses: i64,
 
     // Spec "Fused output": 100 for a source the pack does not list.
     pub fn priorityOf(self: Pack, source: []const u8) f64 {
@@ -75,6 +85,7 @@ const Directive = enum {
     version,
     method,
     filter,
+    manoeuvre,
     gate,
     confirm,
     hold,
@@ -86,6 +97,8 @@ const Directive = enum {
     priority,
     new_cost,
     keep_bonus,
+    window,
+    hypotheses,
 };
 
 // Spec "Pack": `gate`, `confirm`, `hold` and `priority` repeat.
@@ -196,6 +209,7 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
         .version = "",
         .method = .confirm,
         .filter = undefined,
+        .manoeuvre = null,
         .gate = &.{},
         .confirm = &.{},
         .hold = &.{},
@@ -207,6 +221,8 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
         .priority = &.{},
         .new_cost = 0,
         .keep_bonus = 0,
+        .window = 1,
+        .hypotheses = 1,
     };
 
     var lines = std.mem.splitScalar(u8, text, '\n');
@@ -233,6 +249,9 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
             .new_cost => pack.new_cost = try parseDecimal(try one(args)),
             .keep_bonus => pack.keep_bonus = try parseDecimal(try one(args)),
             .filter => pack.filter = try parseParams(Filter, alloc, args),
+            .manoeuvre => pack.manoeuvre = try parseParams(Manoeuvre, alloc, args),
+            .window => pack.window = try parseCount(try one(args)),
+            .hypotheses => pack.hypotheses = try parseCount(try one(args)),
             .gate => try gate.append(try parseTest(alloc, args)),
             .confirm => try confirm.append(try parseTest(alloc, args)),
             .hold => try hold.append(try parseTest(alloc, args)),
@@ -261,12 +280,18 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
         if (!(f.default_ce_m > 0 and f.vel_sigma_ms > 0 and f.unknown_vel_ms > 0 and f.accel_var >= 0)) return error.BadValue;
     }
 
+    // correlate.md 0.5 "Pack": `manoeuvre` ranges, checked once the whole file is read.
+    if (pack.manoeuvre) |m| {
+        if (!(m.p_enter > 0 and m.p_leave > 0 and m.p_enter + m.p_leave < 1)) return error.BadValue;
+        if (seen.contains(.filter) and !(m.accel_var > pack.filter.accel_var)) return error.BadValue;
+    }
+
     switch (pack.method) {
         .confirm => {
             const required = [_]Directive{ .pack, .version, .filter, .confirm_count, .hold_failures, .stale_ms };
             for (required) |r| if (!seen.contains(r)) return error.MissingDirective;
             // correlate-assign.md directives are not directives of correlate.md.
-            const refused = [_]Directive{ .new_cost, .keep_bonus };
+            const refused = [_]Directive{ .new_cost, .keep_bonus, .window, .hypotheses };
             for (refused) |r| if (seen.contains(r)) return error.DirectiveNotForMethod;
         },
         .assign => {
@@ -277,6 +302,10 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
             for (refused) |r| if (seen.contains(r)) return error.DirectiveNotForMethod;
             // correlate-assign.md 0.2 "Pack": ranges of `new_cost` and `keep_bonus`.
             if (!(pack.new_cost > 0 and pack.keep_bonus >= 0)) return error.BadValue;
+            // correlate-assign.md 0.3 "Pack": `window` and `hypotheses` 1 or above;
+            // `hypotheses` above 1 needs `window` above 1.
+            if (pack.window < 1 or pack.hypotheses < 1) return error.BadValue;
+            if (pack.hypotheses > 1 and pack.window == 1) return error.BadValue;
         },
     }
 

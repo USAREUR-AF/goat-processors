@@ -2,13 +2,17 @@
 const std = @import("std");
 const json = std.json;
 const kalman = @import("kalman.zig");
+const imm = @import("imm.zig");
+const pack_mod = @import("pack.zig");
 
 pub const Entity = struct {
     key: []const u8,
     source: []const u8,
     last_time_ms: i64,
     report: json.ObjectMap,
+    // The entity's filter; with `manoeuvre`, the combination of `imm`'s two models.
     filter: kalman.Filter,
+    imm: ?imm.State,
     group: ?u64,
     hold_failures: i64,
 
@@ -41,10 +45,12 @@ pub const Entity = struct {
         return v;
     }
 
-    // Spec "Track estimate": prediction applies step 1 to a copy.
-    pub fn predictedTo(self: Entity, t_ms: i64, q: f64) kalman.Filter {
+    // Spec "Track estimate", prediction: step 1 applied to a copy. With two models,
+    // spec "Two-model filter", prediction.
+    pub fn predictedTo(self: Entity, t_ms: i64, pack: pack_mod.Pack) kalman.Filter {
         const dt = @as(f64, @floatFromInt(t_ms - self.last_time_ms)) / 1000.0;
-        return self.filter.predict(dt, q);
+        if (self.imm) |st| return imm.predict(st, pack.manoeuvre.?, pack.filter.accel_var, dt);
+        return self.filter.predict(dt, pack.filter.accel_var);
     }
 };
 
