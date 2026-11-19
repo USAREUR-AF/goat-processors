@@ -76,4 +76,17 @@ std::optional<std::string> time_state_at(const Json& r) {
     return v->string;
 }
 
+TimeQuality time_quality(const Json& r, const std::string& source,
+                         const std::map<std::string, TimeDefault>& defaults) {
+    TimeQuality tq;
+    tq.report_error_ms = time_error_at(r);
+    tq.report_state = time_state_at(r);
+    auto d = defaults.find(source);
+    if (d != defaults.end()) {
+        tq.default_error_ms = d->second.error_ms;
+        tq.default_state = d->second.state;
+    }
+    return tq;
+}
+
 } // namespace corr::report

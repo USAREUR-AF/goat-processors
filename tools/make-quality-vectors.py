@@ -339,6 +339,116 @@ scenario("q15-consistency-actions-stack", "quality-consistency", [
     ["pass:overconfident:speed-mismatch"], ["pass:overconfident:speed-mismatch"]])
 
 
+# --- quality-time (0.2) -----------------------------------------------------
+
+SRC4 = ["adsb", "ais", "eo-2", "radar-1"]
+
+
+STATED = dict(time_state="coherent", time_error_ms=5)
+
+
+def rounds(times, skew, pos=None, **kw):
+    """One report per source per round, sources in SRC4 order; `skew` adds ms
+    to a source's time_ms (its clock offset)."""
+    steps = []
+    for t in times:
+        for i, src in enumerate(SRC4):
+            e = 1000.0 * i if pos is None else pos
+            steps.append(("ingest", rep(src, "T", t + skew.get(src, 0), e, 0, **STATED)))
+    return steps
+
+
+def qs(*sources):
+    return q(*(src + "/T" for src in sources))
+
+
+ALL_E = qs(*SRC4)
+
+# 16. Lateness: eo-2's clock is 3 s behind. Against the median of the other
+#     sources' latest times its reports are about 3 s late; the mean exceeds
+#     2000 ms on two ticks and the alert starts. The other sources stay within
+#     a round of each other, so none is behind or ahead.
+st16 = rounds([0, 1000, 2000, 3000], {"eo-2": -3000}) + [("tick", 3000), ("tick", 3500)]
+scenario("q16-time-lateness-behind", "quality-time", st16,
+         [NEW] * 4 + [PASS] * 12 + [ALL_E + q(*SRC4), ALL_E + q("adsb", "ais", "eo-2") + ["start:behind:eo-2"] + q("radar-1")])
+
+# 17. A clock ahead: eo-2 stamps 3 s ahead. Every one of its reports is more
+#     than 1.5 s ahead of the others, so its reports are marked from the next
+#     report on. A median over the other sources keeps the three honest
+#     sources from reading as behind.
+st17 = rounds([0, 1000, 2000], {"eo-2": 3000}) + [("tick", 2000)] + rounds([3000], {"eo-2": 3000})
+scenario("q17-time-ahead-marks", "quality-time", st17,
+         [NEW] * 4 + [PASS] * 8 + [ALL_E + q("adsb", "ais", "eo-2") + ["start:ahead:eo-2"] + q("radar-1"),
+                                   PASS, PASS, ["pass:ahead"], PASS])
+
+# 18. Source order across tracks: radar-1 reports T1 to T3 at 10 s, then
+#     three new tracks at 4 s, as after a clock step back. Each new track is
+#     in order for itself (first report) but earlier than its source's latest:
+#     source_out_of_order reaches 3 and the alert starts. out_of_order stays 0.
+st18 = [("ingest", rep(RAD, "T%d" % i, 10000, 100.0 * i)) for i in (1, 2, 3)]
+st18 += [("ingest", rep(RAD, "T%d" % i, 4000, 100.0 * i)) for i in (4, 5, 6)]
+st18 += [("tick", 10000)]
+scenario("q18-time-source-out-of-order", "quality-time", st18,
+         [NEW] * 6 + [q(*("radar-1/T%d" % i for i in range(1, 7))) + q(RAD)[:0]
+                      + ["q:" + RAD, "start:source-disorder:" + RAD]])
+
+# 19. Time state: ais goes free-running. The worst state in its window
+#     reaches 2 and the downgrade starts: forwarded ce is multiplied by 4. It
+#     ends once the free-running report has left the window.
+AIS = "ais/M1"
+st19 = [("ingest", rep("ais", "M1", t, ce=20, time_state="coherent", time_error_ms=5)) for t in (0, 10000, 20000)]
+st19 += [("ingest", rep("ais", "M1", 30000, ce=20, time_state="free-running", time_error_ms=40)), ("tick", 30000)]
+st19 += [("ingest", rep("ais", "M1", t, ce=20, time_state="coherent", time_error_ms=5)) for t in (40000, 50000, 60000, 70000, 80000, 90000)]
+st19 += [("tick", 89999), ("tick", 90000), ("ingest", rep("ais", "M1", 100000, ce=20, time_state="coherent", time_error_ms=5))]
+scenario("q19-time-free-running-downgrade", "quality-time", st19,
+         [NEW, PASS, PASS, PASS, q(AIS) + ["q:ais", "start:free-running:ais"]]
+         + [["pass:free-running"]] * 6 + [q(AIS, "ais"), q(AIS) + ["q:ais", "end:free-running:ais:clear"], PASS])
+
+# 20. Resolution of the time keys, per key: the report's value, else the
+#     pack's time_default for the source, else unstated. net-a states nothing
+#     and takes its default (error 150 ms, drifting): time-error marks it. One
+#     report overrides the error with 20 ms. radar-1 states nothing and has no
+#     default: its time measures are absent, never 0, and time-unstated
+#     alerts. An unknown state or a negative error is absent.
+NA = "net-a/N1"
+st20 = [
+    ("ingest", rep("net-a", "N1", 0)),
+    ("ingest", rep(RAD, "T1", 0, 500)),
+    ("ingest", rep("net-a", "N1", 1000, time_error_ms=-5, time_state="unsure")),
+    ("ingest", rep(RAD, "T1", 1000, 500, time_state="unsure", time_error_ms="5")),
+    ("ingest", rep("net-a", "N1", 2000, time_error_ms=20)),
+    ("ingest", rep(RAD, "T1", 2000, 500)),
+    ("tick", 2000),
+    ("ingest", rep("net-a", "N1", 3000)),
+    ("ingest", rep(RAD, "T1", 3000, 500)),
+]
+scenario("q20-time-default-and-unstated", "quality-time", st20,
+         [NEW, NEW, PASS, PASS, PASS, PASS,
+          q(NA, T1) + ["q:net-a", "start:time-error:net-a", "q:" + RAD, "start:time-unstated:" + RAD],
+          ["pass:time-error"], PASS])
+
+# --- quality-edge (0.2) ------------------------------------------------------
+
+# 21. A forwarded ce that overflows binary64 is the largest finite binary64.
+scenario("q21-edge-ce-overflow-clamped", "quality-edge", [
+    ("ingest", rep(RAD, "T1", 0, ce=1e10)),
+    ("ingest", rep(RAD, "T1", 1000, ce=1e10)),
+    ("tick", 1000),
+    ("ingest", rep(RAD, "T1", 2000, ce=1e10)),
+], [NEW, PASS, q(T1) + ["start:huge:" + T1] + q(RAD), ["pass:huge"]])
+
+# 22. Key collision: source a/b with uid c and source a with uid b/c build
+#     the same key a/b/c. They are one entity, whose source is that of its
+#     first report (a/b); the second report's source a is a source with no
+#     entity, so it has no quality event. The second report makes two
+#     reports, so the entity rule huge starts.
+scenario("q22-edge-key-collision", "quality-edge", [
+    ("ingest", {"track.source_id": "a/b", "uid": "c", "time_ms": 0, "lat": 1.0, "lon": 1.0}),
+    ("ingest", {"track.source_id": "a", "uid": "b/c", "time_ms": 1000, "lat": 1.0, "lon": 1.0}),
+    ("tick", 1000),
+], [NEW, PASS, q("a/b/c") + ["start:huge:a/b/c"] + q("a/b")])
+
+
 # --- load vectors -----------------------------------------------------------
 
 FEED = open(os.path.join(ROOT, "packs", "quality-feed", "pack.def"), encoding="utf-8").read()
@@ -392,6 +502,23 @@ LOADS = [
     ("43-rule-clear-not-number", HEAD + OK_RULE.replace("clear=5", "clear=five"), True),
     ("44-downgrade-factor-not-number", HEAD + OK_RULE.replace("action=alert", "action=downgrade factor=two"), True),
     ("45-version-two-values", HEAD.replace("version  0.1.0", "version  0.1.0 0.2.0"), True),
+    ("46-crlf-loads", HEAD.replace("\n", "\r\n"), False),
+    ("47-inner-cr", HEAD.replace("pack     t", "pack     t\rx"), True),
+    ("48-form-feed", HEAD.replace("pack     t", "pack\fu"), True),
+    ("49-no-break-space-is-not-a-separator", HEAD.replace("pack     t", "pack\u00a0t"), True),
+    ("50-tab-separator-loads", HEAD.replace("pack     t", "pack\tt"), False),
+    ("51-number-not-finite", HEAD + OK_RULE.replace("limit=10", "limit=1" + "0" * 400), True),
+    ("52-time-default-loads", HEAD + "time_default net-a error_ms=150 state=drifting\n", False),
+    ("53-time-default-state-only-loads", HEAD + "time_default net-a state=free-running\n", False),
+    ("54-time-default-error-only-loads", HEAD + "time_default net-a error_ms=0\n", False),
+    ("55-time-default-no-params", HEAD + "time_default net-a\n", True),
+    ("56-time-default-no-source", HEAD + "time_default error_ms=5\n", True),
+    ("57-time-default-same-source-twice", HEAD + "time_default net-a state=drifting\ntime_default net-a error_ms=5\n", True),
+    ("58-time-default-negative-error", HEAD + "time_default net-a error_ms=-1\n", True),
+    ("59-time-default-bad-state", HEAD + "time_default net-a state=lost\n", True),
+    ("60-time-default-unknown-param", HEAD + "time_default net-a error_ms=5 offset_ms=2\n", True),
+    ("61-time-default-exponent", HEAD + "time_default net-a error_ms=1e2\n", True),
+    ("62-time-default-two-sources-loads", HEAD + "time_default net-a state=drifting\ntime_default net-b state=coherent\n", False),
     ("41-negative-limit-loads", HEAD + OK_RULE.replace("op=> limit=10 for=1 clear=5", "op=< limit=-10 for=1 clear=-5"), False),
 ]
 

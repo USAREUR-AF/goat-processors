@@ -1,4 +1,4 @@
-// The quality engine: spec/quality.md, version 0.1.
+// The quality engine: spec/quality.md, version 0.2.
 //
 // Quality measures every entity and every source from the reports alone and
 // applies the actions a pack's rules attach to those measures. It reuses the
@@ -43,6 +43,7 @@ struct Pack {
     std::int64_t window_ms = 0;
     std::int64_t min_samples = 0;
     std::int64_t forget_ms = 0;
+    std::map<std::string, TimeDefault> time_default;   // by source id (spec "Reports", "Time quality")
     std::vector<Rule> rules;    // pack order
 };
 
@@ -68,6 +69,10 @@ struct Record {
     std::string order;                      // first, advance, duplicate, out-of-order
     std::optional<std::int64_t> interval;
     std::optional<std::int64_t> latency;
+    Json lateness;                          // null when not taken; an integer, or a binary64 when the clock is a mean of two
+    bool source_out_of_order = false;       // the source_order sample is out-of-order
+    std::optional<double> time_error;       // ms, stated by the report or the pack's time_default
+    std::optional<std::string> time_state;  // coherent, drifting, free-running; absent when unstated
     std::optional<double> nis;
     std::optional<double> speed_err;
     bool ce = false, vel = false, hae = false;
@@ -116,6 +121,11 @@ private:
     Json pass_event(const Json& report, const std::string& key, const std::string& source) const;
 
     bool in_force(size_t rule_index, const std::string& key, const std::string& source) const;
+
+    // Spec "Input clock": the median of the other sources' latest times, and
+    // the source latest of `source`, from the entities as they are now.
+    std::optional<Json> input_clock(const std::string& source) const;
+    std::optional<std::int64_t> source_latest(const std::string& source) const;
 
     Pack pack_;
     std::optional<std::pair<double, double>> ref_;     // lat0, lon0

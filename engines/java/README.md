@@ -5,7 +5,7 @@ Implementations, in Java 17 with only the standard library, of
 - the correlator: `spec/correlate.md` (version 0.8) and `spec/correlate-assign.md` (version 0.6), package `correlator`;
 - the filter: `spec/filter.md` (version 0.1), package `filter`;
 - the fuser: `spec/fuse.md` (version 0.2), package `fuse`;
-- quality: `spec/quality.md` (version 0.1), package `quality`.
+- quality: `spec/quality.md` (version 0.2), package `quality`.
 
 All were written from the specifications and the vectors, without reading any other engine.
 
@@ -19,7 +19,7 @@ All were written from the specifications and the vectors, without reading any ot
 | `Assign.java` | correlate-assign.md: Memberships, Assignment of one source (columns, entries, fused estimate, cost with both timing variances, apply), Ranking, Window (staleness and retiring, the `restart` leave, rows, sources over histories with `margin`, commit, bias update, output), its trace and snapshot; the inverse-variance combination is `Engine.inverseVariance`, which fuse reuses |
 | `Bias.java` | correlate-assign.md, Sensor bias: the per-pair-of-sources state, moving B into A's frame, the update at each tick and its `bias` trace record, the `bias` snapshot; Time offset (the clock offset `tau`, the sums `S1` to `S8` and the closed-form fit) |
 | `Json.java` | the JSON reader and writer the vector test uses |
-| `Reports.java` | Reports: required keys and their check order, the optional-key rules, the entity key and key order, Time quality (time error and time state per key: the report, the pack's `time_default`, else 0 and `coherent`). The filter uses it too, as filter.md Reports cites that section |
+| `Reports.java` | Reports: required keys and their check order, the optional-key rules, the entity key and key order, Time quality (time error and time state per key: the report, the pack's `time_default`, else 0 and `coherent`; `reportTimeError` and `reportTimeState` give step 1, the report's own valid value, which quality reuses). The filter uses it too, as filter.md Reports cites that section |
 | `VectorTest.java` | `spec/vector-format.md` for the correlator: `spec/correlate-load-vectors/` and `packs/correlate-*` only; also holds the structural comparison the other tests use |
 
 The pack's `method` line selects which method the engine runs: `confirm` (or no
@@ -56,21 +56,28 @@ binary64 number.
 
 ## Quality (`src/quality/`)
 
-`src/quality/` implements `spec/quality.md` (version 0.1) as its own package,
+`src/quality/` implements `spec/quality.md` (version 0.2) as its own package,
 written from that specification, the sections of `correlate.md` it cites and the
 vectors. It reuses this engine's correlate code for those sections: the frame
-(`correlator.Engine.toPlane`) and the constant-velocity filter
-(`correlator.Filter.Axis`).
+(`correlator.Engine.toPlane`), the constant-velocity filter
+(`correlator.Filter.Axis`), the valid values of `time_error_ms` and `time_state`
+(`correlator.Reports.reportTimeError` and `reportTimeState`, correlate.md 0.8,
+Time quality, step 1) and the three time states (`correlator.Pack.TIME_STATES`).
+Step 3 is quality's own: with neither the report nor `time_default` giving a
+value, the key is unstated, takes no sample and counts in `missing_time`. The
+`time_default` line is parsed by quality's own `Pack`, so its `error_ms` follows
+quality's number grammar.
 
 | File | Spec section |
 |---|---|
-| `Pack.java` | Pack (the `pack.def` parser, every load error of its table), Rules (`op` and `clear` tests) |
-| `Engine.java` | Reports, Order, Frame and filter, Samples, Ingest, Forwarding (`ingest`); Tick, Window, Entity measures, Source measures, Rules, Events, Trace (`tick`); Snapshot |
+| `Pack.java` | Pack (line ends, control characters, comments and tokens; every load error of its table; `time_default`), Values (numbers whose binary64 is infinite are load errors), Rules (`op` and `clear` tests) |
+| `Engine.java` | Reports (with Time quality and colliding keys), Order, Frame and filter, Input clock, Samples, Ingest, Forwarding with the overflowed `ce` clamped (`ingest`); Tick, Window, Entity measures, Source measures, Rules, Events, Trace (`tick`); Snapshot |
 | `VectorTest.java` | `spec/vector-format.md` for quality: `spec/quality-load-vectors/` and `packs/quality-*` |
 
-No quality vector contradicts `spec/quality.md`; the open points of
-`quality.md` are not decided by any vector, and this engine does not
-special-case them.
+No quality vector contradicts `spec/quality.md` 0.2, so there is no quality
+entry in a `DISAGREEMENTS.md`. Its one open point (a report integer outside the
+signed 64-bit range) is decided by no vector; this engine's JSON reader gives
+such a literal as a binary64, so it is not an integer.
 
 ## Build and run the vectors
 

@@ -86,6 +86,16 @@
       1000,
       null
      ]
+    },
+    {
+     "stage": "sample",
+     "entity": "radar-1/T1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      1000,
+      null
+     ]
     }
    ]
   },
@@ -104,13 +114,22 @@
       "age": 0,
       "latency_mean": null,
       "latency_max": null,
+      "lateness_mean": null,
+      "lateness_max": null,
+      "lateness_min": null,
       "nis_mean": null,
       "speed_err_mean": null,
       "out_of_order": 0,
       "duplicate": 0,
+      "source_out_of_order": 0,
       "missing_ce": null,
       "missing_vel": null,
-      "missing_hae": null
+      "missing_hae": null,
+      "time_error_mean": null,
+      "time_error_max": null,
+      "time_state_last": null,
+      "time_state_worst": null,
+      "missing_time": null
      }
     },
     {
@@ -125,13 +144,22 @@
       "age": 0,
       "latency_mean": null,
       "latency_max": null,
+      "lateness_mean": null,
+      "lateness_max": null,
+      "lateness_min": null,
       "nis_mean": null,
       "speed_err_mean": null,
       "out_of_order": 0,
       "duplicate": 0,
+      "source_out_of_order": 0,
       "missing_ce": null,
       "missing_vel": null,
       "missing_hae": null,
+      "time_error_mean": null,
+      "time_error_max": null,
+      "time_state_last": null,
+      "time_state_worst": null,
+      "missing_time": null,
       "entities": 1
      }
     }
@@ -219,13 +247,22 @@
       "age": 0,
       "latency_mean": null,
       "latency_max": null,
+      "lateness_mean": null,
+      "lateness_max": null,
+      "lateness_min": null,
       "nis_mean": null,
       "speed_err_mean": null,
       "out_of_order": 0,
       "duplicate": 0,
+      "source_out_of_order": 0,
       "missing_ce": null,
       "missing_vel": null,
-      "missing_hae": null
+      "missing_hae": null,
+      "time_error_mean": null,
+      "time_error_max": null,
+      "time_state_last": null,
+      "time_state_worst": null,
+      "missing_time": null
      }
     },
     {
@@ -240,13 +277,22 @@
       "age": 0,
       "latency_mean": null,
       "latency_max": null,
+      "lateness_mean": null,
+      "lateness_max": null,
+      "lateness_min": null,
       "nis_mean": null,
       "speed_err_mean": null,
       "out_of_order": 0,
       "duplicate": 0,
+      "source_out_of_order": 0,
       "missing_ce": null,
       "missing_vel": null,
       "missing_hae": null,
+      "time_error_mean": null,
+      "time_error_max": null,
+      "time_state_last": null,
+      "time_state_worst": null,
+      "missing_time": null,
       "entities": 1
      }
     }
@@ -347,6 +393,10 @@
       "order": "first",
       "interval": null,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": null,
       "speed_err": null,
       "ce": false,

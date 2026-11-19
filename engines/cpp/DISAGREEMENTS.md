@@ -87,33 +87,40 @@ vector covers them.
   above 1e6 with `fmod(x, 360)` (exact) before the add-or-subtract loop, so it
   always ends, and passes an infinite or NaN longitude through unchanged.
 
-# Quality 0.1
+# Quality 0.2
 
-No quality vector contradicts quality.md 0.1 as this engine reads it. The
-entries below are the open points quality.md lists, and the reading this
-engine takes. No vector covers any of them.
+No quality vector contradicts quality.md 0.2 as this engine reads it,
+including the time quality vectors (q16 to q20), the edge vectors (q21, q22)
+and load vectors 46 to 62. Version 0.2 settles three points 0.1 left open, and
+their entries are removed: a forwarded `ce` that overflows is now the largest
+finite binary64 (Forwarding); line ends and whitespace in `pack.def` follow
+Pack steps 1 to 5; colliding keys are one entity (Reports). The entries
+below are the open point quality.md still lists, and readings this engine
+takes where the text leaves room. No vector covers any of them.
 
 ## Integers outside the signed 64-bit range (quality.md "Open points", Reports)
 
 - As for correlate: the literal is kept as a number that is not an integer.
   As `time_ms` the report is rejected with `missing:time_ms`; as
-  `received_ms` it is absent (no `latency` sample).
+  `received_ms` it is absent (no `latency` sample). A `window` value too
+  large for a signed 64-bit integer is read with `strtoll`, which saturates.
 
-## Colliding entity keys (quality.md "Open points", Reports)
+## A control character inside a comment (quality.md "Pack", steps 2 and 3)
 
-- Entities are keyed by the string `<track.source_id>/<uid>` alone, so `a/b`
-  with uid `c` and `a` with uid `b/c` are one entity. Its source stays the
-  `track.source_id` of its first accepted report, and the source rules in
-  force for its reports are that source's.
+- Step 2 comes before step 3, so the engine checks the whole line, comment
+  included: a control character after `#` is a load error too.
 
-## A forwarded `ce` that overflows (quality.md "Open points", Forwarding)
+## A repeated parameter or an empty value on a `time_default` line (quality.md "Pack")
 
-- The engine multiplies in binary64 without a guard, so the forwarded `ce`
-  becomes +infinity, which the JSON writer cannot express as a JSON number.
+- The line is read by the same code as correlate's (`parse_time_default`),
+  with quality's number grammar for `error_ms`, so the correlate entry above
+  applies: a repeated `error_ms` or `state` and an empty parameter name are
+  load errors; an empty `state=` is not a time state, and an empty
+  `error_ms=` is not a number.
 
-## Whitespace other than space and tab in `pack.def` (quality.md "Open points", Pack)
+## Ties among `lateness_max`, `lateness_min` and `time_error_max` samples (quality.md "Entity measures")
 
-- Only space and tab separate tokens; any other whitespace is part of the
-  token it touches, which then fails its check (unknown directive, bad name,
-  not a number). One exception: a carriage return at the very end of a line
-  is removed, so a file with CRLF line ends loads as with LF.
+- A tie keeps the first such sample in window order. The value is the same
+  either way; only an integer against an equal binary64 `lateness` (a clock
+  that was a mean of two) could differ in how it is written, which the
+  vector comparison treats as equal.

@@ -39,7 +39,7 @@ reference to any other engine.
 | `fuse/attributes.go` | candidates, the five attribute rules, majority equality and the attribute trace (spec/fuse.md: Attributes) |
 | `fuse/vectors_test.go` | runs every `packs/fuse-*` scenario vector and every `spec/fuse-load-vectors` load vector |
 | `export.go` | the frame, filter and report checks exported for the quality module |
-| `quality/` | package `quality`: `spec/quality.md` (version 0.1), see below |
+| `quality/` | package `quality`: `spec/quality.md` (version 0.2), see below |
 
 Ranked assignments are found by brute force: every assignment of a source's
 tracks is enumerated, which is exact and fine at vector sizes but grows
@@ -47,14 +47,17 @@ factorially with the number of tracks one source reports at once.
 
 ## Quality
 
-`quality/` implements `spec/quality.md` 0.1, standard library only, reusing this
-engine's frame (`ToPlane`), filter (`Axis.Predict`, `UpdatePos`, `UpdateVel`)
-and report type checks where the specification cites `correlate.md`.
+`quality/` implements `spec/quality.md` 0.2, standard library only, reusing this
+engine's frame (`ToPlane`), filter (`Axis.Predict`, `UpdatePos`, `UpdateVel`),
+report type checks, and time quality reading (`ValidTimeError`,
+`ValidTimeState`, `ParseTimeDefault` with quality's number grammar) where the
+specification cites `correlate.md` 0.8.
 
 | File | Spec sections |
 |---|---|
 | `quality/pack.go` | Pack (`LoadPack`, `ParsePack`) |
 | `quality/engine.go` | Reports, Order, Frame and filter, Samples, Ingest, Forwarding |
+| `quality/time.go` | Reports "Time quality" (the three steps, state codes), Input clock, source latest, lateness |
 | `quality/measures.go` | Window, Entity measures, Source measures |
 | `quality/tick.go` | Tick, Rules (evaluation, forgetting), rule trace |
 | `quality/snapshot.go` | Snapshot |

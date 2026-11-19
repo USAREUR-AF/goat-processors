@@ -8,6 +8,7 @@
 #include <string>
 
 #include "json.hpp"
+#include "pack.hpp"
 
 namespace corr::report {
 
@@ -45,6 +46,21 @@ std::optional<double> time_error_at(const Json& r);
 // `coherent`, `drifting`, `free-running`, compared byte for byte; any other
 // value is absent. Never a reject.
 std::optional<std::string> time_state_at(const Json& r);
+
+// correlate.md "Reports", "Time quality", steps 1 and 2, per key: the
+// report's own valid value, and the pack's `time_default` for the report's
+// `track.source_id`. Step 3 is the caller's: correlate takes error 0 and
+// state `coherent`; quality.md records the value as unstated.
+struct TimeQuality {
+    std::optional<double> report_error_ms, default_error_ms;
+    std::optional<std::string> report_state, default_state;
+
+    // Step 1, else step 2; absent when neither gives the key.
+    std::optional<double> error_ms() const { return report_error_ms ? report_error_ms : default_error_ms; }
+    std::optional<std::string> state() const { return report_state ? report_state : default_state; }
+};
+TimeQuality time_quality(const Json& r, const std::string& source,
+                         const std::map<std::string, TimeDefault>& defaults);
 
 // The three time states correlate.md names.
 bool is_time_state(const std::string& s);

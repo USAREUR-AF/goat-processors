@@ -1,11 +1,14 @@
-// spec/quality.md, version 0.1: ingest, tick, snapshot. Each block names the
+// spec/quality.md, version 0.2: ingest, tick, snapshot. Each block names the
 // section it implements.
 
 #include "quality.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <set>
+
+#include "report.hpp"
 
 namespace corr::quality {
 
@@ -70,6 +73,13 @@ double mean(const std::vector<double>& xs) {
     return s / static_cast<double>(xs.size());
 }
 
+// "Reports", "Time quality": the code of a time state for measures. Higher is worse.
+std::int64_t time_state_code(const std::string& state) {
+    if (state == "coherent") return 0;
+    if (state == "drifting") return 1;
+    return 2;   // free-running
+}
+
 bool condition_met(Op op, double v, double limit) {
     switch (op) {
         case Op::Lt: return v < limit;
@@ -92,6 +102,10 @@ Json record_json(const Record& r) {
     j["order"] = r.order;
     j["interval"] = opt(r.interval);
     j["latency"] = opt(r.latency);
+    j["lateness"] = r.lateness;
+    j["source_out_of_order"] = r.source_out_of_order;
+    j["time_error"] = opt(r.time_error);
+    j["time_state"] = opt(r.time_state);
     j["nis"] = opt(r.nis);
     j["speed_err"] = opt(r.speed_err);
     j["ce"] = r.ce;
@@ -162,7 +176,12 @@ Output Engine::ingest(const Json& r) {
                                 list({Json(static_cast<long long>(t)),
                                       exists ? Json(static_cast<long long>(last)) : Json()})));
 
-    // "Samples", in the order interval, latency, nis, speed_err.
+    // "Input clock", built from the entities as they are before this report.
+    const std::optional<Json> clock = input_clock(source);
+    const std::optional<std::int64_t> latest = source_latest(source);
+
+    // "Samples", in the order interval, latency, lateness, time_error,
+    // time_state, source_order, nis, speed_err.
     const bool advance = exists && t > last;
     if (advance) {
         rec.interval = t - last;
@@ -174,6 +193,27 @@ Output Engine::ingest(const Json& r) {
         out.trace.push(sample_trace(key, "latency", static_cast<long long>(*rec.latency),
                                     list({Json(static_cast<long long>(*received)), Json(static_cast<long long>(t))})));
     }
+    if (clock) {
+        // lateness = clock - t: an integer when the clock is one, else a binary64.
+        rec.lateness = clock->is_int ? Json(static_cast<long long>(clock->integer - t))
+                                     : Json(clock->number - static_cast<double>(t));
+        out.trace.push(sample_trace(key, "lateness", rec.lateness, list({*clock, Json(static_cast<long long>(t))})));
+    }
+    // "Reports", "Time quality": steps 1 and 2 as correlate.md; step 3, unstated, takes no sample.
+    const report::TimeQuality tq = report::time_quality(r, source, pack_.time_default);
+    rec.time_error = tq.error_ms();
+    if (rec.time_error)
+        out.trace.push(sample_trace(key, "time_error", *rec.time_error,
+                                    list({opt(tq.report_error_ms), opt(tq.default_error_ms)})));
+    rec.time_state = tq.state();
+    if (rec.time_state)
+        out.trace.push(sample_trace(key, "time_state", *rec.time_state,
+                                    list({opt(tq.report_state), opt(tq.default_state)})));
+    // source_order: out-of-order when the source latest exists and t is below it.
+    rec.source_out_of_order = latest && t < *latest;
+    out.trace.push(sample_trace(key, "source_order", rec.source_out_of_order ? "out-of-order" : "in-order",
+                                list({Json(static_cast<long long>(t)),
+                                      latest ? Json(static_cast<long long>(*latest)) : Json()})));
     Filter predicted;
     if (advance) {
         // nis: the entity's filter predicted to t, against the report.
@@ -217,6 +257,37 @@ Output Engine::ingest(const Json& r) {
     return out;
 }
 
+// ---- Input clock (spec "Input clock") ------------------------------------
+
+std::optional<Json> Engine::input_clock(const std::string& source) const {
+    // 1. Each other source's latest time: the greatest `last` among its entities.
+    std::map<std::string, std::int64_t> latest_of;
+    for (const auto& [key, e] : entities_) {
+        if (e.source == source) continue;
+        auto [it, inserted] = latest_of.emplace(e.source, e.last);
+        if (!inserted) it->second = std::max(it->second, e.last);
+    }
+    // 3. With no other source, there is no input clock.
+    if (latest_of.empty()) return std::nullopt;
+    // 2. The median of those times, sorted ascending.
+    std::vector<std::int64_t> times;
+    for (const auto& [s, t] : latest_of) times.push_back(t);
+    std::sort(times.begin(), times.end());
+    const size_t n = times.size();
+    if (n % 2 == 1) return Json(static_cast<long long>(times[n / 2]));
+    const double a = static_cast<double>(times[n / 2 - 1]), b = static_cast<double>(times[n / 2]);
+    return Json((a + b) / 2);
+}
+
+std::optional<std::int64_t> Engine::source_latest(const std::string& source) const {
+    // The greatest `last` among the entities whose source is `source` (the
+    // report's own entity among them when it is that source's).
+    std::optional<std::int64_t> latest;
+    for (const auto& [key, e] : entities_)
+        if (e.source == source && (!latest || e.last > *latest)) latest = e.last;
+    return latest;
+}
+
 // ---- Forwarding (spec "Rules", Actions; "Forwarding") ---------------------
 
 // Rule i is in force for a report when it is active for the report's entity
@@ -255,6 +326,8 @@ Json Engine::pass_event(const Json& report, const std::string& key, const std::s
         double x = ce_at(report).value_or(pack_.filter.default_ce_m);
         for (const Rule* rule : acting)
             if (rule->action == Action::Downgrade) x = x * rule->factor;
+        // A product that overflowed to infinity is forwarded as the largest finite binary64.
+        if (std::isinf(x)) x = std::numeric_limits<double>::max();
         fwd["ce"] = x;
     }
     if (mark) {
@@ -282,30 +355,41 @@ Json Engine::entity_measures(const Entity& e, std::int64_t now_ms) const {
     const auto k = static_cast<size_t>(pack_.min_samples);
     const std::vector<Record>& w = e.window;
 
-    std::vector<std::int64_t> intervals, latencies;
-    std::vector<double> nis, speed_err;
-    std::int64_t out_of_order = 0, duplicate = 0, no_ce = 0, no_vel = 0, no_hae = 0;
+    // The samples of each kind, in window order, as numbers (integer or binary64).
+    std::vector<Json> intervals, latencies, lateness, nis, speed_err, time_errors, time_states;
+    std::int64_t out_of_order = 0, duplicate = 0, source_out_of_order = 0;
+    std::int64_t no_ce = 0, no_vel = 0, no_hae = 0, no_time = 0;
     for (const Record& r : w) {
-        if (r.interval) intervals.push_back(*r.interval);
-        if (r.latency) latencies.push_back(*r.latency);
+        if (r.interval) intervals.push_back(static_cast<long long>(*r.interval));
+        if (r.latency) latencies.push_back(static_cast<long long>(*r.latency));
+        if (!r.lateness.is_null()) lateness.push_back(r.lateness);
         if (r.nis) nis.push_back(*r.nis);
         if (r.speed_err) speed_err.push_back(*r.speed_err);
+        if (r.time_error) time_errors.push_back(*r.time_error);
+        if (r.time_state) time_states.push_back(static_cast<long long>(time_state_code(*r.time_state)));
         if (r.order == "out-of-order") ++out_of_order;
         if (r.order == "duplicate") ++duplicate;
+        if (r.source_out_of_order) ++source_out_of_order;
         if (!r.ce) ++no_ce;
         if (!r.vel) ++no_vel;
         if (!r.hae) ++no_hae;
+        if (!r.time_state) ++no_time;
     }
-    auto as_doubles = [](const std::vector<std::int64_t>& xs) {
-        return std::vector<double>(xs.begin(), xs.end());
-    };
+
     // A statistic is null when fewer than k records hold its sample.
-    auto int_stat = [&](const std::vector<std::int64_t>& xs, std::int64_t v) {
-        return xs.size() < k ? Json() : Json(static_cast<long long>(v));
+    auto stat = [&](const std::vector<Json>& xs, auto compute) { return xs.size() < k ? Json() : compute(xs); };
+    auto last_of = [](const std::vector<Json>& xs) { return xs.back(); };
+    auto mean_of = [](const std::vector<Json>& xs) {
+        std::vector<double> ds;
+        for (const Json& x : xs) ds.push_back(x.number);
+        return Json(mean(ds));
     };
-    auto mean_stat = [&](const std::vector<double>& xs) { return xs.size() < k ? Json() : Json(mean(xs)); };
-    auto largest = [](const std::vector<std::int64_t>& xs) {
-        return xs.empty() ? 0 : *std::max_element(xs.begin(), xs.end());
+    // The largest (or smallest) sample, kept as written (integer or binary64).
+    auto largest = [](const std::vector<Json>& xs) {
+        return *std::max_element(xs.begin(), xs.end(), [](const Json& a, const Json& b) { return a.number < b.number; });
+    };
+    auto smallest = [](const std::vector<Json>& xs) {
+        return *std::min_element(xs.begin(), xs.end(), [](const Json& a, const Json& b) { return a.number < b.number; });
     };
     const std::int64_t reports = static_cast<std::int64_t>(w.size());
     auto fraction = [&](std::int64_t count) {
@@ -314,19 +398,28 @@ Json Engine::entity_measures(const Entity& e, std::int64_t now_ms) const {
 
     Json m = Json::make_object();
     m["reports"] = static_cast<long long>(reports);
-    m["interval_last"] = int_stat(intervals, intervals.empty() ? 0 : intervals.back());
-    m["interval_mean"] = mean_stat(as_doubles(intervals));
-    m["interval_max"] = int_stat(intervals, largest(intervals));
+    m["interval_last"] = stat(intervals, last_of);
+    m["interval_mean"] = stat(intervals, mean_of);
+    m["interval_max"] = stat(intervals, largest);
     m["age"] = static_cast<long long>(now_ms - e.last);
-    m["latency_mean"] = mean_stat(as_doubles(latencies));
-    m["latency_max"] = int_stat(latencies, largest(latencies));
-    m["nis_mean"] = mean_stat(nis);
-    m["speed_err_mean"] = mean_stat(speed_err);
+    m["latency_mean"] = stat(latencies, mean_of);
+    m["latency_max"] = stat(latencies, largest);
+    m["lateness_mean"] = stat(lateness, mean_of);
+    m["lateness_max"] = stat(lateness, largest);
+    m["lateness_min"] = stat(lateness, smallest);
+    m["nis_mean"] = stat(nis, mean_of);
+    m["speed_err_mean"] = stat(speed_err, mean_of);
     m["out_of_order"] = static_cast<long long>(out_of_order);
     m["duplicate"] = static_cast<long long>(duplicate);
+    m["source_out_of_order"] = static_cast<long long>(source_out_of_order);
     m["missing_ce"] = fraction(no_ce);
     m["missing_vel"] = fraction(no_vel);
     m["missing_hae"] = fraction(no_hae);
+    m["time_error_mean"] = stat(time_errors, mean_of);
+    m["time_error_max"] = stat(time_errors, largest);
+    m["time_state_last"] = stat(time_states, last_of);
+    m["time_state_worst"] = stat(time_states, largest);
+    m["missing_time"] = fraction(no_time);
     return m;
 }
 
@@ -364,11 +457,15 @@ Json Engine::source_measures(const std::vector<const Json*>& ems) const {
     };
 
     Json m = Json::make_object();
-    for (const char* name : {"reports", "out_of_order", "duplicate"}) m[name] = sum(name);
-    for (const char* name : {"interval_last", "interval_mean", "latency_mean", "nis_mean", "speed_err_mean",
-                             "missing_ce", "missing_vel", "missing_hae"})
+    for (const char* name : {"reports", "out_of_order", "duplicate", "source_out_of_order"}) m[name] = sum(name);
+    for (const char* name : {"interval_last", "interval_mean", "latency_mean", "lateness_mean", "nis_mean",
+                             "speed_err_mean", "missing_ce", "missing_vel", "missing_hae", "time_error_mean",
+                             "missing_time"})
         m[name] = mean_of(name);
-    for (const char* name : {"interval_max", "latency_max"}) m[name] = pick(name, true);
+    for (const char* name : {"interval_max", "latency_max", "lateness_max", "time_error_max", "time_state_last",
+                             "time_state_worst"})
+        m[name] = pick(name, true);
+    m["lateness_min"] = pick("lateness_min", false);
     m["age"] = pick("age", false);
     m["entities"] = static_cast<long long>(ems.size());
     return m;

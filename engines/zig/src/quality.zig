@@ -1,6 +1,8 @@
-// spec/quality.md: the quality engine, operations `ingest`, `tick` and `snapshot`.
-// Frame and filter are those of the correlate engine (correlate.md "Frame",
-// "Track estimate"), reused from frame.zig and kalman.zig.
+// spec/quality.md 0.2: the quality engine, operations `ingest`, `tick` and
+// `snapshot`. Frame and filter are those of the correlate engine (correlate.md
+// "Frame", "Track estimate"), reused from frame.zig and kalman.zig; the report's
+// own time error and time state are read as correlate.md 0.8 "Time quality"
+// reads them, reused from entity.zig.
 const std = @import("std");
 const json = std.json;
 const Allocator = std.mem.Allocator;
@@ -15,6 +17,7 @@ const Record = measures.Record;
 const Order = measures.Order;
 const Measures = measures.Measures;
 const Num = measures.Num;
+const TimeState = qpack.TimeState;
 
 pub const load_pack = qpack.load;
 
@@ -150,6 +153,51 @@ pub const Engine = struct {
         }));
     }
 
+    // ---- input clock -------------------------------------------------------
+
+    // Spec "Input clock", steps 1 to 3, over the entities that exist before the
+    // report is applied: the median of the latest times of the sources other
+    // than the report's `track.source_id`; null with no other source.
+    fn inputClock(self: *Engine, report_source: []const u8) !?Num {
+        // 1. Each other source's latest time: the greatest `last` of its entities.
+        var sources = std.ArrayList([]const u8).init(self.alloc());
+        var latest = std.ArrayList(i64).init(self.alloc());
+        for (self.entities.values()) |e| {
+            if (std.mem.eql(u8, e.source, report_source)) continue;
+            for (sources.items, latest.items) |s, *l| {
+                if (std.mem.eql(u8, s, e.source)) {
+                    l.* = @max(l.*, e.last_time_ms);
+                    break;
+                }
+            } else {
+                try sources.append(e.source);
+                try latest.append(e.last_time_ms);
+            }
+        }
+        // 3. With no other source, there is no input clock.
+        const n = latest.items.len;
+        if (n == 0) return null;
+        // 2. The median: sorted ascending, the middle value for an odd count,
+        // `(a + b) / 2` in binary64 for an even count.
+        std.mem.sort(i64, latest.items, {}, std.sort.asc(i64));
+        if (n % 2 == 1) return .{ .int = latest.items[n / 2] };
+        const a: f64 = @floatFromInt(latest.items[n / 2 - 1]);
+        const b: f64 = @floatFromInt(latest.items[n / 2]);
+        return .{ .float = (a + b) / 2.0 };
+    }
+
+    // Spec "Input clock": the source latest, the greatest `last` among the
+    // entities whose source is the report's `track.source_id` (the report's own
+    // entity among them when it is of that source); null when there is none.
+    fn sourceLatest(self: *Engine, report_source: []const u8) ?i64 {
+        var out: ?i64 = null;
+        for (self.entities.values()) |e| {
+            if (!std.mem.eql(u8, e.source, report_source)) continue;
+            if (out == null or e.last_time_ms > out.?) out = e.last_time_ms;
+        }
+        return out;
+    }
+
     // ---- ingest ------------------------------------------------------------
 
     // Spec "Ingest", operation `ingest(report)`.
@@ -200,15 +248,32 @@ pub const Engine = struct {
             vel = .{ speed_ms.? * @sin(frame.rad(course.?)), speed_ms.? * @cos(frame.rad(course.?)) };
         }
 
-        // "Samples", in the order `interval`, `latency`, `nis`, `speed_err`.
+        // "Input clock": built before the report is applied.
+        const clock = try self.inputClock(source_id.?);
+        const source_latest = self.sourceLatest(source_id.?);
+
+        // "Reports", "Time quality", per key: the report's own valid value, else
+        // the pack's `time_default` for the report's `track.source_id`, else unstated.
+        const default = self.pack.timeDefaultOf(source_id.?);
+        const report_time_error = reports.reportTimeErrorOf(report);
+        const default_time_error: ?f64 = if (default) |d| d.error_ms else null;
+        const report_time_state = reports.reportTimeStateOf(report);
+        const default_time_state: ?TimeState = if (default) |d| d.state else null;
+
+        // "Samples", in the order `interval`, `latency`, `lateness`,
+        // `time_error`, `time_state`, `source_order`, `nis`, `speed_err`.
         var rec = Record{
             .wt = wt,
             .time_ms = t,
             .order = order,
             .interval = null,
             .latency = null,
+            .lateness = null,
             .nis = null,
             .speed_err = null,
+            .time_error = report_time_error orelse default_time_error,
+            .time_state = report_time_state orelse default_time_state,
+            .source_out_of_order = false,
             .ce = ce_valid != null,
             .vel = vel != null,
             .hae = hae != null,
@@ -221,6 +286,26 @@ pub const Engine = struct {
             rec.latency = rcv - t;
             try self.sampleTrace(&res, key, "latency", rec.latency.?, try self.list(.{ rcv, t }));
         }
+        if (clock) |c| {
+            // `clock - t`: an integer when the clock is one, else binary64.
+            rec.lateness = switch (c) {
+                .int => |ci| .{ .int = ci - t },
+                .float => |cf| .{ .float = cf - @as(f64, @floatFromInt(t)) },
+            };
+            try self.sampleTrace(&res, key, "lateness", rec.lateness.?, try self.list(.{ c, t }));
+        }
+        if (rec.time_error) |te| {
+            try self.sampleTrace(&res, key, "time_error", te, try self.list(.{ report_time_error, default_time_error }));
+        }
+        if (rec.time_state) |ts| {
+            try self.sampleTrace(&res, key, "time_state", @tagName(ts), try self.list(.{
+                if (report_time_state) |x| @tagName(x) else null,
+                if (default_time_state) |x| @tagName(x) else null,
+            }));
+        }
+        // `source_order`, always: `out-of-order` when `t` is below the source latest.
+        rec.source_out_of_order = if (source_latest) |sl| t < sl else false;
+        try self.sampleTrace(&res, key, "source_order", if (rec.source_out_of_order) "out-of-order" else "in-order", try self.list(.{ t, source_latest }));
         var predicted: kalman.Filter = undefined;
         if (order == .advance) {
             const e = existing.?;
@@ -279,16 +364,15 @@ pub const Engine = struct {
             .duplicate, .out_of_order => try existing.?.window.append(rec),
         }
 
-        try self.forward(&res, key, report, ce_valid);
+        try self.forward(&res, key, source_id.?, report, ce_valid);
         return res;
     }
 
     // Spec "Forwarding": one `pass` event, changed by the actions in force.
-    fn forward(self: *Engine, res: *Result, key: []const u8, report: json.ObjectMap, ce_valid: ?f64) !void {
-        const source = self.entities.get(key).?.source;
-
+    fn forward(self: *Engine, res: *Result, key: []const u8, source: []const u8, report: json.ObjectMap, ce_valid: ?f64) !void {
         // "Actions in force": active entity rules for the entity, active source
-        // rules for its source; `alert` changes nothing. Pack order.
+        // rules for the report's own `track.source_id` ("Reports": actions read
+        // the report's source); `alert` changes nothing. Pack order.
         var rule_names = json.Array.init(self.alloc());
         var withheld = false;
         var factors = std.ArrayList(f64).init(self.alloc());
@@ -323,6 +407,8 @@ pub const Engine = struct {
             // `x = x * factor` for each `downgrade` in pack order.
             var x = ce_valid orelse self.pack.filter.default_ce_m;
             for (factors.items) |factor| x = x * factor;
+            // The largest finite binary64 when `x` overflowed to infinity.
+            if (std.math.isInf(x)) x = std.math.floatMax(f64);
             try out.put("ce", .{ .float = x });
         }
         if (marks.items.len > 0) {
@@ -544,6 +630,10 @@ pub const Engine = struct {
             .{ "order", r.order.name() },
             .{ "interval", r.interval },
             .{ "latency", r.latency },
+            .{ "lateness", r.lateness },
+            .{ "source_out_of_order", r.source_out_of_order },
+            .{ "time_error", r.time_error },
+            .{ "time_state", if (r.time_state) |ts| @tagName(ts) else null },
             .{ "nis", r.nis },
             .{ "speed_err", r.speed_err },
             .{ "ce", r.ce },

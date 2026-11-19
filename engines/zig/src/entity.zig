@@ -98,21 +98,24 @@ pub const TimeQuality = struct { error_ms: f64, state: pack_mod.TimeState };
 
 pub fn timeQualityOf(m: json.ObjectMap, source: []const u8, pack: pack_mod.Pack) TimeQuality {
     const default = pack.timeDefaultOf(source);
-    // `time_error_ms`: a finite number 0 or above; anything else is absent.
-    var error_ms: ?f64 = null;
-    if (numberOf(m, "time_error_ms")) |x| {
-        if (std.math.isFinite(x) and x >= 0) error_ms = x;
-    }
-    if (error_ms == null) {
-        if (default) |d| error_ms = d.error_ms;
-    }
-    // `time_state`: one of the three strings, byte for byte; anything else is absent.
-    var state: ?pack_mod.TimeState = null;
-    if (stringOf(m, "time_state")) |t| state = std.meta.stringToEnum(pack_mod.TimeState, t);
-    if (state == null) {
-        if (default) |d| state = d.state;
-    }
+    const error_ms = reportTimeErrorOf(m) orelse if (default) |d| d.error_ms else null;
+    const state = reportTimeStateOf(m) orelse if (default) |d| d.state else null;
     return .{ .error_ms = error_ms orelse 0, .state = state orelse .coherent };
+}
+
+// correlate.md 0.8 "Time quality", step 1, shared with quality.md 0.2 "Time
+// quality": the report's own `time_error_ms`, a finite number 0 or above;
+// anything else is absent.
+pub fn reportTimeErrorOf(m: json.ObjectMap) ?f64 {
+    const x = numberOf(m, "time_error_ms") orelse return null;
+    return if (std.math.isFinite(x) and x >= 0) x else null;
+}
+
+// The report's own `time_state`: one of the three strings, byte for byte;
+// anything else is absent.
+pub fn reportTimeStateOf(m: json.ObjectMap) ?pack_mod.TimeState {
+    const t = stringOf(m, "time_state") orelse return null;
+    return std.meta.stringToEnum(pack_mod.TimeState, t);
 }
 
 pub fn integerOf(m: json.ObjectMap, key: []const u8) ?i64 {

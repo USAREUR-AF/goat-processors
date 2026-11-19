@@ -1,5 +1,6 @@
-// spec/quality.md, section Pack: parsing pack.def into a quality::Pack.
+// spec/quality.md 0.2, section Pack: parsing pack.def into a quality::Pack.
 
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <set>
@@ -39,9 +40,12 @@ bool is_integer_text(const std::string& s) {
     return true;
 }
 
+// "Values": a number whose nearest binary64 is infinite is a load error.
 double number(int line, const std::string& name, const std::string& s) {
     if (!is_number_text(s)) fail(line, name + " is not a number: " + s);
-    return std::strtod(s.c_str(), nullptr);
+    const double x = std::strtod(s.c_str(), nullptr);
+    if (std::isinf(x)) fail(line, name + " is not a finite binary64: " + s);
+    return x;
 }
 
 std::int64_t integer(int line, const std::string& name, const std::string& s) {
@@ -139,13 +143,55 @@ Rule parse_rule(int line, const std::vector<std::string>& words, const std::set<
     return r;
 }
 
+// "Pack", steps 1 to 5: the lines of pack.def, each as its tokens.
+std::vector<std::vector<std::string>> pack_lines(const std::string& text) {
+    // 1. Lines end at LF; a final LF does not start another line.
+    std::vector<std::string> lines;
+    for (size_t start = 0; start < text.size();) {
+        size_t lf = text.find('\n', start);
+        if (lf == std::string::npos) lf = text.size();
+        lines.push_back(text.substr(start, lf - start));
+        start = lf + 1;
+    }
+    std::vector<std::vector<std::string>> out;
+    for (size_t n = 0; n < lines.size(); ++n) {
+        std::string body = lines[n];
+        const int line = static_cast<int>(n + 1);
+        // 1. One CR at the end of a line is removed.
+        if (!body.empty() && body.back() == '\r') body.pop_back();
+        // 2. A control character other than tab (a CR left inside the line too) is a load error.
+        for (char ch : body) {
+            const auto c = static_cast<unsigned char>(ch);
+            if ((c < 0x20 && c != '\t') || c == 0x7f) fail(line, "control character in line");
+        }
+        // 3. `#` starts a comment that runs to the end of the line.
+        body = body.substr(0, body.find('#'));
+        // 4 and 5. Tokens are separated by runs of space and tab, and by nothing else.
+        std::vector<std::string> words;
+        std::string cur;
+        for (char c : body) {
+            if (c == ' ' || c == '\t') {
+                if (!cur.empty()) words.push_back(cur);
+                cur.clear();
+            } else {
+                cur += c;
+            }
+        }
+        if (!cur.empty()) words.push_back(cur);
+        out.push_back(words);      // empty for a line left empty, which is ignored
+    }
+    return out;
+}
+
 } // namespace
 
 const std::vector<std::string>& entity_measure_names() {
     static const std::vector<std::string> names = {
         "reports", "interval_last", "interval_mean", "interval_max", "age",
-        "latency_mean", "latency_max", "nis_mean", "speed_err_mean",
-        "out_of_order", "duplicate", "missing_ce", "missing_vel", "missing_hae"};
+        "latency_mean", "latency_max", "lateness_mean", "lateness_max", "lateness_min",
+        "nis_mean", "speed_err_mean", "out_of_order", "duplicate", "source_out_of_order",
+        "missing_ce", "missing_vel", "missing_hae", "time_error_mean", "time_error_max",
+        "time_state_last", "time_state_worst", "missing_time"};
     return names;
 }
 
@@ -174,28 +220,19 @@ Pack parse_pack(const std::string& text) {
     Pack pack;
     std::set<std::string> seen;           // pack, version, filter, window: once each
     std::set<std::string> rule_names;
-    std::istringstream in(text);
-    std::string raw;
+    const std::vector<std::vector<std::string>> lines = pack_lines(text);
     int line = 0;
-    while (std::getline(in, raw)) {
+    for (const std::vector<std::string>& words : lines) {
         ++line;
-        // `#` starts a comment; tokens are separated by spaces or tabs.
-        std::string body = raw.substr(0, raw.find('#'));
-        if (!body.empty() && body.back() == '\r') body.pop_back();
-        std::vector<std::string> words;
-        std::string cur;
-        for (char c : body) {
-            if (c == ' ' || c == '\t') {
-                if (!cur.empty()) words.push_back(cur);
-                cur.clear();
-            } else {
-                cur += c;
-            }
-        }
-        if (!cur.empty()) words.push_back(cur);
-        if (words.empty()) continue;      // blank line
+        if (words.empty()) continue;      // a line left empty
 
         const std::string& d = words[0];
+        if (d == "time_default") {
+            // The grammar of correlate.md "Pack"; error_ms a number of this section's grammar.
+            parse_time_default(line, words, [line](const std::string& v) { return number(line, "error_ms", v); },
+                               pack.time_default);
+            continue;
+        }
         if (d == "rule") {
             Rule r = parse_rule(line, words, rule_names);
             rule_names.insert(r.name);

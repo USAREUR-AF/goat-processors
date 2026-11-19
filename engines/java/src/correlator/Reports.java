@@ -66,11 +66,8 @@ public final class Reports {
      * before 0.8. A value of the wrong type, negative or not finite is absent, never a reject.
      */
     public static double timeError(Map<String, Object> report, Map<String, Map<String, Object>> defaults) {
-        Object o = report.get("time_error_ms");
-        if (o instanceof Number) {
-            double te = ((Number) o).doubleValue();
-            if (Double.isFinite(te) && te >= 0) return te;
-        }
+        Double own = reportTimeError(report);
+        if (own != null) return own;
         Map<String, Object> d = defaults.get((String) report.get("track.source_id"));
         if (d != null && d.containsKey("error_ms")) return (Double) d.get("error_ms");
         return 0;
@@ -83,10 +80,31 @@ public final class Reports {
      * and validates it but does not use it in this version.
      */
     public static String timeState(Map<String, Object> report, Map<String, Map<String, Object>> defaults) {
-        Object o = report.get("time_state");
-        if (o instanceof String && Pack.TIME_STATES.contains(o)) return (String) o;
+        String own = reportTimeState(report);
+        if (own != null) return own;
         Map<String, Object> d = defaults.get((String) report.get("track.source_id"));
         if (d != null && d.containsKey("state")) return (String) d.get("state");
         return "coherent";
+    }
+
+    /**
+     * Time quality, step 1: the report's own {@code time_error_ms} when it is valid (a number,
+     * finite and 0 or above), else null. Quality (quality.md, Reports, "Time quality") reads the
+     * key the same way.
+     */
+    public static Double reportTimeError(Map<String, Object> report) {
+        Object o = report.get("time_error_ms");
+        if (!(o instanceof Number)) return null;
+        double te = ((Number) o).doubleValue();
+        return Double.isFinite(te) && te >= 0 ? te : null;
+    }
+
+    /**
+     * Time quality, step 1: the report's own {@code time_state} when it is one of the three
+     * states (byte for byte), else null. Quality reads the key the same way.
+     */
+    public static String reportTimeState(Map<String, Object> report) {
+        Object o = report.get("time_state");
+        return o instanceof String && Pack.TIME_STATES.contains(o) ? (String) o : null;
     }
 }

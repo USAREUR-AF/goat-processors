@@ -1,4 +1,4 @@
-//! Quality engine, spec/quality.md version 0.1: `ingest`, `tick`, `snapshot`.
+//! Quality engine, spec/quality.md version 0.2: `ingest`, `tick`, `snapshot`.
 //!
 //! The plane and the per-axis Kalman filter are the correlate ones
 //! (`crate::filter`, spec/correlate.md sections Frame and Track estimate).
@@ -8,6 +8,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::filter::{rad, Axis, Frame};
 use crate::json::{obj, Json};
+use crate::pack::TimeState;
+use crate::report::{time_error_ms, time_state};
 
 pub mod pack;
 
@@ -35,6 +37,49 @@ impl Order {
     }
 }
 
+/// Spec Samples: a millisecond value that is an integer, or a binary64 when
+/// the input clock is the mean of two middle values (the input clock and the
+/// `lateness` sample).
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Ms {
+    Int(i64),
+    Float(f64),
+}
+
+impl Ms {
+    fn as_f64(self) -> f64 {
+        match self {
+            Ms::Int(v) => v as f64,
+            Ms::Float(v) => v,
+        }
+    }
+
+    fn to_json(self) -> Json {
+        match self {
+            Ms::Int(v) => Json::Int(v),
+            Ms::Float(v) => Json::Num(v),
+        }
+    }
+
+    /// `self - t`, ms: an integer when `self` is one, else a binary64.
+    fn minus(self, t: i64) -> Ms {
+        match self {
+            Ms::Int(v) => Ms::Int(v - t),
+            Ms::Float(v) => Ms::Float(v - t as f64),
+        }
+    }
+}
+
+/// Spec Reports, Time quality: the code of a time state for measures.
+/// Higher is worse.
+fn time_state_code(state: TimeState) -> i64 {
+    match state {
+        TimeState::Coherent => 0,
+        TimeState::Drifting => 1,
+        TimeState::FreeRunning => 2,
+    }
+}
+
 /// Spec Samples: a report's record, appended to its entity's window.
 #[derive(Debug, Clone)]
 struct Record {
@@ -43,6 +88,10 @@ struct Record {
     order: Order,
     interval: Option<i64>,
     latency: Option<i64>,
+    lateness: Option<Ms>,
+    time_error: Option<f64>,
+    time_state: Option<TimeState>,
+    source_out_of_order: bool,
     nis: Option<f64>,
     speed_err: Option<f64>,
     ce: bool,
@@ -99,6 +148,27 @@ fn mean(values: &[f64]) -> f64 {
         s += v;
     }
     s / values.len() as f64
+}
+
+/// Two numbers compared as binary64 values, except two integers, which are
+/// compared exactly.
+fn compare_numbers(a: &Json, b: &Json) -> std::cmp::Ordering {
+    match (a, b) {
+        (Json::Int(x), Json::Int(y)) => x.cmp(y),
+        _ => a.as_f64().unwrap_or(f64::NAN).total_cmp(&b.as_f64().unwrap_or(f64::NAN)),
+    }
+}
+
+/// The largest of `values` (the first one among equals), or `Json::Null`
+/// for none.
+fn largest(values: Vec<Json>) -> Json {
+    values.into_iter().reduce(|best, v| if compare_numbers(&v, &best).is_gt() { v } else { best }).unwrap_or(Json::Null)
+}
+
+/// The smallest of `values` (the first one among equals), or `Json::Null`
+/// for none.
+fn smallest(values: Vec<Json>) -> Json {
+    values.into_iter().reduce(|best, v| if compare_numbers(&v, &best).is_lt() { v } else { best }).unwrap_or(Json::Null)
 }
 
 /// Spec Reports: an optional number; `null`, wrong type (a boolean is never a
@@ -186,7 +256,21 @@ impl Engine {
         };
         out.trace.push(sample("order", order.name().into(), vec![Json::Int(t), int_or_null(last)]));
 
-        // Samples, in the order interval, latency, nis, speed_err.
+        // Input clock and source latest, from the entities that exist just
+        // before the report is applied.
+        let (clock, source_latest) = self.input_clock(source);
+
+        // Reports, Time quality: each key resolved from the report's own
+        // valid value, else the pack's `time_default` for the report's
+        // `track.source_id`, else unstated (None).
+        let default = self.pack.time_default.get(source);
+        let reported_error = time_error_ms(fields);
+        let default_error = default.and_then(|d| d.error_ms);
+        let reported_state = time_state(fields);
+        let default_state = default.and_then(|d| d.state);
+
+        // Samples, in the order interval, latency, lateness, time_error,
+        // time_state, source_order, nis, speed_err.
         let mut interval = None;
         if order == Order::Advance {
             let last = last.unwrap();
@@ -198,6 +282,24 @@ impl Engine {
             latency = Some(rcv - t);
             out.trace.push(sample("latency", Json::Int(rcv - t), vec![Json::Int(rcv), Json::Int(t)]));
         }
+        let mut lateness = None;
+        if let Some(clock) = clock {
+            let value = clock.minus(t);
+            lateness = Some(value);
+            out.trace.push(sample("lateness", value.to_json(), vec![clock.to_json(), Json::Int(t)]));
+        }
+        let time_error = reported_error.or(default_error);
+        if let Some(value) = time_error {
+            out.trace.push(sample("time_error", Json::Num(value), vec![num_or_null(reported_error), num_or_null(default_error)]));
+        }
+        let time_state = reported_state.or(default_state);
+        if let Some(value) = time_state {
+            let name = |s: Option<TimeState>| s.map(|s| Json::from(s.name())).unwrap_or(Json::Null);
+            out.trace.push(sample("time_state", value.name().into(), vec![name(reported_state), name(default_state)]));
+        }
+        let source_out_of_order = source_latest.is_some_and(|latest| t < latest);
+        let source_order = if source_out_of_order { "out-of-order" } else { "in-order" };
+        out.trace.push(sample("source_order", source_order.into(), vec![Json::Int(t), int_or_null(source_latest)]));
         let mut nis = None;
         let mut speed_err = None;
         let mut predicted = None;
@@ -263,6 +365,10 @@ impl Engine {
             order,
             interval,
             latency,
+            lateness,
+            time_error,
+            time_state,
+            source_out_of_order,
             nis,
             speed_err,
             ce: valid_ce.is_some(),
@@ -270,23 +376,51 @@ impl Engine {
             hae: hae.is_some(),
         });
 
-        out.events.push(self.forward(&key, fields, valid_ce));
+        out.events.push(self.forward(&key, source, fields, valid_ce));
         out
     }
 
-    /// Spec Rules, Actions: is `rule` active for its subject of this entity?
-    fn in_force(&self, rule: &Rule, key: &str) -> bool {
+    /// Spec Input clock: the median of the latest times of the sources other
+    /// than `source`, None with no other source; and the source latest of
+    /// `source`, None when it has no entity. A source's latest time is the
+    /// greatest `last` among the entities whose source it is.
+    fn input_clock(&self, source: &str) -> (Option<Ms>, Option<i64>) {
+        let mut latest: BTreeMap<&str, i64> = BTreeMap::new();
+        for entity in self.entities.values() {
+            let l = latest.entry(entity.source.as_str()).or_insert(entity.last_time_ms);
+            *l = (*l).max(entity.last_time_ms);
+        }
+        let source_latest = latest.remove(source);
+
+        let mut others: Vec<i64> = latest.into_values().collect();
+        others.sort();
+        let count = others.len();
+        let clock = if count == 0 {
+            None
+        } else if count % 2 == 1 {
+            Some(Ms::Int(others[count / 2]))
+        } else {
+            let (a, b) = (others[count / 2 - 1] as f64, others[count / 2] as f64);
+            Some(Ms::Float((a + b) / 2.0))
+        };
+        (clock, source_latest)
+    }
+
+    /// Spec Rules, Actions: is `rule` active for its subject, the report's
+    /// entity (scope `entity`) or the report's own `track.source_id` (scope
+    /// `source`; Reports)?
+    fn in_force(&self, rule: &Rule, key: &str, source: &str) -> bool {
         let subject = match rule.scope {
             Scope::Entity => key,
-            Scope::Source => self.entities[key].source.as_str(),
+            Scope::Source => source,
         };
         self.rules[&rule.name].get(subject).is_some_and(|s| s.active)
     }
 
     /// Spec Forwarding: the `pass` event.
-    fn forward(&self, key: &str, fields: &BTreeMap<String, Json>, valid_ce: Option<f64>) -> Json {
+    fn forward(&self, key: &str, source: &str, fields: &BTreeMap<String, Json>, valid_ce: Option<f64>) -> Json {
         let actions: Vec<&Rule> =
-            self.pack.rules.iter().filter(|r| r.action != Action::Alert && self.in_force(r, key)).collect();
+            self.pack.rules.iter().filter(|r| r.action != Action::Alert && self.in_force(r, key, source)).collect();
         let names = Json::Arr(actions.iter().map(|r| r.name.as_str().into()).collect());
         let mut pass = vec![("ev", "pass".into()), ("entity", key.into()), ("rules", names)];
 
@@ -302,6 +436,11 @@ impl Engine {
             let mut x = valid_ce.unwrap_or(self.pack.filter.default_ce_m);
             for factor in downgrades {
                 x *= factor;
+            }
+            // An overflow to infinity is forwarded as the largest finite
+            // binary64.
+            if x.is_infinite() {
+                x = f64::MAX;
             }
             report.insert("ce".into(), Json::Num(x));
         }
@@ -433,8 +572,19 @@ impl Engine {
 
         let intervals = ints(|r| r.interval);
         let latencies = ints(|r| r.latency);
+        let lateness: Option<Vec<Ms>> = {
+            let v: Vec<Ms> = w.iter().filter_map(|r| r.lateness).collect();
+            if enough(v.len()) {
+                Some(v)
+            } else {
+                None
+            }
+        };
         let nis = floats(|r| r.nis);
         let speed_err = floats(|r| r.speed_err);
+        let time_errors = floats(|r| r.time_error);
+        let time_states = ints(|r| r.time_state.map(time_state_code));
+        let lateness_json = |v: &Vec<Ms>| v.iter().map(|x| x.to_json()).collect::<Vec<Json>>();
 
         let mut m = Measures::new();
         m.insert("reports", Json::Int(reports));
@@ -444,13 +594,23 @@ impl Engine {
         m.insert("age", Json::Int(now_ms - entity.last_time_ms));
         m.insert("latency_mean", num_or_null(latencies.as_ref().map(|v| mean(&as_f64(v)))));
         m.insert("latency_max", int_or_null(latencies.as_ref().and_then(|v| v.iter().max().copied())));
+        let lateness_f64 = lateness.as_ref().map(|v| v.iter().map(|x| x.as_f64()).collect::<Vec<f64>>());
+        m.insert("lateness_mean", num_or_null(lateness_f64.as_ref().map(|v| mean(v))));
+        m.insert("lateness_max", lateness.as_ref().map_or(Json::Null, |v| largest(lateness_json(v))));
+        m.insert("lateness_min", lateness.as_ref().map_or(Json::Null, |v| smallest(lateness_json(v))));
         m.insert("nis_mean", num_or_null(nis.as_ref().map(|v| mean(v))));
         m.insert("speed_err_mean", num_or_null(speed_err.as_ref().map(|v| mean(v))));
         m.insert("out_of_order", Json::Int(count_order(Order::OutOfOrder)));
         m.insert("duplicate", Json::Int(count_order(Order::Duplicate)));
+        m.insert("source_out_of_order", Json::Int(w.iter().filter(|r| r.source_out_of_order).count() as i64));
         m.insert("missing_ce", num_or_null(fraction(|r| r.ce)));
         m.insert("missing_vel", num_or_null(fraction(|r| r.vel)));
         m.insert("missing_hae", num_or_null(fraction(|r| r.hae)));
+        m.insert("time_error_mean", num_or_null(time_errors.as_ref().map(|v| mean(v))));
+        m.insert("time_error_max", time_errors.as_ref().map_or(Json::Null, |v| largest(v.iter().map(|x| Json::Num(*x)).collect())));
+        m.insert("time_state_last", int_or_null(time_states.as_ref().and_then(|v| v.last().copied())));
+        m.insert("time_state_worst", int_or_null(time_states.as_ref().and_then(|v| v.iter().max().copied())));
+        m.insert("missing_time", num_or_null(fraction(|r| r.time_state.is_some())));
         m
     }
 
@@ -515,6 +675,10 @@ impl Engine {
                             ("order", r.order.name().into()),
                             ("interval", int_or_null(r.interval)),
                             ("latency", int_or_null(r.latency)),
+                            ("lateness", r.lateness.map_or(Json::Null, Ms::to_json)),
+                            ("source_out_of_order", r.source_out_of_order.into()),
+                            ("time_error", num_or_null(r.time_error)),
+                            ("time_state", r.time_state.map_or(Json::Null, |s| s.name().into())),
                             ("nis", num_or_null(r.nis)),
                             ("speed_err", num_or_null(r.speed_err)),
                             ("ce", r.ce.into()),
@@ -567,14 +731,16 @@ fn source_measures(members: &[&Measures]) -> Measures {
             Json::Num(mean(&values))
         }
     };
-    let largest = |name: &str| int_or_null(ints(name).into_iter().max());
+    let owned = |name: &str| -> Vec<Json> { present(name).into_iter().cloned().collect() };
 
     let mut m = Measures::new();
     for name in ENTITY_MEASURES {
         let value = match name {
-            "reports" | "out_of_order" | "duplicate" => sum(name),
-            "interval_max" | "latency_max" => largest(name),
-            "age" => int_or_null(ints(name).into_iter().min()),
+            "reports" | "out_of_order" | "duplicate" | "source_out_of_order" => sum(name),
+            "interval_max" | "latency_max" | "lateness_max" | "time_error_max" | "time_state_last" | "time_state_worst" => {
+                largest(owned(name))
+            }
+            "lateness_min" | "age" => smallest(owned(name)),
             _ => mean_of(name),
         };
         m.insert(name, value);

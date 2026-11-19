@@ -41,6 +41,16 @@
       0,
       null
      ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      0,
+      null
+     ]
     }
    ]
   },
@@ -80,6 +90,16 @@
      "inputs": [
       0,
       null
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M2",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      0,
+      0
      ]
     }
    ]
@@ -123,6 +143,16 @@
      "entity": "ais/M1",
      "sample": "interval",
      "value": 10000,
+     "inputs": [
+      10000,
+      0
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
+     "sample": "source_order",
+     "value": "in-order",
      "inputs": [
       10000,
       0
@@ -189,6 +219,16 @@
     {
      "stage": "sample",
      "entity": "ais/M2",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      10000,
+      10000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M2",
      "sample": "nis",
      "value": 0.0,
      "inputs": [
@@ -239,6 +279,16 @@
      "entity": "ais/M1",
      "sample": "interval",
      "value": 10000,
+     "inputs": [
+      20000,
+      10000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
+     "sample": "source_order",
+     "value": "in-order",
      "inputs": [
       20000,
       10000
@@ -305,6 +355,16 @@
     {
      "stage": "sample",
      "entity": "ais/M2",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      20000,
+      20000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M2",
      "sample": "nis",
      "value": 0.0,
      "inputs": [
@@ -331,13 +391,22 @@
       "age": 0,
       "latency_mean": null,
       "latency_max": null,
+      "lateness_mean": null,
+      "lateness_max": null,
+      "lateness_min": null,
       "nis_mean": null,
       "speed_err_mean": null,
       "out_of_order": 0,
       "duplicate": 0,
+      "source_out_of_order": 0,
       "missing_ce": 0.6666666666666666,
       "missing_vel": 1.0,
-      "missing_hae": 1.0
+      "missing_hae": 1.0,
+      "time_error_mean": null,
+      "time_error_max": null,
+      "time_state_last": null,
+      "time_state_worst": null,
+      "missing_time": 1.0
      }
     },
     {
@@ -352,13 +421,22 @@
       "age": 0,
       "latency_mean": null,
       "latency_max": null,
+      "lateness_mean": null,
+      "lateness_max": null,
+      "lateness_min": null,
       "nis_mean": null,
       "speed_err_mean": null,
       "out_of_order": 0,
       "duplicate": 0,
+      "source_out_of_order": 0,
       "missing_ce": 1.0,
       "missing_vel": 1.0,
-      "missing_hae": 1.0
+      "missing_hae": 1.0,
+      "time_error_mean": null,
+      "time_error_max": null,
+      "time_state_last": null,
+      "time_state_worst": null,
+      "missing_time": 1.0
      }
     },
     {
@@ -373,13 +451,22 @@
       "age": 0,
       "latency_mean": null,
       "latency_max": null,
+      "lateness_mean": null,
+      "lateness_max": null,
+      "lateness_min": null,
       "nis_mean": null,
       "speed_err_mean": null,
       "out_of_order": 0,
       "duplicate": 0,
+      "source_out_of_order": 0,
       "missing_ce": 0.8333333333333333,
       "missing_vel": 1.0,
       "missing_hae": 1.0,
+      "time_error_mean": null,
+      "time_error_max": null,
+      "time_state_last": null,
+      "time_state_worst": null,
+      "missing_time": 1.0,
       "entities": 2
      }
     },
@@ -486,6 +573,16 @@
     {
      "stage": "sample",
      "entity": "ais/M1",
+     "sample": "source_order",
+     "value": "in-order",
+     "inputs": [
+      30000,
+      20000
+     ]
+    },
+    {
+     "stage": "sample",
+     "entity": "ais/M1",
      "sample": "nis",
      "value": 0.0,
      "inputs": [
@@ -535,6 +632,10 @@
       "order": "first",
       "interval": null,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": null,
       "speed_err": null,
       "ce": true,
@@ -547,6 +648,10 @@
       "order": "advance",
       "interval": 10000,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": 0.0,
       "speed_err": null,
       "ce": false,
@@ -559,6 +664,10 @@
       "order": "advance",
       "interval": 10000,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": 0.0,
       "speed_err": null,
       "ce": false,
@@ -571,6 +680,10 @@
       "order": "advance",
       "interval": 10000,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": 0.0,
       "speed_err": null,
       "ce": false,
@@ -609,6 +722,10 @@
       "order": "first",
       "interval": null,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": null,
       "speed_err": null,
       "ce": false,
@@ -621,6 +738,10 @@
       "order": "advance",
       "interval": 10000,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": 0.0,
       "speed_err": null,
       "ce": false,
@@ -633,6 +754,10 @@
       "order": "advance",
       "interval": 10000,
       "latency": null,
+      "lateness": null,
+      "source_out_of_order": false,
+      "time_error": null,
+      "time_state": null,
       "nis": 0.0,
       "speed_err": null,
       "ce": false,

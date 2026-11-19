@@ -1,4 +1,4 @@
-"""Quality engine (spec/quality.md 0.1). Standard library only.
+"""Quality engine (spec/quality.md 0.2). Standard library only.
 
 The per-entity filter is the correlate filter (spec/correlate.md, Track
 estimate), imported from goat_correlator."""
@@ -25,14 +25,25 @@ MEASURES = (
     ("age", "min"),
     ("latency_mean", "mean"),
     ("latency_max", "max"),
+    ("lateness_mean", "mean"),
+    ("lateness_max", "max"),
+    ("lateness_min", "min"),
     ("nis_mean", "mean"),
     ("speed_err_mean", "mean"),
     ("out_of_order", "sum"),
     ("duplicate", "sum"),
+    ("source_out_of_order", "sum"),
     ("missing_ce", "mean"),
     ("missing_vel", "mean"),
     ("missing_hae", "mean"),
+    ("time_error_mean", "mean"),
+    ("time_error_max", "max"),
+    ("time_state_last", "max"),
+    ("time_state_worst", "max"),
+    ("missing_time", "mean"),
 )
+TIME_STATES = ("coherent", "drifting", "free-running")
+TIME_CODE = {"coherent": 0, "drifting": 1, "free-running": 2}
 ENTITY_MEASURES = tuple(m for m, _ in MEASURES)
 SOURCE_MEASURES = ENTITY_MEASURES + ("entities",)
 OPS = ("<", "<=", ">", ">=")
@@ -41,6 +52,9 @@ ACTIONS = ("mark", "downgrade", "drop", "alert")
 NUM_RE = re.compile(r"-?[0-9]+(\.[0-9]+)?\Z")
 INT_RE = re.compile(r"[0-9]+\Z")
 NAME_RE = re.compile(r"[A-Za-z0-9._-]+\Z")
+CONTROL_RE = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
+SEP_RE = re.compile(r"[ \t]+")
+MAX_FINITE = 1.7976931348623157e308
 
 
 def _is(v, kind):
@@ -72,12 +86,16 @@ class Pack:
         self.min_samples = None
         self.forget_ms = None
         self.rules = []
+        self.time_default = {}
 
 
 def _num(v, line_no):
     if not NUM_RE.match(v):
         raise PackError("line %d: not a decimal number: %s" % (line_no, v))
-    return float(v)
+    x = float(v)
+    if math.isinf(x):
+        raise PackError("line %d: number not finite in binary64: %s" % (line_no, v))
+    return x
 
 
 def _int(v, line_no):
@@ -107,11 +125,18 @@ def parse_pack(text):
     p = Pack()
     seen = set()
     names = set()
-    for i, raw in enumerate(text.splitlines(), 1):
-        line = raw.split("#", 1)[0].strip()
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    for i, raw in enumerate(lines, 1):
+        if raw.endswith("\r"):
+            raw = raw[:-1]
+        if CONTROL_RE.search(raw):
+            raise PackError("line %d: control character" % i)
+        line = raw.split("#", 1)[0].strip(" \t")
         if not line:
             continue
-        parts = line.split()
+        parts = SEP_RE.split(line)
         d, args = parts[0], parts[1:]
         if d in ("pack", "version", "filter", "window"):
             if d in seen:
@@ -168,6 +193,25 @@ def parse_pack(text):
             elif "factor" in kv:
                 raise PackError("line %d: factor is only for downgrade" % i)
             p.rules.append(Rule(name, scope, measure, op, limit, n, clear, action, factor))
+        elif d == "time_default":
+            if not args or "=" in args[0]:
+                raise PackError("line %d: time_default needs a source id" % i)
+            src = args[0]
+            if src in p.time_default:
+                raise PackError("line %d: time_default repeated for %s" % (i, src))
+            kv = _params(args[1:], i, ("error_ms", "state"), ())
+            if not kv:
+                raise PackError("line %d: time_default takes error_ms, state or both" % i)
+            td = {}
+            if "error_ms" in kv:
+                td["error_ms"] = _num(kv["error_ms"], i)
+                if td["error_ms"] < 0:
+                    raise PackError("line %d: time_default error_ms must be 0 or above" % i)
+            if "state" in kv:
+                if kv["state"] not in TIME_STATES:
+                    raise PackError("line %d: time_default state is coherent, drifting or free-running" % i)
+                td["state"] = kv["state"]
+            p.time_default[src] = td
         else:
             raise PackError("line %d: unknown directive %s" % (i, d))
     for d in ("pack", "version", "filter", "window"):
@@ -197,6 +241,13 @@ def _mean(xs):
     for x in xs:
         s += x
     return s / len(xs)
+
+
+def _median(xs):
+    n = len(xs)
+    if n % 2:
+        return xs[n // 2]
+    return (xs[n // 2 - 1] + xs[n // 2]) / 2.0
 
 
 def _met(op, v, x):
@@ -242,6 +293,12 @@ class Engine:
             del opt["ce"]
         if _is(report.get("received_ms"), "int"):
             opt["received_ms"] = report["received_ms"]
+        te = report.get("time_error_ms")
+        if _is(te, "num") and math.isfinite(te) and te >= 0:
+            opt["time_error_ms"] = float(te)
+        ts = report.get("time_state")
+        if _is(ts, "str") and ts in TIME_STATES:
+            opt["time_state"] = ts
         source = report["track.source_id"]
         key = source + "/" + report["uid"]
         t = report["time_ms"]
@@ -260,7 +317,9 @@ class Engine:
         else:
             order = "out-of-order"
         rec = {"wt": t if last is None or t > last else last, "time_ms": t, "order": order,
-               "interval": None, "latency": None, "nis": None, "speed_err": None,
+               "interval": None, "latency": None, "lateness": None,
+               "source_out_of_order": False, "time_error": None, "time_state": None,
+               "nis": None, "speed_err": None,
                "ce": "ce" in opt, "vel": "course" in opt and "speed_ms" in opt, "hae": "hae" in opt}
         trace.append({"stage": "sample", "entity": key, "sample": "order", "value": order,
                       "inputs": [t, last]})
@@ -272,6 +331,31 @@ class Engine:
             rec["latency"] = opt["received_ms"] - t
             trace.append({"stage": "sample", "entity": key, "sample": "latency",
                           "value": rec["latency"], "inputs": [opt["received_ms"], t]})
+        latest = {}
+        for other in self.entities.values():
+            if other.source not in latest or other.last_time_ms > latest[other.source]:
+                latest[other.source] = other.last_time_ms
+        src_latest = latest.pop(source, None)
+        clock = _median(sorted(latest.values())) if latest else None
+        if clock is not None:
+            rec["lateness"] = clock - t
+            trace.append({"stage": "sample", "entity": key, "sample": "lateness",
+                          "value": rec["lateness"], "inputs": [clock, t]})
+        td = self.pack.time_default.get(source, {})
+        rec["time_error"] = opt.get("time_error_ms", td.get("error_ms"))
+        rec["time_state"] = opt.get("time_state", td.get("state"))
+        if rec["time_error"] is not None:
+            trace.append({"stage": "sample", "entity": key, "sample": "time_error",
+                          "value": rec["time_error"],
+                          "inputs": [opt.get("time_error_ms"), td.get("error_ms")]})
+        if rec["time_state"] is not None:
+            trace.append({"stage": "sample", "entity": key, "sample": "time_state",
+                          "value": rec["time_state"],
+                          "inputs": [opt.get("time_state"), td.get("state")]})
+        rec["source_out_of_order"] = src_latest is not None and t < src_latest
+        trace.append({"stage": "sample", "entity": key, "sample": "source_order",
+                      "value": "out-of-order" if rec["source_out_of_order"] else "in-order",
+                      "inputs": [t, src_latest]})
         e, n = self._to_plane(lat, lon)
         ce = opt.get("ce", f["default_ce_m"])
         r = ce * ce
@@ -335,7 +419,7 @@ class Engine:
                 x = opt.get("ce", f["default_ce_m"])
                 for fa in factors:
                     x = x * fa
-                out["ce"] = x
+                out["ce"] = MAX_FINITE if math.isinf(x) else x
             if marks:
                 old = report.get("quality.marks")
                 lst = list(old) if isinstance(old, list) and all(isinstance(m, str) for m in old) else []
@@ -353,6 +437,9 @@ class Engine:
         k = self.pack.min_samples
         iv = [x["interval"] for x in w if x["interval"] is not None]
         lt = [x["latency"] for x in w if x["latency"] is not None]
+        ln = [x["lateness"] for x in w if x["lateness"] is not None]
+        te = [x["time_error"] for x in w if x["time_error"] is not None]
+        tc = [TIME_CODE[x["time_state"]] for x in w if x["time_state"] is not None]
         ns = [x["nis"] for x in w if x["nis"] is not None]
         se = [x["speed_err"] for x in w if x["speed_err"] is not None]
         enough = len(w) >= k
@@ -364,13 +451,22 @@ class Engine:
             "age": now - ent.last_time_ms,
             "latency_mean": _mean(lt) if len(lt) >= k else None,
             "latency_max": max(lt) if len(lt) >= k else None,
+            "lateness_mean": _mean(ln) if len(ln) >= k else None,
+            "lateness_max": max(ln) if len(ln) >= k else None,
+            "lateness_min": min(ln) if len(ln) >= k else None,
             "nis_mean": _mean(ns) if len(ns) >= k else None,
             "speed_err_mean": _mean(se) if len(se) >= k else None,
             "out_of_order": sum(1 for x in w if x["order"] == "out-of-order"),
             "duplicate": sum(1 for x in w if x["order"] == "duplicate"),
+            "source_out_of_order": sum(1 for x in w if x["source_out_of_order"]),
             "missing_ce": sum(1 for x in w if not x["ce"]) / len(w) if enough else None,
             "missing_vel": sum(1 for x in w if not x["vel"]) / len(w) if enough else None,
             "missing_hae": sum(1 for x in w if not x["hae"]) / len(w) if enough else None,
+            "time_error_mean": _mean(te) if len(te) >= k else None,
+            "time_error_max": max(te) if len(te) >= k else None,
+            "time_state_last": tc[-1] if len(tc) >= k else None,
+            "time_state_worst": max(tc) if len(tc) >= k else None,
+            "missing_time": sum(1 for x in w if x["time_state"] is None) / len(w) if enough else None,
         }
 
     @staticmethod

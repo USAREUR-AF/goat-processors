@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -13,7 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/** A loaded quality pack (spec/quality.md, section Pack). */
+/** A loaded quality pack (spec/quality.md version 0.2, section Pack). */
 public final class Pack {
 
     /** A pack that does not load. */
@@ -67,12 +68,21 @@ public final class Pack {
     public long windowMs, minSamples, forgetMs;
     /** Rules in pack order. */
     public final List<Rule> rules = new ArrayList<>();
+    /**
+     * Reports, "Time quality": the {@code time_default} lines, by source id. A source is in
+     * {@code defaultErrorMs} when its line gives {@code error_ms}, in {@code defaultState} when
+     * it gives {@code state}.
+     */
+    public final Map<String, Double> defaultErrorMs = new HashMap<>();
+    public final Map<String, String> defaultState = new HashMap<>();
 
     /** Spec: Entity measures, the table's measures in table order. */
     public static final List<String> ENTITY_MEASURES = List.of(
             "reports", "interval_last", "interval_mean", "interval_max", "age",
-            "latency_mean", "latency_max", "nis_mean", "speed_err_mean",
-            "out_of_order", "duplicate", "missing_ce", "missing_vel", "missing_hae");
+            "latency_mean", "latency_max", "lateness_mean", "lateness_max", "lateness_min",
+            "nis_mean", "speed_err_mean", "out_of_order", "duplicate", "source_out_of_order",
+            "missing_ce", "missing_vel", "missing_hae", "time_error_mean", "time_error_max",
+            "time_state_last", "time_state_worst", "missing_time");
 
     /** Spec: Source measures, the entity measures plus `entities`. */
     public static final List<String> SOURCE_MEASURES;
@@ -89,6 +99,7 @@ public final class Pack {
     private static final Set<String> RULE_ALLOWED = new HashSet<>(Arrays.asList(
             "scope", "measure", "op", "limit", "for", "clear", "action", "factor"));
     private static final Set<String> SINGLE = Set.of("pack", "version", "filter", "window");
+    private static final Set<String> REPEATING = Set.of("rule", "time_default");
 
     // Spec: Pack, Values
     private static final Pattern NUMBER = Pattern.compile("-?[0-9]+(\\.[0-9]+)?");
@@ -109,17 +120,29 @@ public final class Pack {
         Pack pk = new Pack();
         Set<String> seen = new HashSet<>();
         Set<String> ruleNames = new HashSet<>();
+        // Step 1: lines end at LF; a final LF does not start another line (an empty last
+        // piece is an empty line, which step 4 ignores anyway).
         String[] lines = text.split("\n", -1);
         for (int n = 0; n < lines.length; n++) {
             int ln = n + 1;
             String line = lines[n];
+            // Step 1: one CR at the end of a line is removed, so CRLF files load.
+            if (line.endsWith("\r")) line = line.substring(0, line.length() - 1);
+            // Step 2: any control character left (a CR elsewhere included) is a load error.
+            for (int c = 0; c < line.length(); c++) {
+                char ch = line.charAt(c);
+                if ((ch <= 0x1F && ch != '\t') || ch == 0x7F)
+                    throw new LoadError(ln, String.format("control character U+%04X", (int) ch));
+            }
+            // Step 3: '#' starts a comment.
             int hash = line.indexOf('#');
             if (hash >= 0) line = line.substring(0, hash);
+            // Steps 4 and 5: tokens separated by runs of space and tab only; an empty line is ignored.
             List<String> tok = tokens(line);
             if (tok.isEmpty()) continue;
             String dir = tok.get(0);
             List<String> vals = tok.subList(1, tok.size());
-            if (!dir.equals("rule") && !SINGLE.contains(dir)) throw new LoadError(ln, "unknown directive " + dir);
+            if (!REPEATING.contains(dir) && !SINGLE.contains(dir)) throw new LoadError(ln, "unknown directive " + dir);
             if (SINGLE.contains(dir) && !seen.add(dir)) throw new LoadError(ln, "repeated directive " + dir);
             switch (dir) {
                 case "pack":
@@ -150,6 +173,9 @@ public final class Pack {
                         throw new LoadError(ln, "window values must be 1 or above");
                     break;
                 }
+                case "time_default":
+                    timeDefault(pk, ln, vals);
+                    break;
                 default:
                     pk.rules.add(rule(ln, vals, ruleNames));
             }
@@ -195,7 +221,33 @@ public final class Pack {
         return new Rule(name, scope, measure, op, limit, forN, clear, action, factor);
     }
 
-    /** Spec: Pack, tokens are separated by spaces or tabs. */
+    /**
+     * {@code time_default <source_id> error_ms=<ms> state=<state>}: the grammar of correlate.md,
+     * section Pack (at most once per source id, the source id first and without {@code =}, then
+     * {@code error_ms}, {@code state} or both), with {@code error_ms} a number of this pack's
+     * grammar (Values), 0 or above.
+     */
+    private static void timeDefault(Pack pk, int ln, List<String> vals) throws LoadError {
+        if (vals.isEmpty() || vals.get(0).indexOf('=') >= 0) throw new LoadError(ln, "time_default without a source id");
+        String source = vals.get(0);
+        if (pk.defaultErrorMs.containsKey(source) || pk.defaultState.containsKey(source))
+            throw new LoadError(ln, "time_default given twice for " + source);
+        Map<String, String> kv = params(ln, vals.subList(1, vals.size()), Set.of("error_ms", "state"));
+        if (kv.isEmpty()) throw new LoadError(ln, "time_default needs error_ms, state or both");
+        if (kv.containsKey("error_ms")) {
+            double errorMs = number(ln, kv, "error_ms");
+            if (errorMs < 0) throw new LoadError(ln, "error_ms below 0");
+            pk.defaultErrorMs.put(source, errorMs);
+        }
+        if (kv.containsKey("state")) {
+            String state = kv.get("state");
+            if (!correlator.Pack.TIME_STATES.contains(state))
+                throw new LoadError(ln, "state is coherent, drifting or free-running: " + state);
+            pk.defaultState.put(source, state);
+        }
+    }
+
+    /** Spec: Pack, step 5: tokens are separated by runs of space and tab, and by nothing else. */
     private static List<String> tokens(String line) {
         List<String> out = new ArrayList<>();
         for (String t : line.split("[ \t]+")) if (!t.isEmpty()) out.add(t);
@@ -227,7 +279,10 @@ public final class Pack {
     private static double number(int ln, Map<String, String> kv, String k) throws LoadError {
         String v = kv.get(k);
         if (!NUMBER.matcher(v).matches()) throw new LoadError(ln, k + " is not a number: " + v);
-        return Double.parseDouble(v);
+        // Values: read as the nearest binary64; one that is infinite is a load error.
+        double x = Double.parseDouble(v);
+        if (Double.isInfinite(x)) throw new LoadError(ln, k + " is not finite: " + v);
+        return x;
     }
 
     private static long integer(int ln, Map<String, String> kv, String k) throws LoadError {

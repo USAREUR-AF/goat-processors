@@ -103,6 +103,34 @@ void want_args(int line, const std::vector<std::string>& words, size_t n) {
 
 } // namespace
 
+void parse_time_default(int line, const std::vector<std::string>& words,
+                        const std::function<double(const std::string&)>& number,
+                        std::map<std::string, TimeDefault>& into) {
+    if (words.size() < 2 || words[1].find('=') != std::string::npos)
+        fail(line, "time_default needs a source id");
+    if (words.size() < 3) fail(line, "time_default needs error_ms, state or both");
+    TimeDefault td;
+    for (size_t k = 2; k < words.size(); ++k) {
+        size_t eq = words[k].find('=');
+        if (eq == std::string::npos || eq == 0) fail(line, "parameter without '=': " + words[k]);
+        std::string name = words[k].substr(0, eq), value = words[k].substr(eq + 1);
+        if (name == "error_ms") {
+            if (td.error_ms) fail(line, "repeated parameter: error_ms");
+            double ms = number(value);
+            if (!(ms >= 0)) fail(line, "time_default error_ms must be 0 or above");
+            td.error_ms = ms;
+        } else if (name == "state") {
+            if (td.state) fail(line, "repeated parameter: state");
+            if (!report::is_time_state(value))
+                fail(line, "time_default state is coherent, drifting or free-running");
+            td.state = value;
+        } else {
+            fail(line, "unknown parameter: " + name);
+        }
+    }
+    if (!into.emplace(words[1], td).second) fail(line, "repeated time_default source: " + words[1]);
+}
+
 Pack parse_pack(const std::string& text) {
     Pack p;
     std::set<std::string> seen;
@@ -163,33 +191,8 @@ Pack parse_pack(const std::string& text) {
             if (!(g > 0)) fail(line, "restart gate must be above 0");
             p.restart_gate = g;
         } else if (d == "time_default") {
-            // correlate.md "Pack": the source id (a first token without '='),
-            // then error_ms, state or both, each at most once; at most one
-            // line per source.
-            if (words.size() < 2 || words[1].find('=') != std::string::npos)
-                fail(line, "time_default needs a source id");
-            if (words.size() < 3) fail(line, "time_default needs error_ms, state or both");
-            TimeDefault td;
-            for (size_t k = 2; k < words.size(); ++k) {
-                size_t eq = words[k].find('=');
-                if (eq == std::string::npos || eq == 0) fail(line, "parameter without '=': " + words[k]);
-                std::string name = words[k].substr(0, eq), value = words[k].substr(eq + 1);
-                if (name == "error_ms") {
-                    if (td.error_ms) fail(line, "repeated parameter: error_ms");
-                    double ms = parse_number(line, value);
-                    if (!(ms >= 0)) fail(line, "time_default error_ms must be 0 or above");
-                    td.error_ms = ms;
-                } else if (name == "state") {
-                    if (td.state) fail(line, "repeated parameter: state");
-                    if (!report::is_time_state(value))
-                        fail(line, "time_default state is coherent, drifting or free-running");
-                    td.state = value;
-                } else {
-                    fail(line, "unknown parameter: " + name);
-                }
-            }
-            if (!p.time_default.emplace(words[1], td).second)
-                fail(line, "repeated time_default source: " + words[1]);
+            parse_time_default(line, words, [line](const std::string& v) { return parse_number(line, v); },
+                               p.time_default);
         } else if (d == "time_offset") {
             // correlate-assign.md "Pack": exactly sigma_ms, above 0; needs bias
             // (checked once the whole file is read).
