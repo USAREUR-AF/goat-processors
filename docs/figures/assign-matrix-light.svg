@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 402" width="880" height="402" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, &apos;Segoe UI&apos;, &apos;Noto Sans&apos;, Helvetica, Arial, sans-serif">
+<title id="t">Assignment takes the least total cost, not each track's nearest</title>
+<desc id="d">Vector 25-assign-least-total-not-nearest-first, tick at step 5, source radar-2: rows are its tracks, columns the system tracks and one alone entry per track at new_cost 9.21; another track's alone entry is forbidden. The chosen assignment totals 3.502; taking each row's nearest in turn would total 3.690.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#818b98"/></marker></defs>
+<rect width="100%" height="100%" rx="12" fill="#ffffff"/>
+<text x="24" y="38" font-size="20" fill="#1f2328" text-anchor="start" font-weight="600">Assignment takes the least total cost, not each track's nearest</text>
+<text x="24" y="62" font-size="14" fill="#59636e" text-anchor="start">Vector 25-assign-least-total-not-nearest-first, step 5: source radar-2's cost matrix, read from the trace.</text>
+<text x="24" y="114" font-size="13" fill="#59636e" text-anchor="start">cost d²</text>
+<text x="212" y="96" font-size="14" fill="#1f2328" text-anchor="middle" font-weight="600">system s1</text>
+<text x="212" y="116" font-size="13" fill="#59636e" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">adsb/A1</text>
+<text x="332" y="96" font-size="14" fill="#1f2328" text-anchor="middle" font-weight="600">system s2</text>
+<text x="332" y="116" font-size="13" fill="#59636e" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">adsb/A2</text>
+<text x="452" y="96" font-size="14" fill="#1f2328" text-anchor="middle" font-weight="600">alone</text>
+<text x="452" y="116" font-size="13" fill="#59636e" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">R1</text>
+<text x="572" y="96" font-size="14" fill="#1f2328" text-anchor="middle" font-weight="600">alone</text>
+<text x="572" y="116" font-size="13" fill="#59636e" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">R2</text>
+<text x="24" y="165" font-size="14" fill="#1f2328" text-anchor="start" font-weight="600" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">radar-2/R1</text>
+<rect x="155" y="131" width="114" height="58" rx="6" fill="#f6f8fa" stroke="#cf222e" stroke-width="2" stroke-dasharray="5 3"/>
+<text x="212" y="166" font-size="15" fill="#1f2328" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">0.999</text>
+<rect x="275" y="131" width="114" height="58" rx="6" fill="#0969da" stroke="#0969da" stroke-width="2"/>
+<text x="332" y="166" font-size="15" fill="#ffffff" text-anchor="middle" font-weight="600" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">2.000</text>
+<rect x="395" y="131" width="114" height="58" rx="6" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1"/>
+<text x="452" y="157" font-size="15" fill="#1f2328" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">9.210</text>
+<text x="452" y="176" font-size="13" fill="#59636e" text-anchor="middle">new_cost</text>
+<rect x="515" y="131" width="114" height="58" rx="6" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="572" y="165" font-size="13" fill="#59636e" text-anchor="middle" font-style="italic">forbidden</text>
+<text x="24" y="229" font-size="14" fill="#1f2328" text-anchor="start" font-weight="600" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">radar-2/R2</text>
+<rect x="155" y="195" width="114" height="58" rx="6" fill="#0969da" stroke="#0969da" stroke-width="2"/>
+<text x="212" y="230" font-size="15" fill="#ffffff" text-anchor="middle" font-weight="600" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">1.502</text>
+<rect x="275" y="195" width="114" height="58" rx="6" fill="#f6f8fa" stroke="#cf222e" stroke-width="2" stroke-dasharray="5 3"/>
+<text x="332" y="230" font-size="15" fill="#1f2328" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">2.691</text>
+<rect x="395" y="195" width="114" height="58" rx="6" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="452" y="229" font-size="13" fill="#59636e" text-anchor="middle" font-style="italic">forbidden</text>
+<rect x="515" y="195" width="114" height="58" rx="6" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1"/>
+<text x="572" y="221" font-size="15" fill="#1f2328" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">9.210</text>
+<text x="572" y="240" font-size="13" fill="#59636e" text-anchor="middle">new_cost</text>
+<rect x="24" y="277" width="36" height="20" rx="5" fill="#0969da" stroke="#0969da" stroke-width="1"/>
+<text x="72" y="292" font-size="15" fill="#1f2328" text-anchor="start" font-weight="600">chosen: R1 → s2, R2 → s1, total 3.502</text>
+<rect x="24" y="309" width="36" height="20" rx="5" fill="#f6f8fa" stroke="#cf222e" stroke-width="2" stroke-dasharray="5 3"/>
+<text x="72" y="324" font-size="15" fill="#1f2328" text-anchor="start">nearest first: R1 → s1, R2 → s2, total 3.690</text>
+<rect x="24" y="341" width="36" height="20" rx="5" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="72" y="356" font-size="15" fill="#1f2328" text-anchor="start">forbidden: a track may only take its own alone entry</text>
+<rect x="556" y="268" width="300" height="88" rx="8" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1"/>
+<text x="570" y="292" font-size="14" fill="#1f2328" text-anchor="start">R1's nearest system track is s1 (0.999).</text>
+<text x="570" y="312" font-size="14" fill="#1f2328" text-anchor="start">Taking s2 instead lets R2 take s1, and</text>
+<text x="570" y="332" font-size="14" fill="#1f2328" text-anchor="start">the total is 0.188 lower.</text>
+</svg>

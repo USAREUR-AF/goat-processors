@@ -1,0 +1,5 @@
+{
+ "name": "05-repeated-directive",
+ "pack_def": "pack x\nversion 0.1.0\ndefault keep\nforget_ms 1000\ndefault drop\n",
+ "expect_error": true
+}

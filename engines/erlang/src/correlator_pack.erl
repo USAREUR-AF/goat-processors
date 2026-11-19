@@ -1,6 +1,8 @@
 %% Pack: load and parse pack.def (correlate.md "Pack", correlate-assign.md "Pack").
 -module(correlator_pack).
 -export([load_pack/1, parse/1]).
+%% Shared with filter_pack (filter.md "Pack": the same line syntax).
+-export([split_line/1]).
 
 %% Directives per method: {Required, Repeating, Once}. correlate.md "Pack" for
 %% confirm; correlate-assign.md "Pack" for assign.

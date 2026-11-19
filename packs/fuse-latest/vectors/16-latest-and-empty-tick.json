@@ -1,0 +1,183 @@
+{
+ "name": "16-latest-and-empty-tick",
+ "pack": "fuse-latest",
+ "steps": [
+  {
+   "tick": 0,
+   "expect": [],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "a",
+    "time_ms": 1000,
+    "lat": 1.0,
+    "lon": 1.0,
+    "fuse.group": "s1",
+    "ce": 30,
+    "hae": 100,
+    "callsign": "OLD"
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/a",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-2",
+    "uid": "b",
+    "time_ms": 2000,
+    "lat": 1.0,
+    "lon": 1.000089946,
+    "fuse.group": "s1",
+    "ce": 30,
+    "hae": 200,
+    "callsign": "NEW"
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-2/b",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-3",
+    "uid": "c",
+    "time_ms": 2000,
+    "lat": 1.0,
+    "lon": 1.000179891,
+    "fuse.group": "s1",
+    "ce": 30
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-3/c",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "tick": 1500,
+   "expect": [
+    {
+     "ev": "fused",
+     "group": "s1",
+     "members": [
+      "radar-1/a",
+      "radar-2/b",
+      "radar-3/c"
+     ],
+     "from": "radar-2/b",
+     "lat": 1.0,
+     "lon": 1.000089946,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 58.30965293156871,
+     "hae": 200.0,
+     "hae_from": "radar-2/b",
+     "attributes": {
+      "callsign": {
+       "value": "NEW",
+       "from": "radar-2/b"
+      }
+     }
+    }
+   ],
+   "trace": [
+    {
+     "stage": "kinematics",
+     "group": "s1",
+     "method": "latest",
+     "candidates": [
+      {
+       "member": "radar-1/a",
+       "var": 6800.03125,
+       "time_ms": 1000,
+       "rank": null
+      },
+      {
+       "member": "radar-2/b",
+       "var": 6800.03125,
+       "time_ms": 2000,
+       "rank": null
+      },
+      {
+       "member": "radar-3/c",
+       "var": 6800.03125,
+       "time_ms": 2000,
+       "rank": null
+      }
+     ],
+     "winner": "radar-2/b"
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "callsign",
+     "rule": "latest",
+     "candidates": [
+      {
+       "member": "radar-1/a",
+       "value": "OLD",
+       "time_ms": 1000,
+       "rank": null
+      },
+      {
+       "member": "radar-2/b",
+       "value": "NEW",
+       "time_ms": 2000,
+       "rank": null
+      }
+     ],
+     "winner": "radar-2/b",
+     "value": "NEW"
+    }
+   ]
+  },
+  {
+   "tick": 122001,
+   "expect": [
+    {
+     "ev": "drop",
+     "entity": "radar-1/a",
+     "group": "s1"
+    },
+    {
+     "ev": "drop",
+     "entity": "radar-2/b",
+     "group": "s1"
+    },
+    {
+     "ev": "drop",
+     "entity": "radar-3/c",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "tick": 122002,
+   "expect": [],
+   "trace": []
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {}
+ }
+}

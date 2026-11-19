@@ -1,0 +1,148 @@
+{
+ "name": "04-stale-report-ignored",
+ "pack": "fuse-independent",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 5000,
+    "lat": 1.0,
+    "lon": 1.0,
+    "fuse.group": "s1",
+    "ce": 30
+   },
+   "expect": [
+    {
+     "ev": "new",
+     "entity": "radar-1/T1",
+     "group": "s1"
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 4000,
+    "lat": 1.0,
+    "lon": 1.000899457,
+    "fuse.group": "s7",
+    "ce": 30
+   },
+   "expect": [
+    {
+     "ev": "stale-report",
+     "entity": "radar-1/T1",
+     "time_ms": 4000,
+     "last_time_ms": 5000
+    }
+   ],
+   "trace": []
+  },
+  {
+   "ingest": {
+    "track.source_id": "radar-1",
+    "uid": "T1",
+    "time_ms": 5000,
+    "lat": 1.0,
+    "lon": 1.000089946,
+    "fuse.group": "s1",
+    "ce": 30
+   },
+   "expect": [],
+   "trace": []
+  },
+  {
+   "tick": 5000,
+   "expect": [
+    {
+     "ev": "fused",
+     "group": "s1",
+     "members": [
+      "radar-1/T1"
+     ],
+     "from": null,
+     "lat": 1.0,
+     "lon": 1.000044973,
+     "course": 0.0,
+     "speed_ms": 0.0,
+     "ce": 21.213203435596427,
+     "attributes": {}
+    }
+   ],
+   "trace": [
+    {
+     "stage": "kinematics",
+     "group": "s1",
+     "method": "inverse_variance",
+     "candidates": [
+      {
+       "member": "radar-1/T1",
+       "var": 900.0,
+       "time_ms": 5000,
+       "rank": 1
+      }
+     ],
+     "winner": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "type",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    },
+    {
+     "stage": "attribute",
+     "group": "s1",
+     "key": "callsign",
+     "rule": "priority",
+     "candidates": [],
+     "winner": null,
+     "value": null
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "entities": {
+   "radar-1/T1": {
+    "last_time_ms": 5000,
+    "group": "s1",
+    "filter": {
+     "east": [
+      5.000014700878021,
+      0.0,
+      450.0,
+      0.0,
+      10000.0
+     ],
+     "north": [
+      0.0,
+      0.0,
+      450.0,
+      0.0,
+      10000.0
+     ]
+    },
+    "report": {
+     "ce": 30,
+     "fuse.group": "s1",
+     "lat": 1.0,
+     "lon": 1.000089946,
+     "time_ms": 5000,
+     "track.source_id": "radar-1",
+     "uid": "T1"
+    }
+   }
+  }
+ }
+}
