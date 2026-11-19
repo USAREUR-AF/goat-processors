@@ -26,9 +26,8 @@ std::optional<double> number_at(const Json& r, const std::string& key) {
     return v->number;
 }
 
-std::int64_t integer_of(const Json& v) {
-    return v.is_int ? v.integer : static_cast<std::int64_t>(v.number);
-}
+// Spec "Reports": `time_ms` and `stale_ms` must be integers.
+bool is_integer(const Json* v) { return v && v->is_number() && v->is_int; }
 
 // Spec "Reports": `@env` is the third `-`-separated element of `type`.
 std::optional<Json> same_value(const Json& r, const std::string& key) {
@@ -244,7 +243,9 @@ void Engine::leave_group(Entity& e, const char* reason, Output& out) {
     out.events.push(ev);
     if (members.size() == 1) {
         std::string last = *members.begin();
-        entities_.at(last).group = 0;
+        Entity& rest = entities_.at(last);
+        rest.group = 0;
+        rest.hold_failures = 0;
         Json d = event("dissolve");
         d["group"] = group_name(g);
         d["entity"] = last;
@@ -253,13 +254,17 @@ void Engine::leave_group(Entity& e, const char* reason, Output& out) {
     }
 }
 
-// Spec "Association": A is in a group G: hold.
+// Spec "Association": A is in a group G: hold. Other members in key order;
+// the hold passes at the first member for which every test passes.
 void Engine::hold(Entity& a, Output& out) {
     bool any = false;
     for (const std::string& bk : groups_.at(a.group)) {
         if (bk == a.key) continue;
         const Entity& b = entities_.at(bk);
-        if (run_stage("hold", pack_.hold, a, b, predict(b, a.last_time_ms), out)) any = true;
+        if (run_stage("hold", pack_.hold, a, b, predict(b, a.last_time_ms), out)) {
+            any = true;
+            break;
+        }
     }
     if (any) {
         a.hold_failures = 0;
@@ -342,11 +347,13 @@ Output Engine::ingest(const Json& r) {
     Output out;
 
     // Spec "Reports": required keys, in table order.
-    const std::pair<const char*, bool> required[] = {
-        {"track.source_id", true}, {"uid", true}, {"time_ms", false}, {"lat", false}, {"lon", false}};
+    const std::pair<const char*, char> required[] = {
+        {"track.source_id", 's'}, {"uid", 's'}, {"time_ms", 'i'}, {"lat", 'n'}, {"lon", 'n'}};
     for (const auto& req : required) {
         const Json* v = r.find(req.first);
-        bool ok = v && (req.second ? v->is_string() : v->is_number());
+        bool ok = req.second == 's' ? v && v->is_string()
+                : req.second == 'i' ? is_integer(v)
+                                    : v && v->is_number();
         if (!ok) {
             Json ev = event("reject");
             ev["reason"] = std::string("missing:") + req.first;
@@ -356,7 +363,7 @@ Output Engine::ingest(const Json& r) {
     }
     const std::string source = r.find("track.source_id")->string;
     const std::string key = source + "/" + r.find("uid")->string;
-    const std::int64_t time_ms = integer_of(*r.find("time_ms"));
+    const std::int64_t time_ms = r.find("time_ms")->integer;
     const double lat = r.find("lat")->number, lon = r.find("lon")->number;
 
     auto it = entities_.find(key);
@@ -408,7 +415,7 @@ Output Engine::tick(std::int64_t now_ms) {
         Entity& e = entities_.at(k);
         auto report_stale = e.last.find("stale_ms");
         bool stale = now_ms - e.last_time_ms > pack_.stale_ms ||
-                     (report_stale && report_stale->is_number() && now_ms >= integer_of(*report_stale));
+                     (is_integer(report_stale) && now_ms >= report_stale->integer);
         if (!stale) continue;
         if (e.group) leave_group(e, "stale", out);
         for (auto c = counts_.begin(); c != counts_.end();) {

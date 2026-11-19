@@ -1,47 +1,33 @@
 # Disagreements and interpretations
 
-No vector contradicts the specification as this engine reads it. The entries
-below are places where two parts of the specification differ, or where the
-specification is silent, and the reading this engine takes.
+No vector contradicts specification 0.2 as this engine reads it. The points
+0.1 left open (stage tests stopping at the first failure, the `count` record's
+stage, `rank` records, `entity` on a `missing:` reject, `course` and `speed`
+with a missing or zero speed, value types) are settled by 0.2 and removed from
+this file. The entries below are places where 0.2 is still silent, and the
+reading this engine takes. No vector covers any of them.
 
-## Reject for a missing key carries no `entity`
+## What counts as an integer
 
-- Vector: `gnn/08-rejections`, step 0, field `expect[0]` (no `entity` key).
-- Spec: "Reports" gives the event as `{"ev":"reject","reason":"missing:<key>"}`;
-  "Events" says `reject` has `entity` "when the key is known".
-- In step 0 the report has `track.source_id` and `uid`, so the key could be
-  built, but the vector has no `entity`. That matches the "Reports" form. The
-  engine never adds `entity` to a `missing:` reject and adds it only to
-  `out-of-order`.
+- Spec: "Reports" says `time_ms` must be an integer and `stale_ms` an integer,
+  but not whether a JSON number written with a fraction or exponent and an
+  integral value (`1000.0`, `1e3`) is one. Vector `correlate-gnn/21` only
+  shows that `1.5` is not.
+- The engine takes an integer to be a JSON number written without fraction or
+  exponent that fits in a signed 64-bit integer. `1000.0` as `time_ms` is
+  rejected with `missing:time_ms`; as `stale_ms` it is treated as absent.
 
-## Tests in a stage stop at the first failure
+## `null` for a key named only by a `same` test
 
-- Vectors: `gnn/02` step 1, `gnn/09` step 1, `window/12` step 1.
-- Spec: "Association" says to run the `gate` tests and, if all passed, the
-  `confirm` tests. It does not say whether the tests after a failure in the
-  same stage still run.
-- The vectors show no trace record after a failing test in a stage. The
-  engine stops each stage, `hold` included, at its first failure. `hold`
-  still runs for every other member of the group.
+- Spec: "Reports" treats `null` as absent for the listed optional keys, and
+  "Tests" says a `same` trace value is null when absent, but neither says
+  whether `null` for any other key (for example `track.simulated`) is absent.
+- The engine treats it as absent, so `null` on one side and no key on the
+  other passes `same`.
 
-## The `count` record's stage is `confirm`
+## `@env` when `type` has fewer than three elements
 
-- Spec: "Trace" names the `count` record but not its stage. The vectors give
-  it `"stage":"confirm"` even when a `gate` test failed. The engine does the
-  same.
-
-## `course` and `speed` when a value is missing
-
-- Spec: "Tests" skips the test "when either entity lacks the value or either
-  speed is below `min_speed_ms`".
-- The engine skips `course` when either entity lacks `course` or `speed_ms`:
-  a missing speed cannot be shown to be at or above `min_speed_ms`. If both
-  speeds are 0 and `min_speed_ms` is 0, `slow/fast` is undefined, and the
-  engine takes the `speed` value as 0. No vector covers either case.
-
-## A report value of the wrong type
-
-- Spec: "Reports" gives the types but no reason for a wrong one. The engine
-  rejects a required key that is null or of the wrong type with
-  `missing:<key>`, and treats an optional key that is null or of the wrong
-  type as absent. No vector covers this.
+- Spec: "Reports" defines `@env` as the third `-`-separated element of `type`
+  but not what it is when there is none (`type` = `a-f`).
+- The engine treats `@env` as absent in that case, as it does when `type` is
+  absent or not a string.

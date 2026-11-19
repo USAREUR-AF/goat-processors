@@ -1,5 +1,5 @@
 // Runs every scenario vector (packs/*/vectors/*.json) and every load vector
-// (spec/load-vectors/*.json) with the comparison of spec/vector-format.md.
+// (spec/correlate-load-vectors/*.json) with the comparison of spec/vector-format.md.
 // Usage: run_vectors [repo_root]
 
 #include <algorithm>
@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
             report(label, m);
         }
     }
-    for (const auto& f : json_files(root / "spec" / "load-vectors")) {
+    for (const auto& f : json_files(root / "spec" / "correlate-load-vectors")) {
         std::string m;
         try {
             m = run_load(corr::parse_json(read_file(f)));

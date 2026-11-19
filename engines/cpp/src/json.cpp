@@ -1,5 +1,6 @@
 #include "json.hpp"
 
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -126,9 +127,11 @@ struct Reader {
         std::string text = s.substr(start, i - start);
         char* end = nullptr;
         if (integral) {
+            errno = 0;
             long long v = std::strtoll(text.c_str(), &end, 10);
             if (*end != '\0') fail("bad number");
-            return Json(v);
+            if (errno != ERANGE) return Json(v);
+            // Outside int64: kept as a number that is not an integer.
         }
         double d = std::strtod(text.c_str(), &end);
         if (*end != '\0') fail("bad number");
