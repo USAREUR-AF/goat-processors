@@ -23,14 +23,16 @@ public final class VectorTest {
             if (why == null) pass++;
             else { fail++; System.out.println("FAIL " + root.relativize(f) + ": " + why); }
         }
+        // Only the correlate packs; the quality packs have their own runner (quality.VectorTest).
         for (Path packDir : listDirs(root.resolve("packs"))) {
+            if (!packDir.getFileName().toString().startsWith("correlate-")) continue;
             for (Path f : list(packDir.resolve("vectors"))) {
                 String why = runScenario(root, f);
                 if (why == null) pass++;
                 else { fail++; System.out.println("FAIL " + root.relativize(f) + ": " + why); }
             }
         }
-        System.out.println(pass + " passed, " + fail + " failed");
+        System.out.println("correlate: " + pass + " passed, " + fail + " failed");
         System.exit(fail == 0 ? 0 : 1);
     }
 
@@ -71,7 +73,7 @@ public final class VectorTest {
     }
 
     /** Structural equality of vector-format.md; returns the first mismatch path, or null. */
-    static String diff(String path, Object got, Object want) {
+    public static String diff(String path, Object got, Object want) {
         if (want == null || got == null) {
             return want == null && got == null ? null : mismatch(path, got, want);
         }

@@ -23,36 +23,36 @@ public final class Engine {
             x.codePoints().toArray(), y.codePoints().toArray());
 
     // Spec: Frame
-    static final double R = 6371008.8;
+    public static final double R = 6371008.8;
 
-    static double rad(double x) {
+    public static double rad(double x) {
         return x * Math.PI / 180;
     }
 
-    static double deg(double x) {
+    public static double deg(double x) {
         return x * 180 / Math.PI;
     }
 
-    static double wrapLon(double lon) {
+    public static double wrapLon(double lon) {
         while (lon > 180) lon -= 360;
         while (lon <= -180) lon += 360;
         return lon;
     }
 
     /** Spec: Track estimate, one axis of the constant-velocity filter. */
-    static final class Axis {
-        double p, v, pp, pv, vv;
+    public static final class Axis {
+        public double p, v, pp, pv, vv;
 
-        Axis(double p, double v, double pp, double pv, double vv) {
+        public Axis(double p, double v, double pp, double pv, double vv) {
             this.p = p; this.v = v; this.pp = pp; this.pv = pv; this.vv = vv;
         }
 
-        Axis copy() {
+        public Axis copy() {
             return new Axis(p, v, pp, pv, vv);
         }
 
         /** Step 1, predict. */
-        void predict(double dt, double q) {
+        public void predict(double dt, double q) {
             double p0 = p, v0 = v, pp0 = pp, pv0 = pv, vv0 = vv;
             p = p0 + v0 * dt;
             pp = pp0 + 2 * dt * pv0 + dt * dt * vv0 + q * dt * dt * dt * dt / 4;
@@ -61,7 +61,7 @@ public final class Engine {
         }
 
         /** Step 2, position update. */
-        void updatePosition(double z, double r) {
+        public void updatePosition(double z, double r) {
             double p0 = p, v0 = v, pp0 = pp, pv0 = pv, vv0 = vv;
             double s = pp0 + r, k1 = pp0 / s, k2 = pv0 / s, y = z - p0;
             p = p0 + k1 * y;
@@ -72,7 +72,7 @@ public final class Engine {
         }
 
         /** Step 3, velocity update. */
-        void updateVelocity(double z, double r) {
+        public void updateVelocity(double z, double r) {
             double p0 = p, v0 = v, pp0 = pp, pv0 = pv, vv0 = vv;
             double s = vv0 + r, k1 = pv0 / s, k2 = vv0 / s, y = z - v0;
             p = p0 + k1 * y;
@@ -82,7 +82,7 @@ public final class Engine {
             vv = (1 - k2) * vv0;
         }
 
-        List<Object> toList() {
+        public List<Object> toList() {
             return List.of(p, v, pp, pv, vv);
         }
     }
@@ -763,6 +763,11 @@ public final class Engine {
     // ---- helpers ----
 
     private double[] toPlane(double lat, double lon) {
+        return toPlane(lat0, lon0, lat, lon);
+    }
+
+    /** Spec: Frame, metres east and north of the reference (lat0, lon0). */
+    public static double[] toPlane(double lat0, double lon0, double lat, double lon) {
         double dlon = wrapLon(lon - lon0);
         return new double[] {R * rad(dlon) * Math.cos(rad(lat0)), R * rad(lat - lat0)};
     }

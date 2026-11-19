@@ -1,4 +1,4 @@
-# goat-correlator: java engine
+# goat-processors: java engine
 
 An implementation of `spec/correlate.md` (version 0.4) and `spec/correlate-assign.md`
 (version 0.2) in Java 17, using only the
@@ -32,3 +32,22 @@ contradicts either specification, and neither leaves a point open for this
 engine. On a tie in the least total cost, which `correlate-assign.md` 0.2
 leaves undefined, the Hungarian method's result stands (rows in key order;
 columns in creation order, then each row's `alone`).
+
+## Quality
+
+`src/quality/` implements `spec/quality.md` (version 0.1) as its own package,
+written from that specification, the sections of `correlate.md` it cites and the
+vectors. It reuses this engine's correlate code for those sections: the frame
+(`correlator.Engine.toPlane`) and the constant-velocity filter
+(`correlator.Engine.Axis`).
+
+| File | Spec section |
+|---|---|
+| `src/quality/Pack.java` | Pack (the `pack.def` parser, every load error of its table), Rules (`op` and `clear` tests) |
+| `src/quality/Engine.java` | Reports, Order, Frame and filter, Samples, Ingest, Forwarding (`ingest`); Tick, Window, Entity measures, Source measures, Rules, Events, Trace (`tick`); Snapshot |
+| `src/quality/VectorTest.java` | runs `spec/quality-load-vectors/` and `packs/quality-*/vectors/` with the comparison of `spec/vector-format.md` |
+
+`build.sh` runs both runners: `correlator.VectorTest` reads only
+`packs/correlate-*`, `quality.VectorTest` only `packs/quality-*`. No quality
+vector contradicts the specification; the open points of `quality.md` are not
+decided by any vector, and this engine does not special-case them.
