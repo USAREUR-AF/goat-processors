@@ -1,0 +1,37 @@
+# Thinning by environment, affiliation and interval. A report older than the
+# entity's last kept report is dropped, and so are exercise tracks and reports
+# with a coarse position. Hostile and suspect air is never thinned; other air
+# is kept at most once every 2 s per track, surface tracks once every 10 s.
+# A surface track faster than 40 m/s and a report without a type are dropped.
+pack       filter-thin
+version    0.1.0
+default    keep
+forget_ms  300000
+
+rule  older        drop
+when  order
+
+rule  exercise     drop
+when  key name=track.simulated eq=1
+
+rule  coarse       drop
+when  key name=ce min=2000
+
+rule  hostile-air  keep
+when  env in=A
+when  affiliation in=h,s,j,k
+
+rule  air-thin     drop
+when  env in=A
+when  interval min_ms=2000
+
+rule  fast-surface drop
+when  env in=S
+when  speed min=40
+
+rule  surface-thin drop
+when  env in=S
+when  interval min_ms=10000
+
+rule  no-type      drop
+when  not has name=type

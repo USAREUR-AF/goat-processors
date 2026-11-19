@@ -45,6 +45,4 @@ func ValidReportKey(key string, v any) bool { return validKey(key, v) }
 // absent: null values, optional keys of the wrong type, a ce of 0 or below.
 func CleanReport(r map[string]any) map[string]any { return cleanOptional(r) }
 
-// ToFloat and ToInt read a JSON number (spec: Reports).
-func ToFloat(v any) (float64, bool) { return toFloat(v) }
-func ToInt(v any) (int64, bool)     { return toInt(v) }
+// ToFloat and ToInt (spec: Reports) are in reports.go, shared with filter/.
