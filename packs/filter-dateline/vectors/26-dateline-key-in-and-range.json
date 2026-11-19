@@ -1,0 +1,557 @@
+{
+ "name": "26-dateline-key-in-and-range",
+ "pack": "filter-dateline",
+ "steps": [
+  {
+   "ingest": {
+    "track.source_id": "net",
+    "uid": "1",
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "mission": "alpha",
+    "priority": 2
+   },
+   "expect": [
+    {
+     "ev": "keep",
+     "entity": "net/1",
+     "rule": "tasked"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "zone",
+     "entity": "net/1",
+     "test": "polygon",
+     "negated": false,
+     "value": "outside",
+     "limit": null,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "anchorage",
+     "entity": "net/1",
+     "test": "circle",
+     "negated": false,
+     "value": 13263246.216099795,
+     "limit": 10000.0,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "tasked",
+     "entity": "net/1",
+     "test": "key",
+     "negated": false,
+     "value": "alpha",
+     "limit": [
+      "alpha",
+      "bravo"
+     ],
+     "pass": true
+    },
+    {
+     "stage": "rule",
+     "rule": "tasked",
+     "entity": "net/1",
+     "test": "key",
+     "negated": false,
+     "value": 2,
+     "limit": [
+      1.0,
+      3.0
+     ],
+     "pass": true
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "net",
+    "uid": "2",
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "mission": "bravo",
+    "priority": 5
+   },
+   "expect": [
+    {
+     "ev": "drop",
+     "entity": "net/2",
+     "rule": "default"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "zone",
+     "entity": "net/2",
+     "test": "polygon",
+     "negated": false,
+     "value": "outside",
+     "limit": null,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "anchorage",
+     "entity": "net/2",
+     "test": "circle",
+     "negated": false,
+     "value": 13263246.216099795,
+     "limit": 10000.0,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "tasked",
+     "entity": "net/2",
+     "test": "key",
+     "negated": false,
+     "value": "bravo",
+     "limit": [
+      "alpha",
+      "bravo"
+     ],
+     "pass": true
+    },
+    {
+     "stage": "rule",
+     "rule": "tasked",
+     "entity": "net/2",
+     "test": "key",
+     "negated": false,
+     "value": 5,
+     "limit": [
+      1.0,
+      3.0
+     ],
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "range-test",
+     "entity": "net/2",
+     "test": "source",
+     "negated": false,
+     "value": "net",
+     "limit": [
+      "range"
+     ],
+     "pass": false
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "net",
+    "uid": "3",
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "mission": "charlie",
+    "priority": 1
+   },
+   "expect": [
+    {
+     "ev": "drop",
+     "entity": "net/3",
+     "rule": "default"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "zone",
+     "entity": "net/3",
+     "test": "polygon",
+     "negated": false,
+     "value": "outside",
+     "limit": null,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "anchorage",
+     "entity": "net/3",
+     "test": "circle",
+     "negated": false,
+     "value": 13263246.216099795,
+     "limit": 10000.0,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "tasked",
+     "entity": "net/3",
+     "test": "key",
+     "negated": false,
+     "value": "charlie",
+     "limit": [
+      "alpha",
+      "bravo"
+     ],
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "range-test",
+     "entity": "net/3",
+     "test": "source",
+     "negated": false,
+     "value": "net",
+     "limit": [
+      "range"
+     ],
+     "pass": false
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "net",
+    "uid": "4",
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "priority": 1
+   },
+   "expect": [
+    {
+     "ev": "drop",
+     "entity": "net/4",
+     "rule": "default"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "zone",
+     "entity": "net/4",
+     "test": "polygon",
+     "negated": false,
+     "value": "outside",
+     "limit": null,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "anchorage",
+     "entity": "net/4",
+     "test": "circle",
+     "negated": false,
+     "value": 13263246.216099795,
+     "limit": 10000.0,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "tasked",
+     "entity": "net/4",
+     "test": "key",
+     "negated": false,
+     "value": null,
+     "limit": [
+      "alpha",
+      "bravo"
+     ],
+     "pass": false,
+     "unknown": true
+    },
+    {
+     "stage": "rule",
+     "rule": "range-test",
+     "entity": "net/4",
+     "test": "source",
+     "negated": false,
+     "value": "net",
+     "limit": [
+      "range"
+     ],
+     "pass": false
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "net",
+    "uid": "5",
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "mission": "alpha",
+    "priority": "2"
+   },
+   "expect": [
+    {
+     "ev": "drop",
+     "entity": "net/5",
+     "rule": "default"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "zone",
+     "entity": "net/5",
+     "test": "polygon",
+     "negated": false,
+     "value": "outside",
+     "limit": null,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "anchorage",
+     "entity": "net/5",
+     "test": "circle",
+     "negated": false,
+     "value": 13263246.216099795,
+     "limit": 10000.0,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "tasked",
+     "entity": "net/5",
+     "test": "key",
+     "negated": false,
+     "value": "alpha",
+     "limit": [
+      "alpha",
+      "bravo"
+     ],
+     "pass": true
+    },
+    {
+     "stage": "rule",
+     "rule": "tasked",
+     "entity": "net/5",
+     "test": "key",
+     "negated": false,
+     "value": "2",
+     "limit": [
+      1.0,
+      3.0
+     ],
+     "pass": false,
+     "unknown": true
+    },
+    {
+     "stage": "rule",
+     "rule": "range-test",
+     "entity": "net/5",
+     "test": "source",
+     "negated": false,
+     "value": "net",
+     "limit": [
+      "range"
+     ],
+     "pass": false
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "net",
+    "uid": "6",
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "mission": "bravo",
+    "priority": 3.0
+   },
+   "expect": [
+    {
+     "ev": "keep",
+     "entity": "net/6",
+     "rule": "tasked"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "zone",
+     "entity": "net/6",
+     "test": "polygon",
+     "negated": false,
+     "value": "outside",
+     "limit": null,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "anchorage",
+     "entity": "net/6",
+     "test": "circle",
+     "negated": false,
+     "value": 13263246.216099795,
+     "limit": 10000.0,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "tasked",
+     "entity": "net/6",
+     "test": "key",
+     "negated": false,
+     "value": "bravo",
+     "limit": [
+      "alpha",
+      "bravo"
+     ],
+     "pass": true
+    },
+    {
+     "stage": "rule",
+     "rule": "tasked",
+     "entity": "net/6",
+     "test": "key",
+     "negated": false,
+     "value": 3.0,
+     "limit": [
+      1.0,
+      3.0
+     ],
+     "pass": true
+    }
+   ]
+  },
+  {
+   "ingest": {
+    "track.source_id": "net",
+    "uid": "7",
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "mission": 7,
+    "priority": 1
+   },
+   "expect": [
+    {
+     "ev": "drop",
+     "entity": "net/7",
+     "rule": "default"
+    }
+   ],
+   "trace": [
+    {
+     "stage": "rule",
+     "rule": "zone",
+     "entity": "net/7",
+     "test": "polygon",
+     "negated": false,
+     "value": "outside",
+     "limit": null,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "anchorage",
+     "entity": "net/7",
+     "test": "circle",
+     "negated": false,
+     "value": 13263246.216099795,
+     "limit": 10000.0,
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "tasked",
+     "entity": "net/7",
+     "test": "key",
+     "negated": false,
+     "value": 7,
+     "limit": [
+      "alpha",
+      "bravo"
+     ],
+     "pass": false
+    },
+    {
+     "stage": "rule",
+     "rule": "range-test",
+     "entity": "net/7",
+     "test": "source",
+     "negated": false,
+     "value": "net",
+     "limit": [
+      "range"
+     ],
+     "pass": false
+    }
+   ]
+  }
+ ],
+ "snapshot": {
+  "entities": {
+   "net/1": {
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "course": null,
+    "speed_ms": null,
+    "stale_ms": null,
+    "kept_ms": 0
+   },
+   "net/2": {
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "course": null,
+    "speed_ms": null,
+    "stale_ms": null,
+    "kept_ms": null
+   },
+   "net/3": {
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "course": null,
+    "speed_ms": null,
+    "stale_ms": null,
+    "kept_ms": null
+   },
+   "net/4": {
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "course": null,
+    "speed_ms": null,
+    "stale_ms": null,
+    "kept_ms": null
+   },
+   "net/5": {
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "course": null,
+    "speed_ms": null,
+    "stale_ms": null,
+    "kept_ms": null
+   },
+   "net/6": {
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "course": null,
+    "speed_ms": null,
+    "stale_ms": null,
+    "kept_ms": 0
+   },
+   "net/7": {
+    "time_ms": 0,
+    "lat": 40.0,
+    "lon": 10.0,
+    "course": null,
+    "speed_ms": null,
+    "stale_ms": null,
+    "kept_ms": null
+   }
+  }
+ }
+}

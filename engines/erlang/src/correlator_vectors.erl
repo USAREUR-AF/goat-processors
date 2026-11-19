@@ -1,15 +1,22 @@
-%% Runs every scenario vector and load vector (spec/vector-format.md).
+%% Runs every correlate scenario vector (packs/correlate-*) and correlate load
+%% vector (spec/correlate-load-vectors) (spec/vector-format.md).
 -module(correlator_vectors).
-%% compare/3 and report/2 are shared with quality_vectors.
--export([main/1, compare/3, report/2]).
+-export([main/1]).
+%% Shared with filter_vectors, fuse_vectors and quality_vectors: reading, reporting and the
+%% structural comparison of spec/vector-format.md.
+-export([read/1, report/2, summarize/2, compare/3]).
 
 main([Root]) ->
-    Scenarios = lists:sort(filelib:wildcard(filename:join(Root, "packs/correlate-*/vectors/*.json"))),
+    Scenarios = lists:sort(filelib:wildcard(
+                             filename:join(Root, "packs/correlate-*/vectors/*.json"))),
     Loads = lists:sort(filelib:wildcard(filename:join(Root, "spec/correlate-load-vectors/*.json"))),
-    Results = [scenario(Root, F) || F <- Scenarios] ++ [load(F) || F <- Loads],
+    summarize("correlate", [scenario(Root, F) || F <- Scenarios] ++ [load(F) || F <- Loads]).
+
+%% Prints the summary line and halts, non-zero when any vector failed.
+summarize(Label, Results) ->
     Failed = [R || R <- Results, R =/= ok],
-    io:format("correlate: ~b vectors, ~b passed, ~b failed~n",
-              [length(Results), length(Results) - length(Failed), length(Failed)]),
+    io:format("~s: ~b vectors, ~b passed, ~b failed~n",
+              [Label, length(Results), length(Results) - length(Failed), length(Failed)]),
     halt(case Failed of [] -> 0; _ -> 1 end).
 
 read(File) ->

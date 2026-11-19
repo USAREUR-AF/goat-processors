@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 500" width="880" height="500" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, &apos;Segoe UI&apos;, &apos;Noto Sans&apos;, Helvetica, Arial, sans-serif">
+<title id="t">Seven engines, written apart, must give the same answer on every vector</title>
+<desc id="d">32 scenario vectors (152 steps, 472 trace records) and 21 load vectors sit at the center. each generator under tools/ states its decisions by hand and the Python engine computes the numbers; the Rust, Go, Java, C++, Erlang, Zig engines are written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#7d8590"/></marker></defs>
+<rect width="100%" height="100%" rx="12" fill="#0d1117"/>
+<text x="24" y="38" font-size="20" fill="#e6edf3" text-anchor="start" font-weight="600">Seven engines, written apart, must give the same answer on every vector</text>
+<text x="24" y="62" font-size="14" fill="#9198a1" text-anchor="start">Each engine reads the specification and the vectors only. A disagreement is filed, not patched.</text>
+<rect x="322" y="212" width="236" height="124" rx="8" fill="#132c4c" stroke="#4493f8" stroke-width="2"/>
+<text x="440" y="244" font-size="15" fill="#e6edf3" text-anchor="middle" font-weight="600" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">packs/*/vectors</text>
+<text x="440" y="270" font-size="14" fill="#e6edf3" text-anchor="middle">32 vectors · 152 steps</text>
+<text x="440" y="292" font-size="14" fill="#e6edf3" text-anchor="middle">472 trace records</text>
+<text x="440" y="314" font-size="14" fill="#9198a1" text-anchor="middle">+ 21 load vectors</text>
+<rect x="366" y="90" width="148" height="56" rx="8" fill="#12261e" stroke="#3fb950" stroke-width="1.5"/>
+<text x="440" y="113" font-size="15" fill="#e6edf3" text-anchor="middle" font-weight="600">Python</text>
+<text x="440" y="134" font-size="13" fill="#9198a1" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">engines/python</text>
+<line x1="440" y1="152" x2="440" y2="206" stroke="#3fb950" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="614.6" y="148.7" width="148" height="56" rx="8" fill="#161b22" stroke="#3d444d" stroke-width="1.5"/>
+<text x="688.6" y="171.7" font-size="15" fill="#e6edf3" text-anchor="middle" font-weight="600">Rust</text>
+<text x="688.6" y="192.7" font-size="13" fill="#9198a1" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">engines/rust</text>
+<line x1="564" y1="225.5" x2="608.6" y2="208" stroke="#7d8590" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="676" y="280.7" width="148" height="56" rx="8" fill="#161b22" stroke="#3d444d" stroke-width="1.5"/>
+<text x="750" y="303.7" font-size="15" fill="#e6edf3" text-anchor="middle" font-weight="600">Go</text>
+<text x="750" y="324.7" font-size="13" fill="#9198a1" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">engines/go</text>
+<line x1="564" y1="287.9" x2="670" y2="299.8" stroke="#7d8590" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="504" y="386.6" width="148" height="56" rx="8" fill="#161b22" stroke="#3d444d" stroke-width="1.5"/>
+<text x="578" y="409.6" font-size="15" fill="#e6edf3" text-anchor="middle" font-weight="600">Java</text>
+<text x="578" y="430.6" font-size="13" fill="#9198a1" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">engines/java</text>
+<line x1="506.8" y1="342" x2="544.6" y2="380.6" stroke="#7d8590" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="228" y="386.6" width="148" height="56" rx="8" fill="#161b22" stroke="#3d444d" stroke-width="1.5"/>
+<text x="302" y="409.6" font-size="15" fill="#e6edf3" text-anchor="middle" font-weight="600">C++</text>
+<text x="302" y="430.6" font-size="13" fill="#9198a1" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">engines/cpp</text>
+<line x1="373.2" y1="342" x2="335.4" y2="380.6" stroke="#7d8590" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="56" y="280.7" width="148" height="56" rx="8" fill="#161b22" stroke="#3d444d" stroke-width="1.5"/>
+<text x="130" y="303.7" font-size="15" fill="#e6edf3" text-anchor="middle" font-weight="600">Erlang</text>
+<text x="130" y="324.7" font-size="13" fill="#9198a1" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">engines/erlang</text>
+<line x1="316" y1="287.9" x2="210" y2="299.8" stroke="#7d8590" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="117.4" y="148.7" width="148" height="56" rx="8" fill="#161b22" stroke="#3d444d" stroke-width="1.5"/>
+<text x="191.4" y="171.7" font-size="15" fill="#e6edf3" text-anchor="middle" font-weight="600">Zig</text>
+<text x="191.4" y="192.7" font-size="13" fill="#9198a1" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">engines/zig</text>
+<line x1="316" y1="225.5" x2="271.4" y2="208" stroke="#7d8590" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="24" y="460" width="18" height="18" rx="4" fill="#12261e" stroke="#3fb950" stroke-width="1"/>
+<text x="50" y="474" font-size="14" fill="#e6edf3" text-anchor="start">reference: writes the vectors' numbers</text>
+<line x1="386" y1="469" x2="414" y2="469" stroke="#7d8590" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="424" y="474" font-size="14" fill="#e6edf3" text-anchor="start">checks: must reproduce each one, numbers within 1e-6</text>
+</svg>

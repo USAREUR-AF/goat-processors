@@ -1,0 +1,5 @@
+{
+ "name": "11-pack-two-tokens",
+ "pack_def": "pack x y\nversion 0.1.0\ndefault keep\nforget_ms 1000\n",
+ "expect_error": true
+}

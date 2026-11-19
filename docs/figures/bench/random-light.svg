@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="778" height="324" viewBox="0 0 778 324" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="Seeded random set: 50 scenarios pooled">
+<rect width="100%" height="100%" fill="#fcfcfb"/>
+<text x="16" y="26" font-size="15" font-weight="600" fill="#0b0b0b">Seeded random set: 50 scenarios pooled</text>
+<text x="16" y="45" font-size="12" fill="#52514e">each panel has its own scale</text>
+<text x="16" y="70" font-size="12" font-weight="600" fill="#0b0b0b">Pairwise F1</text>
+<text x="16" y="84" font-size="11" fill="#898781">higher is better</text>
+<text x="16" y="105" font-size="11" fill="#52514e">gnn</text>
+<rect x="78" y="94" width="105.0" height="14" rx="2" fill="#2a78d6"><title>gnn Pairwise F1: 0.820</title></rect>
+<text x="187.0" y="105" font-size="11" fill="#0b0b0b">0.820</text>
+<text x="16" y="125" font-size="11" fill="#52514e">window</text>
+<rect x="78" y="114" width="119.6" height="14" rx="2" fill="#eb6834"><title>window Pairwise F1: 0.934</title></rect>
+<text x="201.6" y="125" font-size="11" fill="#0b0b0b">0.934</text>
+<text x="16" y="145" font-size="11" fill="#52514e">distance</text>
+<rect x="78" y="134" width="103.3" height="14" rx="2" fill="#1baf7a"><title>distance Pairwise F1: 0.807</title></rect>
+<text x="185.3" y="145" font-size="11" fill="#0b0b0b">0.807</text>
+<text x="16" y="165" font-size="11" fill="#52514e">assign</text>
+<rect x="78" y="154" width="91.5" height="14" rx="2" fill="#eda100"><title>assign Pairwise F1: 0.715</title></rect>
+<text x="173.5" y="165" font-size="11" fill="#0b0b0b">0.715</text>
+<text x="270" y="70" font-size="12" font-weight="600" fill="#0b0b0b">False merges</text>
+<text x="270" y="84" font-size="11" fill="#898781">lower is better</text>
+<text x="270" y="105" font-size="11" fill="#52514e">gnn</text>
+<rect x="332" y="94" width="97.6" height="14" rx="2" fill="#2a78d6"><title>gnn False merges: 61</title></rect>
+<text x="433.6" y="105" font-size="11" fill="#0b0b0b">61</text>
+<text x="270" y="125" font-size="11" fill="#52514e">window</text>
+<rect x="332" y="114" width="123.2" height="14" rx="2" fill="#eb6834"><title>window False merges: 77</title></rect>
+<text x="459.2" y="125" font-size="11" fill="#0b0b0b">77</text>
+<text x="270" y="145" font-size="11" fill="#52514e">distance</text>
+<rect x="332" y="134" width="33.6" height="14" rx="2" fill="#1baf7a"><title>distance False merges: 21</title></rect>
+<text x="369.6" y="145" font-size="11" fill="#0b0b0b">21</text>
+<text x="270" y="165" font-size="11" fill="#52514e">assign</text>
+<rect x="332" y="154" width="24.0" height="14" rx="2" fill="#eda100"><title>assign False merges: 15</title></rect>
+<text x="360.0" y="165" font-size="11" fill="#0b0b0b">15</text>
+<text x="524" y="70" font-size="12" font-weight="600" fill="#0b0b0b">Identity swaps</text>
+<text x="524" y="84" font-size="11" fill="#898781">lower is better</text>
+<text x="524" y="105" font-size="11" fill="#52514e">gnn</text>
+<rect x="586" y="94" width="19.6" height="14" rx="2" fill="#2a78d6"><title>gnn Identity swaps: 23</title></rect>
+<text x="609.6" y="105" font-size="11" fill="#0b0b0b">23</text>
+<text x="524" y="125" font-size="11" fill="#52514e">window</text>
+<rect x="586" y="114" width="14.5" height="14" rx="2" fill="#eb6834"><title>window Identity swaps: 17</title></rect>
+<text x="604.5" y="125" font-size="11" fill="#0b0b0b">17</text>
+<text x="524" y="145" font-size="11" fill="#52514e">distance</text>
+<rect x="586" y="134" width="11.9" height="14" rx="2" fill="#1baf7a"><title>distance Identity swaps: 14</title></rect>
+<text x="601.9" y="145" font-size="11" fill="#0b0b0b">14</text>
+<text x="524" y="165" font-size="11" fill="#52514e">assign</text>
+<rect x="586" y="154" width="110.9" height="14" rx="2" fill="#eda100"><title>assign Identity swaps: 130</title></rect>
+<text x="700.9" y="165" font-size="11" fill="#0b0b0b">130</text>
+<text x="16" y="194" font-size="12" font-weight="600" fill="#0b0b0b">Position error RMS, m</text>
+<text x="16" y="208" font-size="11" fill="#898781">lower is better</text>
+<text x="16" y="229" font-size="11" fill="#52514e">gnn</text>
+<rect x="78" y="218" width="70.8" height="14" rx="2" fill="#2a78d6"><title>gnn Position error RMS, m: 553.3</title></rect>
+<text x="152.8" y="229" font-size="11" fill="#0b0b0b">553.3</text>
+<text x="16" y="249" font-size="11" fill="#52514e">window</text>
+<rect x="78" y="238" width="65.1" height="14" rx="2" fill="#eb6834"><title>window Position error RMS, m: 508.5</title></rect>
+<text x="147.1" y="249" font-size="11" fill="#0b0b0b">508.5</text>
+<text x="16" y="269" font-size="11" fill="#52514e">distance</text>
+<rect x="78" y="258" width="123.2" height="14" rx="2" fill="#1baf7a"><title>distance Position error RMS, m: 962.4</title></rect>
+<text x="205.2" y="269" font-size="11" fill="#0b0b0b">962.4</text>
+<text x="16" y="289" font-size="11" fill="#52514e">assign</text>
+<rect x="78" y="278" width="75.2" height="14" rx="2" fill="#eda100"><title>assign Position error RMS, m: 587.4</title></rect>
+<text x="157.2" y="289" font-size="11" fill="#0b0b0b">587.4</text>
+<text x="270" y="194" font-size="12" font-weight="600" fill="#0b0b0b">GOSPA, m</text>
+<text x="270" y="208" font-size="11" fill="#898781">lower is better</text>
+<text x="270" y="229" font-size="11" fill="#52514e">gnn</text>
+<rect x="332" y="218" width="106.1" height="14" rx="2" fill="#2a78d6"><title>gnn GOSPA, m: 414.5</title></rect>
+<text x="442.1" y="229" font-size="11" fill="#0b0b0b">414.5</text>
+<text x="270" y="249" font-size="11" fill="#52514e">window</text>
+<rect x="332" y="238" width="78.9" height="14" rx="2" fill="#eb6834"><title>window GOSPA, m: 308.1</title></rect>
+<text x="414.9" y="249" font-size="11" fill="#0b0b0b">308.1</text>
+<text x="270" y="269" font-size="11" fill="#52514e">distance</text>
+<rect x="332" y="258" width="107.0" height="14" rx="2" fill="#1baf7a"><title>distance GOSPA, m: 418.1</title></rect>
+<text x="443.0" y="269" font-size="11" fill="#0b0b0b">418.1</text>
+<text x="270" y="289" font-size="11" fill="#52514e">assign</text>
+<rect x="332" y="278" width="121.5" height="14" rx="2" fill="#eda100"><title>assign GOSPA, m: 474.7</title></rect>
+<text x="457.5" y="289" font-size="11" fill="#0b0b0b">474.7</text>
+</svg>
