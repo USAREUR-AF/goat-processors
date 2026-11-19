@@ -1,4 +1,4 @@
-%% Quality pack: load and parse pack.def (quality.md "Pack").
+%% Quality pack: load and parse pack.def (quality.md 0.2 "Pack").
 -module(quality_pack).
 -export([load_pack/1, parse/1, entity_measures/0, source_measures/0]).
 
@@ -6,9 +6,12 @@
 %% table order. A source has every entity measure plus `entities`.
 -define(ENTITY_MEASURES,
         [<<"reports">>, <<"interval_last">>, <<"interval_mean">>, <<"interval_max">>,
-         <<"age">>, <<"latency_mean">>, <<"latency_max">>, <<"nis_mean">>,
-         <<"speed_err_mean">>, <<"out_of_order">>, <<"duplicate">>, <<"missing_ce">>,
-         <<"missing_vel">>, <<"missing_hae">>]).
+         <<"age">>, <<"latency_mean">>, <<"latency_max">>,
+         <<"lateness_mean">>, <<"lateness_max">>, <<"lateness_min">>, <<"nis_mean">>,
+         <<"speed_err_mean">>, <<"out_of_order">>, <<"duplicate">>,
+         <<"source_out_of_order">>, <<"missing_ce">>, <<"missing_vel">>, <<"missing_hae">>,
+         <<"time_error_mean">>, <<"time_error_max">>, <<"time_state_last">>,
+         <<"time_state_worst">>, <<"missing_time">>]).
 
 entity_measures() -> ?ENTITY_MEASURES.
 source_measures() -> ?ENTITY_MEASURES ++ [<<"entities">>].
@@ -28,10 +31,11 @@ load_pack(Dir) ->
 
 %% Returns {ok, Pack} or {error, Why}. Pack:
 %% #{name, version, filter => #{<<"accel_var">> => float, ...},
-%%   window_ms, min_samples, forget_ms, rules => [Rule] in pack order}.
+%%   window_ms, min_samples, forget_ms, rules => [Rule] in pack order,
+%%   time_default => #{Source => #{<<"error_ms">> => float, <<"state">> => State}}}.
 parse(Text) ->
     try
-        Lines = [tokens(L) || L <- binary:split(Text, [<<"\n">>], [global])],
+        Lines = [tokens(L) || L <- lines(Text)],
         {ok, build([D || D <- Lines, D =/= []])}
     catch
         throw:{pack_error, Why} -> {error, Why}
@@ -39,17 +43,38 @@ parse(Text) ->
 
 fail(Why) -> throw({pack_error, Why}).
 
-%% "#" starts a comment; tokens are separated by spaces or tabs.
+%% Pack, step 1: lines end at LF, and a final LF does not start another line;
+%% one CR at the end of a line is removed.
+lines(Text) ->
+    Parts = binary:split(Text, <<"\n">>, [global]),
+    Lines = case lists:last(Parts) of
+                <<>> -> lists:droplast(Parts);
+                _ -> Parts
+            end,
+    [strip_cr(L) || L <- Lines].
+
+strip_cr(L) ->
+    case binary:last(<<0, L/binary>>) of
+        $\r -> binary:part(L, 0, byte_size(L) - 1);
+        _ -> L
+    end.
+
+%% Pack, steps 2 to 5: a control character other than tab (U+0000 to U+001F,
+%% or U+007F; a CR left inside the line is one) is a load error; "#" starts a
+%% comment; tokens are separated by runs of space and tab only, which also
+%% removes them at the start and end; a line left empty gives no tokens.
 tokens(Line) ->
+    [fail({control_character, C}) || <<C>> <= Line, (C < 16#20 andalso C =/= $\t) orelse C =:= 16#7F],
     [Code | _] = binary:split(Line, <<"#">>),
     binary:split(Code, [<<" ">>, <<"\t">>], [global, trim_all]).
 
 %% `pack`, `version`, `filter`, `window` required, once; `rule` repeats.
 build(Directives) ->
     Names = [N || [N | _] <- Directives],
-    [fail({unknown_directive, N}) || N <- Names, not lists:member(N, [<<"rule">> | ?ONCE])],
+    [fail({unknown_directive, N}) || N <- Names,
+                                     not lists:member(N, [<<"rule">>, <<"time_default">> | ?ONCE])],
     [fail({repeated_or_missing, N}) || N <- ?ONCE, count(N, Names) =/= 1],
-    P = lists:foldl(fun directive/2, #{rules => []}, Directives),
+    P = lists:foldl(fun directive/2, #{rules => [], time_default => #{}}, Directives),
     P#{rules := lists:reverse(maps:get(rules, P))}.
 
 count(N, Names) -> length([X || X <- Names, X =:= N]).
@@ -59,6 +84,9 @@ directive([<<"version">>, V], P) -> P#{version => V};
 directive([<<"filter">> | Ps], P) -> P#{filter => filter(params(Ps, ?FILTER_PARAMS, []))};
 directive([<<"window">> | Ps], P) -> maps:merge(P, window(params(Ps, ?WINDOW_PARAMS, [])));
 directive([<<"rule">> | Ts], P = #{rules := Rules}) -> P#{rules := [rule(Ts, Rules) | Rules]};
+%% time_default: correlate.md "Pack" grammar, error_ms in this pack's number grammar.
+directive([<<"time_default">> | Ts], P = #{time_default := Defaults}) ->
+    P#{time_default := correlator_pack:time_default_line(Ts, Defaults, fun number/1)};
 directive(D, _) -> fail({values, D}).
 
 %% filter: numbers; accel_var >= 0, the others > 0.
@@ -129,13 +157,18 @@ params(Tokens, Required, Optional) ->
     [fail({missing_param, K}) || K <- Required, not lists:member(K, Keys)],
     maps:from_list(Pairs).
 
-%% A number is -?[0-9]+(\.[0-9]+)?, read as the nearest binary64.
+%% A number is -?[0-9]+(\.[0-9]+)?, read as the nearest binary64; one whose
+%% nearest binary64 is infinite is a load error (binary_to_float raises
+%% badarg on it).
 number(B) ->
     case re:run(B, <<"^-?[0-9]+(\\.[0-9]+)?$">>, [{capture, none}]) of
         match ->
-            case binary:match(B, <<".">>) of
-                nomatch -> binary_to_float(<<B/binary, ".0">>);
-                _ -> binary_to_float(B)
+            Text = case binary:match(B, <<".">>) of
+                       nomatch -> <<B/binary, ".0">>;
+                       _ -> B
+                   end,
+            try binary_to_float(Text)
+            catch error:badarg -> fail({not_finite, B})
             end;
         nomatch -> fail({not_a_number, B})
     end.

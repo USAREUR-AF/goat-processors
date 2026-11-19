@@ -31,9 +31,12 @@ An implementation of `spec/correlate.md` (version 0.8), method `confirm`, and
 `spec/correlate-assign.md` (version 0.6), method `assign`, in Erlang/OTP, standard library
 only. The pack's `method` line selects which runs. JSON is read with OTP 27's `json` module.
 
-It also implements `spec/quality.md` (version 0.1), function quality, as its own
-modules (`quality*.erl`), reusing `correlator_filter` for the frame and the filter that
-quality.md cites from correlate.md.
+It also implements `spec/quality.md` (version 0.2), function quality, as its own
+modules (`quality*.erl`), reusing what quality.md cites from correlate.md:
+`correlator_filter` for the frame and the filter, `correlator:time_keys/2` for steps 1
+and 2 of reading `time_error_ms` and `time_state`, and
+`correlator_pack:time_default_line/3` for the `time_default` line (with quality's own
+number grammar).
 
 | File | Contents |
 |---|---|
@@ -43,8 +46,8 @@ quality.md cites from correlate.md.
 | `src/correlator_filter.erl` | the local plane frame and the two-axis constant-velocity Kalman filter, with a measurement variance per axis |
 | `src/correlator_pack.erl` | `pack.def` parsing and validation |
 | `src/correlator_vectors.erl` | the correlate vector runner, and the reading, reporting and structural comparison of `spec/vector-format.md` that the filter, fuse and quality runners share |
-| `src/quality.erl` | quality: `load_pack/1`, `new/1`, `ingest/2`, `tick/2`, `snapshot/1`: reports, order, samples, window, entity and source measures, rules, forwarding, tick, events, trace, snapshot |
-| `src/quality_pack.erl` | quality `pack.def` parsing and validation |
+| `src/quality.erl` | quality: `load_pack/1`, `new/1`, `ingest/2`, `tick/2`, `snapshot/1`: reports and their time quality, order, input clock, samples, window, entity and source measures, rules, forwarding (with the overflow clamp of a forwarded `ce`), tick, events, trace, snapshot |
+| `src/quality_pack.erl` | quality `pack.def` parsing and validation: line ends, control characters, the `time_default` line, finite numbers |
 | `src/quality_vectors.erl` | the quality vector runner |
 
 The engine state is a value: `ingest(Report, State)` and `tick(NowMs, State)`
