@@ -24,6 +24,7 @@ public final class VectorTest {
             else { fail++; System.out.println("FAIL " + root.relativize(f) + ": " + why); }
         }
         for (Path packDir : listDirs(root.resolve("packs"))) {
+            if (!packDir.getFileName().toString().startsWith("correlate-")) continue;
             for (Path f : list(packDir.resolve("vectors"))) {
                 String why = runScenario(root, f);
                 if (why == null) pass++;

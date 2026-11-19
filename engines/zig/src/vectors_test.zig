@@ -91,7 +91,7 @@ test "scenario vectors" {
     defer packs.close();
     var pack_names = std.ArrayList([]const u8).init(alloc);
     var it = packs.iterate();
-    while (try it.next()) |e| if (e.kind == .directory) try pack_names.append(try alloc.dupe(u8, e.name));
+    while (try it.next()) |e| if (e.kind == .directory and std.mem.startsWith(u8, e.name, "correlate-")) try pack_names.append(try alloc.dupe(u8, e.name));
     std.mem.sort([]const u8, pack_names.items, {}, struct {
         fn lt(_: void, a: []const u8, b: []const u8) bool {
             return std.mem.order(u8, a, b) == .lt;

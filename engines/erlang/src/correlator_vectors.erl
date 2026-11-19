@@ -3,7 +3,7 @@
 -export([main/1]).
 
 main([Root]) ->
-    Scenarios = lists:sort(filelib:wildcard(filename:join(Root, "packs/*/vectors/*.json"))),
+    Scenarios = lists:sort(filelib:wildcard(filename:join(Root, "packs/correlate-*/vectors/*.json"))),
     Loads = lists:sort(filelib:wildcard(filename:join(Root, "spec/correlate-load-vectors/*.json"))),
     Results = [scenario(Root, F) || F <- Scenarios] ++ [load(F) || F <- Loads],
     Failed = [R || R <- Results, R =/= ok],

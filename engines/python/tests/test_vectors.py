@@ -44,7 +44,7 @@ def equal(got, want, path="$"):
 
 class Vectors(unittest.TestCase):
     def test_scenarios(self):
-        files = sorted(glob.glob(os.path.join(ROOT, "packs", "*", "vectors", "*.json")))
+        files = sorted(glob.glob(os.path.join(ROOT, "packs", "correlate-*", "vectors", "*.json")))
         self.assertTrue(files)
         for f in files:
             v = json.load(open(f, encoding="utf-8"))

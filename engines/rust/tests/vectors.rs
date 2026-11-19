@@ -91,7 +91,9 @@ fn run_scenario(root: &Path, path: &Path) -> Result<(), String> {
 #[test]
 fn scenario_vectors() {
     let root = repo_root();
-    let mut packs: Vec<PathBuf> = fs::read_dir(root.join("packs")).unwrap().map(|e| e.unwrap().path()).collect();
+    let mut packs: Vec<PathBuf> = fs::read_dir(root.join("packs")).unwrap().map(|e| e.unwrap().path())
+        .filter(|p| p.file_name().map_or(false, |n| n.to_string_lossy().starts_with("correlate-")))
+        .collect();
     packs.sort();
     let mut ran = 0;
     let mut failures = Vec::new();

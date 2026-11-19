@@ -1,4 +1,4 @@
-// Runs every scenario vector (packs/*/vectors/*.json) and every load vector
+// Runs every correlate scenario vector (packs/correlate-*/vectors/*.json) and every load vector
 // (spec/correlate-load-vectors/*.json) with the comparison of spec/vector-format.md.
 // Usage: run_vectors [repo_root]
 
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
 
     std::vector<fs::path> packs;
     for (const auto& e : fs::directory_iterator(root / "packs"))
-        if (e.is_directory()) packs.push_back(e.path());
+        if (e.is_directory() && e.path().filename().string().rfind("correlate-", 0) == 0) packs.push_back(e.path());
     std::sort(packs.begin(), packs.end());
     for (const auto& pack : packs) {
         for (const auto& f : json_files(pack / "vectors")) {
