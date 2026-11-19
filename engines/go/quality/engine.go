@@ -24,6 +24,10 @@ type record struct {
 	wt, timeMs        int64
 	order             string
 	interval, latency *int64
+	lateness          any // int64, float64 (clock a mean of two values), or nil
+	timeError         *float64
+	timeState         *string
+	sourceOutOfOrder  bool
 	nis, speedErr     *float64
 	ce, vel, hae      bool // presence flags
 }
@@ -145,7 +149,13 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 		trace = append(trace, sampleTrace(r.key, "order", rec.order, r.t, e.last))
 	}
 
-	// Take the samples, in table order (spec: Samples).
+	// Build the input clock and the source latest, from the entities as they
+	// are before this report (spec: Input clock).
+	clock := g.inputClock(r.source)
+	latest, hasLatest := g.sourceLatest(r.source)
+	tq := g.resolveTimeQuality(r.source, report)
+
+	// Take the samples, in the order of spec: Ingest.
 	var predE, predN correlator.Axis
 	if rec.order == orderAdvance {
 		interval := r.t - e.last
@@ -157,6 +167,28 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 		rec.latency = &latency
 		trace = append(trace, sampleTrace(r.key, "latency", latency, r.received, r.t))
 	}
+	if clock != nil {
+		rec.lateness = lateness(clock, r.t)
+		trace = append(trace, sampleTrace(r.key, "lateness", rec.lateness, clock, r.t))
+	}
+	if te, stated := tq.timeError(); stated {
+		rec.timeError = &te
+		trace = append(trace, sampleTrace(r.key, "time_error", te, tq.errorReport, tq.errorDefault))
+	}
+	if ts, stated := tq.timeState(); stated {
+		rec.timeState = &ts
+		trace = append(trace, sampleTrace(r.key, "time_state", ts, tq.stateReport, tq.stateDefault))
+	}
+	sourceOrder := "in-order"
+	var latestInput any // null when the source has no entity
+	if hasLatest {
+		latestInput = latest
+		if r.t < latest {
+			sourceOrder = "out-of-order"
+		}
+	}
+	rec.sourceOutOfOrder = sourceOrder == "out-of-order"
+	trace = append(trace, sampleTrace(r.key, "source_order", sourceOrder, r.t, latestInput))
 	if rec.order == orderAdvance {
 		dt := float64(r.t-e.last) / 1000
 		predE, predN = e.east.Predict(dt, p.AccelVar), e.north.Predict(dt, p.AccelVar)
@@ -211,14 +243,16 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 
 func rad(x float64) float64 { return x * math.Pi / 180 }
 
-// inForce returns the rules whose actions are in force for the entity's
-// reports, other than alert, in pack order (spec: Rules, Actions).
-func (g *Engine) inForce(e *entity) []Rule {
+// inForce returns the rules whose actions are in force for a report of the
+// entity from source, other than alert, in pack order (spec: Rules, Actions).
+// A source rule is taken for the report's own track.source_id, which differs
+// from the entity's source when keys collide (spec: Reports).
+func (g *Engine) inForce(e *entity, source string) []Rule {
 	var out []Rule
 	for i, rule := range g.pack.Rules {
 		subject := e.key
 		if rule.Scope == "source" {
-			subject = e.source
+			subject = source
 		}
 		if st := g.states[i][subject]; st != nil && st.active && rule.Action != "alert" {
 			out = append(out, rule)
@@ -229,7 +263,7 @@ func (g *Engine) inForce(e *entity) []Rule {
 
 // forward builds the pass event (spec: Forwarding).
 func (g *Engine) forward(e *entity, report map[string]any, r reading) Obj {
-	rules := g.inForce(e)
+	rules := g.inForce(e, r.source)
 	names := []any{}
 	var withheld, downgrade, mark bool
 	for _, rule := range rules {
@@ -259,6 +293,9 @@ func (g *Engine) forward(e *entity, report map[string]any, r reading) Obj {
 			if rule.Action == "downgrade" {
 				x = x * rule.Factor
 			}
+		}
+		if math.IsInf(x, 1) {
+			x = math.MaxFloat64 // the largest finite binary64
 		}
 		out["ce"] = x
 	}
