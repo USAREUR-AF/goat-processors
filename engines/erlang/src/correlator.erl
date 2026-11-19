@@ -10,7 +10,7 @@
 %% their type. A key of the wrong type is missing (required) or absent (optional).
 -define(REQUIRED, [{<<"track.source_id">>, string}, {<<"uid">>, string},
                    {<<"time_ms">>, integer}, {<<"lat">>, number}, {<<"lon">>, number}]).
--define(OPTIONAL, [{<<"hae">>, number}, {<<"ce">>, number}, {<<"course">>, number},
+-define(OPTIONAL, [{<<"hae">>, number}, {<<"ce">>, positive}, {<<"course">>, number},
                    {<<"speed_ms">>, number}, {<<"type">>, string}, {<<"stale_ms">>, integer}]).
 
 load_pack(Dir) -> correlator_pack:load_pack(Dir).
@@ -53,6 +53,8 @@ ingest(Report0, St) ->
             end
     end.
 
+%% A ce of 0 or below is absent.
+typed(positive, V) -> is_number(V) andalso V > 0;
 typed(string, V) -> is_binary(V);
 typed(integer, V) -> is_integer(V);
 typed(number, V) -> is_number(V).
@@ -207,7 +209,12 @@ run_test({<<"altitude">>, #{<<"max_m">> := Max}}, {EA, EB, _}, _St) ->
 run_test({<<"same">>, #{<<"key">> := K}}, {EA, EB, _}, _St) ->
     VA = value(K, EA),
     VB = value(K, EB),
-    result(<<"same">>, VA, VB, VA == VB).
+    result(<<"same">>, VA, VB, same(VA, VB)).
+
+%% same: numbers by value (1 equals 1.0), strings byte for byte, a string
+%% never equals a number; null (absent) equals only null.
+same(VA, VB) when is_number(VA), is_number(VB) -> VA == VB;
+same(VA, VB) -> VA =:= VB.
 
 %% Course and speed tests: skipped unless both entities have speed_ms (and,
 %% for course, course) with speed at least min_speed_ms.

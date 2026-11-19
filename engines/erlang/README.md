@@ -1,6 +1,6 @@
 # goat-correlator: Erlang engine
 
-An implementation of `spec/correlate.md` (version 0.2) in Erlang/OTP, standard library
+An implementation of `spec/correlate.md` (version 0.3) in Erlang/OTP, standard library
 only. JSON is read with OTP 27's `json` module.
 
 | File | Contents |
@@ -9,7 +9,6 @@ only. JSON is read with OTP 27's `json` module.
 | `src/correlator_filter.erl` | the local plane frame and the two-axis constant-velocity Kalman filter |
 | `src/correlator_pack.erl` | `pack.def` parsing and validation |
 | `src/correlator_vectors.erl` | the vector runner |
-| `DISAGREEMENTS.md` | vector/spec disagreements, and how points still open under 0.2 are resolved |
 
 The engine state is a value: `ingest(Report, State)` and `tick(NowMs, State)`
 return `{Events, Trace, NewState}`.
