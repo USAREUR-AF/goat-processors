@@ -24,7 +24,7 @@ python3 -I tools/explain/explain.py --all /tmp/vectors
 | Snapshot | the engine's whole state after the step, as an expandable tree |
 | Rules | the pack's `pack.def` |
 
-The plan is in metres east and north of the first accepted report, the plane
+The plan is in meters east and north of the first accepted report, the plane
 `spec/correlate.md` defines. A filter estimate is drawn at the time of its
 entity's last report.
 

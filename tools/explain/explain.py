@@ -27,7 +27,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-R = 6371008.8          # mean Earth radius, metres; the plane of spec/correlate.md
+R = 6371008.8          # mean Earth radius, meters; the plane of spec/correlate.md
 TOL = 1e-6             # spec/vector-format.md number tolerance
 
 # Function prefix of a pack name -> Python engine module under engines/python/src.

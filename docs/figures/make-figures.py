@@ -283,7 +283,7 @@ def fig_decision():
             "(d² = %s, limit %s). Every confirm test passes, so the engine emits %s with group %s, members %s."
             % (d["name"], step + 1, a_key, num(a["last_time_ms"] / 1000), b_key, num(gate["value"]),
                num(gate["limit"]), event["ev"], event["group"], ", ".join(event["members"])))
-    header(f, title, "Vector %s, step %d, replayed through engines/python. Plan in metres." % (d["name"], step + 1))
+    header(f, title, "Vector %s, step %d, replayed through engines/python. Plan in meters." % (d["name"], step + 1))
     px, py, pw, ph = 24, 88, 400, 428
     f.rect(px, py, pw, ph)
     pad = 1.12
