@@ -2,8 +2,8 @@
 
 ## Vectors that contradict the specification
 
-None. Every load vector (01 to 21) and every scenario vector (01 to 32)
-agrees with `spec/correlate.md` 0.4 and `spec/correlate-assign.md` 0.2 as
+None. Every load vector (01 to 42) and every scenario vector (01 to 44)
+agrees with `spec/correlate.md` 0.5 and `spec/correlate-assign.md` 0.3 as
 this engine reads them.
 
 ## Filter: vectors that contradict `filter.md` 0.1
@@ -21,13 +21,11 @@ None. Every filter load vector (01 to 50) and every filter scenario vector
 | Differences of two times (`near` age, `interval`, tick `age`) that overflow int64 | Computed in i128; a trace value outside int64 is written as a float. |
 | `version` | Any single token is accepted (load vector 03 uses `version 1`); no semver check. |
 
-## Points `correlate-assign.md` 0.2 leaves open
+## Points `correlate-assign.md` 0.3 leaves open
 
-| Point | This engine |
-|---|---|
-| Order of the `gate` trace records within a source. The spec places the `cost` records "after a source's entries are computed", but does not order the gate records among themselves. | Entities of R in key order, then columns in creation order, then T's others in key order; all before the first `cost` record. Vectors 23, 25 and 31 agree. |
+None found. (The gate-record order left open in 0.2 is now stated in Trace.)
 
-## Points `correlate.md` 0.4 leaves open
+## Points `correlate.md` 0.5 leaves open
 
 | Point | This engine |
 |---|---|

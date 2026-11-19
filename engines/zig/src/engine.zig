@@ -5,6 +5,7 @@ const Allocator = std.mem.Allocator;
 const pack_mod = @import("pack.zig");
 const frame = @import("frame.zig");
 const kalman = @import("kalman.zig");
+const imm = @import("imm.zig");
 const entity_mod = @import("entity.zig");
 const pair_tests = @import("pair_tests.zig");
 const assign = @import("assign.zig");
@@ -39,9 +40,10 @@ pub const Engine = struct {
     groups: std.ArrayList(Group),
     counts: std.ArrayList(PairCount),
     next_group: u64 = 1,
-    // correlate-assign.md: system tracks reuse `groups`, `next_group` and `Entity.group`;
-    // `reported` holds the entities with an accepted report since the previous tick.
+    // correlate-assign.md: `reported` holds the entities with an accepted report
+    // since the previous tick; `assign_state` the memberships and histories.
     reported: std.StringArrayHashMap(void),
+    assign_state: assign.State,
 
     pub fn create(backing: Allocator, pack: Pack) !*Engine {
         const self = try backing.create(Engine);
@@ -52,12 +54,14 @@ pub const Engine = struct {
             .groups = undefined,
             .counts = undefined,
             .reported = undefined,
+            .assign_state = undefined,
         };
         const a = self.arena.allocator();
         self.entities = std.StringArrayHashMap(Entity).init(a);
         self.groups = std.ArrayList(Group).init(a);
         self.counts = std.ArrayList(PairCount).init(a);
         self.reported = std.StringArrayHashMap(void).init(a);
+        self.assign_state = try assign.State.init(a);
         return self;
     }
 
@@ -176,6 +180,11 @@ pub const Engine = struct {
         }
 
         const key = try std.fmt.allocPrint(self.alloc(), "{s}/{s}", .{ source.?, uid.? });
+        // correlate-assign.md "Window": after the required keys, before out-of-order.
+        if (self.pack.method == .assign and assign.isRetiring(self, key)) {
+            try res.events.append(try self.object(.{ .{ "ev", "reject" }, .{ "entity", key }, .{ "reason", "retiring" } }));
+            return res;
+        }
         if (self.entities.get(key)) |existing| {
             if (time_ms.? < existing.last_time_ms) {
                 try res.events.append(try self.object(.{ .{ "ev", "reject" }, .{ "entity", key }, .{ "reason", "out-of-order" } }));
@@ -191,43 +200,47 @@ pub const Engine = struct {
         const ce = entity_mod.ceOf(stored) orelse f.default_ce_m;
 
         // Spec "Track estimate": velocity measurement.
-        var ve: ?f64 = null;
-        var vn: ?f64 = null;
+        var meas = kalman.Measurement{ .east = pos.east, .north = pos.north, .r_pos = ce * ce, .r_vel = f.vel_sigma_ms * f.vel_sigma_ms };
         if (entity_mod.numberOf(stored, "course")) |course| {
             if (entity_mod.numberOf(stored, "speed_ms")) |speed| {
-                ve = speed * @sin(frame.rad(course));
-                vn = speed * @cos(frame.rad(course));
+                meas.vel = .{ .east = speed * @sin(frame.rad(course)), .north = speed * @cos(frame.rad(course)) };
             }
         }
 
         const gop = try self.entities.getOrPut(key);
         if (!gop.found_existing) {
             // First report.
+            const ve: ?f64 = if (meas.vel) |v| v.east else null;
+            const vn: ?f64 = if (meas.vel) |v| v.north else null;
+            const first = kalman.Filter{
+                .east = kalman.Axis.init(pos.east, ve, ce, f.vel_sigma_ms, f.unknown_vel_ms),
+                .north = kalman.Axis.init(pos.north, vn, ce, f.vel_sigma_ms, f.unknown_vel_ms),
+            };
             gop.value_ptr.* = .{
                 .key = key,
                 .source = entity_mod.stringOf(stored, "track.source_id").?,
                 .last_time_ms = time_ms.?,
                 .report = stored,
-                .filter = .{
-                    .east = kalman.Axis.init(pos.east, ve, ce, f.vel_sigma_ms, f.unknown_vel_ms),
-                    .north = kalman.Axis.init(pos.north, vn, ce, f.vel_sigma_ms, f.unknown_vel_ms),
-                },
+                .filter = first,
+                .imm = if (self.pack.manoeuvre) |m| imm.init(m, first) else null,
                 .group = null,
                 .hold_failures = 0,
             };
             try res.events.append(try self.object(.{ .{ "ev", "new" }, .{ "entity", key } }));
         } else {
-            // Later reports: predict, position update, velocity update.
             const e = gop.value_ptr;
-            var flt = e.predictedTo(time_ms.?, f.accel_var);
-            flt.east = flt.east.updatePosition(pos.east, ce * ce);
-            flt.north = flt.north.updatePosition(pos.north, ce * ce);
-            if (ve != null) {
-                const r = f.vel_sigma_ms * f.vel_sigma_ms;
-                flt.east = flt.east.updateVelocity(ve.?, r);
-                flt.north = flt.north.updateVelocity(vn.?, r);
+            const dt = @as(f64, @floatFromInt(time_ms.? - e.last_time_ms)) / 1000.0;
+            if (e.imm) |st| {
+                // Spec "Two-model filter", later reports: steps 1 to 5, then the four filter records.
+                const step = imm.update(st, self.pack.manoeuvre.?, f.accel_var, dt, meas);
+                e.imm = step.state;
+                e.filter = imm.combined(step.state);
+                for (0..2) |j| try self.filterRecord(&res, key, imm.model_names[j], "likelihood", step.lambda[j]);
+                for (0..2) |j| try self.filterRecord(&res, key, imm.model_names[j], "mode", step.state.mu[j]);
+            } else {
+                // Spec "Track estimate", later reports: predict, position update, velocity update.
+                e.filter = e.filter.predict(dt, f.accel_var).update(meas).filter;
             }
-            e.filter = flt;
             e.last_time_ms = time_ms.?;
             e.report = stored;
         }
@@ -246,11 +259,23 @@ pub const Engine = struct {
         return res;
     }
 
+    fn filterRecord(self: *Engine, res: *Result, key: []const u8, model: []const u8, test_name: []const u8, value: f64) !void {
+        try res.trace.append(try self.object(.{
+            .{ "stage", "filter" },
+            .{ "a", key },
+            .{ "b", model },
+            .{ "test", test_name },
+            .{ "value", value },
+            .{ "limit", json.Value{ .null = {} } },
+            .{ "pass", true },
+        }));
+    }
+
     // Runs `tests` between A and B in order, stopping at the first failure.
     pub fn runTests(self: *Engine, res: *Result, stage: Stage, tests: []const pack_mod.Test, a_key: []const u8, b_key: []const u8) !bool {
         const a = self.entities.get(a_key).?;
         const b = self.entities.get(b_key).?;
-        const b_pred = b.predictedTo(a.last_time_ms, self.pack.filter.accel_var);
+        const b_pred = b.predictedTo(a.last_time_ms, self.pack);
         for (tests) |t| {
             const o = pair_tests.run(t, a, b, b_pred, self.pack.filter);
             var rec = try self.object(.{
@@ -360,7 +385,7 @@ pub const Engine = struct {
         var best: f64 = 0;
         for (reached.items) |b_key| {
             const b = self.entities.get(b_key).?;
-            const d2 = pair_tests.mahalanobis(a, b.predictedTo(a.last_time_ms, self.pack.filter.accel_var), self.pack.filter.default_ce_m);
+            const d2 = pair_tests.mahalanobis(a, b.predictedTo(a.last_time_ms, self.pack), self.pack.filter.default_ce_m);
             try res.trace.append(try self.object(.{
                 .{ "stage", "rank" },
                 .{ "a", a_key },
@@ -425,7 +450,7 @@ pub const Engine = struct {
         for (self.groups.items) |g| {
             const primary = self.primaryOf(g);
             const p = self.entities.get(primary).?;
-            const flt = p.predictedTo(now_ms, self.pack.filter.accel_var);
+            const flt = p.predictedTo(now_ms, self.pack);
             const pos = self.ref.?.toDegrees(.{ .east = flt.east.p, .north = flt.north.p });
             var course = frame.deg(std.math.atan2(flt.east.v, flt.north.v));
             if (course < 0) course += 360.0;
@@ -469,6 +494,25 @@ pub const Engine = struct {
         return .{ .array = arr };
     }
 
+    // Spec "Snapshot": `filter`, plus `models` and `mode` with the `manoeuvre` directive.
+    pub fn putFilter(self: *Engine, obj: *json.ObjectMap, e: Entity) !void {
+        try obj.put("filter", try self.filterValue(e.filter));
+        if (e.imm) |st| {
+            try obj.put("models", try self.object(.{
+                .{ "quiet", try self.filterValue(st.models[0]) },
+                .{ "manoeuvre", try self.filterValue(st.models[1]) },
+            }));
+            var mode = json.Array.init(self.alloc());
+            try mode.append(.{ .float = st.mu[0] });
+            try mode.append(.{ .float = st.mu[1] });
+            try obj.put("mode", .{ .array = mode });
+        }
+    }
+
+    fn filterValue(self: *Engine, f: kalman.Filter) !json.Value {
+        return self.object(.{ .{ "east", try self.axisValue(f.east) }, .{ "north", try self.axisValue(f.north) } });
+    }
+
     // Spec operation `snapshot()`.
     pub fn snapshot(self: *Engine) !json.Value {
         if (self.pack.method == .assign) return assign.snapshot(self);
@@ -484,12 +528,13 @@ pub const Engine = struct {
         for (try self.sortedKeys()) |key| {
             const e = self.entities.get(key).?;
             const group: ?[]const u8 = if (e.group) |gid| try self.groupName(gid) else null;
-            try entities.put(key, try self.object(.{
+            var obj = try self.object(.{
                 .{ "last_time_ms", e.last_time_ms },
                 .{ "group", group },
                 .{ "hold_failures", e.hold_failures },
-                .{ "filter", try self.object(.{ .{ "east", try self.axisValue(e.filter.east) }, .{ "north", try self.axisValue(e.filter.north) } }) },
-            }));
+            });
+            try self.putFilter(&obj.object, e);
+            try entities.put(key, obj);
         }
 
         var groups = json.ObjectMap.init(self.alloc());

@@ -61,11 +61,45 @@ pub const Axis = struct {
     }
 };
 
+// One report's measurements in the plane, with their variances.
+pub const Measurement = struct {
+    east: f64,
+    north: f64,
+    r_pos: f64, // ce²
+    vel: ?struct { east: f64, north: f64 } = null,
+    r_vel: f64, // vel_sigma_ms²
+};
+
+// Spec "Two-model filter", step 3: the term `y*y/s + ln(s)` of one scalar update,
+// from the state before that update.
+fn term(y: f64, s: f64) f64 {
+    return y * y / s + @log(s);
+}
+
 pub const Filter = struct {
     east: Axis,
     north: Axis,
 
     pub fn predict(f: Filter, dt: f64, q: f64) Filter {
         return .{ .east = f.east.predict(dt, q), .north = f.north.predict(dt, q) };
+    }
+
+    // Steps 2 and 3 on a predicted filter. `g` is the sum of the update terms,
+    // east position, north position, then east and north velocity, added left
+    // to right from 0 (used only by the two-model filter).
+    pub fn update(f: Filter, m: Measurement) struct { filter: Filter, g: f64 } {
+        var out = f;
+        var g: f64 = 0;
+        g += term(m.east - out.east.p, out.east.pp + m.r_pos);
+        g += term(m.north - out.north.p, out.north.pp + m.r_pos);
+        out.east = out.east.updatePosition(m.east, m.r_pos);
+        out.north = out.north.updatePosition(m.north, m.r_pos);
+        if (m.vel) |v| {
+            g += term(v.east - out.east.v, out.east.vv + m.r_vel);
+            g += term(v.north - out.north.v, out.north.vv + m.r_vel);
+            out.east = out.east.updateVelocity(v.east, m.r_vel);
+            out.north = out.north.updateVelocity(v.north, m.r_vel);
+        }
+        return .{ .filter = out, .g = g };
     }
 };
