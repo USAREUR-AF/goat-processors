@@ -9,18 +9,18 @@
 -define(CONFIRM, {[<<"pack">>, <<"version">>, <<"filter">>, <<"confirm_count">>,
                    <<"hold_failures">>, <<"stale_ms">>],
                   [<<"gate">>, <<"confirm">>, <<"hold">>, <<"priority">>],
-                  [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"manoeuvre">>,
+                  [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"maneuver">>,
                    <<"confirm_count">>, <<"hold_failures">>, <<"stale_ms">>, <<"same_source">>,
                    <<"output">>]}).
 -define(ASSIGN, {[<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"new_cost">>,
                   <<"keep_bonus">>, <<"stale_ms">>],
                  [<<"gate">>],
-                 [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"manoeuvre">>,
+                 [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"maneuver">>,
                   <<"new_cost">>, <<"keep_bonus">>, <<"stale_ms">>, <<"window">>,
                   <<"hypotheses">>]}).
 -define(FILTER_PARAMS, [<<"accel_var">>, <<"default_ce_m">>, <<"vel_sigma_ms">>,
                         <<"unknown_vel_ms">>]).
--define(MANOEUVRE_PARAMS, [<<"accel_var">>, <<"p_enter">>, <<"p_leave">>]).
+-define(MANEUVER_PARAMS, [<<"accel_var">>, <<"p_enter">>, <<"p_leave">>]).
 
 load_pack(Dir) ->
     case file:read_file(filename:join(Dir, "pack.def")) of
@@ -71,7 +71,7 @@ build(Directives) ->
     lists:foldl(fun(K, Acc) -> Acc#{K := lists:reverse(maps:get(K, Acc))} end, P,
                 [K || K <- [gate, confirm, hold, priority], maps:is_key(K, P)]).
 
-%% Ranges, checked once the whole file is read: filter and manoeuvre
+%% Ranges, checked once the whole file is read: filter and maneuver
 %% (correlate.md "Pack"); new_cost, keep_bonus, window, hypotheses
 %% (correlate-assign.md "Pack").
 check_ranges(P) ->
@@ -80,7 +80,7 @@ check_ranges(P) ->
                                   not (maps:get(atom_to_binary(K), F) > 0)],
     maps:get(<<"accel_var">>, F) >= 0 orelse fail({below_zero, accel_var}),
     case P of
-        #{manoeuvre := #{<<"accel_var">> := Q2, <<"p_enter">> := A, <<"p_leave">> := B}} ->
+        #{maneuver := #{<<"accel_var">> := Q2, <<"p_enter">> := A, <<"p_leave">> := B}} ->
             A > 0 orelse fail({not_above_zero, p_enter}),
             B > 0 orelse fail({not_above_zero, p_leave}),
             A + B < 1 orelse fail({not_below_one, switching}),
@@ -108,8 +108,8 @@ directive([<<"window">>, N], P) -> P#{window := integer(N)};
 directive([<<"hypotheses">>, N], P) -> P#{hypotheses := integer(N)};
 directive([<<"filter">> | Params], P) ->
     P#{filter => number_params(params(Params, ?FILTER_PARAMS))};
-directive([<<"manoeuvre">> | Params], P) ->
-    P#{manoeuvre => number_params(params(Params, ?MANOEUVRE_PARAMS))};
+directive([<<"maneuver">> | Params], P) ->
+    P#{maneuver => number_params(params(Params, ?MANEUVER_PARAMS))};
 directive([Stage, Test | Params], P)
   when Stage =:= <<"gate">>; Stage =:= <<"confirm">>; Stage =:= <<"hold">> ->
     Key = binary_to_atom(Stage),

@@ -119,12 +119,12 @@ scenario("08-area-polygon-boundary", "filter-area", [
     ("ingest", raw("radar-1", "T3", 0, 0.4999, 1.0, hae=8000, **AIR)),
 ], ["keep:high-air", "keep:high-air", "drop:outside-box"])
 
-# 9. The harbour circle drops before high air keeps; 6 km from its centre the
+# 9. The harbor circle drops before high air keeps; 6 km from its center the
 #    circle does not hold.
-scenario("09-area-harbour-before-high-air", "filter-area", [
+scenario("09-area-harbor-before-high-air", "filter-area", [
     ("ingest", rep("radar-1", "T1", 0, 2000, 0, lat0=1.3, lon0=1.3, hae=8000, **AIR)),
     ("ingest", rep("radar-1", "T2", 0, 6000, 0, lat0=1.3, lon0=1.3, hae=8000, **AIR)),
-], ["drop:harbour", "keep:high-air"])
+], ["drop:harbor", "keep:high-air"])
 
 # 10. Altitude: below the minimum is false, an absent hae is unknown, and a
 #     surface report never reaches the altitude condition.
@@ -267,7 +267,7 @@ scenario("24-dateline-polygon", "filter-dateline", [
     ("ingest", raw("sat", "6", 0, 10.0, -177.0)),
 ], ["keep:zone", "keep:zone", "keep:zone", "drop:default", "drop:default", "keep:zone"])
 
-# 25. A circle centred on the antimeridian: 5 km across it is inside, 15.7 km
+# 25. A circle centered on the antimeridian: 5 km across it is inside, 15.7 km
 #     on the other side is not.
 scenario("25-dateline-circle", "filter-dateline", [
     ("ingest", raw("sat", "1", 0, 20.0, -179.95)),

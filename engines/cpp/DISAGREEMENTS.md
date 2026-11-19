@@ -1,6 +1,6 @@
 # Open points
 
-No vector contradicts correlate.md 0.5 or correlate-assign.md 0.3 as this
+No vector contradicts correlate.md 0.6 or correlate-assign.md 0.4 as this
 engine reads them. The 0.4/0.2 entries on ties in the least total and on
 where `method` may appear are settled by these versions (Ranking; Pack) and
 removed. The entries below are points the specifications leave open, and
@@ -19,7 +19,7 @@ the reading this engine takes. No vector covers any of them.
   element in order, objects by equal key sets with equal values; values of
   different JSON kinds are never equal.
 
-## A repeated parameter within one `filter`, `manoeuvre` or test line (correlate.md "Open points")
+## A repeated parameter within one `filter`, `maneuver` or test line (correlate.md "Open points")
 
 - A load error.
 
@@ -36,9 +36,9 @@ the reading this engine takes. No vector covers any of them.
   directly; its cost grows exponentially with the number of rows and columns
   of one source, which is fine at vector sizes but not for large inputs.
 
-## fuse.md 0.1
+## fuse.md 0.2
 
-No vector contradicts fuse.md 0.1 as this engine reads it. The points below
+No vector contradicts fuse.md 0.2 as this engine reads it. The points below
 are the readings this engine takes where the spec is open; no vector covers
 them.
 

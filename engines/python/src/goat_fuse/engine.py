@@ -1,4 +1,4 @@
-"""Fuse engine (spec/fuse.md 0.1). Standard library only.
+"""Fuse engine (spec/fuse.md 0.2). Standard library only.
 
 The per-entity filter, the frame and report validation are those of
 spec/correlate.md and come from goat_correlator."""
@@ -11,7 +11,7 @@ from goat_correlator.engine import (
     REQUIRED,
     Engine as _CorrelateEngine,
     _is,
-    _normalise,
+    _normalize,
     _pos_update,
     _predict_axis,
     _vel_update,
@@ -233,7 +233,7 @@ class Engine:
         for k, kind in REQUIRED:
             if not _is(report.get(k), kind):
                 return [{"ev": "reject", "reason": "missing:" + k}], []
-        report = _normalise(report)
+        report = _normalize(report)
         if "fuse.group" in report and _group_of(report) is None:
             del report["fuse.group"]
         source = report["track.source_id"]

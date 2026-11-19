@@ -1,5 +1,5 @@
 {
- "name": "09-area-harbour-before-high-air",
+ "name": "09-area-harbor-before-high-air",
  "pack": "filter-area",
  "steps": [
   {
@@ -16,7 +16,7 @@
     {
      "ev": "drop",
      "entity": "radar-1/T1",
-     "rule": "harbour"
+     "rule": "harbor"
     }
    ],
    "trace": [
@@ -44,7 +44,7 @@
     },
     {
      "stage": "rule",
-     "rule": "harbour",
+     "rule": "harbor",
      "entity": "radar-1/T1",
      "test": "circle",
      "negated": false,
@@ -96,7 +96,7 @@
     },
     {
      "stage": "rule",
-     "rule": "harbour",
+     "rule": "harbor",
      "entity": "radar-1/T2",
      "test": "circle",
      "negated": false,

@@ -22,7 +22,7 @@ pub fn wrap180(mut x: f64) -> f64 {
     x
 }
 
-/// The local plane, metres east and north of the reference point.
+/// The local plane, meters east and north of the reference point.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Frame {
     pub lat0: f64,
@@ -188,7 +188,7 @@ impl Model {
 }
 
 /// The two models of Two-model filter: index 0 is `quiet` (model 1), index 1
-/// is `manoeuvre` (model 2), with mode probabilities `mu`.
+/// is `maneuver` (model 2), with mode probabilities `mu`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TwoModel {
     pub models: [Model; 2],

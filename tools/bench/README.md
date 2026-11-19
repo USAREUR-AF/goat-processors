@@ -25,11 +25,11 @@ Standard library only. Run every command with `python3 -I`.
 ## Scenarios
 
 **Truth.** Each object starts at a position with a speed and heading and
-follows a list of manoeuvres: between two times, turn at a stated rate
+follows a list of maneuvers: between two times, turn at a stated rate
 (degrees per second) and change speed at a stated rate (m/s²). Motion is
 integrated every 0.1 s with the midpoint heading and speed. A split is an
 object that appears at its parent's position and velocity at a stated time
-and then manoeuvres on its own. Positions are in a local plane around
+and then maneuvers on its own. Positions are in a local plane around
 50 N 10 E and converted to degrees with the equirectangular formulas of
 `spec/correlate.md` ("Frame").
 
@@ -93,7 +93,7 @@ The Python adapter maps the engine's events this way:
 | Method | Output tracks at a tick |
 |---|---|
 | `assign` | each `system` event |
-| `confirm` | each `fused` event, labelled by its group, plus one track per ungrouped entity, labelled by its entity key, at its filter's position predicted to `now_ms` (`p + v * dt` per axis) |
+| `confirm` | each `fused` event, labeled by its group, plus one track per ungrouped entity, labeled by its entity key, at its filter's position predicted to `now_ms` (`p + v * dt` per axis) |
 
 ## Scores
 
@@ -120,7 +120,7 @@ Definitions used by every score, at each tick `t`:
 | time to associate | over episodes in which the pair becomes output-same: the mean of (first output-same tick minus the episode's first tick), s |
 | object's output track | the output group holding the most of the object's live tracks; on a tie, the one of the tick before if it is among the tied, else the least label |
 | identity swaps | the number of times an object's output track changes from A to B while A is still in the picture (an output track's label, or a live track's "alone" group); a track that joins a group, or a group that dissolves, is not a swap |
-| position error RMS | `sqrt(mean of d²)` over every tick and object whose output track has a position, `d` the distance from that position to the object's true position at `t`, in metres. The mean of squares weighs the largest errors most |
+| position error RMS | `sqrt(mean of d²)` over every tick and object whose output track has a position, `d` the distance from that position to the object's true position at `t`, in meters. The mean of squares weighs the largest errors most |
 | GOSPA | per tick, between X, the positions of the output tracks with a live member, and Y, the true positions of the objects with a live track: `(min over assignments of (sum over assigned pairs of min(d, c)^p + (c^p / 2) * (unassigned in X + unassigned in Y)))^(1/p)`, with `c = 500` m, `p = 2`, `alpha = 2`. Reported as the mean over ticks. The assignment is exact (Hungarian method) |
 | GOSPA localisation | the same sum over assigned pairs closer than `c` only, to the power `1/p`, mean over ticks |
 | missed, false per tick | per tick, the objects of Y and the tracks of X left unassigned (or assigned at `c` or more), mean over ticks |

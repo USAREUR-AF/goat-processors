@@ -3,14 +3,14 @@ package correlator
 import "math"
 
 // The per-entity filter: one constant-velocity model (correlate.md: Track
-// estimate) or, with the pack's manoeuvre line, two models combined as an
+// estimate) or, with the pack's maneuver line, two models combined as an
 // interacting multiple model filter (correlate.md: Two-model filter).
 
 // Model is one constant-velocity filter, both axes.
 type Model struct{ East, North Axis }
 
-// modelNames are the models of the two-model filter, by index (quiet = 1, manoeuvre = 2).
-var modelNames = [2]string{"quiet", "manoeuvre"}
+// modelNames are the models of the two-model filter, by index (quiet = 1, maneuver = 2).
+var modelNames = [2]string{"quiet", "maneuver"}
 
 // Measurement is what one report gives the filter, in the plane.
 type Measurement struct {
@@ -90,7 +90,7 @@ func (g *Engine) startFilter(e *Entity, z Measurement) {
 	p := g.pack
 	first := p.firstModel(z)
 	e.East, e.North = first.East, first.North
-	if p.HasManoeuvre {
+	if p.HasManeuver {
 		// Both models are the first-report filter; mu is the long-run share.
 		s := p.PEnter + p.PLeave
 		e.Models = &[2]Model{first, first}
@@ -103,13 +103,13 @@ func (g *Engine) startFilter(e *Entity, z Measurement) {
 func (g *Engine) updateFilter(e *Entity, t int64, z Measurement) []Obj {
 	p := g.pack
 	dt := float64(t-e.LastTime) / 1000
-	if !p.HasManoeuvre {
+	if !p.HasManeuver {
 		m, _ := p.step(Model{e.East, e.North}, dt, p.AccelVar, z)
 		e.East, e.North = m.East, m.North
 		return nil
 	}
 	models, mu := *e.Models, e.Mode
-	q := [2]float64{p.AccelVar, p.ManoeuvreVar}
+	q := [2]float64{p.AccelVar, p.ManeuverVar}
 	tr := p.switching(dt)
 
 	// 1. Mixing.
@@ -168,7 +168,7 @@ func (g *Engine) predicted(e *Entity, t int64) (Axis, Axis) {
 	if e.Models == nil {
 		return e.East.predict(dt, p.AccelVar), e.North.predict(dt, p.AccelVar)
 	}
-	q := [2]float64{p.AccelVar, p.ManoeuvreVar}
+	q := [2]float64{p.AccelVar, p.ManeuverVar}
 	var pr [2]Model
 	for j := 0; j < 2; j++ {
 		pr[j] = Model{e.Models[j].East.predict(dt, q[j]), e.Models[j].North.predict(dt, q[j])}

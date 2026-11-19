@@ -1,8 +1,10 @@
 # Correlate specification
 
-Status: Written. Version 0.5. Every language's engine implements this document
+Status: Written. Version 0.6. Every language's engine implements this document
 and passes every vector. Engines are written from this document and the
 vectors, never from another engine's source.
+Version 0.6 spells the pack line `maneuver` (it was `manoeuvre` in 0.5);
+behavior is otherwise unchanged.
 
 ## What the correlator does
 
@@ -64,7 +66,7 @@ A rejected report changes no state.
 
 ## Frame
 
-All geometry is done in one local plane, metres east and north of a reference
+All geometry is done in one local plane, meters east and north of a reference
 point. The reference is the `lat`/`lon` of the first report the engine
 accepts, and it never moves.
 
@@ -75,7 +77,7 @@ accepts, and it never moves.
   `lon = lon0 + deg(east / (R * cos(rad(lat0))))`, then `lon` brought into
   (-180, 180].
 
-The plane is accurate within a few hundred kilometres of the reference.
+The plane is accurate within a few hundred kilometers of the reference.
 
 ## Track estimate
 
@@ -118,17 +120,17 @@ changes the entity.
 
 ## Two-model filter
 
-A pack may add the directive `manoeuvre accel_var=<q2> p_enter=<a>
+A pack may add the directive `maneuver accel_var=<q2> p_enter=<a>
 p_leave=<b>`. Each entity then keeps two constant-velocity filters instead of
 one, an interacting multiple model filter:
 
 | Model | Index | Acceleration variance |
 |---|---|---|
 | `quiet` | 1 | `q1`, the `filter` line's `accel_var` |
-| `manoeuvre` | 2 | `q2`, the `manoeuvre` line's `accel_var`; above `q1` |
+| `maneuver` | 2 | `q2`, the `maneuver` line's `accel_var`; above `q1` |
 
 `a` is the probability per second of input time that a quiet target starts
-to manoeuvre, `b` the probability per second that a manoeuvring target goes
+to maneuver, `b` the probability per second that a maneuvering target goes
 quiet. Each model holds both axes `[p, v, pp, pv, vv]` as in Track estimate.
 Both axes share one pair of mode probabilities `mu1`, `mu2`. The entity's
 *filter* is the combination of the two models (step 5). Every test, cost,
@@ -193,8 +195,8 @@ entity.
 **Trace.** Each later report gives four records before any association
 record, `"stage":"filter"`, `"a"` the entity, `"limit":null`,
 `"pass":true`: `"test":"likelihood"` with `"b":"quiet"` and `value`
-`lambda1`, the same with `"b":"manoeuvre"` and `lambda2`, then
-`"test":"mode"` with `"b":"quiet"` and `mu1`, then with `"b":"manoeuvre"`
+`lambda1`, the same with `"b":"maneuver"` and `lambda2`, then
+`"test":"mode"` with `"b":"quiet"` and `mu1`, then with `"b":"maneuver"`
 and `mu2`.
 
 ## Tests
@@ -324,9 +326,9 @@ the tests run.
 `snapshot()` returns `{"ref": [lat0, lon0] or null, "entities": {...},
 "groups": {...}, "counts": {...}, "next_group": n}`. Each entity holds
 `last_time_ms`, `group` (or null), `hold_failures` and `filter`
-(`{"east": [p, v, pp, pv, vv], "north": [...]}`). With the `manoeuvre`
+(`{"east": [p, v, pp, pv, vv], "north": [...]}`). With the `maneuver`
 directive each entity also holds `models`
-(`{"quiet": {"east": [...], "north": [...]}, "manoeuvre": {...}}`) and
+(`{"quiet": {"east": [...], "north": [...]}, "maneuver": {...}}`) and
 `mode` (`[mu1, mu2]`), and `filter` is their combination; `groups` maps a group name
 to its members; `counts` maps `"<key>|<key>"` (keys in order) to the count.
 
@@ -341,7 +343,7 @@ pack           <name>
 version        <semver>
 method         confirm
 filter         accel_var=<q> default_ce_m=<m> vel_sigma_ms=<m/s> unknown_vel_ms=<m/s>
-manoeuvre      accel_var=<q2> p_enter=<per s> p_leave=<per s>
+maneuver      accel_var=<q2> p_enter=<per s> p_leave=<per s>
 gate           <test> <param>=<value> ...
 confirm        <test> <param>=<value> ...
 hold           <test> <param>=<value> ...
@@ -356,11 +358,11 @@ priority       <source_id> <n>
 In `filter`, `default_ce_m`, `vel_sigma_ms` and `unknown_vel_ms` must be
 above 0 and `accel_var` 0 or above, or the pack does not load.
 
-`manoeuvre` is optional, appears at most once, takes exactly `accel_var`,
+`maneuver` is optional, appears at most once, takes exactly `accel_var`,
 `p_enter` and `p_leave`, and is valid with either method. The pack does not
 load unless `p_enter` and `p_leave` are above 0 with a sum below 1, and
-`manoeuvre`'s `accel_var` is above `filter`'s `accel_var`. That last rule is
-checked once the whole file is read, so `manoeuvre` may come before `filter`.
+`maneuver`'s `accel_var` is above `filter`'s `accel_var`. That last rule is
+checked once the whole file is read, so `maneuver` may come before `filter`.
 
 `gate`, `confirm`, `hold` and `priority` repeat; their order is the order the
 tests run. Every other directive appears once, and `pack`, `version`,
@@ -396,5 +398,5 @@ may differ on them until a later version settles them with vectors.
 | `same` between booleans, arrays or objects | Tests |
 | Ranges of `confirm_count`, `hold_failures`, `stale_ms` (0, negative) and of test parameters (negative `max_m`, `err_min_m` above `err_max_m`, `gate` 0 or below) | Pack |
 | `priority` listing one source twice | Pack |
-| A repeated parameter within one `filter`, `manoeuvre` or test line | Pack |
+| A repeated parameter within one `filter`, `maneuver` or test line | Pack |
 | Which decimal spellings a number may take (exponent, leading `+`, `.5`, `inf`, `nan`), and a `#` inside a value | Pack |

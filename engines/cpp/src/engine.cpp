@@ -106,8 +106,8 @@ void Engine::filter_first(Entity& e, const Point& z, const std::optional<Point>&
     e.filter.north = {z.north, vel ? vel->north : 0.0, ce * ce, 0.0, vv};
     // Spec "Two-model filter", First report: both models are this filter,
     // with the long-run share of each model.
-    if (pack_.manoeuvre) {
-        double a = pack_.manoeuvre->p_enter, b = pack_.manoeuvre->p_leave, s = a + b;
+    if (pack_.maneuver) {
+        double a = pack_.maneuver->p_enter, b = pack_.maneuver->p_leave, s = a + b;
         e.models[0] = e.models[1] = e.filter;
         e.mu[0] = b / s;
         e.mu[1] = a / s;
@@ -120,14 +120,14 @@ void Engine::filter_update(Entity& e, const Point& z, const std::optional<Point>
     const double r_pos = ce * ce, r_vel = f.vel_sigma_ms * f.vel_sigma_ms;
     const double* ve = vel ? &vel->east : nullptr;
     const double* vn = vel ? &vel->north : nullptr;
-    if (!pack_.manoeuvre) {
+    if (!pack_.maneuver) {
         kalman_step(e.filter, dt, f.accel_var, z.east, z.north, ve, vn, r_pos, r_vel);
         return;
     }
 
     // Spec "Two-model filter", Later reports.
-    const double a = pack_.manoeuvre->p_enter, b = pack_.manoeuvre->p_leave;
-    const double q[2] = {f.accel_var, pack_.manoeuvre->accel_var};
+    const double a = pack_.maneuver->p_enter, b = pack_.maneuver->p_leave;
+    const double q[2] = {f.accel_var, pack_.maneuver->accel_var};
 
     // Switching over dt seconds: t[i][j] is model i -> model j.
     double s = a + b;
@@ -173,9 +173,9 @@ void Engine::filter_update(Entity& e, const Point& z, const std::optional<Point>
 
     // Trace: likelihoods, then modes.
     out.trace.push(filter_record(e.key, "likelihood", "quiet", lambda[0]));
-    out.trace.push(filter_record(e.key, "likelihood", "manoeuvre", lambda[1]));
+    out.trace.push(filter_record(e.key, "likelihood", "maneuver", lambda[1]));
     out.trace.push(filter_record(e.key, "mode", "quiet", e.mu[0]));
-    out.trace.push(filter_record(e.key, "mode", "manoeuvre", e.mu[1]));
+    out.trace.push(filter_record(e.key, "mode", "maneuver", e.mu[1]));
 }
 
 // Spec "Track estimate", Prediction: step 1 on a copy. With two models, each
@@ -187,18 +187,18 @@ Filter Engine::predict(const Entity& e, std::int64_t t) const {
         axis_predict(f.north, dt, q);
         return f;
     };
-    if (!pack_.manoeuvre) return step1(e.filter, pack_.filter.accel_var);
+    if (!pack_.maneuver) return step1(e.filter, pack_.filter.accel_var);
     return blend(e.mu[0], e.mu[1], step1(e.models[0], pack_.filter.accel_var),
-                 step1(e.models[1], pack_.manoeuvre->accel_var));
+                 step1(e.models[1], pack_.maneuver->accel_var));
 }
 
-// Snapshot: `filter`, and with `manoeuvre` also `models` and `mode`.
+// Snapshot: `filter`, and with `maneuver` also `models` and `mode`.
 void Engine::filter_json(const Entity& e, Json& into) const {
     into["filter"] = filter_json_of(e.filter);
-    if (!pack_.manoeuvre) return;
+    if (!pack_.maneuver) return;
     Json models = Json::make_object();
     models["quiet"] = filter_json_of(e.models[0]);
-    models["manoeuvre"] = filter_json_of(e.models[1]);
+    models["maneuver"] = filter_json_of(e.models[1]);
     into["models"] = models;
     Json mode = Json::make_array();
     mode.push(e.mu[0]);

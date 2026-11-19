@@ -9,7 +9,7 @@ package correlator
 //   - correlate.md, Reports: ValidKey, and IsInt, ToFloat, ToInt (in reports.go,
 //     shared with filter/).
 
-// ToPlane converts degrees to metres east and north of the reference ref = [lat0, lon0] (Frame).
+// ToPlane converts degrees to meters east and north of the reference ref = [lat0, lon0] (Frame).
 func ToPlane(ref [2]float64, lat, lon float64) (east, north float64) {
 	g := Engine{ref: &ref}
 	return g.toPlane(lat, lon)

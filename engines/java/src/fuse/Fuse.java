@@ -23,12 +23,12 @@ public final class Fuse {
         public final List<Map<String, Object>> trace = new ArrayList<>();
     }
 
-    /** One entity: its filter and its last normalised report. */
+    /** One entity: its filter and its last normalized report. */
     static final class Entity {
         final String key, source;
         long lastTime;
         Axis east, north;
-        /** The last normalised report (Reports). Every later value fuse reads comes from here. */
+        /** The last normalized report (Reports). Every later value fuse reads comes from here. */
         Map<String, Object> report;
         /** The `fuse.group` of the last accepted report, or null (Groups). */
         String group;
@@ -112,7 +112,7 @@ public final class Fuse {
             return res;
         }
 
-        Map<String, Object> norm = normalise(report);
+        Map<String, Object> norm = normalize(report);
 
         // correlate.md, Frame: the first accepted report sets the reference.
         double lat = ((Number) norm.get("lat")).doubleValue();
@@ -123,7 +123,7 @@ public final class Fuse {
         }
         double[] en = Engine.toPlane(lat0, lon0, lat, lon);
 
-        // correlate.md, Track estimate: measurements from the normalised report.
+        // correlate.md, Track estimate: measurements from the normalized report.
         double ce = norm.containsKey("ce") ? ((Number) norm.get("ce")).doubleValue() : pack.defaultCe;
         boolean hasVel = norm.containsKey("course") && norm.containsKey("speed_ms");
         double ve = 0, vn = 0;
@@ -170,11 +170,11 @@ public final class Fuse {
     }
 
     /**
-     * Reports, the normalised report: every key removed that is null, or that correlate.md
+     * Reports, the normalized report: every key removed that is null, or that correlate.md
      * Reports treats as absent (an optional key of the wrong type, a ce of 0 or below), or an
      * unusable `fuse.group` (not a string, or the empty string).
      */
-    static Map<String, Object> normalise(Map<String, Object> report) {
+    static Map<String, Object> normalize(Map<String, Object> report) {
         Map<String, Object> n = new LinkedHashMap<>(report);
         n.values().removeIf(Objects::isNull);
         for (String k : new String[] {"hae", "ce", "course", "speed_ms"})

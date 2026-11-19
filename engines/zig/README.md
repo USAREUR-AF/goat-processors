@@ -1,10 +1,10 @@
 # goat-processors, zig engine
 
-An implementation of `spec/correlate.md` (version 0.5, method `confirm`, with
-the two-model filter), `spec/correlate-assign.md` (version 0.3, method
+An implementation of `spec/correlate.md` (version 0.6, method `confirm`, with
+the two-model filter), `spec/correlate-assign.md` (version 0.4, method
 `assign`, with the multi-frame window), `spec/filter.md` (version 0.1) and
 `spec/quality.md` (version 0.1) in Zig 0.13.0, standard library only. It also
-implements `spec/fuse.md` (version 0.1), the function fuse, as its own module
+implements `spec/fuse.md` (version 0.2), the function fuse, as its own module
 that reuses the correlate Frame, Track estimate and report helpers. It was
 written from the specifications and the vectors,
 not from another engine. Points the specifications leave open, and how this
@@ -22,7 +22,7 @@ engine decides them, are in `DISAGREEMENTS.md`.
 | `src/assign.zig` | `correlate-assign.md`: Memberships, Assignment of one source, Ranking (brute-force enumeration, sorted by total then choice vector), Window, Events, Trace, Snapshot |
 | `src/fuse_pack.zig` | `fuse.md` Pack (fuse `pack.def` parsing and load errors) |
 | `src/fuse_kinematics.zig` | `fuse.md` Kinematics (inverse variance, covariance-intersection weight and fold, position variance) |
-| `src/fuse.zig` | `fuse.md` Reports (normalised report), Groups, On each tick, Fused event, Attributes, Events, Trace, Snapshot |
+| `src/fuse.zig` | `fuse.md` Reports (normalized report), Groups, On each tick, Fused event, Attributes, Events, Trace, Snapshot |
 | `src/fuse_vectors_test.zig` | runs `spec/fuse-load-vectors/` and `packs/fuse-*/vectors/` |
 | `src/compare.zig` | `spec/vector-format.md`, structural comparison |
 | `src/vector_files.zig` | finds and reads vector files, shared by the runners |

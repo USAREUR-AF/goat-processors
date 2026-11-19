@@ -222,7 +222,7 @@ pub const Engine = struct {
                 .last_time_ms = time_ms.?,
                 .report = stored,
                 .filter = first,
-                .imm = if (self.pack.manoeuvre) |m| imm.init(m, first) else null,
+                .imm = if (self.pack.maneuver) |m| imm.init(m, first) else null,
                 .group = null,
                 .hold_failures = 0,
             };
@@ -232,7 +232,7 @@ pub const Engine = struct {
             const dt = @as(f64, @floatFromInt(time_ms.? - e.last_time_ms)) / 1000.0;
             if (e.imm) |st| {
                 // Spec "Two-model filter", later reports: steps 1 to 5, then the four filter records.
-                const step = imm.update(st, self.pack.manoeuvre.?, f.accel_var, dt, meas);
+                const step = imm.update(st, self.pack.maneuver.?, f.accel_var, dt, meas);
                 e.imm = step.state;
                 e.filter = imm.combined(step.state);
                 for (0..2) |j| try self.filterRecord(&res, key, imm.model_names[j], "likelihood", step.lambda[j]);
@@ -494,13 +494,13 @@ pub const Engine = struct {
         return .{ .array = arr };
     }
 
-    // Spec "Snapshot": `filter`, plus `models` and `mode` with the `manoeuvre` directive.
+    // Spec "Snapshot": `filter`, plus `models` and `mode` with the `maneuver` directive.
     pub fn putFilter(self: *Engine, obj: *json.ObjectMap, e: Entity) !void {
         try obj.put("filter", try self.filterValue(e.filter));
         if (e.imm) |st| {
             try obj.put("models", try self.object(.{
                 .{ "quiet", try self.filterValue(st.models[0]) },
-                .{ "manoeuvre", try self.filterValue(st.models[1]) },
+                .{ "maneuver", try self.filterValue(st.models[1]) },
             }));
             var mode = json.Array.init(self.alloc());
             try mode.append(.{ .float = st.mu[0] });

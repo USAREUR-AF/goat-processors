@@ -55,9 +55,9 @@ public final class Pack {
     public double newCost, keepBonus;
     /** correlate-assign.md, Window: {@code window <n>} and {@code hypotheses <k>}, both default 1. */
     public long window = 1, hypotheses = 1;
-    /** correlate.md, Two-model filter: the {@code manoeuvre} line, when present. */
-    public boolean manoeuvre = false;
-    public double manoeuvreAccelVar, pEnter, pLeave;
+    /** correlate.md, Two-model filter: the {@code maneuver} line, when present. */
+    public boolean maneuver = false;
+    public double maneuverAccelVar, pEnter, pLeave;
 
     /** Spec: Tests table, the parameters of each test. */
     private static final Map<String, List<String>> TESTS = new LinkedHashMap<>();
@@ -72,10 +72,10 @@ public final class Pack {
     }
 
     private static final List<String> FILTER = List.of("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms");
-    private static final List<String> MANOEUVRE = List.of("accel_var", "p_enter", "p_leave");
+    private static final List<String> MANEUVER = List.of("accel_var", "p_enter", "p_leave");
     private static final Set<String> REPEATING = Set.of("gate", "confirm", "hold", "priority");
     private static final Set<String> SINGLE = Set.of("pack", "version", "method", "filter", "confirm_count",
-            "hold_failures", "stale_ms", "same_source", "output", "new_cost", "keep_bonus", "manoeuvre", "window",
+            "hold_failures", "stale_ms", "same_source", "output", "new_cost", "keep_bonus", "maneuver", "window",
             "hypotheses");
     private static final List<String> REQUIRED = List.of("pack", "version", "filter", "confirm_count",
             "hold_failures", "stale_ms");
@@ -135,14 +135,14 @@ public final class Pack {
                     pk.unknownVel = positive(dec(kv.get("unknown_vel_ms"), ln), "unknown_vel_ms", ln);
                     break;
                 }
-                case "manoeuvre": {
+                case "maneuver": {
                     Map<String, String> kv = params(tok, 1, ln);
-                    if (!kv.keySet().equals(new HashSet<>(MANOEUVRE)))
-                        throw new LoadError(ln, "manoeuvre takes " + MANOEUVRE);
+                    if (!kv.keySet().equals(new HashSet<>(MANEUVER)))
+                        throw new LoadError(ln, "maneuver takes " + MANEUVER);
                     // correlate.md, Pack: p_enter and p_leave above 0 with a sum below 1; accel_var
                     // above filter's is checked once the whole file is read.
-                    pk.manoeuvre = true;
-                    pk.manoeuvreAccelVar = dec(kv.get("accel_var"), ln);
+                    pk.maneuver = true;
+                    pk.maneuverAccelVar = dec(kv.get("accel_var"), ln);
                     pk.pEnter = positive(dec(kv.get("p_enter"), ln), "p_enter", ln);
                     pk.pLeave = positive(dec(kv.get("p_leave"), ln), "p_leave", ln);
                     if (!(pk.pEnter + pk.pLeave < 1)) throw new LoadError(ln, "p_enter + p_leave must be below 1");
@@ -185,8 +185,8 @@ public final class Pack {
                         + (pk.methodAssign ? "assign" : "confirm"));
         for (String r : pk.methodAssign ? REQUIRED_ASSIGN : REQUIRED)
             if (!seen.contains(r)) throw new LoadError("missing directive " + r);
-        if (pk.manoeuvre && !(pk.manoeuvreAccelVar > pk.accelVar))
-            throw new LoadError("manoeuvre accel_var must be above filter accel_var");
+        if (pk.maneuver && !(pk.maneuverAccelVar > pk.accelVar))
+            throw new LoadError("maneuver accel_var must be above filter accel_var");
         if (pk.hypotheses > 1 && pk.window <= 1) throw new LoadError("hypotheses above 1 needs window above 1");
         return pk;
     }

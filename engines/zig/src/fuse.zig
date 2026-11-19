@@ -18,12 +18,12 @@ pub const Result = struct {
     trace: json.Array,
 };
 
-// One entity: its filter and its last normalised report.
+// One entity: its filter and its last normalized report.
 const Entity = struct {
     key: []const u8,
     source: []const u8,
     last_time_ms: i64,
-    // The last normalised report (fuse.md "Reports").
+    // The last normalized report (fuse.md "Reports").
     report: json.ObjectMap,
     filter: kalman.Filter,
     // fuse.md "Groups": the `fuse.group` of the last accepted report, or null.
@@ -109,10 +109,10 @@ fn isNumber(v: json.Value) bool {
     return v == .integer or v == .float or v == .number_string;
 }
 
-// fuse.md "Reports", the normalised report: every key removed that is `null`,
+// fuse.md "Reports", the normalized report: every key removed that is `null`,
 // an optional key of correlate.md of the wrong type, a `ce` of 0 or below, or an
 // unusable `fuse.group`. The required keys have already been checked.
-fn normalise(a: Allocator, report: json.ObjectMap) !json.ObjectMap {
+fn normalize(a: Allocator, report: json.ObjectMap) !json.ObjectMap {
     var out = json.ObjectMap.init(a);
     var it = report.iterator();
     while (it.next()) |e| {
@@ -206,7 +206,7 @@ pub const Engine = struct {
 
         // correlate.md "Frame": the first accepted report fixes the reference.
         if (self.ref == null) self.ref = .{ .lat0 = lat.?, .lon0 = lon.? };
-        const stored = try normalise(a, report);
+        const stored = try normalize(a, report);
         const group = reports.stringOf(stored, "fuse.group");
         const pos = self.ref.?.toPlane(lat.?, lon.?);
         const f = self.pack.filter;

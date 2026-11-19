@@ -30,13 +30,13 @@ func (a Axis) List() []any { return a.list() }
 // Frame is the local plane around the reference point lat0, lon0 (spec: Frame).
 type Frame struct{ Lat0, Lon0 float64 }
 
-// ToPlane converts degrees to metres east and north of the reference.
+// ToPlane converts degrees to meters east and north of the reference.
 func (f Frame) ToPlane(lat, lon float64) (east, north float64) {
 	g := Engine{ref: &[2]float64{f.Lat0, f.Lon0}}
 	return g.toPlane(lat, lon)
 }
 
-// ToDegrees converts metres east and north of the reference to degrees.
+// ToDegrees converts meters east and north of the reference to degrees.
 func (f Frame) ToDegrees(east, north float64) (lat, lon float64) {
 	g := Engine{ref: &[2]float64{f.Lat0, f.Lon0}}
 	return g.toDegrees(east, north)

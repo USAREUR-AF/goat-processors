@@ -20,7 +20,7 @@ struct Entity {
     std::string source;                    // track.source_id
     std::int64_t last_time_ms = 0;
     Filter filter;                         // correlate.md "Track estimate"
-    Json report;                           // the last normalised report
+    Json report;                           // the last normalized report
     std::optional<std::string> group;      // fuse.group of that report; nullopt is its own unnamed group
 };
 

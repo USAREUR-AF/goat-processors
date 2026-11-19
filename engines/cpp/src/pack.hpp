@@ -28,8 +28,8 @@ struct FilterParams {
     double unknown_vel_ms = 0;
 };
 
-// correlate.md "Two-model filter": the `manoeuvre` line.
-struct ManoeuvreParams {
+// correlate.md "Two-model filter": the `maneuver` line.
+struct ManeuverParams {
     double accel_var = 0;   // q2
     double p_enter = 0;     // a, per second
     double p_leave = 0;     // b, per second
@@ -40,7 +40,7 @@ struct Pack {
     std::string version;
     bool method_assign = false;                // method, default confirm (spec correlate-assign.md)
     FilterParams filter;
-    std::optional<ManoeuvreParams> manoeuvre;  // optional, either method
+    std::optional<ManeuverParams> maneuver;  // optional, either method
     std::vector<TestSpec> gate, confirm, hold;
     std::int64_t confirm_count = 0;
     std::int64_t hold_failures = 0;

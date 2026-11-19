@@ -19,9 +19,9 @@ struct Entity {
     std::string key;
     std::string source;
     std::int64_t last_time_ms = 0;
-    Filter filter;             // with `manoeuvre`, the combination of the two models
-    Filter models[2];          // with `manoeuvre`: quiet (index 0), manoeuvre (index 1)
-    double mu[2] = {0, 0};     // with `manoeuvre`: mu1, mu2
+    Filter filter;             // with `maneuver`, the combination of the two models
+    Filter models[2];          // with `maneuver`: quiet (index 0), maneuver (index 1)
+    double mu[2] = {0, 0};     // with `maneuver`: mu1, mu2
     Json last;                 // the last accepted report
     int group = 0;             // group number, 0 when ungrouped
     std::int64_t hold_failures = 0;

@@ -1,4 +1,4 @@
-"""Correlate engine (spec/correlate.md 0.5, spec/correlate-assign.md 0.3). Standard library only."""
+"""Correlate engine (spec/correlate.md 0.6, spec/correlate-assign.md 0.4). Standard library only."""
 
 import math
 import os
@@ -15,8 +15,8 @@ TESTS = {
     "same": ("key",),
 }
 FILTER_PARAMS = ("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms")
-MANOEUVRE_PARAMS = ("accel_var", "p_enter", "p_leave")
-MODELS = ("quiet", "manoeuvre")
+MANEUVER_PARAMS = ("accel_var", "p_enter", "p_leave")
+MODELS = ("quiet", "maneuver")
 REQUIRED = (("track.source_id", "str"), ("uid", "str"), ("time_ms", "int"),
             ("lat", "num"), ("lon", "num"))
 OPTIONAL = {"hae": "num", "ce": "num", "course": "num", "speed_ms": "num",
@@ -33,7 +33,7 @@ def _is(v, kind):
     return isinstance(v, (int, float))
 
 
-def _normalise(report):
+def _normalize(report):
     """Spec, Reports: optional keys of the wrong type are absent."""
     out = {}
     for k, v in report.items():
@@ -68,7 +68,7 @@ class Pack:
         self.method = "confirm"
         self.new_cost = None
         self.keep_bonus = None
-        self.manoeuvre = None
+        self.maneuver = None
         self.window = 1
         self.hypotheses = 1
 
@@ -113,7 +113,7 @@ def parse_pack(text):
         d, args = parts[0], parts[1:]
         if d in ("pack", "version", "filter", "confirm_count", "hold_failures",
                  "stale_ms", "same_source", "output", "method", "new_cost", "keep_bonus",
-                 "manoeuvre", "window", "hypotheses"):
+                 "maneuver", "window", "hypotheses"):
             if d in seen:
                 raise PackError("line %d: repeated directive %s" % (i, d))
             seen.add(d)
@@ -139,14 +139,14 @@ def parse_pack(text):
                 raise PackError("line %d: test %s needs exactly %s" % (i, name, ", ".join(TESTS[name])))
             params = {k: (v if name == "same" else _num(v, i)) for k, v in kv.items()}
             getattr(p, d).append((name, params))
-        elif d == "manoeuvre":
+        elif d == "maneuver":
             kv = _params(args, i)
-            if set(kv) != set(MANOEUVRE_PARAMS):
-                raise PackError("line %d: manoeuvre needs exactly %s" % (i, ", ".join(MANOEUVRE_PARAMS)))
+            if set(kv) != set(MANEUVER_PARAMS):
+                raise PackError("line %d: maneuver needs exactly %s" % (i, ", ".join(MANEUVER_PARAMS)))
             m = {k: _num(v, i) for k, v in kv.items()}
             if m["p_enter"] <= 0 or m["p_leave"] <= 0 or m["p_enter"] + m["p_leave"] >= 1:
                 raise PackError("line %d: p_enter and p_leave must be above 0 with a sum below 1" % i)
-            p.manoeuvre = m
+            p.maneuver = m
         elif d in ("window", "hypotheses"):
             if len(args) != 1:
                 raise PackError("line %d: %s takes one value" % (i, d))
@@ -187,7 +187,7 @@ def parse_pack(text):
         required = ("pack", "version", "filter", "new_cost", "keep_bonus", "stale_ms")
         refused = ("confirm_count", "hold_failures", "same_source", "output", "priority")
         if p.confirm or p.hold or any(d in seen for d in refused):
-            raise PackError("method assign takes only pack, version, method, filter, manoeuvre, gate, "
+            raise PackError("method assign takes only pack, version, method, filter, maneuver, gate, "
                             "new_cost, keep_bonus, stale_ms, window, hypotheses")
     else:
         required = ("pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms")
@@ -196,8 +196,8 @@ def parse_pack(text):
     for d in required:
         if d not in seen:
             raise PackError("missing directive %s" % d)
-    if p.manoeuvre is not None and p.manoeuvre["accel_var"] <= p.filter["accel_var"]:
-        raise PackError("manoeuvre accel_var must be above the filter's accel_var")
+    if p.maneuver is not None and p.maneuver["accel_var"] <= p.filter["accel_var"]:
+        raise PackError("maneuver accel_var must be above the filter's accel_var")
     if p.window == 1 and p.hypotheses > 1:
         raise PackError("hypotheses above 1 needs a window above 1")
     return p
@@ -288,8 +288,8 @@ class _Entity:
         self.system = None
         self.east = None
         self.north = None
-        self.models = None  # two-model filter: [[east, north] quiet, [east, north] manoeuvre]
-        self.mode = None    # [mu_quiet, mu_manoeuvre]
+        self.models = None  # two-model filter: [[east, north] quiet, [east, north] maneuver]
+        self.mode = None    # [mu_quiet, mu_maneuver]
 
     def ce(self, pack):
         v = self.report.get("ce")
@@ -341,7 +341,7 @@ class Engine:
     def _predict(self, ent, t):
         dt = (t - ent.last_time_ms) / 1000.0
         if ent.models is not None:
-            q = (self.pack.filter["accel_var"], self.pack.manoeuvre["accel_var"])
+            q = (self.pack.filter["accel_var"], self.pack.maneuver["accel_var"])
             pr = [(_predict_axis(m[0], dt, q[j]), _predict_axis(m[1], dt, q[j]))
                   for j, m in enumerate(ent.models)]
             mu = ent.mode
@@ -353,7 +353,7 @@ class Engine:
     def _two_model_update(self, ent, dt, e, n, r, vel, rv, trace):
         """correlate.md, Two-model filter, later reports: mixing, per-model
         predict and update, likelihood, mode probability, combination."""
-        man = self.pack.manoeuvre
+        man = self.pack.maneuver
         t = _transition(man, dt)
         mu = ent.mode
         models = ent.models
@@ -506,7 +506,7 @@ class Engine:
             if not _is(report.get(k), kind):
                 events.append({"ev": "reject", "reason": "missing:" + k})
                 return None
-        report = _normalise(report)
+        report = _normalize(report)
         source = str(report["track.source_id"])
         key = source + "/" + str(report["uid"])
         t = int(report["time_ms"])
@@ -533,8 +533,8 @@ class Engine:
             vv = (f["vel_sigma_ms"] if vel else f["unknown_vel_ms"]) ** 2
             ent.east = [e, vel[0] if vel else 0.0, ce * ce, 0.0, vv]
             ent.north = [n, vel[1] if vel else 0.0, ce * ce, 0.0, vv]
-            if self.pack.manoeuvre is not None:
-                a, b = self.pack.manoeuvre["p_enter"], self.pack.manoeuvre["p_leave"]
+            if self.pack.maneuver is not None:
+                a, b = self.pack.maneuver["p_enter"], self.pack.maneuver["p_leave"]
                 ent.models = [[list(ent.east), list(ent.north)], [list(ent.east), list(ent.north)]]
                 ent.mode = [b / (a + b), a / (a + b)]
             events.append({"ev": "new", "entity": key})

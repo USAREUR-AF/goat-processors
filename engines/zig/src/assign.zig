@@ -1,4 +1,4 @@
-// spec/correlate-assign.md (version 0.3): system tracks, per-source ranked
+// spec/correlate-assign.md (version 0.4): system tracks, per-source ranked
 // assignments at each tick, a window of `n` ticks over the best `k` histories,
 // and the inverse-variance fused estimate.
 const std = @import("std");

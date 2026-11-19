@@ -388,7 +388,7 @@ TURN_DECIDED = [["new"], ["new"], ["correlate"]] + [[]] * 8
 scenario("33-turn-one-model-dissolves", "correlate-gnn", TURN,
          TURN_DECIDED + [["leave", "dissolve"], [], []])
 
-# 34. The same reports with the two-model filter: the manoeuvre model takes
+# 34. The same reports with the two-model filter: the maneuver model takes
 #     the mode probability, the prediction keeps up, the group holds.
 scenario("34-turn-two-models-hold", "correlate-gnn-imm", TURN,
          TURN_DECIDED + [[], [], ["fused"]])
@@ -414,7 +414,7 @@ scenario("36-assign-turn-two-models-one-system", "correlate-assign-imm", turn_as
          [["new"], ["new"], ["start", "join", "system"]] + [[], [], ["system"]] * 4)
 
 # 37. A straight track with reported velocity: the velocity innovations enter
-#     the likelihood and the manoeuvre probability falls (trace, snapshot).
+#     the likelihood and the maneuver probability falls (trace, snapshot).
 st = dict(course=90, speed_ms=100, ce=30, **AIR)
 scenario("37-two-models-straight-goes-quiet", "correlate-gnn-imm", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, **st)),
@@ -426,7 +426,7 @@ scenario("37-two-models-straight-goes-quiet", "correlate-gnn-imm", [
 # 38. A 100 km jump: the quiet model's weight underflows to exactly 0; a second
 #     report at the same time (dt = 0) finds its predicted mode probability 0
 #     and keeps its own state; the next report (dt above 0) mixes it again,
-#     from the manoeuvre model alone (snapshot).
+#     from the maneuver model alone (snapshot).
 scenario("38-two-models-underflow-and-zero-dt", "correlate-gnn-imm", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
     ("ingest", rep("radar-1", "T1", 1000, 100000, 0, ce=30, **AIR)),
@@ -441,7 +441,7 @@ scenario("38-two-models-underflow-and-zero-dt", "correlate-gnn-imm", [
 def crossing(rounds=8, swap_round=5, sep=100.0, swap_ce=15):
     """Two aircraft cross 100 m apart: O1 east at 100 m/s, O2 west at 90 m/s.
     radar-1 reports both every 2 s; adsb every 4 s. At swap_round the radar's
-    two plots are each other's, with ce 15. Radar plots sit a fixed few metres
+    two plots are each other's, with ce 15. Radar plots sit a fixed few meters
     off the aircraft (R1 +12 east -8 north, R2 -9 east +14 north)."""
     out = []
     for i in range(rounds):

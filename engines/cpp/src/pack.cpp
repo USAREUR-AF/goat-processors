@@ -145,16 +145,16 @@ Pack parse_pack(const std::string& text) {
             std::int64_t v = parse_integer(line, words[1]);
             if (v < 1) fail(line, d + " must be 1 or above");
             (d == "window" ? p.window : p.hypotheses) = v;
-        } else if (d == "manoeuvre") {
+        } else if (d == "maneuver") {
             // correlate.md "Pack": exactly accel_var, p_enter, p_leave.
             auto kv = parse_params(line, words, 1, {"accel_var", "p_enter", "p_leave"});
-            ManoeuvreParams m;
+            ManeuverParams m;
             m.accel_var = parse_number(line, kv["accel_var"]);
             m.p_enter = parse_number(line, kv["p_enter"]);
             m.p_leave = parse_number(line, kv["p_leave"]);
             if (!(m.p_enter > 0) || !(m.p_leave > 0) || !(m.p_enter + m.p_leave < 1))
                 fail(line, "p_enter and p_leave must be above 0 with a sum below 1");
-            p.manoeuvre = m;
+            p.maneuver = m;
         } else if (d == "filter") {
             auto kv = parse_params(line, words, 1, {"accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms"});
             p.filter.accel_var = parse_number(line, kv["accel_var"]);
@@ -213,8 +213,8 @@ Pack parse_pack(const std::string& text) {
             throw PackError(std::string("pack.def: directive ") + d + " is not allowed with method " +
                             (p.method_assign ? "assign" : "confirm"));
     // correlate.md "Pack": checked once the whole file is read.
-    if (p.manoeuvre && !(p.manoeuvre->accel_var > p.filter.accel_var))
-        throw PackError("pack.def: manoeuvre accel_var must be above filter accel_var");
+    if (p.maneuver && !(p.maneuver->accel_var > p.filter.accel_var))
+        throw PackError("pack.def: maneuver accel_var must be above filter accel_var");
     // correlate-assign.md "Pack".
     if (p.hypotheses > 1 && p.window <= 1)
         throw PackError("pack.def: hypotheses above 1 needs window above 1");

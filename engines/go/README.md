@@ -1,10 +1,10 @@
 # goat-correlator: Go engine
 
-An implementation of `spec/correlate.md` (version 0.5, method `confirm`, with
-the optional two-model filter) and `spec/correlate-assign.md` (version 0.3,
+An implementation of `spec/correlate.md` (version 0.6, method `confirm`, with
+the optional two-model filter) and `spec/correlate-assign.md` (version 0.4,
 method `assign`, with the multi-frame window) in Go, standard library only.
 The pack's `method` line selects which runs. The `fuse` package
-(`engines/go/fuse/`) implements `spec/fuse.md` (version 0.1).
+(`engines/go/fuse/`) implements `spec/fuse.md` (version 0.2).
 
 The package `filter/` implements `spec/filter.md` (version 0.1), the keep/drop
 filter. It reads reports with the correlate engine's own reader

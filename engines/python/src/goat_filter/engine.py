@@ -5,7 +5,7 @@ import os
 import re
 
 # Report validation is the correlate function's (spec/filter.md, Reports).
-from goat_correlator.engine import REQUIRED, _is, _normalise
+from goat_correlator.engine import REQUIRED, _is, _normalize
 
 R = 6371008.8
 INT_MAX = 9223372036854775807
@@ -387,7 +387,7 @@ class Engine:
         for k, kind in REQUIRED:
             if not _is(report.get(k), kind):
                 return [{"ev": "reject", "reason": "missing:" + k}], []
-        report = _normalise(report)
+        report = _normalize(report)
         key = report["track.source_id"] + "/" + report["uid"]
         t = report["time_ms"]
         state = self.entities.get(key)

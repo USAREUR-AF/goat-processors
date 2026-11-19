@@ -290,15 +290,15 @@ function drawPlan() {
   }
   const est = s.est || {};
   // clusters: two members are joined by an arc, bowed up or down so that
-  // neighbouring clusters stay apart; three or more by a band; one by a ring.
+  // neighboring clusters stay apart; three or more by a band; one by a ring.
   const bands = el("g", {}, svg);
   const labels = [];
-  const centre = {}, clabel = {};
+  const center = {}, clabel = {};
   Object.keys(s.clusters || {}).forEach((id, ci) => {
     const m = s.clusters[id].filter(k => est[k]).map(k => [sx(est[k][0]), sy(est[k][1])]);
     if (!m.length) return;
     const c = [m.reduce((a, p) => a + p[0], 0) / m.length, m.reduce((a, p) => a + p[1], 0) / m.length];
-    centre[id] = c;
+    center[id] = c;
     let lx = c[0], ly = c[1] - 28;
     if (m.length === 1) {
       el("circle", { cx: m[0][0], cy: m[0][1], r: 20, fill: "var(--band)", stroke: "var(--accent)", "stroke-width": 1.5, "stroke-dasharray": "3 3" }, bands);
@@ -356,8 +356,8 @@ function drawPlan() {
     el("title", {}, d, (o.ev.ev) + " output for " + id + " at step " + (o.step + 1) + ": " + fmt(o.ev.lat) + ", " + fmt(o.ev.lon));
   }
   for (const id in clabel) labels.push(clabel[id]);
-  // selected pair: each end is an entity's estimate, a cluster's output, or its centre
-  const at = k => est[k] ? [sx(est[k][0]), sy(est[k][1])] : outs[k] ? [sx(outs[k].xy[0]), sy(outs[k].xy[1])] : centre[k] || null;
+  // selected pair: each end is an entity's estimate, a cluster's output, or its center
+  const at = k => est[k] ? [sx(est[k][0]), sy(est[k][1])] : outs[k] ? [sx(outs[k].xy[0]), sy(outs[k].xy[1])] : center[k] || null;
   if (sel) {
     const ka = sel.a ?? sel.entity ?? sel.subject ?? sel.member, kb = sel.b ?? sel.group;
     const a = at(ka), b = at(kb) || (kb === "alone" && a ? [a[0], a[1] - 40] : null);

@@ -36,9 +36,9 @@ type Pack struct {
 	NewCost      float64
 	KeepBonus    float64
 
-	// manoeuvre line (spec: correlate.md Two-model filter)
-	HasManoeuvre bool
-	ManoeuvreVar float64 // q2
+	// maneuver line (spec: correlate.md Two-model filter)
+	HasManeuver bool
+	ManeuverVar float64 // q2
 	PEnter       float64 // a
 	PLeave       float64 // b
 
@@ -187,15 +187,15 @@ func ParsePack(text string) (*Pack, error) {
 					}
 				}
 			}
-		case "manoeuvre":
+		case "maneuver":
 			var m map[string]string
 			m, err = parseParams(rest, []string{"accel_var", "p_enter", "p_leave"})
 			if err == nil {
-				p.HasManoeuvre = true
+				p.HasManeuver = true
 				for _, f := range []struct {
 					k string
 					p *float64
-				}{{"accel_var", &p.ManoeuvreVar}, {"p_enter", &p.PEnter}, {"p_leave", &p.PLeave}} {
+				}{{"accel_var", &p.ManeuverVar}, {"p_enter", &p.PEnter}, {"p_leave", &p.PLeave}} {
 					if *f.p, err = parseFloat(m[f.k]); err != nil {
 						break
 					}
@@ -312,8 +312,8 @@ func ParsePack(text string) (*Pack, error) {
 	if p.Method == "assign" && !(p.NewCost > 0 && p.KeepBonus >= 0) {
 		return nil, fmt.Errorf("new_cost must be above 0 and keep_bonus 0 or above")
 	}
-	if p.HasManoeuvre && !(p.PEnter > 0 && p.PLeave > 0 && p.PEnter+p.PLeave < 1 && p.ManoeuvreVar > p.AccelVar) {
-		return nil, fmt.Errorf("manoeuvre: p_enter and p_leave must be above 0 with a sum below 1, and accel_var above filter's")
+	if p.HasManeuver && !(p.PEnter > 0 && p.PLeave > 0 && p.PEnter+p.PLeave < 1 && p.ManeuverVar > p.AccelVar) {
+		return nil, fmt.Errorf("maneuver: p_enter and p_leave must be above 0 with a sum below 1, and accel_var above filter's")
 	}
 	if p.Hypotheses > 1 && p.Window == 1 {
 		return nil, fmt.Errorf("hypotheses above 1 needs window above 1")
