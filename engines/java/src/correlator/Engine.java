@@ -168,7 +168,9 @@ public final class Engine {
         }
         double[] en = toPlane(lat, lon);
         Object ceObj = report.get("ce");
-        double ce = ceObj instanceof Number ? ((Number) ceObj).doubleValue() : pack.defaultCe;
+        // Spec: Reports, a ce of 0 or below is treated as absent.
+        boolean ceOk = ceObj instanceof Number && ((Number) ceObj).doubleValue() > 0;
+        double ce = ceOk ? ((Number) ceObj).doubleValue() : pack.defaultCe;
         Object course = report.get("course"), speed = report.get("speed_ms");
         boolean hasVel = course instanceof Number && speed instanceof Number;
         double ve = 0, vn = 0;
@@ -199,9 +201,12 @@ public final class Engine {
         }
         a.lastTime = time;
         a.last = new LinkedHashMap<>(report);
-        // Spec: Reports, an optional key of the wrong type is treated as absent.
+        // Spec: Reports, a null value is the same as the key being absent, and an
+        // optional key of the wrong type is treated as absent.
+        a.last.values().removeIf(v -> v == null);
         for (String k : new String[] {"hae", "ce", "course", "speed_ms"})
             if (!(a.last.get(k) instanceof Number)) a.last.remove(k);
+        if (!ceOk) a.last.remove("ce");
         if (!(a.last.get("type") instanceof String)) a.last.remove("type");
         if (!(a.last.get("stale_ms") instanceof Long)) a.last.remove("stale_ms");
         a.ce = ce;
@@ -382,7 +387,7 @@ public final class Engine {
         return de * de / (pb.east.pp + r) + dn * dn / (pb.north.pp + r);
     }
 
-    /** `@env` is the third `-`-separated element of `type`. */
+    /** `@env` is the third `-`-separated element of `type`; absent with fewer than three. */
     private static Object sameValue(Entity e, String key) {
         if (!key.equals("@env")) return e.last.get(key);
         Object type = e.last.get("type");
