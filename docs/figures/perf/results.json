@@ -1,0 +1,1121 @@
+{
+ "commit": "ed5d55a",
+ "counts": {
+  "correlate": {
+   "ingest": 319,
+   "load_vectors": 73,
+   "tick": 110,
+   "vectors": 56
+  },
+  "filter": {
+   "ingest": 97,
+   "load_vectors": 50,
+   "tick": 5,
+   "vectors": 27
+  },
+  "fuse": {
+   "ingest": 52,
+   "load_vectors": 33,
+   "tick": 24,
+   "vectors": 16
+  },
+  "quality": {
+   "ingest": 182,
+   "load_vectors": 62,
+   "tick": 49,
+   "vectors": 22
+  }
+ },
+ "large": {
+  "description": "12 objects for 600 s; sensors radar (4 s), beacon (1 s), beacon2 (1 s, clock +200 ms), passive (2 s, clock drift 10 ms/min); 18571 reports and 600 ticks; seed 20261120",
+  "vector_bytes": {
+   "correlate-assign-time": 138332166,
+   "correlate-gnn-imm": 21041088,
+   "filter-thin": 28741928,
+   "fuse-independent": 13968158,
+   "quality-time": 46534249
+  }
+ },
+ "large_counts": {
+  "correlate": {
+   "ingest": 37142,
+   "load_vectors": 73,
+   "tick": 1200,
+   "vectors": 2
+  },
+  "filter": {
+   "ingest": 18571,
+   "load_vectors": 50,
+   "tick": 600,
+   "vectors": 1
+  },
+  "fuse": {
+   "ingest": 18571,
+   "load_vectors": 33,
+   "tick": 600,
+   "vectors": 1
+  },
+  "quality": {
+   "ingest": 18571,
+   "load_vectors": 62,
+   "tick": 600,
+   "vectors": 1
+  }
+ },
+ "large_repeats": 3,
+ "large_vectors": {
+  "cpp": {
+   "correlate": {
+    "ok": true,
+    "rss_kb": {
+     "max": 2193368,
+     "median": 2193216,
+     "min": 2193168,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 14.533019568771124,
+     "median": 14.267948469147086,
+     "min": 14.257616689428687,
+     "n": 3
+    }
+   },
+   "filter": {
+    "ok": true,
+    "rss_kb": {
+     "max": 459136,
+     "median": 459064,
+     "min": 458812,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 1.0085217095911503,
+     "median": 0.9837697744369507,
+     "min": 0.9783528838306665,
+     "n": 3
+    }
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 200052,
+     "median": 199848,
+     "min": 199808,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 0.4675257224589586,
+     "median": 0.43656185641884804,
+     "min": 0.4294809624552727,
+     "n": 3
+    }
+   },
+   "quality": {
+    "ok": true,
+    "rss_kb": {
+     "max": 621668,
+     "median": 621552,
+     "min": 621536,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 1.8909109123051167,
+     "median": 1.79021773673594,
+     "min": 1.7422380037605762,
+     "n": 3
+    }
+   }
+  },
+  "erlang": {
+   "correlate": {
+    "ok": true,
+    "rss_kb": {
+     "max": 4010868,
+     "median": 3780960,
+     "min": 3777592,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 110.78268882259727,
+     "median": 106.45309717394412,
+     "min": 105.14023110456765,
+     "n": 3
+    }
+   },
+   "filter": {
+    "ok": true,
+    "rss_kb": {
+     "max": 907700,
+     "median": 907548,
+     "min": 906896,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 2.833836931735277,
+     "median": 2.804463041946292,
+     "min": 2.7320507280528545,
+     "n": 3
+    }
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 389816,
+     "median": 389512,
+     "min": 389500,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 0.9314704481512308,
+     "median": 0.9011790603399277,
+     "min": 0.8881627060472965,
+     "n": 3
+    }
+   },
+   "quality": {
+    "ok": true,
+    "rss_kb": {
+     "max": 1071440,
+     "median": 1071304,
+     "min": 1070976,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 5.4433059096336365,
+     "median": 5.341046068817377,
+     "min": 5.2912637162953615,
+     "n": 3
+    }
+   }
+  },
+  "go": {
+   "correlate": {
+    "ok": true,
+    "rss_kb": {
+     "max": 1719116,
+     "median": 1718208,
+     "min": 1717792,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 31.433192182332277,
+     "median": 31.168183095753193,
+     "min": 31.108065739274025,
+     "n": 3
+    }
+   },
+   "filter": {
+    "ok": true,
+    "rss_kb": {
+     "max": 299956,
+     "median": 297324,
+     "min": 293220,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 0.9577659498900175,
+     "median": 0.8895925432443619,
+     "min": 0.8675337638705969,
+     "n": 3
+    }
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 171100,
+     "median": 167772,
+     "min": 167004,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 0.4096236228942871,
+     "median": 0.3984528388828039,
+     "min": 0.39283138141036034,
+     "n": 3
+    }
+   },
+   "quality": {
+    "ok": true,
+    "rss_kb": {
+     "max": 492360,
+     "median": 490988,
+     "min": 489336,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 1.62603291682899,
+     "median": 1.6156794652342796,
+     "min": 1.5923240017145872,
+     "n": 3
+    }
+   }
+  },
+  "java": {
+   "correlate": {
+    "ok": true,
+    "rss_kb": {
+     "max": 3696444,
+     "median": 3575256,
+     "min": 3363496,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 13.202012473717332,
+     "median": 12.904355965554714,
+     "min": 12.591540109366179,
+     "n": 3
+    }
+   },
+   "filter": {
+    "ok": true,
+    "rss_kb": {
+     "max": 727492,
+     "median": 714724,
+     "min": 711780,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 0.9384924918413162,
+     "median": 0.9136163182556629,
+     "min": 0.9047153126448393,
+     "n": 3
+    }
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 475892,
+     "median": 474780,
+     "min": 472320,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 0.6651570554822683,
+     "median": 0.6648089997470379,
+     "min": 0.6402094811201096,
+     "n": 3
+    }
+   },
+   "quality": {
+    "ok": true,
+    "rss_kb": {
+     "max": 1366560,
+     "median": 1366208,
+     "min": 1343408,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 2.028040636330843,
+     "median": 1.9156564641743898,
+     "min": 1.8893439900130033,
+     "n": 3
+    }
+   }
+  },
+  "python": {
+   "correlate": {
+    "ok": true,
+    "rss_kb": {
+     "max": 764776,
+     "median": 764760,
+     "min": 764552,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 48.26942165568471,
+     "median": 43.71412649191916,
+     "min": 43.590027280151844,
+     "n": 3
+    }
+   },
+   "filter": {
+    "ok": true,
+    "rss_kb": {
+     "max": 180348,
+     "median": 179372,
+     "min": 179180,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 1.1220604069530964,
+     "median": 1.097687354311347,
+     "min": 1.078166637569666,
+     "n": 3
+    }
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 99312,
+     "median": 98304,
+     "min": 98296,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 0.6800547204911709,
+     "median": 0.6401419471949339,
+     "min": 0.6381782796233892,
+     "n": 3
+    }
+   },
+   "quality": {
+    "ok": true,
+    "rss_kb": {
+     "max": 253928,
+     "median": 253852,
+     "min": 253700,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 3.3278215788304806,
+     "median": 3.233756195753813,
+     "min": 3.2334066294133663,
+     "n": 3
+    }
+   }
+  },
+  "rust": {
+   "correlate": {
+    "ok": true,
+    "rss_kb": {
+     "max": 1382068,
+     "median": 1381772,
+     "min": 1381460,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 18.072867145761847,
+     "median": 15.847359107807279,
+     "min": 15.324632422998548,
+     "n": 3
+    }
+   },
+   "filter": {
+    "ok": true,
+    "rss_kb": {
+     "max": 319300,
+     "median": 319196,
+     "min": 318932,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 1.0082077644765377,
+     "median": 0.9473553150892258,
+     "min": 0.9352187849581242,
+     "n": 3
+    }
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 178188,
+     "median": 178128,
+     "min": 177892,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 0.4588317107409239,
+     "median": 0.4573697615414858,
+     "min": 0.4521803632378578,
+     "n": 3
+    }
+   },
+   "quality": {
+    "ok": true,
+    "rss_kb": {
+     "max": 479592,
+     "median": 479520,
+     "min": 479512,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 1.6362966876477003,
+     "median": 1.589646140113473,
+     "min": 1.588664198294282,
+     "n": 3
+    }
+   }
+  },
+  "zig": {
+   "correlate": {
+    "exit": 1,
+    "ok": false,
+    "tail": "1/4 vectors_test.test_0...OK\n2/4 vectors_test.test.load vectors...correlate load vectors: 73 run, 0 failed\nOK\n3/4 vectors_test.test.scenario vectors...FAIL (FileTooBig)\n4/4 compare.test.numbers compare within tolerance, null differs from absent...OK\n3 passed; 0 skipped; 1 failed.\n"
+   },
+   "filter": {
+    "exit": 1,
+    "ok": false,
+    "tail": "1/5 filter_vectors_test.test_0...OK\n2/5 filter_vectors_test.test.filter load vectors...filter load vectors: 50 run, 0 failed\nOK\n3/5 filter_vectors_test.test.filter scenario vectors...FAIL (FileTooBig)\n4/5 filter_geo.test.polygon boundary, inside, outside, across the antimeridian...OK\n5/5 compare.test.numbers compare within tolerance, null differs from absent...OK\n4 passed; 0 skipped; 1 failed.\n"
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 353056,
+     "median": 352800,
+     "min": 352800,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 0.36424121260643005,
+     "median": 0.34827860072255135,
+     "min": 0.3388390764594078,
+     "n": 3
+    }
+   },
+   "quality": {
+    "exit": 1,
+    "ok": false,
+    "tail": "1/3 quality_vectors_test.test.quality load vectors...quality load vectors: 62 run, 0 failed\nOK\n2/3 quality_vectors_test.test.quality scenario vectors...FAIL (FileTooBig)\n3/3 compare.test.numbers compare within tolerance, null differs from absent...OK\n2 passed; 0 skipped; 1 failed.\n"
+   }
+  }
+ },
+ "load": {
+  "end": [
+   7.98,
+   7.5,
+   8.45
+  ],
+  "start": [
+   9.3,
+   10.61,
+   11.61
+  ]
+ },
+ "machine": {
+  "cores": 16,
+  "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics",
+  "memory_gb": 88,
+  "os": "Linux 7.0.0-27-generic"
+ },
+ "repeats": 10,
+ "runner": {
+  "python": {
+   "correlate-assign-time": {
+    "counters": {
+     "events": 22315,
+     "ingest": 18571,
+     "steps": 19171,
+     "tick": 600,
+     "trace_records": 1074287
+    },
+    "function": "correlate",
+    "ok": true,
+    "output": "equal to python",
+    "parse_s": {
+     "max": 0.041752601,
+     "median": 0.039095426,
+     "min": 0.036762683,
+     "n": 3
+    },
+    "rss_kb": {
+     "max": 38564,
+     "median": 38428,
+     "min": 38152,
+     "n": 3
+    },
+    "run_s": {
+     "max": 41.019625969,
+     "median": 40.845971623,
+     "min": 37.496676816,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 41.11081260256469,
+     "median": 40.93710745871067,
+     "min": 37.57975339516997,
+     "n": 3
+    }
+   },
+   "correlate-gnn-imm": {
+    "counters": {
+     "events": 8614,
+     "ingest": 18571,
+     "steps": 19171,
+     "tick": 600,
+     "trace_records": 117868
+    },
+    "function": "correlate",
+    "ok": true,
+    "output": "equal to python",
+    "parse_s": {
+     "max": 0.044288711,
+     "median": 0.042040705,
+     "min": 0.037700121,
+     "n": 3
+    },
+    "rss_kb": {
+     "max": 38676,
+     "median": 38476,
+     "min": 38452,
+     "n": 3
+    },
+    "run_s": {
+     "max": 0.405598402,
+     "median": 0.389524812,
+     "min": 0.385253857,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 0.49712822400033474,
+     "median": 0.4764175321906805,
+     "min": 0.46797046437859535,
+     "n": 3
+    }
+   },
+   "filter-thin": {
+    "counters": {
+     "events": 18574,
+     "ingest": 18571,
+     "steps": 19171,
+     "tick": 600,
+     "trace_records": 187452
+    },
+    "function": "filter",
+    "ok": true,
+    "output": "equal to python",
+    "parse_s": {
+     "max": 0.04746074,
+     "median": 0.040942709,
+     "min": 0.040795698,
+     "n": 3
+    },
+    "rss_kb": {
+     "max": 38720,
+     "median": 38708,
+     "min": 38672,
+     "n": 3
+    },
+    "run_s": {
+     "max": 0.172123789,
+     "median": 0.17077525,
+     "min": 0.169806896,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 0.2728066947311163,
+     "median": 0.2620878405869007,
+     "min": 0.25944605469703674,
+     "n": 3
+    }
+   },
+   "fuse-independent": {
+    "counters": {
+     "events": 7693,
+     "ingest": 18571,
+     "steps": 19171,
+     "tick": 600,
+     "trace_records": 22905
+    },
+    "function": "fuse",
+    "ok": true,
+    "output": "equal to python",
+    "parse_s": {
+     "max": 0.052240669,
+     "median": 0.045563865,
+     "min": 0.04365706,
+     "n": 3
+    },
+    "rss_kb": {
+     "max": 39872,
+     "median": 39864,
+     "min": 39844,
+     "n": 3
+    },
+    "run_s": {
+     "max": 0.17746568,
+     "median": 0.176356293,
+     "min": 0.17224285,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 0.27796383388340473,
+     "median": 0.2761049307882786,
+     "min": 0.2700740322470665,
+     "n": 3
+    }
+   },
+   "quality-time": {
+    "counters": {
+     "events": 50976,
+     "ingest": 18571,
+     "steps": 19171,
+     "tick": 600,
+     "trace_records": 159938
+    },
+    "function": "quality",
+    "ok": true,
+    "output": "equal to python",
+    "parse_s": {
+     "max": 0.068734406,
+     "median": 0.045171186,
+     "min": 0.03979948,
+     "n": 3
+    },
+    "rss_kb": {
+     "max": 38736,
+     "median": 38696,
+     "min": 38628,
+     "n": 3
+    },
+    "run_s": {
+     "max": 2.534262296,
+     "median": 2.246792043,
+     "min": 1.735072966,
+     "n": 3
+    },
+    "wall_s": {
+     "max": 2.65905580483377,
+     "median": 2.3707100320607424,
+     "min": 1.8386995773762465,
+     "n": 3
+    }
+   }
+  }
+ },
+ "vectors": {
+  "cpp": {
+   "correlate": {
+    "ok": true,
+    "rss_kb": {
+     "max": 7292,
+     "median": 7222.0,
+     "min": 7092,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.02120227739214897,
+     "median": 0.01832890510559082,
+     "min": 0.017335398122668266,
+     "n": 10
+    }
+   },
+   "filter": {
+    "ok": true,
+    "rss_kb": {
+     "max": 5444,
+     "median": 5356.0,
+     "min": 5188,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.009365217760205269,
+     "median": 0.006487423554062843,
+     "min": 0.005847908556461334,
+     "n": 10
+    }
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 5344,
+     "median": 5308.0,
+     "min": 5188,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.005504801869392395,
+     "median": 0.005197602324187756,
+     "min": 0.004298236221075058,
+     "n": 10
+    }
+   },
+   "quality": {
+    "ok": true,
+    "rss_kb": {
+     "max": 6124,
+     "median": 5948.0,
+     "min": 5648,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.01426665298640728,
+     "median": 0.012423655949532986,
+     "min": 0.011482112109661102,
+     "n": 10
+    }
+   }
+  },
+  "erlang": {
+   "correlate": {
+    "ok": true,
+    "rss_kb": {
+     "max": 81996,
+     "median": 79952.0,
+     "min": 78572,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.2140334714204073,
+     "median": 0.18795054126530886,
+     "min": 0.16896157152950764,
+     "n": 10
+    }
+   },
+   "filter": {
+    "ok": true,
+    "rss_kb": {
+     "max": 73440,
+     "median": 71410.0,
+     "min": 70272,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.17564200051128864,
+     "median": 0.1618913346901536,
+     "min": 0.1485671829432249,
+     "n": 10
+    }
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 71652,
+     "median": 70636.0,
+     "min": 69556,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.18292076140642166,
+     "median": 0.1562359780073166,
+     "min": 0.1268102191388607,
+     "n": 10
+    }
+   },
+   "quality": {
+    "ok": true,
+    "rss_kb": {
+     "max": 74564,
+     "median": 73148.0,
+     "min": 72584,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.16744541004300117,
+     "median": 0.15329540893435478,
+     "min": 0.14679631032049656,
+     "n": 10
+    }
+   }
+  },
+  "go": {
+   "correlate": {
+    "ok": true,
+    "rss_kb": {
+     "max": 10336,
+     "median": 9888.0,
+     "min": 9568,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.04673508368432522,
+     "median": 0.03804037440568209,
+     "min": 0.03563331998884678,
+     "n": 10
+    }
+   },
+   "filter": {
+    "ok": true,
+    "rss_kb": {
+     "max": 7148,
+     "median": 6892.0,
+     "min": 6892,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.011904943734407425,
+     "median": 0.010404832661151886,
+     "min": 0.009543199092149734,
+     "n": 10
+    }
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 5724,
+     "median": 5660.0,
+     "min": 5468,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.00772588886320591,
+     "median": 0.0071210069581866264,
+     "min": 0.006335072219371796,
+     "n": 10
+    }
+   },
+   "quality": {
+    "ok": true,
+    "rss_kb": {
+     "max": 9568,
+     "median": 9248.0,
+     "min": 9056,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.022487055510282516,
+     "median": 0.0195099962875247,
+     "min": 0.018672985956072807,
+     "n": 10
+    }
+   }
+  },
+  "java": {
+   "correlate": {
+    "ok": true,
+    "rss_kb": {
+     "max": 111168,
+     "median": 108804.0,
+     "min": 104520,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.21147315204143524,
+     "median": 0.1985410787165165,
+     "min": 0.18749910220503807,
+     "n": 10
+    }
+   },
+   "filter": {
+    "ok": true,
+    "rss_kb": {
+     "max": 63096,
+     "median": 61904.0,
+     "min": 60460,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.14048469252884388,
+     "median": 0.12048880010843277,
+     "min": 0.11351112090051174,
+     "n": 10
+    }
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 55348,
+     "median": 54728.0,
+     "min": 53840,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.1189793162047863,
+     "median": 0.1089185057207942,
+     "min": 0.09860511496663094,
+     "n": 10
+    }
+   },
+   "quality": {
+    "ok": true,
+    "rss_kb": {
+     "max": 83888,
+     "median": 81074.0,
+     "min": 78968,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.1715171542018652,
+     "median": 0.15599538944661617,
+     "min": 0.1466007251292467,
+     "n": 10
+    }
+   }
+  },
+  "python": {
+   "correlate": {
+    "ok": true,
+    "rss_kb": {
+     "max": 23108,
+     "median": 19060.0,
+     "min": 18956,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.14861263521015644,
+     "median": 0.11903004162013531,
+     "min": 0.1072235181927681,
+     "n": 10
+    }
+   },
+   "filter": {
+    "ok": true,
+    "rss_kb": {
+     "max": 18560,
+     "median": 17280.0,
+     "min": 17092,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.06384134665131569,
+     "median": 0.056360707618296146,
+     "min": 0.05257386714220047,
+     "n": 10
+    }
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 19220,
+     "median": 18084.0,
+     "min": 17988,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.06312169134616852,
+     "median": 0.05721303168684244,
+     "min": 0.05061168968677521,
+     "n": 10
+    }
+   },
+   "quality": {
+    "ok": true,
+    "rss_kb": {
+     "max": 19896,
+     "median": 18572.0,
+     "min": 18176,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.07459355145692825,
+     "median": 0.07034911308437586,
+     "min": 0.0651013720780611,
+     "n": 10
+    }
+   }
+  },
+  "rust": {
+   "correlate": {
+    "ok": true,
+    "rss_kb": {
+     "max": 5180,
+     "median": 5028.0,
+     "min": 4836,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.01898322068154812,
+     "median": 0.017594851553440094,
+     "min": 0.016715891659259796,
+     "n": 10
+    }
+   },
+   "filter": {
+    "ok": true,
+    "rss_kb": {
+     "max": 4004,
+     "median": 3812.0,
+     "min": 3600,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.006266111508011818,
+     "median": 0.00577190238982439,
+     "min": 0.00553862564265728,
+     "n": 10
+    }
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 3812,
+     "median": 3662.0,
+     "min": 3596,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.00491725467145443,
+     "median": 0.004209535196423531,
+     "min": 0.003901461139321327,
+     "n": 10
+    }
+   },
+   "quality": {
+    "ok": true,
+    "rss_kb": {
+     "max": 4356,
+     "median": 4130.0,
+     "min": 3968,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.01271791011095047,
+     "median": 0.011824996210634708,
+     "min": 0.010908735916018486,
+     "n": 10
+    }
+   }
+  },
+  "zig": {
+   "correlate": {
+    "ok": true,
+    "rss_kb": {
+     "max": 7508,
+     "median": 7476.0,
+     "min": 7356,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.01955636404454708,
+     "median": 0.01703276764601469,
+     "min": 0.016698790714144707,
+     "n": 10
+    }
+   },
+   "filter": {
+    "ok": true,
+    "rss_kb": {
+     "max": 2240,
+     "median": 2240.0,
+     "min": 2240,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.007103096693754196,
+     "median": 0.006454933434724808,
+     "min": 0.005895635113120079,
+     "n": 10
+    }
+   },
+   "fuse": {
+    "ok": true,
+    "rss_kb": {
+     "max": 1440,
+     "median": 1440.0,
+     "min": 1440,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.005461631342768669,
+     "median": 0.004581790417432785,
+     "min": 0.0038148202002048492,
+     "n": 10
+    }
+   },
+   "quality": {
+    "ok": true,
+    "rss_kb": {
+     "max": 6468,
+     "median": 6432.0,
+     "min": 6316,
+     "n": 10
+    },
+    "wall_s": {
+     "max": 0.013662733137607574,
+     "median": 0.013416269794106483,
+     "min": 0.012556912377476692,
+     "n": 10
+    }
+   }
+  }
+ },
+ "versions": {
+  "cmake": "cmake version 4.2.3",
+  "cpp": "g++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "erlang": "OTP 27",
+  "go": "go version go1.26.8 linux/amd64",
+  "java": "openjdk version \"17.0.21.1\" 2026-11-17",
+  "python": "Python 3.14.4",
+  "rust": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "zig": "zig 0.13.0"
+ }
+}
