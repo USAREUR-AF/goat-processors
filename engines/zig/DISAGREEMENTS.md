@@ -37,6 +37,7 @@ Readings this engine takes where the text could be read more than one way:
 
 | Point | This engine |
 |---|---|
+| A longitude far outside [-180, 180] (found by the refactor's report fuzzer) | "Frame" brings `lon - lon0` into (-180, 180] "by adding or subtracting 360", and this engine does that in a loop, as written: a longitude of 1e12 takes about 3e9 steps, and one of 1e300 never ends (1e300 - 360 is 1e300 in binary64). Every function that uses the Frame (correlate, fuse, quality, and filter's Geometry) shares it. A remainder (`fmod`) would end, but it is not the formula written and could round differently, so the refactor did not change it. For proc-coord: should a report with `abs(lon) > 180` (or not finite) be rejected, or the wrap be defined as a remainder? |
 | A `time_error_ms` written as an integer literal outside the signed 64-bit range | `std.json` keeps it as a number string, read as the nearest binary64: a number, so present when finite. |
 | A `time_default` source id that holds `=` | Not a source id ("a first token without `=`"): a load error. |
 | The prediction a later report's measurement variance and its Restart test read | One prediction of the entity to the report's `time_ms`, taken before the update, serves both. |

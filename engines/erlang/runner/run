@@ -1,0 +1,5 @@
+#!/bin/sh
+# Run the built runner (tools/perf/README.md "Runner contract"); never builds.
+# The arguments go to io_runner:main/0 as plain arguments after -extra.
+here="$(cd "$(dirname "$0")/.." && pwd)"
+exec erl -noshell -noinput +A0 -pa "$here/ebin" -run io_runner main -extra "$@"

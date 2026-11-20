@@ -1,0 +1,6 @@
+#!/bin/sh
+# tools/perf/README.md "Runner contract": builds the zig runner, optimized.
+set -e
+cd "$(dirname "$0")/.."
+mkdir -p zig-out/bin
+exec zig build-exe -O ReleaseFast src/main.zig -femit-bin=zig-out/bin/goat-runner

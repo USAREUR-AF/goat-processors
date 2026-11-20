@@ -4,9 +4,7 @@ import os
 import unittest
 
 from goat_filter import PackError, load_pack, make_engine, parse_pack
-from test_vectors import equal
-
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+from vectorlib import ROOT, equal
 
 
 class FilterVectors(unittest.TestCase):

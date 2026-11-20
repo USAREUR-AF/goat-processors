@@ -1,8 +1,9 @@
 # Correlation and fusion methods: survey, prototypes, decisions
 
 Status: Written (survey), Measured (three prototypes), Decided (two ADOPT,
-one REJECT). The prototypes are in [tools/research/](../../tools/research/);
-every number below comes from `python3 -I tools/research/research.py`.
+one REJECT), Designed (a detection-level `track` function, assessed but not
+built). The prototypes are in [tools/research/](../../tools/research/);
+every measured number below comes from `python3 -I tools/research/research.py`.
 
 This page asks one question of each published method: does it fix a
 weakness we have measured, at a cost a seven-language specification can
@@ -22,7 +23,8 @@ without new evidence.
 8. [Prototype 2: track succession](#prototype-2-track-succession)
 9. [Prototype 3: fast covariance intersection](#prototype-3-fast-covariance-intersection)
 10. [Decisions](#decisions)
-11. [References](#references)
+11. [Detection-level input: a `track` function](#detection-level-input-a-track-function)
+12. [References](#references)
 
 ## Constraints
 
@@ -380,6 +382,229 @@ already keeps (prototype 2).
 | proc-correlate | prototype 1 and 2 as spec rounds of `correlate-assign.md` after correlate 1.0; the prototype code in [tools/research/variants.py](../../tools/research/variants.py) as evidence. Vectors to separate: a source whose scale reaches the ceiling; a source whose estimate would fall below 1; a restarted report left out of the sum; an overdue member replaced; an overdue member not replaced, then stale |
 | proc-coord | sequencing; each method is one spec round with its own vectors and seven engines |
 
+## Detection-level input: a `track` function
+
+Status: Designed (assessment only; nothing is built).
+
+### The question
+
+Every function today takes **tracks**: each report carries a source's
+track number, and correlate decides which numbers are the same object. A
+ground moving-target indicator (GMTI) radar reports **detections**: one
+record per target per dwell (one look at an area), with a position, a
+radial velocity and no track number (the STANAG 4607 target report is one
+such format). Radar plots and emitter detections are the same kind of
+input. None of it can enter correlate until something forms tracks from
+it. The proposal is a new function, `track`: detections in, one set of
+local tracks per source out, feeding correlate unchanged.
+
+### Is it net positive?
+
+| Question | Answer |
+|---|---|
+| Does it fix a measured weakness? | No. It adds a capability: without it, detection-level sources cannot be used at all. The value is the new input, not a better score |
+| Can its value be measured today? | No. There is no detection-level scenario in the benchmark, and the `detection` module of goat-transformers is scheduled but not merged. A `track` built now would have no input and no score |
+| Does it fit the constraints? | Yes, in the scope below. Per-dwell exact assignment, a recursive filter and a sequential test are all deterministic, use no library, and give one trace record per decision |
+| Is a separate function right? | Yes. Track formation is per source, needs no other source, and keeps correlate's input contract (tracks) unchanged. Folding it into correlate would mix two association problems with different statistics: detections in clutter against tracks from sensors |
+
+**Verdict: ADOPT as a design; build only when two preconditions hold.**
+
+1. A detection-level family exists in the benchmark tuning set (proc-bench,
+   DATASET), with ground truth per detection: synthetic dwells with a
+   stated detection probability, clutter density, minimum detectable
+   velocity and error ellipse.
+2. A decoder that yields detections in the shared model is scheduled in
+   goat-transformers, so the function has a real source. This holds: the
+   `detection` module is scheduled, and the fields `track` needs are
+   listed below (Input).
+
+Until the first holds too, `track` would be code that no one can measure, which this
+page's rule does not allow.
+
+### What changes from tracks to detections
+
+The survey above judged methods for **track** input. Four of its reasons do
+not carry over to detections, and the method choice must say so.
+
+| Survey reason (track input) | At detection level |
+|---|---|
+| JPDA and JIPDA: "our inputs are tracks from sensors that already did their own association" | no longer true. Clutter and missed detections are the main problem, which is what JPDA and JIPDA were designed for |
+| MHT and N-scan: "the two-tick window is already a pruned MHT; the swaps had another cause" | untested at detection level. Closely spaced ground vehicles are the classic case for deferred decisions |
+| PHD and CPHD: "no identities" | still true; still out |
+| Errors are circular, so two independent axes suffice | not true. A GMTI position error is an ellipse: small in range, large across range, and growing with range. Rotated into east and north it has a cross term that the per-axis filter of `correlate.md` cannot hold |
+
+### What it reuses
+
+| Already specified | Where | Use in `track` |
+|---|---|---|
+| Frame: latitude and longitude to a local east-north plane and back | `correlate.md`, Frame | unchanged |
+| Constant-velocity filter per axis, prediction, update | `correlate.md`, Track estimate | unchanged for option (a) of the error ellipse |
+| Two-model filter (IMM) | `correlate.md`, Two-model filter | unchanged for option (a) |
+| Measurement variance with time quality (`time_error_ms`, `time_state`) | `correlate.md`, Track estimate and Reports, Time quality | the same keys, read from the dwell |
+| Exact least-cost assignment and its tie rule | `correlate-assign.md`, Ranking | per cluster of a dwell; one ranked assignment (no window) |
+| Sequential likelihood-ratio test and its thresholds from stated error rates | correlate 1.0, `sprt` | the track score: same formulas for the thresholds, a different likelihood ratio |
+| Per-source update interval and staleness | correlate 1.0, `stale_rate` | upper bound on a track's life without detections |
+| Trace record shape, snapshot rule, pack parser, float rules | `correlate.md`, Trace, Snapshot, Pack, Floats | unchanged in form |
+| Vector format | `spec/vector-format.md` | a `dwell` step beside `ingest` and `tick` |
+
+What is new: the dwell as the unit of input, clusters, the track score and
+its likelihood ratio, coverage, tentative and confirmed tracks, track
+numbers per source, and (option b only) a coupled two-axis filter.
+
+### Input
+
+`track` reads goat-transformers' shared-model module `detection`. Per
+dwell, the 0.1 spec needs these fields. An absent field is "not stated",
+never 0.
+
+| Field | Required | Use |
+|---|---|---|
+| sensor id | yes | tracks are per source |
+| dwell id and time, epoch ms | yes | the only clock; one association per dwell |
+| the dwell's detections, possibly none | yes | an empty dwell still counts as a look |
+| per detection: latitude, longitude; height when known | yes | the measurement |
+| per detection: position error (range and cross-range, or one horizontal value) | no; else a pack default per source | gate and measurement variance |
+| sensor position at the dwell | needed for range and cross-range errors and for range-rate | the direction of the error ellipse and of the line of sight |
+| per detection: range-rate and its error | no | the range-rate gate (open choice 4) |
+| dwell coverage (an area) | no | open choice 3 |
+| `time_error_ms`, `time_state` on the dwell | no | as for reports |
+
+### Method choice for 0.1
+
+The rule is the one used for prototypes 1 to 3: start from the simplest
+published method that meets the constraints, and add a modern one only
+when it measures better on the detection family.
+
+| Part | 0.1 choice | Why | Left out of 0.1, and when to revisit |
+|---|---|---|---|
+| Scan | one dwell; detections of a dwell are taken together, in the dwell's stated order | a dwell is the sensor's own scan; a detection belongs to at most one track per dwell | none |
+| Association | exact least-cost assignment per dwell (global nearest neighbor), tracks against detections plus a "new" and a "missed" column, with a chi-square gate [Blackman and Popoli 1999] | the assign method's solver and its tie rule (`correlate-assign.md`, Ranking) carry over; one record per gate, cost and choice | JIPDA [Musicki and Evans 2004]: the first upgrade to prototype, against GNN, on the detection family with clutter. MHT: PARK until JIPDA is measured |
+| Clusters | split each dwell into independent clusters (connected parts of the gate graph), assign each exactly, clusters in a stated order | a dwell can hold hundreds of detections; a dense matrix per dwell would be too slow in the slower engines. The split gives the same exact optimum | none: required for run time |
+| Filter | constant velocity and the two-model IMM of `correlate.md`, on position | reuses specified, vector-tested filters | see "Error ellipse" below |
+| Error ellipse | **decided by the first prototype**: (a) the per-axis filter with the ellipse's larger variance on both axes, or (b) a coupled two-axis filter with full 4 x 4 covariance, written as explicit formulas | (a) needs no new filter but discards the precise axis, which matters most in dense traffic; (b) keeps it but is a new filter in seven engines | the prototype compares (a) and (b) on the detection family; (b) is adopted only if it measures better beyond noise |
+| Radial velocity | a gate and cost term only, when stated (open choice 4) | as an update it would couple the two axes; as a test it does not | as an update after (b) |
+| Initiation | (open choice 1) sequential likelihood-ratio track score: confirm above an upper threshold, delete below a lower one, thresholds from stated false-track and missed-track probabilities [Wald 1947; Sittler 1964; Blackman and Popoli 1999]. M of N as an option | correlate 1.0 already specifies Wald's test, so the spec text and the derivation are shared. Needs detection probability and clutter density, both stated per source in the pack | none |
+| Deletion | (open choice 2) the track score, plus `stale_rate` as an upper bound | both exist in spec form | none |
+| Output | per dwell, each confirmed track as a report in correlate's input format, with the source's id and a stable local track number | correlate then works unchanged | none |
+| Ground motion | not modeled | road networks and stop-and-go need map data and a variable-structure IMM [Kirubarajan et al. 2000; Ulmke and Koch 2006] | PARK: needs a road-map input, out of scope |
+| Doppler blind zone | not modeled; a stopped vehicle is a missed detection | modeling it changes the detection probability per track | PARK: revisit if the family shows tracks lost at stops |
+| Out-of-order dwells | rejected, as correlate rejects out-of-order reports | dwells of one sensor arrive in order | none |
+
+### Open choices
+
+Each choice has a recommendation for 0.1 and says whether it needs a
+measurement. A choice that needs one waits for the detection family in the
+tuning set; none is prototyped before that family exists, because there is
+nothing to score it on.
+
+**1. Initiation.**
+
+| Option | For | Against |
+|---|---|---|
+| M of N: confirm after M detections in N dwells | simple; needs no detection probability or clutter density | M and N are chosen, not derived; it ignores how well each detection fits |
+| Track score (sequential likelihood ratio) [Sittler 1964; Blackman and Popoli 1999]: per dwell add `ln(Pd * N(y; 0, S) / lambda_c)` for a detection and `ln(1 - Pd_eff)` for a miss; confirm at `ln((1 - beta) / alpha)`, delete at `ln(beta / (1 - alpha))` [Wald 1947] | thresholds from stated false-track (`alpha`) and missed-track (`beta`) probabilities; weighs the fit; one value and limit per dwell for the trace; shares correlate 1.0's threshold text | needs `Pd` and clutter density `lambda_c` per source |
+
+Recommendation: the track score as the default, M of N as an option for
+sources that state no `Pd` or clutter density. A measurement is needed
+only to set pack defaults, not to choose the rule.
+
+**2. Deletion.**
+
+| Option | For | Against |
+|---|---|---|
+| Score falls below the delete threshold, or a stated amount below its peak | same test as initiation; a confirmed track that keeps missing loses score at `ln(1 - Pd)` per covered dwell | none for covered tracks |
+| K misses in a row | simple | not derived; ignores coverage |
+| Staleness (`stale_rate`): no detection for k times the source's dwell interval | already specified; holds when coverage is not stated | ignores how often the area was looked at |
+
+Recommendation: delete a tentative track when its score falls below the
+delete threshold; delete a confirmed track when its score falls a stated
+amount below its peak (a pack value, in units of log-likelihood ratio), with `stale_rate` as
+the upper bound in every case. No measurement needed to choose; pack
+defaults are set on the family.
+
+**3. Missed detections and dwell coverage.** A track should lose score for
+a miss only when the sensor looked where the track is predicted to be.
+
+| Case | Rule |
+|---|---|
+| The dwell states coverage, and the track's predicted position is inside it | a miss: `Pd_eff = Pd`, score `+ ln(1 - Pd)` |
+| The dwell states coverage, and the prediction is outside it | not a look: `Pd_eff = 0`, no score change; trace record `coverage`, `pass` false |
+| The dwell states no coverage | the sensor's stated rule: a pack line per source, `coverage all` (every dwell covers every track) or `coverage none` (misses never count; only `stale_rate` deletes) |
+
+Coverage is a polygon in latitude and longitude; "inside" is a stated
+point-in-polygon test in the local plane, with points on an edge inside.
+For 0.1 the test uses the predicted position only, not its uncertainty.
+Recommendation: as in the table, with `coverage all` as the default.
+Whether to widen the test by the prediction's uncertainty needs a
+measurement on the family (tracks near a coverage edge).
+
+**4. Range-rate.** GMTI states a radial velocity `rr` along the line of
+sight from the sensor. With `u` the unit vector from the sensor to the
+track's predicted position (east and north parts `ue`, `un`), the predicted
+range-rate is `rr_pred = ue * ve + un * vn` when the stated range-rate is
+relative to the ground. When it is relative to the sensor, the sensor's
+velocity along `u` is subtracted. The `detection` module must say which,
+and give the sensor's velocity in the second case. `u` uses the horizontal
+plane only in 0.1.
+
+| Option | For | Against |
+|---|---|---|
+| Not used | simplest | throws away the measurement that best separates close vehicles moving differently |
+| A gate and cost term: `d2_rr = (rr - rr_pred)^2 / (ue^2 * vv_e + un^2 * vv_n + sigma_rr^2)`, added to the position `d2` with one more degree of freedom in the gate | linear in the velocity once `u` is fixed; needs only each axis's `vv`, so it works with the per-axis filter (option a); one more trace value | the test ignores `pv` coupling between axes; the velocity estimate does not improve |
+| A scalar update of the velocity | improves the velocity estimate | couples the two axes: needs the coupled filter (option b) |
+
+Recommendation: the gate and cost term in 0.1, when the detection states
+`rr`; the update only with option (b). The gain of the term needs a
+measurement (crossing and parallel ground traffic in the family).
+
+**5. Error ellipse.** As in Method choice: (a) per-axis filter with the
+larger variance, or (b) a coupled filter. Needs a measurement.
+
+### What a 0.1 spec must state
+
+| Item | Content |
+|---|---|
+| Input | the dwell step and its fields (Input, above); rejects: missing sensor id, dwell time or position; a dwell older than the source's last dwell (`out-of-order`) |
+| Order | dwells by arrival; detections within a dwell in their stated order, then by index; tracks by number; clusters by their least track number, then least detection index |
+| Gate | the position `d2` per option (a) or (b), plus the range-rate term when stated; the chi-square limit from the gate probability and its degrees of freedom (2, 3 with range-rate) |
+| Clusters | the connected parts of the graph whose edges are gated track-detection pairs; each solved by itself |
+| Assignment | the cost `d2 + ln(det S)` per gated pair (the negative log-likelihood up to a constant), a `new` cost per detection from `lambda_c` and the birth density, a `missed` cost per track from `Pd_eff`; the tie rule of `correlate-assign.md`, Ranking |
+| Track score | the increment per dwell for a detection and for a miss (open choice 1), coverage (open choice 3); the start value of a new track |
+| Track states | tentative, confirmed, deleted; the thresholds; a deleted track's number is never reused |
+| Filter | which filter and which form (option a or b), first detection (velocity unknown: `unknown_vel_ms`), update per assigned detection |
+| Output | per dwell, one report per confirmed track in correlate's input format: `track.source_id`, `uid` (the local track number), position, velocity (`course`, `speed_ms`), `ce`, time; optional `hae` |
+| Trace | per pair: `gate`; per cluster: `cost` and `choice` as in assign; per track: `coverage`, `score`, and `confirm` or `delete` when they happen |
+| Snapshot | per source: tracks (number, state, score, peak, filter, last time), the next track number, the interval ring of `stale_rate` |
+| Pack | `filter`, `maneuver`, `gate probability=`, `score pd= clutter_per_km2= alpha= beta=` per source or default, `confirm m= n=` (option), `coverage all` or `coverage none` per source, `stale_rate`, `error_default` per source |
+| Floats | as `correlate.md`, Floats; the stated summation order of every sum |
+
+### Cost in seven engines
+
+Today's correlate engine is about 1,400 lines in Python and 1,800 to 2,400
+in Erlang and Java, for a 513-line spec plus a 444-line method spec.
+
+| Item | 0.1 with (a) | 0.1 with (b) |
+|---|---|---|
+| Spec | about 300 lines: dwell, clusters, gate, assignment, track score, output, trace, snapshot, pack | about 420: plus the coupled filter and its two-model form |
+| New code per engine | about 600 to 800 lines (reuses frame, filter, assignment solver, trace and snapshot code if the refactor shares them) | about 900 to 1,100 |
+| In seven engines | about 4,000 to 5,500 lines | about 6,000 to 7,500 |
+| Vectors | about 25 scenario vectors (gate, tie, cluster split, confirm, delete, miss, clutter, two-model) and 20 load vectors | about 35 and 25 |
+| Run time and memory | per dwell, exact assignment per cluster; memory per track: one filter and one score | the same order; a 4 x 4 covariance per model per track |
+| Parameters an operator sets | per source: detection probability, clutter density, error ellipse when the report has none; per pack: gate probability, false-track and missed-track probabilities, filter noise | the same |
+
+A full function cycle like the earlier ones: spec and Python by one lead,
+six engines fanned out, the detection family and an end-to-end score
+(`track` then correlate) by proc-bench.
+
+### Hand-over
+
+| To | What |
+|---|---|
+| proc-coord | sequencing: after correlate 1.0, the refactor and the noise-scale and succession round; and only once preconditions 1 and 2 hold |
+| proc-bench | the detection family (precondition 1), tuning half only for proc-research |
+| proc-research | when the family exists, prototype in tools/research on the tuning set only: error ellipse (a) against (b); the range-rate term on against off; coverage widened by the prediction's uncertainty or not; then GNN against JIPDA. Nothing is prototyped before the family exists |
+| goat-transformers | the Input table above, already in the request to the `detection` module |
+
 ## References
 
 - Arasaratnam, I., and Haykin, S. (2009). Cubature Kalman filters. *IEEE Transactions on Automatic Control*, 54(6), 1254-1269.
@@ -405,6 +630,7 @@ already keeps (prototype 2).
 - Julier, S. J., and Uhlmann, J. K. (1997). A non-divergent estimation algorithm in the presence of unknown correlations. *American Control Conference*.
 - Julier, S. J., and Uhlmann, J. K. (2001). General decentralized data fusion with covariance intersection. In D. L. Hall and J. Llinas (Eds.), *Handbook of Multisensor Data Fusion*. CRC Press.
 - Julier, S. J., and Uhlmann, J. K. (2004). Unscented filtering and nonlinear estimation. *Proceedings of the IEEE*, 92(3), 401-422.
+- Kirubarajan, T., Bar-Shalom, Y., Pattipati, K. R., and Kadar, I. (2000). Ground target tracking with variable structure IMM estimator. *IEEE Transactions on Aerospace and Electronic Systems*, 36(1), 26-46.
 - Kurien, T. (1990). Issues in the design of practical multitarget tracking algorithms. In Y. Bar-Shalom (Ed.), *Multitarget-Multisensor Tracking: Advanced Applications*. Artech House.
 - Li, H., Nashashibi, F., and Yang, M. (2013). Split covariance intersection filter: theory and its application to vehicle localization. *IEEE Transactions on Intelligent Transportation Systems*, 14(4), 1860-1871.
 - Li, W., Leung, H., and Zhou, Y. (2004). Space-time registration of radar and ESM using unscented Kalman filter. *IEEE Transactions on Aerospace and Electronic Systems*, 40(3), 824-836.
@@ -433,6 +659,7 @@ already keeps (prototype 2).
 - Singer, R. A. (1970). Estimating optimal tracking filter performance for manned maneuvering targets. *IEEE Transactions on Aerospace and Electronic Systems*, 6(4), 473-483.
 - Sittler, R. W. (1964). An optimal data association problem in surveillance theory. *IEEE Transactions on Military Electronics*, 8(2), 125-139.
 - Tian, X., and Bar-Shalom, Y. (2009). Track-to-track fusion configurations and association in a sliding window. *Journal of Advances in Information Fusion*, 4(2), 146-164.
+- Ulmke, M., and Koch, W. (2006). Road-map assisted ground moving target tracking. *IEEE Transactions on Aerospace and Electronic Systems*, 42(4), 1264-1274.
 - Vo, B.-N., and Ma, W.-K. (2006). The Gaussian mixture probability hypothesis density filter. *IEEE Transactions on Signal Processing*, 54(11), 4091-4104.
 - Vo, B.-T., and Vo, B.-N. (2013). Labeled random finite sets and multi-object conjugate priors. *IEEE Transactions on Signal Processing*, 61(13), 3460-3475.
 - Vo, B.-N., Vo, B.-T., and Phung, D. (2014). Labeled random finite sets and the Bayes multi-target tracking filter. *IEEE Transactions on Signal Processing*, 62(24), 6554-6567.

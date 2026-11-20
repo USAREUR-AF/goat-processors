@@ -1,0 +1,8 @@
+# Test-only fixture (not a shipped pack, not in the spec): a rule on the
+# measure "always_one", which registry_test.go registers.
+pack     quality-measure-fixture
+version  0.1.0
+filter   accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+window   window_ms=60000 min_samples=1 forget_ms=300000
+rule     one      scope=entity measure=always_one op=>= limit=1 for=1 clear=0 action=mark
+rule     one-src  scope=source measure=always_one op=>= limit=2 for=1 clear=0 action=alert

@@ -149,7 +149,7 @@ confirm count        2       limit 2      <span class="pass">pass</span>
     <div>
       <h2>Scored against ground truth</h2>
       <p>The correlate packs run on generated scenarios: crossing, formation, splitting and turning objects; sensors with bias, latency, low detection, track number swaps and false tracks; sensors whose clocks are offset or drifting. F1 runs from 0 to 1 and scores whether the output puts two tracks together exactly when they are one object. GOSPA is a mean position error that also charges missed and false tracks.</p>
-      <p>The default pack, <code>assign-time</code>, on the 50 random scenarios: F1 <span class="num" data-measure="f1-random">0.961</span>, GOSPA <span class="num" data-measure="gospa-random">244</span> m.</p>
+      <p>The default pack, <code>assign-time</code>, on the 500 random scenarios of the evaluation set: F1 <span class="num" data-measure="f1-random">0.934 (0.921 to 0.947)</span> (the 95 % interval), GOSPA <span class="num" data-measure="gospa-random">268</span> m.</p>
       <pre class="block">python3 -I tools/bench/bench.py check   # docs/benchmark.md is current
 python3 -I tools/bench/bench.py report  # rewrite it</pre>
       <p><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/docs/benchmark.md">Every score and its formula</a></p>
@@ -161,6 +161,21 @@ python3 -I tools/bench/bench.py report  # rewrite it</pre>
       </picture>
       <figcaption>Written by <code>tools/bench/bench.py report</code>.</figcaption>
     </figure>
+  </div>
+</section>
+
+<section class="band agents" id="agents">
+  <div class="wrap">
+    <h2>Working with AI agents</h2>
+    <p class="sub">The processors stay fast and exact, with no model inside the engines. The design connects AI agents at the edges, through the same doors a person uses, and logs every agent action with the identity it acts for. None of these interfaces is built yet; each tile says Built only when its code and tests are on main.</p>
+    <div class="cards four">
+      <div class="card"><span class="status" data-status="mcp">Designed</span><h3>Connect an AI assistant</h3><p>An MCP server in the runner (Model Context Protocol, the common way an assistant calls a program's tools). An assistant reads tracks and quality marks and proposes changes, with no more authority than its user.</p></div>
+      <div class="card"><span class="status" data-status="source adjudicator">Designed</span><h3>Agents as sources and judges</h3><p>An agent can publish tracks under its own name, marked as agent-derived, or settle a hard case with a hint ("keep A and B apart"). The engines record and trace hints like any input, so replays stay exact.</p></div>
+      <div class="card"><span class="status" data-status="settings audit">Designed</span><h3>Proposals someone approves</h3><p>An agent proposes a settings change; a person, or a site rule within set bounds after the benchmark passes, approves it. Every call and change is logged and can be reverted.</p></div>
+      <div class="card"><span class="status" data-status="explainer">Designed</span><h3>Ask "why?"</h3><p>A plain-language answer to "why were these two tracks joined?", in which every sentence cites the trace record it comes from.</p></div>
+    </div>
+    <p class="after">Each site chooses the model its agent features may use, local or hosted, and the highest level of data sent to it. The guide to building your own integration, one runnable example per interface, is <span class="status" data-status="guide">Designed</span>.</p>
+    <p><a href="https://github.com/USAREUR-AF/goat-processors#working-with-ai-agents">The interfaces and their status</a></p>
   </div>
 </section>
 
