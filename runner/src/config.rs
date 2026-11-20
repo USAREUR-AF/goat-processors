@@ -49,6 +49,99 @@ pub struct Config {
     pub status_file: PathBuf,
     #[serde(default)]
     pub api: Api,
+    #[serde(default)]
+    pub agents: Agents,
+}
+
+/// The agent interfaces (docs/design/agentic-ai.md). Every part is optional;
+/// with all of them on and no agent connected the runner's output is the same.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Agents {
+    /// Serve the MCP endpoint (`POST /mcp`) on the API listeners.
+    #[serde(default = "default_true")]
+    pub mcp: bool,
+    /// The site's data levels, from the least to the most sensitive.
+    #[serde(default = "default_levels")]
+    pub data_levels: Vec<String>,
+    /// The highest level a local caller may receive. Default: the highest level.
+    #[serde(default)]
+    pub local_level: Option<String>,
+    /// The highest level each mesh identity may receive. An identity not
+    /// listed receives the lowest level only.
+    #[serde(default)]
+    pub clients: Vec<ClientLevel>,
+    /// The model endpoints the runner's own agent features may call.
+    #[serde(default)]
+    pub endpoints: Vec<Endpoint>,
+    /// Which identities may call which MCP action tools.
+    #[serde(default)]
+    pub actions: Vec<ActionGrant>,
+}
+
+impl Default for Agents {
+    fn default() -> Self {
+        Agents { mcp: true, data_levels: default_levels(), local_level: None, clients: vec![], endpoints: vec![], actions: vec![] }
+    }
+}
+
+impl Agents {
+    /// The rank of a level on the site's scale.
+    pub fn rank(&self, level: &str) -> Option<usize> {
+        self.data_levels.iter().position(|l| l == level)
+    }
+    pub fn lowest(&self) -> &str {
+        self.data_levels.first().map(String::as_str).unwrap_or("public")
+    }
+    pub fn highest(&self) -> &str {
+        self.data_levels.last().map(String::as_str).unwrap_or("site")
+    }
+    /// The highest level an identity may receive.
+    pub fn level_of(&self, who: &str, via: &str) -> String {
+        if via == "local" {
+            return self.local_level.clone().unwrap_or_else(|| self.highest().to_string());
+        }
+        self.clients.iter().find(|c| c.name == who).map(|c| c.data_level.clone()).unwrap_or_else(|| self.lowest().to_string())
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClientLevel {
+    pub name: String,
+    pub data_level: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Endpoint {
+    pub name: String,
+    /// An OpenAI-compatible chat completions URL, for example
+    /// `http://127.0.0.1:8080/v1/chat/completions`.
+    pub url: String,
+    /// `local` (on machines the site controls) or `hosted` (run by a provider).
+    pub kind: String,
+    /// The highest data level this endpoint may receive.
+    pub data_level: String,
+    #[serde(default)]
+    pub model: Option<String>,
+    /// A file holding the API key the endpoint expects, if any.
+    #[serde(default)]
+    pub key_file: Option<PathBuf>,
+    #[serde(default = "default_timeout_ms")]
+    pub timeout_ms: u64,
+    /// For https: a CA certificate (PEM) to trust besides the public ones.
+    #[serde(default)]
+    pub ca_file: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ActionGrant {
+    /// An identity: `local-admin`, or a mesh certificate name.
+    pub who: String,
+    /// Action tools it may call: `use_pack`, `stop`, `start`, `approve`.
+    pub actions: Vec<String>,
 }
 
 /// The HTTP API (runner/openapi.yaml). The local listener is plain HTTP on
@@ -246,6 +339,12 @@ fn default_mode() -> String {
 fn default_speed() -> f64 {
     1.0
 }
+fn default_levels() -> Vec<String> {
+    vec!["public".into(), "site".into()]
+}
+fn default_timeout_ms() -> u64 {
+    30_000
+}
 fn default_true() -> bool {
     true
 }
@@ -440,6 +539,42 @@ pub fn check(c: &Config) -> Vec<String> {
                 if a.name.is_empty() {
                     p.push(format!("api.mesh.allow[{i}].name: empty. Give the common name (CN) of the caller's certificate."));
                 }
+            }
+        }
+    }
+
+    // Agents.
+    let ag = &c.agents;
+    if ag.data_levels.is_empty() {
+        p.push("agents.data_levels: empty. List the site's levels from the least to the most sensitive, for example [public, site].".into());
+    }
+    let level_ok = |l: &str| ag.rank(l).is_some();
+    let levels = ag.data_levels.join(", ");
+    if let Some(l) = &ag.local_level {
+        if !level_ok(l) {
+            p.push(format!("agents.local_level: {l:?} is not one of agents.data_levels ({levels}). Use one of them."));
+        }
+    }
+    for (i, cl) in ag.clients.iter().enumerate() {
+        if !level_ok(&cl.data_level) {
+            p.push(format!("agents.clients[{i}].data_level: {:?} is not one of agents.data_levels ({levels}). Use one of them.", cl.data_level));
+        }
+    }
+    for (i, e) in ag.endpoints.iter().enumerate() {
+        if !level_ok(&e.data_level) {
+            p.push(format!("agents.endpoints[{i}].data_level: {:?} is not one of agents.data_levels ({levels}). Use one of them.", e.data_level));
+        }
+        if e.kind != "local" && e.kind != "hosted" {
+            p.push(format!("agents.endpoints[{i}].kind: {:?} is not a kind. Use `local` (a machine the site controls) or `hosted` (a provider).", e.kind));
+        }
+        if !(e.url.starts_with("http://") || e.url.starts_with("https://")) {
+            p.push(format!("agents.endpoints[{i}].url: {:?} is not an http or https URL.", e.url));
+        }
+    }
+    for (i, g) in ag.actions.iter().enumerate() {
+        for a in &g.actions {
+            if !["use_pack", "stop", "start", "approve"].contains(&a.as_str()) {
+                p.push(format!("agents.actions[{i}].actions: {a:?} is not an action tool. Use use_pack, stop, start or approve."));
             }
         }
     }

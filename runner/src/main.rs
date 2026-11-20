@@ -1,10 +1,13 @@
 //! goat-processors: the runner and its command line.
 
+mod agentic;
 mod api;
 mod config;
 mod doctor;
 mod fabric;
 mod http;
+mod mcp;
+mod model;
 mod pipeline;
 mod replay;
 mod selftest;
@@ -41,6 +44,8 @@ The running service, through its API (each verb is one API route; -o json prints
   goat-processors explain TRACK                what led to one system track        GET  /v1/explain/TRACK
   goat-processors replay FILE --api            run a file on a copy of the running pipeline  POST /v1/replay
   goat-processors audit                        the latest audit lines (sudo)       GET  /v1/audit
+  goat-processors why TRACK [--endpoint NAME]  a model explains one track, citing trace records  GET /v1/why/TRACK
+  goat-processors mcp                          an MCP server on stdin and stdout, for agents on this host  POST /mcp
   options: [-c CONFIG] [--api HOST:PORT] [-o json]. The API address and the token file come from
   CONFIG's api section. Changing anything needs the token, which only root can read: use sudo.
 
@@ -58,10 +63,11 @@ struct Args {
     out: Option<PathBuf>,
     api: Option<String>,
     use_api: bool,
+    endpoint: Option<String>,
 }
 
 fn parse_args(argv: Vec<String>) -> Result<Args, String> {
-    let mut a = Args { rest: vec![], config: None, output: None, packs: vec![], packs_dir: None, tick_ms: None, trace: false, snapshot: false, out: None, api: None, use_api: false };
+    let mut a = Args { rest: vec![], config: None, output: None, packs: vec![], packs_dir: None, tick_ms: None, trace: false, snapshot: false, out: None, api: None, use_api: false, endpoint: None };
     let mut it = argv.into_iter();
     while let Some(x) = it.next() {
         let mut val = |name: &str| it.next().ok_or(format!("{name} needs a value"));
@@ -76,6 +82,7 @@ fn parse_args(argv: Vec<String>) -> Result<Args, String> {
             "--packs-dir" => a.packs_dir = Some(val(&x)?.into()),
             "--tick-ms" => a.tick_ms = Some(val(&x)?.parse().map_err(|_| "--tick-ms needs a whole number")?),
             "--trace" => a.trace = true,
+            "--endpoint" => a.endpoint = Some(val(&x)?),
             "--snapshot" => a.snapshot = true,
             "--out" => a.out = Some(val(&x)?.into()),
             "--api" => {
@@ -141,6 +148,11 @@ fn main() -> ExitCode {
         ["tracks"] => api_verb(&a, "GET", "/v1/tracks".into(), None, Some(show_tracks)),
         ["explain", track] => api_verb(&a, "GET", format!("/v1/explain/{}", http::encode(track)), None, Some(show_explain)),
         ["audit"] => api_verb(&a, "GET", "/v1/audit".into(), None, Some(show_lines)),
+        ["why", track] => {
+            let q = a.endpoint.as_ref().map(|e| format!("?endpoint={}", http::encode(e))).unwrap_or_default();
+            api_verb(&a, "GET", format!("/v1/why/{}{q}", http::encode(track)), None, Some(show_why))
+        }
+        ["mcp"] => cmd_mcp(&a),
         ["version"] | ["--version"] => {
             println!("goat-processors {}", env!("CARGO_PKG_VERSION"));
             Ok(ExitCode::SUCCESS)
@@ -458,4 +470,55 @@ fn show_explain(v: &Json) -> String {
 
 fn show_lines(v: &Json) -> String {
     v.as_array().cloned().unwrap_or_default().iter().map(|x| format!("{x}\n")).collect()
+}
+
+fn show_why(v: &Json) -> String {
+    let mut out = format!(
+        "why {}: {} sentences from model endpoint {} ({}), {} records sent, {} uncited sentences removed\n\n",
+        s_of(v, "track"),
+        v.get("sentences").and_then(|x| x.as_array()).map(|x| x.len()).unwrap_or(0),
+        s_of(v, "endpoint"),
+        s_of(v, "endpoint_kind"),
+        s_of(v, "records_sent"),
+        s_of(v, "sentences_removed")
+    );
+    for snt in v.get("sentences").and_then(|x| x.as_array()).cloned().unwrap_or_default() {
+        out.push_str(&format!("{}\n", s_of(&snt, "text")));
+        for (c, r) in snt.get("cites").and_then(|x| x.as_array()).cloned().unwrap_or_default().iter().zip(snt.get("records").and_then(|x| x.as_array()).cloned().unwrap_or_default()) {
+            let what = r.get("record").or_else(|| r.get("event")).map(|x| x.to_string()).unwrap_or_default();
+            out.push_str(&format!("    {} step {} {}: {}\n", c.as_str().unwrap_or(""), s_of(&r, "step"), s_of(&r, "stage"), what));
+        }
+    }
+    out
+}
+
+/// An MCP server on stdin and stdout: each JSON-RPC line is posted to the
+/// runner's /mcp, as this user (with the token when this user can read it).
+fn cmd_mcp(a: &Args) -> Result<ExitCode, String> {
+    use std::io::BufRead;
+    let (addr, token) = api_target(a);
+    let stdin = std::io::stdin();
+    let mut stdout = std::io::stdout();
+    for line in stdin.lock().lines() {
+        let line = line.map_err(|e| e.to_string())?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        match http::call(&addr, "POST", "/mcp", token.as_deref(), Some(line.as_bytes())) {
+            Ok((202, _)) => {}
+            Ok((_, body)) => {
+                let text = String::from_utf8_lossy(&body);
+                if !text.trim().is_empty() {
+                    writeln!(stdout, "{}", text.trim()).map_err(|e| e.to_string())?;
+                    stdout.flush().ok();
+                }
+            }
+            Err(e) => {
+                let id = goat_correlator::json::parse(&line).ok().and_then(|v| v.get("id").cloned()).unwrap_or(Json::Null);
+                writeln!(stdout, "{{\"jsonrpc\":\"2.0\",\"id\":{id},\"error\":{{\"code\":-32000,\"message\":{}}}}}", Json::Str(e)).map_err(|e| e.to_string())?;
+                stdout.flush().ok();
+            }
+        }
+    }
+    Ok(ExitCode::SUCCESS)
 }
