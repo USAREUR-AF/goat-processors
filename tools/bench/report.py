@@ -183,7 +183,9 @@ def render_all(res):
     cpacks = [p for p in packs if p not in CHART_OMIT]
     if len(cpacks) > len(SERIES["light"]):
         raise SystemExit("more than %d packs to chart: add one to CHART_OMIT" % len(SERIES["light"]))
-    named = [m for m in res["meta"] if m["family"] != "random"]   # per-scenario tables and charts
+    import bench as _b
+    legacy = _b.named_names()
+    named = [m for m in res["meta"] if m["name"] in legacy]   # per-scenario tables and charts: the named set
     random = [m for m in res["meta"] if m["family"] == "random"]
     timed = [m for m in res["meta"] if m["family"] == "time"]
     n_named = len(named) - len(timed)
@@ -194,7 +196,14 @@ def render_all(res):
     rows = [m["name"] for m in named]
     f1 = {p: {r: S[p]["per"][r]["f1"] for r in rows} for p in packs}
     gs = {p: {r: S[p]["per"][r]["gospa_m"] for r in rows} for p in packs}
-    summary = [(lab, [S[p]["random"][k] for p in cpacks], f, hi)
+    ev = res.get("evaluation")
+    if ev:
+        src = {p: ev["groups"][p]["random"]["pooled"] for p in cpacks}
+        rtitle = "Evaluation set: %d random scenarios pooled" % ev["groups"][cpacks[0]]["random"]["n"]
+    else:
+        src = {p: S[p]["random"] for p in cpacks}
+        rtitle = "Tuning set: %d random scenarios pooled" % len(random)
+    summary = [(lab, [src[p][k] for p in cpacks], f, hi)
                for (k, lab, f, hi) in METRICS if k in ("f1", "swaps", "false_merges", "rms_m", "gospa_m")]
     for mode in ("light", "dark"):
         files[os.path.join(FIG, "f1-%s.svg" % mode)] = grouped_bars(
@@ -204,8 +213,7 @@ def render_all(res):
             "GOSPA per scenario, mean over ticks", "meters, c = 500 m, p = 2; lower is better",
             rows, cpacks, gs, mode, fmt_s="{:.0f}")
         files[os.path.join(FIG, "random-%s.svg" % mode)] = panels(
-            "Seeded random set: %d scenarios pooled" % len(random),
-            "each panel has its own scale", cpacks, summary, mode)
+            rtitle, "each panel has its own scale", cpacks, summary, mode)
 
     L = []
     L.append("# Correlation benchmark\n")
@@ -224,24 +232,64 @@ def render_all(res):
              "output track while the old one still exists; **GOSPA** is the mean position error with "
              "each error capped at 500 m and every missed or false track charged half the cap, lower "
              "is better.\n")
-    L.append("## Seeded random set\n")
-    L.append("%d scenarios: 2 to 4 objects (still, straight, turning, accelerating), 2 or 3 sensors, "
-             "each sensor with a chance of understated or absent error, bias, latency, low detection, "
-             "a track number swap, a drop, and false tracks. Counts are summed and rates pooled over "
-             "the set.\n" % len(random))
-    L.append(picture("random", "Pooled scores over the random set, one bar per pack"))
-    omitted = [p for p in packs if p in CHART_OMIT]
-    if omitted:
-        L.append("The charts leave out %s; the tables include every pack.\n" % "; ".join(
-            "%s (%s)" % (short(p), CHART_OMIT[p]) for p in omitted))
-    L.append(table(["Pack"] + [lab for _, lab, _, _ in METRICS],
-                   [[plink(p)] + [fmt(S[p]["random"][k], f) for k, _, f, _ in METRICS] for p in packs]))
-    L.append("## Named scenarios, pooled\n")
+    tu = res.get("tuning", {})
+    L.append("## Which numbers come from which set\n")
+    L.append(table(["Set", "Content", "Seeds", "Use"], [
+        ["evaluation", "500 random scenarios and the evaluation half of every family (%s); names start `eval-`"
+         % ", ".join(f for f in (ev or {}).get("families", []) if f != "random"),
+         "private: held by the benchmark maintainer, published after each release and then rotated",
+         "**every number in the README, the comparison and the PDF**; never used to tune a pack"],
+        ["tuning", "the 21 named and 7 time scenarios, 500 random scenarios (the first 50 are the earlier "
+         "random set) and the tuning half of every family", "public (`tools/bench/dataset.py`)",
+         "developing and tuning packs; CI re-runs a subset of it"]]))
+    L.append("A pooled measure sums the counts of every scenario of a group and then divides "
+             "(tools/bench/README.md, \"Scores\"); its 95 %% interval comes from a bootstrap over the "
+             "group's scenarios (1,000 resamples, `tools/bench/stats.py`). A difference between two "
+             "packs, or two versions of one, counts as better or worse only when their intervals do not "
+             "overlap. A run that exceeds %d s on one scenario is reported as not finished and left out of "
+             "its group's pooled measures; the cell says how many.\n" % tu.get("timeout_s", 300))
+    if ev:
+        L.append("## Evaluation set\n")
+        L.append("%d scenarios, run in %d parallel processes in %d min on the benchmark machine "
+                 "(the time a full evaluation run takes there).\n" % (ev["scenarios"], ev["jobs"],
+                                                                      round(ev["seconds"] / 60.0)))
+        L.append(picture("random", "Pooled scores over the evaluation random set, one bar per pack"))
+        omitted = [p for p in packs if p in CHART_OMIT]
+        if omitted:
+            L.append("The charts leave out %s; the tables include every pack.\n" % "; ".join(
+                "%s (%s)" % (short(p), CHART_OMIT[p]) for p in omitted))
+        set_section(L, packs, ev["groups"], "Random scenarios")
+    else:
+        L.append("## Evaluation set\n")
+        L.append("Not run on this tree: it needs the private seeds.\n")
+    L.append("## Data sources\n")
+    L.append(table(["Data", "Source", "Terms", "In the repository"], [
+        ["generated scenarios", "`tools/bench/scenarios.py`, `tools/bench/dataset.py`", "this repository's license",
+         "the generator; the tuning seeds; the evaluation seeds only after a release"],
+        ["recorded ship motion (family \"recorded ships\")",
+         "NOAA Office for Coastal Management and BOEM, MarineCadastre.gov \"Vessel Traffic (AIS)\", daily file "
+         "AIS_2023_01_01 (SHA-256 in `tools/bench/data/recorded-ships.json`)",
+         "U.S. Government material, not subject to copyright protection within the United States "
+         "(17 U.S.C. 403 notice in NOTICE)",
+         "times and positions of 40 thirty-minute windows from open water about 100 km or more offshore, "
+         "identifiers removed, moved to the notional reference point (`tools/bench/recorded.py`)"],
+        ["recorded aircraft motion", "OpenSky Network historical data", "not yet checked: the terms could "
+         "not be read from the benchmark machine", "nothing"]]))
+    L.append("## Tuning set\n")
+    L.append("The random generator places 2 to 4 objects (still, straight, turning, accelerating) and 2 or 3 "
+             "sensors, each sensor with a chance of understated or absent error, bias, latency, low "
+             "detection, a track number swap, a drop, and false tracks. The families are named generators "
+             "with stated ground truth; tools/bench/README.md describes each.\n")
+    if tu.get("groups"):
+        L.append("%d scenarios, run in %d parallel processes in %d min.\n" % (
+            len(res["meta"]), tu["jobs"], round(tu["seconds"] / 60.0)))
+        set_section(L, packs, tu["groups"], "Random scenarios")
+    L.append("### Named scenarios, pooled\n")
     L.append("The %d named scenarios outside the time family.\n" % n_named)
     L.append(table(["Pack"] + [lab for _, lab, _, _ in METRICS],
                    [[plink(p)] + [fmt(S[p]["named"][k], f) for k, _, f, _ in METRICS] for p in packs]))
     if timed:
-        L.append("## Time quality set, pooled\n")
+        L.append("### Time quality set, pooled\n")
         L.append("The %d scenarios of the time family, pooled on their own: a sensor whose clock is "
                  "200 ms ahead, drifting 10 ms per minute, or running free (1.5 s behind and drifting), "
                  "each with every sensor reporting `time_error_ms` and `time_state` and as an "
@@ -251,7 +299,7 @@ def render_all(res):
                  % len(timed))
         L.append(table(["Pack"] + [lab for _, lab, _, _ in METRICS],
                        [[plink(p)] + [fmt(S[p]["time"][k], f) for k, _, f, _ in METRICS] for p in packs]))
-    L.append("## Scenarios\n")
+    L.append("## Named scenarios\n")
     L.append(table(["Scenario", "Family", "Tests", "Objects", "Reports", "False reports", "Sensors"],
                    [[m["name"], m["family"], m["tests"], str(m["objects"]), str(m["reports"]),
                      str(m["false_reports"]), "; ".join(m["sensors"])] for m in named]))
@@ -278,6 +326,53 @@ def render_all(res):
                    [[r] + [fmt(gs[p][r], "{:.1f}") for p in packs] for r in rows]))
     files[DOC] = "\n".join(L)
     return files
+
+
+MIN_CI_N = 5   # below this many scenarios a bootstrap interval says nothing; the count is shown instead
+
+
+def ci_cell(summ, key, f):
+    """'value (lo to hi)' for a pooled measure with its 95 % interval."""
+    if not summ or not summ.get("pooled"):
+        return "–"
+    v = summ["pooled"].get(key)
+    if v is None:
+        return "–"
+    ci = (summ.get("ci95") or {}).get(key)
+    base = fmt(v, f)
+    if summ.get("n", 0) < MIN_CI_N:
+        return "%s (%d scenario%s, no interval)" % (base if f != "{:d}" else str(int(v)), summ["n"],
+                                                  "" if summ["n"] == 1 else "s")
+    if f == "{:d}":
+        base = str(int(v))
+    return base if not ci else "%s (%s to %s)" % (base, fmt(ci[0], f if f != "{:d}" else "{:.0f}"),
+                                                  fmt(ci[1], f if f != "{:d}" else "{:.0f}"))
+
+
+def set_section(L, packs, groups, title_random):
+    """The pooled random-set table and the per-family F1 and GOSPA tables of one set."""
+    rnd = {p: groups[p].get("random") for p in packs}
+    n = next((g["n"] for g in rnd.values() if g), 0)
+    L.append("### %s (%d scenarios), pooled, 95 %% intervals\n" % (title_random, n))
+    L.append(table(["Pack"] + [lab for _, lab, _, _ in METRICS],
+                   [[plink(p)] + [ci_cell(rnd[p], k, f) for k, _, f, _ in METRICS] for p in packs]))
+    fams = sorted(g for g in groups[packs[0]] if g.startswith("family: "))
+    if not fams:
+        return
+    counts = {g: groups[packs[0]][g]["n"] + groups[packs[0]][g]["not_finished"] for g in fams}
+    for key, lab, f in (("f1", "Pairwise F1", "{:.3f}"), ("gospa_m", "GOSPA, m", "{:.0f}")):
+        L.append("### Families: %s, 95 %% intervals\n" % lab)
+        rows = []
+        for p in packs:
+            row = [plink(p)]
+            for g in fams:
+                c = groups[p][g]
+                cell = ci_cell(c, key, f)
+                if c["not_finished"]:
+                    cell += " (%d of %d not finished)" % (c["not_finished"], counts[g])
+                row.append(cell)
+            rows.append(row)
+        L.append(table(["Pack"] + ["%s (%d)" % (g[len("family: "):], counts[g]) for g in fams], rows))
 
 
 def table(head, rows):

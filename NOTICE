@@ -14,3 +14,12 @@ the root of this repository).
 The engines use only the standard library of their language. No third-party
 code is included in this repository. The packs and vectors are original work;
 coordinates in the vectors are notional points in open ocean.
+
+Recorded ship trajectories (tools/bench/data/recorded-ships.json) are derived
+from "Vessel Traffic (AIS)" published by the NOAA Office for Coastal
+Management and the Bureau of Ocean Energy Management on MarineCadastre.gov
+(daily file AIS_2023_01_01; https://marinecadastre.gov/ais). That material is
+a work of the U.S. Government and is not subject to copyright protection
+within the United States (17 U.S.C. 403 notice). Only times and positions
+were kept; vessel identifiers were removed and positions were moved to a
+notional point in open ocean (tools/bench/recorded.py).
