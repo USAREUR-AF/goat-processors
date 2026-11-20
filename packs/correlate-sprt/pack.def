@@ -14,7 +14,8 @@
 # - gate 9.21: a pair starts a test only inside the 99 % region (chi-square,
 #   2 degrees of freedom) of the position difference.
 # - stale after 5 times the source's median update interval (last 9), within
-#   5 s and 60 s.
+#   20 s and 60 s: the floor lies above the longest sensor latency expected
+#   (15 s), so a late report is not stale on arrival.
 # - output fused: the members' estimates weighted by their information, so
 #   the output does not depend on source names.
 pack           correlate-sprt
@@ -25,6 +26,6 @@ gate           mahalanobis gate=9.21
 gate           same key=track.simulated
 gate           same key=@env
 sprt           false=0.01 missed=0.01 pos_m=10000 vel_ms=300 hae_sigma_m=100
-stale_rate     factor=5 floor_ms=5000 ceiling_ms=60000 samples=9
+stale_rate     factor=5 floor_ms=20000 ceiling_ms=60000 samples=9
 same_source    forbid
 output         fused

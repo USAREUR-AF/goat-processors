@@ -11,10 +11,10 @@
     200
    ],
    "radar-1": [
-    1000,
-    2000,
-    3000,
-    4000
+    4000,
+    6000,
+    8000,
+    10000
    ]
   },
   "llr": {},
@@ -50,7 +50,7 @@
     "ce": 30,
     "lat": 1.0,
     "lon": 1.0,
-    "time_ms": 1000,
+    "time_ms": 4000,
     "track.simulated": 0,
     "track.source_id": "radar-1",
     "type": "a-f-A-M-F",
@@ -64,7 +64,7 @@
      "pass": true,
      "stage": "filter",
      "test": "likelihood",
-     "value": -9.375875996670004
+     "value": -11.99451175545903
     },
     {
      "a": "radar-1/T1",
@@ -73,7 +73,7 @@
      "pass": true,
      "stage": "filter",
      "test": "likelihood",
-     "value": -9.38429367909962
+     "value": -12.14100064878646
     },
     {
      "a": "radar-1/T1",
@@ -82,7 +82,7 @@
      "pass": true,
      "stage": "filter",
      "test": "mode",
-     "value": 0.668534631077029
+     "value": 0.6983885634214334
     },
     {
      "a": "radar-1/T1",
@@ -91,109 +91,7 @@
      "pass": true,
      "stage": "filter",
      "test": "mode",
-     "value": 0.33146536892297096
-    }
-   ]
-  },
-  {
-   "expect": [],
-   "ingest": {
-    "ce": 30,
-    "lat": 1.0,
-    "lon": 1.0,
-    "time_ms": 3000,
-    "track.simulated": 0,
-    "track.source_id": "radar-1",
-    "type": "a-f-A-M-F",
-    "uid": "T1"
-   },
-   "trace": [
-    {
-     "a": "radar-1/T1",
-     "b": "quiet",
-     "limit": null,
-     "pass": true,
-     "stage": "filter",
-     "test": "likelihood",
-     "value": -9.300254609563758
-    },
-    {
-     "a": "radar-1/T1",
-     "b": "maneuver",
-     "limit": null,
-     "pass": true,
-     "stage": "filter",
-     "test": "likelihood",
-     "value": -9.46821285214302
-    },
-    {
-     "a": "radar-1/T1",
-     "b": "quiet",
-     "limit": null,
-     "pass": true,
-     "stage": "filter",
-     "test": "mode",
-     "value": 0.7041595790479752
-    },
-    {
-     "a": "radar-1/T1",
-     "b": "maneuver",
-     "limit": null,
-     "pass": true,
-     "stage": "filter",
-     "test": "mode",
-     "value": 0.29584042095202473
-    }
-   ]
-  },
-  {
-   "expect": [],
-   "ingest": {
-    "ce": 30,
-    "lat": 1.0,
-    "lon": 1.0,
-    "time_ms": 6000,
-    "track.simulated": 0,
-    "track.source_id": "radar-1",
-    "type": "a-f-A-M-F",
-    "uid": "T1"
-   },
-   "trace": [
-    {
-     "a": "radar-1/T1",
-     "b": "quiet",
-     "limit": null,
-     "pass": true,
-     "stage": "filter",
-     "test": "likelihood",
-     "value": -8.700194363786274
-    },
-    {
-     "a": "radar-1/T1",
-     "b": "maneuver",
-     "limit": null,
-     "pass": true,
-     "stage": "filter",
-     "test": "likelihood",
-     "value": -9.771167449611989
-    },
-    {
-     "a": "radar-1/T1",
-     "b": "quiet",
-     "limit": null,
-     "pass": true,
-     "stage": "filter",
-     "test": "mode",
-     "value": 0.8664181055120139
-    },
-    {
-     "a": "radar-1/T1",
-     "b": "maneuver",
-     "limit": null,
-     "pass": true,
-     "stage": "filter",
-     "test": "mode",
-     "value": 0.13358189448798613
+     "value": 0.3016114365785666
     }
    ]
   },
@@ -217,7 +115,7 @@
      "pass": true,
      "stage": "filter",
      "test": "likelihood",
-     "value": -8.496395816307635
+     "value": -9.818303941123595
     },
     {
      "a": "radar-1/T1",
@@ -226,7 +124,7 @@
      "pass": true,
      "stage": "filter",
      "test": "likelihood",
-     "value": -10.484679126364831
+     "value": -12.021222965463677
     },
     {
      "a": "radar-1/T1",
@@ -235,7 +133,7 @@
      "pass": true,
      "stage": "filter",
      "test": "mode",
-     "value": 0.9609056961035699
+     "value": 0.9502826058851803
     },
     {
      "a": "radar-1/T1",
@@ -244,7 +142,109 @@
      "pass": true,
      "stage": "filter",
      "test": "mode",
-     "value": 0.03909430389643008
+     "value": 0.0497173941148197
+    }
+   ]
+  },
+  {
+   "expect": [],
+   "ingest": {
+    "ce": 30,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 18000,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "a": "radar-1/T1",
+     "b": "quiet",
+     "limit": null,
+     "pass": true,
+     "stage": "filter",
+     "test": "likelihood",
+     "value": -9.190837073973603
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "maneuver",
+     "limit": null,
+     "pass": true,
+     "stage": "filter",
+     "test": "likelihood",
+     "value": -12.954129965442103
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "quiet",
+     "limit": null,
+     "pass": true,
+     "stage": "filter",
+     "test": "mode",
+     "value": 0.9920758965350307
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "maneuver",
+     "limit": null,
+     "pass": true,
+     "stage": "filter",
+     "test": "mode",
+     "value": 0.00792410346496929
+    }
+   ]
+  },
+  {
+   "expect": [],
+   "ingest": {
+    "ce": 30,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 28000,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "a": "radar-1/T1",
+     "b": "quiet",
+     "limit": null,
+     "pass": true,
+     "stage": "filter",
+     "test": "likelihood",
+     "value": -9.217419202469136
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "maneuver",
+     "limit": null,
+     "pass": true,
+     "stage": "filter",
+     "test": "likelihood",
+     "value": -13.823286681219916
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "quiet",
+     "limit": null,
+     "pass": true,
+     "stage": "filter",
+     "test": "mode",
+     "value": 0.9963311598328202
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "maneuver",
+     "limit": null,
+     "pass": true,
+     "stage": "filter",
+     "test": "mode",
+     "value": 0.0036688401671798065
     }
    ]
   },
@@ -273,7 +273,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 526.5248841620269
+     "value": 61.17016993245532
     }
    ]
   },
@@ -333,7 +333,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 567.6994761863717
+     "value": 62.88441987720279
     }
    ]
   },
@@ -393,13 +393,13 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 612.888286121862
+     "value": 64.65871631539582
     }
    ]
   },
   {
    "expect": [],
-   "tick": 5400,
+   "tick": 20400,
    "trace": []
   },
   {
@@ -409,12 +409,12 @@
      "ev": "drop"
     }
    ],
-   "tick": 5401,
+   "tick": 20401,
    "trace": []
   },
   {
    "expect": [],
-   "tick": 20000,
+   "tick": 58000,
    "trace": []
   },
   {
@@ -424,7 +424,7 @@
      "ev": "drop"
     }
    ],
-   "tick": 20001,
+   "tick": 58001,
    "trace": []
   }
  ]
