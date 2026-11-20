@@ -1,0 +1,14 @@
+# Test-only fixture (engines/java/test, not a pack of packs/ and not in the spec): the pack
+# correlate-assign with one more gate line, the test `noop`, which only the test code registers.
+# Read against the standard registry it does not load (unknown test noop).
+pack        correlate-noop
+version     0.1.0
+method      assign
+filter      accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+gate        mahalanobis gate=18.42
+gate        same key=track.simulated
+gate        same key=@env
+gate        noop
+new_cost    9.21
+keep_bonus  2
+stale_ms    120000

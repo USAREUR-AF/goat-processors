@@ -1,0 +1,54 @@
+# cargo deny check: the runner's dependencies (NOTICE, THIRD-PARTY.md).
+[graph]
+targets = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]
+
+[advisories]
+version = 2
+yanked = "deny"
+# The same list as runner/.cargo/audit.toml, with the same reasons. cargo deny
+# reports unmaintained crates among transitive dependencies too, so the
+# unmaintained crates zenoh 1.9.0 pulls in are listed here as well.
+ignore = [
+  { id = "RUSTSEC-2026-0041", reason = "lz4_flex decompression, compiled only with zenoh's transport_compression feature, which the runner does not enable" },
+  { id = "RUSTSEC-2026-0543", reason = "chrono: unmaintained, no fixed version, pulled in by zenoh 1.9.0" },
+  { id = "RUSTSEC-2026-0542", reason = "humantime: unmaintained, no fixed version, pulled in by zenoh 1.9.0" },
+  { id = "RUSTSEC-2024-0436", reason = "paste: unmaintained, no fixed version, pulled in by zenoh 1.9.0" },
+  { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: unmaintained, no fixed version, pulled in by zenoh 1.9.0" },
+  { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml: unmaintained, no fixed version, pulled in by zenoh 1.9.0" },
+]
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "MIT",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "0BSD",
+  "BSL-1.0",
+  "Unicode-3.0",
+  "Unlicense",
+  "MPL-2.0",
+  "CDLA-Permissive-2.0",
+  "EPL-2.0",
+]
+
+# The engine crate (engines/rust) is this repository's own, under its LICENSE.
+[[licenses.clarify]]
+crate = "goat_correlator"
+expression = "Apache-2.0"
+license-files = []
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

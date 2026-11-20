@@ -1,0 +1,3 @@
+#!/bin/sh
+# Runs the built Go runner; it does not build (tools/perf/README.md, Runner contract).
+exec "$(dirname "$0")/bin/runner" "$@"

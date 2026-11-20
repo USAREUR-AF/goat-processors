@@ -1,84 +1,19 @@
-// spec/vector-format.md: runs every correlate load vector and every scenario
-// vector of the packs/correlate-* packs.
+// spec/vector-format.md: every correlate load vector and every scenario vector of
+// the packs/correlate-* packs, through the entry point of api.zig.
 const std = @import("std");
-const json = std.json;
 const paths = @import("paths");
-const pack_mod = @import("pack.zig");
-const engine_mod = @import("engine.zig");
-const compare = @import("compare.zig");
-const vector_files = @import("vector_files.zig");
-const sortedJsonFiles = vector_files.sortedJsonFiles;
-const readJson = vector_files.readJson;
-const packDirs = vector_files.packDirs;
+const api = @import("api.zig");
+const vectors = @import("io/vectors.zig");
+const pack = @import("correlate/pack.zig");
 
-test {
-    _ = compare;
-}
-
-// Load vectors: parsing `pack_def` fails exactly when `expect_error` is true.
-test "load vectors" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+test "correlate load vectors" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
-    const alloc = arena.allocator();
-    var failed: usize = 0;
-    const files = try sortedJsonFiles(alloc, paths.load_vectors_dir);
-    for (files) |path| {
-        const v = try readJson(alloc, path);
-        const expect_error = v.object.get("expect_error").?.bool;
-        const got_error = if (pack_mod.parse(alloc, v.object.get("pack_def").?.string)) |_| false else |_| true;
-        if (got_error != expect_error) {
-            failed += 1;
-            std.debug.print("FAIL load vector {s}: expect_error={} got_error={}\n", .{ path, expect_error, got_error });
-        }
-    }
-    std.debug.print("correlate load vectors: {d} run, {d} failed\n", .{ files.len, failed });
-    try std.testing.expect(files.len > 0);
-    try std.testing.expectEqual(@as(usize, 0), failed);
+    try vectors.expectPassed(try vectors.loadVectors(arena.allocator(), paths.load_vectors_dir, "correlate", pack.parse));
 }
 
-// One scenario vector: every step's events and trace, then the final snapshot.
-fn runScenario(alloc: std.mem.Allocator, path: []const u8) !?[]const u8 {
-    const v = try readJson(alloc, path);
-    const name = v.object.get("name").?.string;
-    const pack_dir = try std.fs.path.join(alloc, &.{ paths.packs_dir, v.object.get("pack").?.string });
-    const pack = try engine_mod.load_pack(alloc, pack_dir);
-    const eng = try engine_mod.Engine.create(std.testing.allocator, pack);
-    defer eng.destroy();
-
-    for (v.object.get("steps").?.array.items, 0..) |step, i| {
-        const s = step.object;
-        const res = if (s.get("ingest")) |report|
-            try eng.ingest(report.object)
-        else
-            try eng.tick(s.get("tick").?.integer);
-        const at = try std.fmt.allocPrint(alloc, "{s}.steps[{d}]", .{ name, i });
-        const ev_path = try std.fmt.allocPrint(alloc, "{s}.expect", .{at});
-        if (try compare.firstMismatch(alloc, ev_path, .{ .array = res.events }, s.get("expect").?)) |m| return m;
-        const tr_path = try std.fmt.allocPrint(alloc, "{s}.trace", .{at});
-        if (try compare.firstMismatch(alloc, tr_path, .{ .array = res.trace }, s.get("trace").?)) |m| return m;
-    }
-    const snap_path = try std.fmt.allocPrint(alloc, "{s}.snapshot", .{name});
-    return compare.firstMismatch(alloc, snap_path, try eng.snapshot(), v.object.get("snapshot").?);
-}
-
-test "scenario vectors" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+test "correlate scenario vectors" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
-    const alloc = arena.allocator();
-    var run: usize = 0;
-    var failed: usize = 0;
-
-    for (try packDirs(alloc, "correlate-")) |pn| {
-        const vdir = try std.fs.path.join(alloc, &.{ paths.packs_dir, pn, "vectors" });
-        for (try sortedJsonFiles(alloc, vdir)) |path| {
-            run += 1;
-            if (try runScenario(alloc, path)) |mismatch| {
-                failed += 1;
-                std.debug.print("FAIL {s}: first mismatch at {s}\n", .{ path, mismatch });
-            }
-        }
-    }
-    std.debug.print("correlate scenario vectors: {d} run, {d} failed\n", .{ run, failed });
-    try std.testing.expect(run > 0);
-    try std.testing.expectEqual(@as(usize, 0), failed);
+    try vectors.expectPassed(try vectors.scenarioVectors(api.Module(.correlate), arena.allocator(), paths.packs_dir, "correlate-"));
 }

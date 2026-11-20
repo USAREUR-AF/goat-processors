@@ -35,14 +35,20 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
-      - run: PYTHONPATH=src python -m unittest discover -s tests
+      - name: vectors, unit, property and fuzz tests, with the line-coverage floor (tests/coverage_check.py; baseline 98.6 %)
+        run: PYTHONPATH=src python tests/coverage_check.py --floor 98.6
         working-directory: engines/python
   rust:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: cargo test
+        working-directory: engines/rust
+      # Line coverage with rustc's own instrumentation and the rustup
+      # component llvm-tools; the floor is max(baseline 94.01 %, 80 %).
+      - run: rustup component add llvm-tools
+      - run: ./coverage.sh 94.01
         working-directory: engines/rust
   go:
     runs-on: ubuntu-latest
@@ -53,7 +59,15 @@ jobs:
         with:
           go-version-file: engines/go/go.mod
           cache: false
-      - run: go test -v ./...
+      # Vectors, unit, property and fuzz tests, with statement coverage of
+      # every package (go's own -coverpkg); the floor is max(baseline 97.7 %
+      # measured on the pre-refactor engine, 80 %): engines/go/REFACTOR.md.
+      - run: go test -v -coverpkg=./... -coverprofile=cover.out ./...
+        working-directory: engines/go
+      - run: |
+          total=$(go tool cover -func=cover.out | awk '/^total:/ {sub("%", "", $3); print $3}')
+          echo "statement coverage ${total}% (floor 97.7%)"
+          awk -v t="$total" 'BEGIN { exit !(t + 0 >= 97.7) }'
         working-directory: engines/go
   java:
     runs-on: ubuntu-latest
@@ -65,6 +79,7 @@ jobs:
           distribution: temurin
           java-version: "17"
       - run: engines/java/build.sh
+      - run: engines/java/coverage.sh
   cpp:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -74,22 +89,39 @@ jobs:
           cmake -S engines/cpp -B "$RUNNER_TEMP/cpp"
           cmake --build "$RUNNER_TEMP/cpp"
           ctest --test-dir "$RUNNER_TEMP/cpp" --output-on-failure
+      # Line coverage with gcc's own --coverage and gcov; the floor is
+      # max(baseline 96.7 %, 80 %) (engines/cpp/REFACTOR.md).
+      - run: |
+          cmake -S engines/cpp -B "$RUNNER_TEMP/cpp-cov" -DGOAT_COVERAGE=ON
+          cmake --build "$RUNNER_TEMP/cpp-cov"
+          ctest --test-dir "$RUNNER_TEMP/cpp-cov" --output-on-failure
+          python3 -I engines/cpp/coverage.py "$RUNNER_TEMP/cpp-cov" --floor 96.7
   erlang:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1
         with:
           otp-version: "27"
       - run: engines/erlang/run_tests
+      # Line coverage (OTP cover) of engines/erlang/src over the vectors and
+      # the tests; the floor is max(baseline 98.2 %, 80 %) (engines/erlang/REFACTOR.md).
+      - run: engines/erlang/coverage 98.2
   zig:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
         with:
           version: 0.13.0
       - run: zig build test
+        working-directory: engines/zig
+      # Line coverage, measured with gdb and objdump (Zig 0.13 has no coverage
+      # of its own; see engines/zig/README.md), held at engines/zig/coverage/floor.
+      - name: zig line coverage floor
+        run: |
+          command -v gdb >/dev/null || { sudo apt-get update && sudo apt-get install -y gdb; }
+          coverage/run.sh --check
         working-directory: engines/zig

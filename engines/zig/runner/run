@@ -1,0 +1,3 @@
+#!/bin/sh
+# tools/perf/README.md "Runner contract": runs the built zig runner; never builds.
+exec "$(dirname "$0")/../zig-out/bin/goat-runner" "$@"
