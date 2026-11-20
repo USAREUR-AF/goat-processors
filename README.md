@@ -8,28 +8,74 @@ translated: correlation, fusion, filtering, and quality measurement with the
 actions that follow from it. [goat-transformers](https://github.com/USAREUR-AF/goat-transformers)
 is the layer beneath it and translates messages between formats into one
 shared model; goat-processors reads that model. Each function is a written
-specification, a set of rule packs, and conformance vectors that seven
-independent engines (Python, Rust, Go, Java, C++, Erlang, Zig) reproduce
-exactly, down to every trace record.
+specification, a set of settings files (packs), and test cases (vectors) that
+seven independent engines (Python, Rust, Go, Java, C++, Erlang, Zig)
+reproduce exactly, down to the record of every test they run.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/processing-layer-dark.svg">
   <img alt="Message formats are translated by goat-transformers into one shared report model. goat-processors reads that model and runs filter, correlate, fuse and quality on it (filter: built; correlate: built; fuse: built; quality: built). Each function returns events, a trace record for every test, and a snapshot of its whole state." src="docs/figures/processing-layer-light.svg">
 </picture>
 
+## Words used here
+
+| Word | Meaning |
+|---|---|
+| report | one message from one source about one object, after translation: its time, position, reported position error (`ce`, meters) and identity keys |
+| track | the reports of one source about one object, under that source's track number; named `<source>/<uid>`, for example `radar-1/T1` |
+| motion filter | a small Kalman filter kept for each track: it predicts where the track will be, and how uncertain that prediction is |
+| tick | a call `tick(now_ms)` that moves the function's clock to `now_ms` and returns its output for that moment |
+| group, system track | the output for one object: the tracks judged to describe it, with one estimate. The per-report method makes groups of two or more tracks; the assignment method keeps one system track per object, even for a track seen by one source |
+| pack | a named settings file for one function, `packs/<function>-<name>/pack.def`: which tests run and with which limits. A pack holds no code |
+| vector | a test case: a list of inputs with the exact events, trace and final state every engine must produce |
+| trace record | one line per test the engine ran: what it compared, the value it computed, the limit and the result |
+
 ## Functions
 
 | Function | What it does | Specification | Packs | Vectors | Status |
 |---|---|---|---:|---:|---|
-| correlate | decides which tracks from different sources are one object, groups them, emits one estimate per group | [correlate.md](spec/correlate.md) 0.8 | 6 | 29 | Built in seven languages |
-| correlate, method assign | every track in one system track; per-source least-cost assignment at each tick; members fused by uncertainty weight | [correlate-assign.md](spec/correlate-assign.md) 0.6 | 6 | 27 | Built in seven languages |
-| fuse | combines the members of each group named by `fuse.group` into one estimate: inverse variance, covariance intersection, best, priority or latest; one rule per attribute | [fuse.md](spec/fuse.md) 0.2 | 5 | 16 | Built in seven languages |
+| correlate | decides which tracks from different sources describe the same object, groups them, and outputs one estimate per group. This row is the per-report method, `confirm`: each new report is tested, and a pair is grouped after passing on two reports in a row | [correlate.md](spec/correlate.md) 0.8 | 6 | 29 | Built in seven languages |
+| correlate, method assign | the per-tick method, `assign`: at each tick, places all of one source's tracks at once into one output track per object (a system track) by the least total cost, and combines the members' positions weighted by their uncertainty | [correlate-assign.md](spec/correlate-assign.md) 0.6 | 6 | 27 | Built in seven languages |
+| fuse | combines the tracks of one group (those whose reports carry the same `fuse.group` key) into one estimate: weighted by each member's uncertainty (inverse variance), or by covariance intersection when members may share an error, or by taking the best, highest-priority or latest member; each other attribute (identity, for example) by its own rule | [fuse.md](spec/fuse.md) 0.2 | 5 | 16 | Built in seven languages |
 | filter | keeps or drops each report by the first matching rule: inside or outside a circle or polygon, within a distance of a reference such as own ship, by environment, affiliation, source, identity or any key, and thins a feed by interval | [filter.md](spec/filter.md) 0.1 | 3 | 27 | Built in seven languages |
-| quality | measures each entity and source from its reports (update interval, age, latency, normalized innovation squared against reported error, implied against reported speed, order, missing keys, lateness against the other sources, the stated time error and time state) and applies the action a rule attaches to a measure: mark, downgrade, drop or alert | [quality.md](spec/quality.md) 0.2 | 4 | 22 | Built in seven languages |
+| quality | measures each track and each source from its reports (time between updates, age, latency, how far reports fall from the track's prediction in units of the reported error, the speed implied by successive positions against the reported speed, reports out of order, missing keys, lateness against the other sources, and the clock error and clock state the source reports) and applies the action a rule attaches to a measure: mark, downgrade, drop or alert | [quality.md](spec/quality.md) 0.2 | 4 | 22 | Built in seven languages |
 
 Each function runs as `load_pack`, then `ingest(report)` and `tick(now_ms)`,
 each returning events and trace records, and `snapshot()`, which returns the
 whole state.
+
+## Methods and packs
+
+The correlate function decides which tracks from different sources describe
+the same object. It has two **methods**, chosen by a line in the pack:
+
+| Method | How it decides |
+|---|---|
+| `confirm` (per report) | each new report is tested against the other sources' tracks; a pair is grouped after passing on two reports in a row, and ungrouped after failing twice |
+| `assign` (per tick) | at each tick, all of one source's tracks are placed together by the least total cost (an exact minimum-cost assignment), so one close track cannot take another's match; every track is in exactly one system track |
+
+Each **pack** below is one set of correlate settings. Most extend another
+pack and add one capability. F1 is the [benchmark](#benchmark)'s association
+score, from 0 to 1: how well a pack puts the tracks of one object together
+and keeps different objects apart, on three sets of scenarios (named, random,
+and time quality, where sensor clocks are wrong).
+
+| Pack | Method | What it does | Adds over the pack it extends | F1, named / random / time |
+|---|---|---|---|---|
+| [`gnn`](packs/correlate-gnn/pack.def) | `confirm` | pairs two tracks when one lies inside the other's predicted 99 % uncertainty region and they agree on course, speed and height, on two reports in a row; the nearest candidate wins | the base of the per-report packs: a statistical gate, a test of the distance between two tracks measured in units of their combined uncertainty | 0.951 / 0.820 / 0.959 |
+| [`gnn-imm`](packs/correlate-gnn-imm/pack.def) | `confirm` | as gnn, with a second motion model for turning or accelerating targets | `gnn`: a two-model filter, so a turning target stays inside its predicted region | 0.968 / 0.884 / 0.968 |
+| [`gnn-restart`](packs/correlate-gnn-restart/pack.def) | `confirm` | as gnn, restarting a track's motion filter when a report lands far outside its prediction | `gnn`: recovery when a sensor's track number moves to another object | 0.956 / 0.851 / 0.949 |
+| [`gnn-time`](packs/correlate-gnn-time/pack.def) | `confirm` | as gnn, widening the uncertainty of a source whose clock is known to be off (radar-1, 500 ms); no benchmark scenario has a source named radar-1, so there it scores exactly as gnn | `gnn`: time quality: a clock error becomes position uncertainty | 0.951 / 0.820 / 0.959 |
+| [`window`](packs/correlate-window/pack.def) | `confirm` | pairs two tracks whose distance is under a fixed window that grows with both tracks' reported error | `gnn`: a distance window in place of the statistical gate, which tolerates a sensor with a fixed position bias | 0.924 / 0.934 / 0.996 |
+| [`distance`](packs/correlate-distance/pack.def) | `confirm` | pairs two tracks closer than 200 m, for feeds that report no error; tracks of one source may pair; the output follows the latest report | `gnn`: plain distance, for sources with no error estimate | 0.884 / 0.807 / 0.937 |
+| [`assign`](packs/correlate-assign/pack.def) | `assign` | at each tick, places each source's tracks into one output track per object by the least total cost, and combines the members' positions weighted by their uncertainty | the base of the assignment packs | 0.937 / 0.715 / 0.775 |
+| [`assign-imm`](packs/correlate-assign-imm/pack.def) | `assign` | as assign, with a second motion model for turning or accelerating targets | `assign`: the two-model filter | 0.971 / 0.796 / 0.881 |
+| [`assign-window`](packs/correlate-assign-window/pack.def) | `assign` | as assign, keeping up to three candidate histories over two ticks before committing | `assign`: a multi-frame window | 0.929 / 0.698 / 0.739 |
+| [`assign-bias`](packs/correlate-assign-bias/pack.def) | `assign` | as assign-imm, estimating a position offset for each pair of sensors | `assign-imm`: sensor bias estimation, so a sensor off by a few hundred meters still joins | 0.989 / 0.906 / 0.936 |
+| [`assign-full`](packs/correlate-assign-full/pack.def) | `assign` | as assign-bias, with filter restart, the two-tick window with a margin, and a 20 s stale time | `assign-bias`: every option of assign 0.5 together | 0.997 / 0.958 / 0.932 |
+| [`assign-time`](packs/correlate-assign-time/pack.def) | `assign` | as assign-full, also fitting a clock offset for each pair of sources | `assign-full`: clock offset: a lag along the track that grows with speed is read as a clock error, not a position bias | 0.997 / 0.961 / 0.996 |
+
+**Default: `assign-time`.** It has the highest F1 of every pack on all 3 benchmark sets: named 0.997, random 0.961, time 0.996 (equal with `window`). It keeps one output track per object and combines its members, with the lowest position error of every pack (GOSPA, a mean position error that also charges missed and false tracks: 244 m on the random set). Its weak point is identity swaps (an object's output track changing to another): 33 on the random set, against 14 to 23 for the per-report packs, so the `confirm` method stays selectable.
 
 ## Quick start
 
@@ -107,7 +153,7 @@ the vector is changed only through the specification.
 | Erlang | [`engines/erlang`](engines/erlang) | 3,318 | `engines/erlang/run_tests` |
 | Zig | [`engines/zig`](engines/zig) | 5,580 | `cd engines/zig && zig build test` |
 
-Each engine runs all 121 scenario vectors (838 steps, 4,333 trace records) and 218 load vectors on every pull request and every push to `main`.
+Each engine runs all 121 scenario vectors (838 steps, 4,333 trace records) and 218 load vectors (pack files every engine must accept, or must refuse) on every pull request and every push to `main`.
 
 ## Benchmark
 
@@ -116,48 +162,33 @@ crossing, formation, splitting and turning objects; sensors with understated
 or absent error, bias, latency, low detection, track number swaps and false
 tracks; and sensors whose clocks are offset, drifting or free-running, or
 whose reports arrive out of order. Every score and its formula is in [docs/benchmark.md](docs/benchmark.md),
-which `tools/bench/bench.py report` writes.
+which `tools/bench/bench.py report` writes. Pack names are explained in
+[Methods and packs](#methods-and-packs).
 
-| Pack | Set | Pairwise F1 | Precision | Recall | False merges | Missed merges | Identity swaps | GOSPA, m |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| gnn | 21 named | 0.951 | 0.997 | 0.910 | 3 | 2 | 1 | 94.9 |
-| gnn | 50 random | 0.820 | 0.988 | 0.701 | 61 | 81 | 23 | 414.5 |
-| gnn | 7 time quality | 0.959 | 1.000 | 0.922 | 0 | 3 | 0 | 86.8 |
-| window | 21 named | 0.924 | 0.930 | 0.917 | 5 | 6 | 1 | 56.8 |
-| window | 50 random | 0.934 | 0.988 | 0.887 | 77 | 40 | 17 | 308.1 |
-| window | 7 time quality | 0.996 | 1.000 | 0.993 | 0 | 0 | 0 | 55.1 |
-| distance | 21 named | 0.884 | 0.857 | 0.913 | 13 | 2 | 1 | 108.8 |
-| distance | 50 random | 0.807 | 0.996 | 0.678 | 21 | 76 | 14 | 418.1 |
-| distance | 7 time quality | 0.937 | 1.000 | 0.881 | 0 | 6 | 0 | 95.4 |
-| assign | 21 named | 0.937 | 1.000 | 0.881 | 0 | 2 | 2 | 109.6 |
-| assign | 50 random | 0.715 | 0.997 | 0.558 | 15 | 99 | 130 | 474.7 |
-| assign | 7 time quality | 0.775 | 1.000 | 0.632 | 0 | 4 | 120 | 214.5 |
-| gnn-imm | 21 named | 0.968 | 0.996 | 0.941 | 3 | 2 | 1 | 69.8 |
-| gnn-imm | 50 random | 0.884 | 0.993 | 0.796 | 71 | 55 | 21 | 344.2 |
-| gnn-imm | 7 time quality | 0.968 | 1.000 | 0.939 | 0 | 0 | 0 | 40.1 |
-| assign-imm | 21 named | 0.971 | 1.000 | 0.944 | 0 | 2 | 2 | 72.4 |
-| assign-imm | 50 random | 0.796 | 0.998 | 0.661 | 12 | 54 | 160 | 399.0 |
-| assign-imm | 7 time quality | 0.881 | 1.000 | 0.787 | 0 | 4 | 21 | 120.0 |
-| assign-window | 21 named | 0.929 | 1.000 | 0.867 | 2 | 2 | 2 | 115.7 |
-| assign-window | 50 random | 0.698 | 0.994 | 0.538 | 62 | 91 | 229 | 477.0 |
-| assign-window | 7 time quality | 0.739 | 1.000 | 0.586 | 0 | 4 | 141 | 235.3 |
-| assign-bias | 21 named | 0.989 | 1.000 | 0.979 | 0 | 1 | 2 | 49.0 |
-| assign-bias | 50 random | 0.906 | 0.999 | 0.830 | 11 | 47 | 64 | 313.0 |
-| assign-bias | 7 time quality | 0.936 | 1.000 | 0.879 | 0 | 1 | 9 | 76.1 |
-| assign-full | 21 named | 0.997 | 1.000 | 0.994 | 0 | 0 | 0 | 41.4 |
-| assign-full | 50 random | 0.958 | 0.999 | 0.919 | 10 | 4 | 37 | 247.2 |
-| assign-full | 7 time quality | 0.932 | 1.000 | 0.873 | 0 | 1 | 15 | 79.2 |
-| gnn-restart | 21 named | 0.956 | 0.997 | 0.919 | 3 | 2 | 1 | 89.6 |
-| gnn-restart | 50 random | 0.851 | 0.990 | 0.746 | 60 | 64 | 18 | 382.6 |
-| gnn-restart | 7 time quality | 0.949 | 1.000 | 0.903 | 0 | 3 | 5 | 92.6 |
-| assign-time | 21 named | 0.997 | 1.000 | 0.994 | 0 | 0 | 0 | 41.2 |
-| assign-time | 50 random | 0.961 | 0.999 | 0.926 | 9 | 2 | 33 | 244.0 |
-| assign-time | 7 time quality | 0.996 | 1.000 | 0.993 | 0 | 0 | 0 | 25.9 |
-| gnn-time | 21 named | 0.951 | 0.997 | 0.910 | 3 | 2 | 1 | 94.9 |
-| gnn-time | 50 random | 0.820 | 0.988 | 0.701 | 61 | 81 | 23 | 414.5 |
-| gnn-time | 7 time quality | 0.959 | 1.000 | 0.922 | 0 | 3 | 0 | 86.8 |
+| Measure | Meaning |
+|---|---|
+| pairwise F1 | at every tick, every pair of live tracks is checked: does the output put them together exactly when they are the same object? Precision is the share of output pairs that are right, recall the share of true pairs found; F1 is their harmonic mean, from 0 to 1, higher is better |
+| false merge | two tracks of different objects put in one output track; counted each time it starts |
+| missed merge | two tracks of one object kept apart for a whole stretch of at least 10 s |
+| identity swap | an object's output track changes to another while the first still exists |
+| GOSPA | the mean, over ticks, of the distance between output and true positions, with each error capped at 500 m and every missed or false track charged half the cap; lower is better |
 
-Highest pairwise F1 over the random set: `correlate-assign-time`, 0.961.
+| Pack | F1, 21 named | F1, 50 random | F1, 7 time | False merges | Missed merges | Identity swaps | GOSPA, m |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| [`gnn`](#methods-and-packs) | 0.951 | 0.820 | 0.959 | 61 | 81 | 23 | 415 |
+| [`window`](#methods-and-packs) | 0.924 | 0.934 | 0.996 | 77 | 40 | 17 | 308 |
+| [`distance`](#methods-and-packs) | 0.884 | 0.807 | 0.937 | 21 | 76 | 14 | 418 |
+| [`assign`](#methods-and-packs) | 0.937 | 0.715 | 0.775 | 15 | 99 | 130 | 475 |
+| [`gnn-imm`](#methods-and-packs) | 0.968 | 0.884 | 0.968 | 71 | 55 | 21 | 344 |
+| [`assign-imm`](#methods-and-packs) | 0.971 | 0.796 | 0.881 | 12 | 54 | 160 | 399 |
+| [`assign-window`](#methods-and-packs) | 0.929 | 0.698 | 0.739 | 62 | 91 | 229 | 477 |
+| [`assign-bias`](#methods-and-packs) | 0.989 | 0.906 | 0.936 | 11 | 47 | 64 | 313 |
+| [`assign-full`](#methods-and-packs) | 0.997 | 0.958 | 0.932 | 10 | 4 | 37 | 247 |
+| [`gnn-restart`](#methods-and-packs) | 0.956 | 0.851 | 0.949 | 60 | 64 | 18 | 383 |
+| [`assign-time`](#methods-and-packs) | 0.997 | 0.961 | 0.996 | 9 | 2 | 33 | 244 |
+| [`gnn-time`](#methods-and-packs) | 0.951 | 0.820 | 0.959 | 61 | 81 | 23 | 415 |
+
+False merges, missed merges, identity swaps and GOSPA are for the 50 random scenarios.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/bench/random-dark.svg">

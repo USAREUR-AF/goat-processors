@@ -1,15 +1,18 @@
 # Specifications
 
 Each function has one specification. Every engine implements every function
-from these documents and the vectors, never from another engine's source.
+from these documents and the vectors (test cases with their exact expected
+output), never from another engine's source. Words such as track, tick, pack
+and trace record are defined in the README, [Words used here](../README.md#words-used-here);
+the correlate packs are listed in [Methods and packs](../README.md#methods-and-packs).
 
 | Function | Specification | Status | What it does |
 |---|---|---|---|
-| correlate | [correlate.md](correlate.md) | Written, version 0.8; seven engines built | decides which tracks from different sources are one object, groups them, emits one estimate per group |
-| correlate, method assign | [correlate-assign.md](correlate-assign.md) | Written, version 0.6; seven engines built | every track in one system track; per-source least-cost assignment at each tick; members fused by uncertainty weight |
-| fuse | [fuse.md](fuse.md) | Written, version 0.2; seven engines built | combines the members of each group named by `fuse.group` into one estimate: inverse variance, covariance intersection, best, priority or latest; one rule per attribute |
+| correlate | [correlate.md](correlate.md) | Written, version 0.8; seven engines built | decides which tracks from different sources describe the same object, groups them, and outputs one estimate per group. This row is the per-report method, `confirm`: each new report is tested, and a pair is grouped after passing on two reports in a row |
+| correlate, method assign | [correlate-assign.md](correlate-assign.md) | Written, version 0.6; seven engines built | the per-tick method, `assign`: at each tick, places all of one source's tracks at once into one output track per object (a system track) by the least total cost, and combines the members' positions weighted by their uncertainty |
+| fuse | [fuse.md](fuse.md) | Written, version 0.2; seven engines built | combines the tracks of one group (those whose reports carry the same `fuse.group` key) into one estimate: weighted by each member's uncertainty (inverse variance), or by covariance intersection when members may share an error, or by taking the best, highest-priority or latest member; each other attribute (identity, for example) by its own rule |
 | filter | [filter.md](filter.md) | Written, version 0.1; seven engines built | keeps or drops each report by the first matching rule: inside or outside a circle or polygon, within a distance of a reference such as own ship, by environment, affiliation, source, identity or any key, and thins a feed by interval |
-| quality | [quality.md](quality.md) | Written, version 0.2; Python built | measures each entity and source from its reports (update interval, age, latency, normalized innovation squared against reported error, implied against reported speed, order, missing keys, lateness against the other sources, the stated time error and time state) and applies the action a rule attaches to a measure: mark, downgrade, drop or alert |
+| quality | [quality.md](quality.md) | Written, version 0.2; Python built | measures each track and each source from its reports (time between updates, age, latency, how far reports fall from the track's prediction in units of the reported error, the speed implied by successive positions against the reported speed, reports out of order, missing keys, lateness against the other sources, and the clock error and clock state the source reports) and applies the action a rule attaches to a measure: mark, downgrade, drop or alert |
 
 ## What every function shares
 
