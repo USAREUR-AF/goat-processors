@@ -1,0 +1,5 @@
+#!/bin/sh
+# Build the runner (tools/perf/README.md "Runner contract"): the engine and
+# its IO module, compiled into engines/erlang/ebin/ by build.sh.
+set -e
+exec "$(cd "$(dirname "$0")/.." && pwd)/build.sh"
