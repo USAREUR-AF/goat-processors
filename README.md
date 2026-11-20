@@ -161,7 +161,7 @@ the vector is changed only through the specification.
 | Java | [`engines/java`](engines/java) | 5,476 | `engines/java/build.sh` |
 | C++ | [`engines/cpp`](engines/cpp) | 5,762 | `cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir build/cpp` |
 | Erlang | [`engines/erlang`](engines/erlang) | 3,318 | `engines/erlang/run_tests` |
-| Zig | [`engines/zig`](engines/zig) | 5,580 | `cd engines/zig && zig build test` |
+| Zig | [`engines/zig`](engines/zig) | 7,751 | `cd engines/zig && zig build test` |
 
 Each engine runs all 121 scenario vectors (838 steps, 4,333 trace records) and 218 load vectors (pack files every engine must accept, or must refuse) on every pull request and every push to `main`.
 
