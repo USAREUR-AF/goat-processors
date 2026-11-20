@@ -136,6 +136,45 @@ and the evaluation set. The output records the input's SHA-256.
 with a limit (`--timeout`, default 300 s). A run past it is reported as not
 finished and left out of its group's pooled measures; the cell says how many.
 
+## Detection-level family
+
+`detections.py` generates synthetic moving-target radar dwells with ground
+truth, for the `track` function (detections in, local tracks out) and then
+track plus correlate end to end. It is not run by `report` until `track`
+exists.
+
+| Command | What it does |
+|---|---|
+| `python3 -I tools/bench/detections.py generate [--set tuning\|evaluation] [--out DIR]` | write the 20 detection-level scenarios of a set |
+| `python3 -I tools/bench/detections.py score --scenarios DIR --tracks DIR` | score a track output per scenario |
+
+| Part | Model |
+|---|---|
+| Truth | 4 to 30 ground movers (vehicles, environment G; some vessels, S) on straight legs with turns and stops, 0 to 30 m/s |
+| Platform | an airborne radar on a racetrack 40 to 90 km from the area, 8 to 10 km high |
+| Dwell | every 8 to 20 s a scan of a 15 to 25 km circle, stated with its coverage (WKT) and revisit |
+| Detection | a mover in the circle is detected with probability Pd (0.7 to 0.95) when its radial speed is above the minimum detectable velocity (1 to 3 m/s) |
+| Errors | range 10 to 30 m along the line of sight, cross-range = range times 1 to 3 mrad, radial velocity 0.3 to 1 m/s; each stated per detection |
+| Clutter | false detections in the circle, Poisson with mean 0 to 8 per dwell |
+| Order | the detections of a dwell are shuffled; `item_id` is their index |
+
+A `dwell` step holds the dwell in the shared model's `detection` module keys:
+`detection.dwell_id`, `detection.time_ms`, `detection.sensor_id`,
+`detection.sensor_lat`, `detection.sensor_lon`, `detection.sensor_hae`,
+`detection.revisit_ms`, `detection.coverage_wkt`, and `detection.items`, a
+list of detections with `item_id`, `lat`, `lon`, `hae`, `range_error_m`,
+`cross_range_error_m`, `radial_velocity_ms` (positive away from the sensor),
+`radial_velocity_error_ms` and `snr_db`. The truth file gives, per dwell
+step, the truth object of each detection (null for clutter).
+
+**Scoring a track output.** One events file per scenario with `ticks` of
+`{"now_ms", "tracks": [{"track", "lat", "lon"}]}`. Per tick: GOSPA (c = 500 m,
+p = 2) between the tracks and the movers in the coverage; tracks matched to
+movers by minimum total distance under 500 m. An identity swap is a mover
+whose matched track changes while the old one still exists; a track break a
+mover that loses its match and is matched again; false and missed track
+ticks are unmatched tracks and movers. A perfect output scores 0 on all.
+
 ## Events file
 
 Every engine is scored from one file per scenario, `<scenario>.events.json`.

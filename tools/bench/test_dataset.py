@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests of the two sets, the families and the intervals.
+"""Tests of the two sets, the families, the intervals and the detection-level scorer.
 
 Run: python3 -I tools/bench/test_dataset.py
 """
@@ -13,6 +13,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import dataset  # noqa: E402
+import detections  # noqa: E402
 import scenarios as S  # noqa: E402
 import score as scoring  # noqa: E402
 import stats  # noqa: E402
@@ -124,6 +125,22 @@ class Intervals(unittest.TestCase):
         self.assertEqual(stats.verdict("f1", [0.8, 0.85], [0.9, 0.95]), "better")
         self.assertEqual(stats.verdict("false_merges", [10, 20], [30, 40]), "worse")
         self.assertEqual(stats.verdict("f1", [0.8, 0.9], [0.85, 0.95]), "no difference shown")
+
+
+class Detections(unittest.TestCase):
+    def test_perfect_tracks_score_zero(self):
+        name, seed = detections.scenarios_of("tuning")[0]
+        v, t = detections.build(name, seed)
+        self.assertTrue(any("dwell" in s for s in v["steps"]))
+        for st, lab in zip(v["steps"], t["labels"]):
+            if "dwell" in st:
+                self.assertEqual(len(st["dwell"]["detection.items"]), len(lab))
+        ticks = {tm: [{"track": "T-" + m, "lat": o["pos"][i][0], "lon": o["pos"][i][1]}
+                      for m, o in t["objects"].items() if o["pos"][i] is not None]
+                 for i, tm in enumerate(t["ticks"])}
+        s = detections.score_tracks(t, ticks)
+        self.assertEqual((s["gospa_m"], s["swaps"], s["breaks"], s["false_track_ticks"], s["missed_ticks"]),
+                         (0.0, 0, 0, 0, 0))
 
 
 if __name__ == "__main__":
