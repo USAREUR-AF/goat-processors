@@ -70,12 +70,12 @@ and time quality, where sensor clocks are wrong).
 | [`distance`](packs/correlate-distance/pack.def) | `confirm` | pairs two tracks closer than 200 m, for feeds that report no error; tracks of one source may pair; the output follows the latest report | `gnn`: plain distance, for sources with no error estimate | 0.884 / 0.807 / 0.937 |
 | [`assign`](packs/correlate-assign/pack.def) | `assign` | at each tick, places each source's tracks into one output track per object by the least total cost, and combines the members' positions weighted by their uncertainty | the base of the assignment packs | 0.937 / 0.715 / 0.775 |
 | [`assign-imm`](packs/correlate-assign-imm/pack.def) | `assign` | as assign, with a second motion model for turning or accelerating targets | `assign`: the two-model filter | 0.971 / 0.796 / 0.881 |
-| [`assign-window`](packs/correlate-assign-window/pack.def) | `assign` | as assign, keeping up to three candidate histories over two ticks before committing | `assign`: a multi-frame window | 0.929 / 0.698 / 0.739 |
-| [`assign-bias`](packs/correlate-assign-bias/pack.def) | `assign` | as assign-imm, estimating a position offset for each pair of sensors | `assign-imm`: sensor bias estimation, so a sensor off by a few hundred meters still joins | 0.989 / 0.906 / 0.936 |
+| [`assign-window`](packs/correlate-assign-window/pack.def) | `assign` | as assign, keeping up to three candidate histories over two ticks before committing | `assign`: a multi-frame window | 0.929 / 0.698 / 0.740 |
+| [`assign-bias`](packs/correlate-assign-bias/pack.def) | `assign` | as assign-imm, estimating a position offset for each pair of sensors | `assign-imm`: sensor bias estimation, so a sensor off by a few hundred meters still joins | 0.990 / 0.906 / 0.936 |
 | [`assign-full`](packs/correlate-assign-full/pack.def) | `assign` | as assign-bias, with filter restart, the two-tick window with a margin, and a 20 s stale time | `assign-bias`: every option of assign 0.5 together | 0.997 / 0.958 / 0.932 |
 | [`assign-time`](packs/correlate-assign-time/pack.def) | `assign` | as assign-full, also fitting a clock offset for each pair of sources | `assign-full`: clock offset: a lag along the track that grows with speed is read as a clock error, not a position bias | 0.997 / 0.961 / 0.996 |
 
-**Default: `assign-time`.** It has the highest F1 of every pack on all 3 benchmark sets: named 0.997, random 0.961, time 0.996 (equal with `window`). It keeps one output track per object and combines its members, with the lowest position error of every pack (GOSPA, a mean position error that also charges missed and false tracks: 244 m on the random set). Its weak point is identity swaps (an object's output track changing to another): 33 on the random set, against 14 to 23 for the per-report packs, so the `confirm` method stays selectable.
+**Default: `assign-time`.** It has the highest F1 of every pack on all 3 benchmark sets: named 0.997 (equal with `assign-full`), random 0.961, time 0.996 (equal with `window`). It keeps one output track per object and combines its members, with the lowest position error of every pack (GOSPA, a mean position error that also charges missed and false tracks: 244 m on the random set). Its weak point is identity swaps (an object's output track changing to another): 33 on the random set, against 14 to 23 for the per-report packs, so the `confirm` method stays selectable.
 
 ## Quick start
 
@@ -175,18 +175,18 @@ which `tools/bench/bench.py report` writes. Pack names are explained in
 
 | Pack | F1, 21 named | F1, 50 random | F1, 7 time | False merges | Missed merges | Identity swaps | GOSPA, m |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [`gnn`](#methods-and-packs) | 0.951 | 0.820 | 0.959 | 61 | 81 | 23 | 415 |
+| [`gnn`](#methods-and-packs) | 0.951 | 0.820 | 0.959 | 61 | 81 | 23 | 414 |
 | [`window`](#methods-and-packs) | 0.924 | 0.934 | 0.996 | 77 | 40 | 17 | 308 |
 | [`distance`](#methods-and-packs) | 0.884 | 0.807 | 0.937 | 21 | 76 | 14 | 418 |
-| [`assign`](#methods-and-packs) | 0.937 | 0.715 | 0.775 | 15 | 99 | 130 | 475 |
+| [`assign`](#methods-and-packs) | 0.937 | 0.715 | 0.775 | 15 | 99 | 131 | 475 |
 | [`gnn-imm`](#methods-and-packs) | 0.968 | 0.884 | 0.968 | 71 | 55 | 21 | 344 |
-| [`assign-imm`](#methods-and-packs) | 0.971 | 0.796 | 0.881 | 12 | 54 | 160 | 399 |
-| [`assign-window`](#methods-and-packs) | 0.929 | 0.698 | 0.739 | 62 | 91 | 229 | 477 |
-| [`assign-bias`](#methods-and-packs) | 0.989 | 0.906 | 0.936 | 11 | 47 | 64 | 313 |
+| [`assign-imm`](#methods-and-packs) | 0.971 | 0.796 | 0.881 | 12 | 54 | 159 | 399 |
+| [`assign-window`](#methods-and-packs) | 0.929 | 0.698 | 0.740 | 62 | 90 | 231 | 477 |
+| [`assign-bias`](#methods-and-packs) | 0.990 | 0.906 | 0.936 | 11 | 47 | 65 | 313 |
 | [`assign-full`](#methods-and-packs) | 0.997 | 0.958 | 0.932 | 10 | 4 | 37 | 247 |
 | [`gnn-restart`](#methods-and-packs) | 0.956 | 0.851 | 0.949 | 60 | 64 | 18 | 383 |
 | [`assign-time`](#methods-and-packs) | 0.997 | 0.961 | 0.996 | 9 | 2 | 33 | 244 |
-| [`gnn-time`](#methods-and-packs) | 0.951 | 0.820 | 0.959 | 61 | 81 | 23 | 415 |
+| [`gnn-time`](#methods-and-packs) | 0.951 | 0.820 | 0.959 | 61 | 81 | 23 | 414 |
 
 False merges, missed merges, identity swaps and GOSPA are for the 50 random scenarios.
 
