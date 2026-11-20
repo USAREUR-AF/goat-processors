@@ -24,7 +24,8 @@ Each GitHub Release of tag `runner-v<version>` carries:
 | `goat-processors_<version>_amd64.deb`, `goat-processors_<version>_arm64.deb` | the package |
 | `<file>.sigstore.json` for every file | the cosign keyless signature bundle |
 | `install.sh` | the manual installer |
-| `SHA256SUMS` (and its `.sigstore.json`) | SHA-256 of every `.deb` and `install.sh` |
+| `install-card.pdf` | the one-page install card |
+| `SHA256SUMS` (and its `.sigstore.json`) | SHA-256 of every `.deb`, `install.sh` and `install-card.pdf` |
 
 ## Steps
 
