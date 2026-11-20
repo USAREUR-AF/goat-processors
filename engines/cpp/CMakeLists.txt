@@ -75,6 +75,6 @@ target_include_directories(unit_tests PRIVATE test)
 target_compile_definitions(unit_tests PRIVATE CORR_REPO_ROOT="${GOAT_REPO_ROOT}"
                                               CORR_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test")
 target_compile_options(unit_tests PRIVATE -Wall -Wextra ${GOAT_FLOAT_FLAGS})
-foreach(module extension)
+foreach(module model filter correlate assign fuse quality io extension property fuzz)
   add_test(NAME unit_${module} COMMAND unit_tests ${module})
 endforeach()

@@ -153,6 +153,39 @@ trace, then the final snapshot) and every load vector under
 for a failure the path of the first mismatch, for example
 `steps[1].trace[0].value: number differs (...)`.
 
+## Tests and coverage
+
+`ctest` runs, besides the four vector runners, `unit_tests <module>` for
+each module (`test/unit_main.cpp`, cases in `test/test_*.cpp`, harness
+`test/check.hpp`):
+
+| ctest | File | Covers |
+|---|---|---|
+| `unit_model` | `test/test_model.cpp` | JSON reader and writer, reports, frame, track estimate, pack.def text |
+| `unit_filter` | `test/test_filter.cpp` | geometry, every condition row, pack errors, the engine |
+| `unit_correlate` | `test/test_correlate.cpp` | one- and two-model math, measurement variance, d², every test kind, the registries, pack errors, both methods |
+| `unit_assign` | `test/test_assign.cpp` | ranking (order, ties, forbidden entries, the count), memberships, fused estimate and cost, sensor bias and time offset |
+| `unit_fuse` | `test/test_fuse.cpp` | pack, the five kinematics methods, the five attribute rules, the engine |
+| `unit_quality` | `test/test_quality.cpp` | the measure table, entity and source measures, input clock, rule steps, forwarding, pack errors, the engine |
+| `unit_io` | `test/test_io.cpp` | the entry point for every function, file reading, the trace and snapshot builders |
+| `unit_extension` | `test/test_extension.cpp` | the `noop` test kind (README "Extending") |
+| `unit_property` | `test/test_properties.cpp` | determinism on every vector and on seeded random scenarios; order independence of report keys, of a filter pack's directives against its rules, and of reports between ticks for method assign and fuse |
+| `unit_fuzz` | `test/test_fuzz.cpp` | the JSON reader and the four pack.def parsers, seeded mutations of every vector and pack, fixed case counts |
+
+This engine does not restore a snapshot (no specification defines
+restoring), so there is no snapshot-then-restore test.
+
+Line coverage uses gcc's own support (`--coverage`, read with `gcov`), no
+third-party package:
+
+```sh
+cmake -S engines/cpp -B build/cpp-cov -DGOAT_COVERAGE=ON && cmake --build build/cpp-cov
+ctest --test-dir build/cpp-cov && python3 -I engines/cpp/coverage.py build/cpp-cov --floor 96.7
+```
+
+`coverage.py` merges gcov's JSON of every object over `src/` and fails below
+the floor. CI (`.github/workflows/conformance.yml`, job `cpp`) runs it.
+
 ## Runner
 
 `runner/build` builds `build/cpp-runner/goat_runner` (Release);

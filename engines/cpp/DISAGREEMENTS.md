@@ -124,3 +124,12 @@ takes where the text leaves room. No vector covers any of them.
   either way; only an integer against an equal binary64 `lateness` (a clock
   that was a mean of two) could differ in how it is written, which the
   vector comparison treats as equal.
+
+## A JSON number outside binary64 (spec/vector-format.md, correlate.md "Floats")
+
+- The JSON reader reads a literal such as `1e999` as infinity (C `strtod`),
+  and the writer then gives `inf`, which is not JSON. No specification says
+  what an engine does with such a number in a report, and no vector has one.
+  The refactor keeps the behavior unchanged (a change would alter output);
+  `test/test_fuzz.cpp` leaves non-finite numbers out of its round-trip check.
+  For proc-coord.
