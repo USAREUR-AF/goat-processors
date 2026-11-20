@@ -34,3 +34,10 @@ pub use function::Function;
 pub use model::json;
 pub use model::Json;
 pub use trace::StepResult;
+
+// The crate's public names from before the refactor, kept so programs built
+// on them (runner/) keep compiling: the correlate engine and its pack, and
+// the filter function's module under its earlier name.
+pub use correlate::pack::{load_pack, parse_pack, Pack};
+pub use correlate::Engine;
+pub use filter as filter_fn;
