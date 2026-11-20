@@ -8,6 +8,8 @@
    vector the hero replays. The page never carries its own copy of them.
 2. Measures the four numbers in the strip under the hero, and the benchmark
    row, from the tree, and fails if site/index.html states anything else.
+3. Checks each agent interface status on the page (data-status) against
+   tools/readme/agentic.json, the file the README's agent section is written from.
 """
 import glob
 import json
@@ -55,6 +57,36 @@ def measure():
     }
 
 
+ORDER = ["Designed", "Written", "Built"]
+
+
+def check_agentic(page):
+    """Each data-status element must show the least-built status of the interfaces it names, as
+    tools/readme/agentic.json records them, and every interface must appear on the page."""
+    with open(os.path.join(ROOT, "tools/readme/agentic.json")) as f:
+        status = {i["id"]: i["status"] for i in json.load(f)["interfaces"]}
+    bad, seen = 0, set()
+    for ids, shown in re.findall(r'data-status="([a-z ]+)">([^<]*)<', page):
+        names = ids.split()
+        unknown = [n for n in names if n not in status]
+        if unknown:
+            print(f"site/index.html: data-status names {unknown}, not in tools/readme/agentic.json")
+            bad += 1
+            continue
+        seen.update(names)
+        want = min((status[n] for n in names), key=ORDER.index)
+        if shown != want:
+            print(f"site/index.html: data-status=\"{ids}\" says {shown}, tools/readme/agentic.json gives {want}")
+            bad += 1
+    if "None of these interfaces is built yet" in page and "Designed" != max(status.values(), key=ORDER.index):
+        print("site/index.html: says none of the agent interfaces is built, tools/readme/agentic.json has one Built or Written")
+        bad += 1
+    for n in sorted(status.keys() - seen):
+        print(f"site/index.html: interface {n} of tools/readme/agentic.json has no data-status")
+        bad += 1
+    return bad
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for rel in FIGURES + [HERO_VECTOR]:
@@ -74,6 +106,7 @@ def main():
     for key in stated.keys() - measured.keys():
         print(f"site/index.html: data-measure=\"{key}\" is not measured by site/build.py")
         bad += 1
+    bad += check_agentic(page)
     if bad:
         return 1
     print("site: numbers match the tree:", ", ".join(f"{k}={v}" for k, v in measured.items()))

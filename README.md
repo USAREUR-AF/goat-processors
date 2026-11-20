@@ -226,6 +226,33 @@ False merges, missed merges, identity swaps and GOSPA are for the 50 random scen
 | [`runner/`](runner/) | the runner: a service for Ubuntu 24.04 that runs a pipeline of the functions on the goat fabric, with its `.deb`, [install guide](runner/INSTALL.md) and [deploy contract](runner/DEPLOY-CONTRACT.md) |
 | [`docs/`](docs/) | the benchmark results, the [performance](docs/performance.md) baseline and the figures, each written by a script; the [methods survey](docs/research/correlation-and-fusion-methods.md) |
 
+## Working with AI agents
+
+An AI agent here is a program, usually driven by a language model, that reads
+data and acts through tools. The processors stay fast and exact, with no model
+inside the engines. The design connects agents at the edges, through the same
+doors a person uses, and gives every agent action the identity it acts for and
+an entry in a log.
+
+None of these interfaces is built yet. A row says Built only when its code and its tests are on main.
+
+| Interface | What it lets you build | Status |
+|---|---|---|
+| MCP server | Connect an AI assistant to a running runner over MCP (Model Context Protocol, the common way an assistant calls a program's tools): it can read tracks and quality marks and propose changes, with the authority of the person it acts for and no more | Designed |
+| Agent as a source | Have an agent publish tracks or notes on the goat fabric (the network the runner reads and publishes on) under its own name, marked as agent-derived with its model and inputs; the processors take them in like any other source | Designed |
+| Agent as an adjudicator | Let an agent or an analyst settle a hard case with a hint ("treat A and B as one object", "keep A and B apart") that the engines record and trace like any other input, so a replay stays exact | Designed |
+| Settings proposals and site auto-approval | Have an agent propose a pack or config change that a person approves, or that a site rule approves within set bounds once the benchmark passes; every change is logged and can be reverted in one step | Designed |
+| Audit log | See every agent call and action afterwards: who it acted for, which tool, a fingerprint (hash) of its inputs, and the result | Designed |
+| The "why?" explainer | Ask in plain words why two tracks were joined or kept apart, and get an answer in which every sentence cites the trace record it comes from | Designed |
+| Build-your-own guide | Build your own integration from one runnable example per interface (MCP, source, adjudicator, settings), each run in CI | Designed |
+
+Built: the code and its tests are on main. Written: the document exists. Designed: decided, not yet in the tree.
+
+The runner works with no agent at all, and in the design every agent feature
+stays optional. Each site declares which model its agent features may use, one
+on its own machines or one hosted by a provider, and the highest level of data
+that may be sent to it. The design document, `docs/design/agentic-ai.md`, is not written yet.
+
 ## Contributing
 
 [CONTRIBUTING.md](CONTRIBUTING.md) explains how to add a function, a pack or

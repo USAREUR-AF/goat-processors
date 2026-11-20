@@ -93,7 +93,7 @@ code, pre { font-family: var(--mono); }
 
 @media (max-width: 960px) {
   .hero-grid { grid-template-columns: minmax(0, 1fr); gap: 28px; }
-  .bgcode { width: 100%; }
+  .bgcode { width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
   .numbers { grid-template-columns: repeat(2, 1fr); }
   .numbers > div:nth-child(3) { border-left: 0; }
   .numbers > div:nth-child(n+3) { border-top: 1px solid var(--rule); }
@@ -117,7 +117,13 @@ h3 { font-size: 19px; margin: 0 0 6px; }
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
 .card { background: var(--panel); border: 1px solid var(--rule); border-top: 3px solid var(--accent); padding: 22px; border-radius: 3px; }
 .card p { margin: 0; color: var(--quiet); }
-@media (max-width: 860px) { .cards { grid-template-columns: 1fr; } }
+.cards.four { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 1100px) { .cards.four { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 860px) { .cards, .cards.four { grid-template-columns: 1fr; } }
+section.agents { background: var(--code-bg); border-top: 4px solid var(--accent); }
+.status { display: inline-block; font: 700 12px var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--ink); border: 1px solid var(--quiet); border-radius: 2px; padding: 2px 7px; margin-bottom: 10px; }
+.after .status { margin: 0; vertical-align: 1px; }
+.after { margin: 28px 0 0; max-width: 46em; }
 .feature { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 40px; align-items: start; }
 @media (max-width: 860px) { .feature { grid-template-columns: minmax(0, 1fr); } }
 figure { margin: 0; }
