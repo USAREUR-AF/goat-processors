@@ -1,0 +1,25 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+  # The service's own user: no login, no home.
+  if ! getent passwd goat-processors >/dev/null; then
+    adduser --system --group --no-create-home --home /var/lib/goat-processors goat-processors >/dev/null
+  fi
+  # The config and the certificates: root writes them, the service reads them.
+  chown root:goat-processors /etc/goat-processors /etc/goat-processors/runner.yaml /etc/goat-processors/tls
+  chmod 0750 /etc/goat-processors /etc/goat-processors/tls
+  chmod 0640 /etc/goat-processors/runner.yaml
+  if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload >/dev/null || true
+    # On an upgrade, a running service restarts on the new binary. A new
+    # install is not started: the config must be edited first.
+    if systemctl is-active --quiet goat-processors; then
+      systemctl restart goat-processors || true
+    fi
+  fi
+  if grep -q CHANGE-ME /etc/goat-processors/runner.yaml; then
+    echo "goat-processors: edit /etc/goat-processors/runner.yaml, then run"
+    echo "  sudo goat-processors config check && sudo systemctl enable --now goat-processors"
+  fi
+fi
+exit 0

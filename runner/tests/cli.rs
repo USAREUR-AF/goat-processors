@@ -94,6 +94,14 @@ fn pack_ls_lists_every_pack() {
 }
 
 #[test]
+fn selftest_replays_every_vector() {
+    let out = bin().args(["selftest", "-o", "json", "--packs-dir"]).arg(repo().join("packs")).output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stdout));
+    let v = json::parse(String::from_utf8_lossy(&out.stdout).trim()).unwrap();
+    assert!(v.get("passed").unwrap().as_i64().unwrap() > 100);
+}
+
+#[test]
 fn doctor_reports_a_missing_service() {
     let d = tmp("doctor");
     let cfg = shipped_with("site-a", "tcp/127.0.0.1:1").replace("  tls:\n    root_ca: /etc/goat-processors/tls/ca.pem\n    certificate: /etc/goat-processors/tls/runner.pem\n    private_key: /etc/goat-processors/tls/runner.key\n", "")

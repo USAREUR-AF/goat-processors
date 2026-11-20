@@ -5,6 +5,7 @@ mod doctor;
 mod fabric;
 mod pipeline;
 mod replay;
+mod selftest;
 mod service;
 
 use std::io::Write;
@@ -21,6 +22,8 @@ usage:
                                  [--tick-ms N] [--trace] [--snapshot] [--out FILE]
                                  run a file through the pipeline, offline; one JSON line per stage per step;
                                  --snapshot ends with one line holding every stage's whole state
+  goat-processors selftest       [-c CONFIG | --packs-dir DIR] [-o json]
+                                 replay every vector shipped with the packs; exit 1 on any difference
   goat-processors pack ls        [-c CONFIG | --packs-dir DIR] [-o json]
   goat-processors version
 
@@ -89,6 +92,7 @@ fn main() -> ExitCode {
         ["doctor"] => cmd_doctor(&a),
         ["replay", file] => cmd_replay(&a, file),
         ["pack", "ls"] => cmd_pack_ls(&a),
+        ["selftest"] => cmd_selftest(&a),
         ["version"] | ["--version"] => {
             println!("goat-processors {}", env!("CARGO_PKG_VERSION"));
             Ok(ExitCode::SUCCESS)
@@ -257,4 +261,25 @@ fn cmd_pack_ls(a: &Args) -> Result<ExitCode, String> {
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_selftest(a: &Args) -> Result<ExitCode, String> {
+    let c = a.config.as_ref().and_then(|p| config::load(p).ok());
+    let dir = packs_dir(a, c.as_ref());
+    let (passed, failed) = selftest::run(&dir);
+    let total = passed + failed.len();
+    if a.output.as_deref() == Some("json") {
+        use goat_correlator::json::Json;
+        let list = Json::Arr(failed.iter().map(|f| Json::Str(f.clone())).collect());
+        println!("{{\"packs_dir\":{},\"vectors\":{total},\"passed\":{passed},\"failed\":{list}}}", Json::Str(dir.display().to_string()));
+    } else {
+        for f in &failed {
+            println!("FAIL {f}");
+        }
+        println!("{passed} of {total} vectors under {} replay exactly", dir.display());
+    }
+    if total == 0 {
+        return Err(format!("no vectors under {}; check --packs-dir", dir.display()));
+    }
+    Ok(if failed.is_empty() { ExitCode::SUCCESS } else { ExitCode::from(1) })
 }

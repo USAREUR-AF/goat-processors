@@ -210,6 +210,12 @@ fn write_status(path: &std::path::Path, v: &Json) {
     }
     let tmp = path.with_extension("json.tmp");
     if std::fs::write(&tmp, format!("{v}\n")).is_ok() {
+        // The status holds no secret: doctor reads it as any user.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o644));
+        }
         let _ = std::fs::rename(&tmp, path);
     }
 }

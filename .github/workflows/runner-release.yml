@@ -1,0 +1,95 @@
+# A tag `runner-v<version>` builds the runner's .deb for amd64 and arm64,
+# signs each file with cosign (keyless: the signature names this workflow and
+# the tag), and attaches them to a GitHub Release of that tag with SHA256SUMS.
+#
+# Check a downloaded file (runner/INSTALL.md, step 2):
+#   cosign verify-blob FILE --bundle FILE.sigstore.json \
+#     --certificate-identity-regexp '^https://github.com/USAREUR-AF/goat-processors/.github/workflows/runner-release.yml@refs/tags/runner-v' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+name: runner-release
+on:
+  push:
+    tags: ["runner-v*"]
+permissions:
+  contents: read
+concurrency:
+  group: runner-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: the tag names the version in runner/Cargo.toml
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          want=$(sed -n 's/^version = "\(.*\)"/\1/p' runner/Cargo.toml | head -1)
+          test "${TAG#runner-v}" = "$want" || { echo "tag $TAG, but runner/Cargo.toml has $want"; exit 1; }
+
+  deb:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: cargo build --release --locked
+        working-directory: runner
+      - run: runner/packaging/build-deb.sh ${{ matrix.arch }} runner/target/release/goat-processors dist
+      - run: |
+          sudo apt-get install -y -q ./dist/goat-processors_*_${{ matrix.arch }}.deb
+          goat-processors selftest
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    needs: deb
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: deb-*
+          path: dist
+          merge-multiple: true
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+      - name: sign every file, keyless
+        run: |
+          cp runner/install.sh dist/install.sh
+          cd dist
+          for f in *.deb install.sh; do
+            cosign sign-blob --yes --bundle "$f.sigstore.json" "$f"
+          done
+          sha256sum *.deb install.sh > SHA256SUMS
+          cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS
+      - name: the signatures verify as a site will check them
+        run: |
+          cd dist
+          for f in *.deb install.sh SHA256SUMS; do
+            cosign verify-blob "$f" --bundle "$f.sigstore.json" \
+              --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/runner-release.yml@${{ github.ref }}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          done
+      - name: the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/* --title "goat-processors runner ${TAG#runner-v}" \
+            --notes "The goat-processors runner for Ubuntu 24.04 (amd64, arm64). Install: runner/INSTALL.md at this tag. Every file is signed with cosign (keyless); the .sigstore.json next to each file is its signature."

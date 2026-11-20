@@ -1,0 +1,15 @@
+# cargo audit: each advisory ignored here is named with why it does not apply
+# or cannot be fixed yet. runner/deny.toml carries the same list.
+[advisories]
+ignore = [
+  # lz4_flex 0.10 (pinned by zenoh-transport 1.9.0): the advisory is in
+  # decompression, which zenoh compiles only with its `transport_compression`
+  # feature. The runner builds zenoh without it (runner/Cargo.toml).
+  "RUSTSEC-2026-0041",
+  # Unmaintained, no fixed version; each is pulled in by zenoh 1.9.0.
+  "RUSTSEC-2026-0543", # chrono
+  "RUSTSEC-2026-0542", # humantime
+  "RUSTSEC-2024-0436", # paste
+  "RUSTSEC-2025-0134", # rustls-pemfile
+  "RUSTSEC-2024-0449", # unsafe-libyaml
+]
