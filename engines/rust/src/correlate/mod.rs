@@ -13,14 +13,19 @@ use crate::trace::record;
 
 mod confirm;
 mod entity;
+pub mod method;
 pub mod pack;
-mod pair_tests;
+pub mod pair_tests;
+pub mod registry;
 mod restart;
 
 pub(crate) use entity::{report_ce, Entity};
 
 pub use crate::trace::StepResult;
-pub use pack::{load_pack, parse_pack, Method, Output, Pack, Test};
+pub use method::MethodKind;
+pub use pack::{load_pack, parse_pack, parse_pack_with, Output, Pack, Params, Test};
+pub use pair_tests::{Outcome, Pair, PairTest, TestKind};
+pub use registry::Registry;
 
 crate::function::function!(Engine, "correlate", Pack, parse_pack);
 
@@ -158,6 +163,7 @@ impl Engine {
         // the filter a Restart starts again from.
         let first_filter = || entity::first_filter(&meas, &f, maneuver.as_ref());
 
+        let mut restarted = false;
         match self.entities.get(&key) {
             None => {
                 let (east, north, imm) = first_filter();
@@ -216,21 +222,11 @@ impl Engine {
                 // variance, also after a restart.
                 e.r = r;
                 e.time_var = time_var;
-                // With method assign the entity is restarted until the next tick.
-                if restart && self.pack.method == Method::Assign {
-                    self.restarted.insert(key.clone());
-                }
+                restarted = restart;
             }
         }
 
-        if self.pack.method == Method::Assign {
-            // Assignment waits for the next tick.
-            self.reported.insert(key);
-        } else if self.entities[&key].group.is_some() {
-            self.hold(&key, &mut out);
-        } else {
-            self.associate(&key, &mut out);
-        }
+        (self.pack.method.ingested)(self, key, restarted, &mut out);
         out
     }
 
@@ -249,18 +245,14 @@ impl Engine {
             .collect()
     }
 
+    /// On each tick: the pack's method.
     pub fn tick(&mut self, now_ms: i64) -> StepResult {
-        if self.pack.method == Method::Assign {
-            return self.tick_assign(now_ms);
-        }
-        self.tick_confirm(now_ms)
+        (self.pack.method.tick)(self, now_ms)
     }
 
+    /// The snapshot: the pack's method's.
     pub fn snapshot(&self) -> Json {
-        if self.pack.method == Method::Assign {
-            return self.snapshot_assign();
-        }
-        self.snapshot_confirm()
+        (self.pack.method.snapshot)(self)
     }
 
     pub(crate) fn reference_json(&self) -> Json {

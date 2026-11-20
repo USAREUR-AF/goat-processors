@@ -6,36 +6,6 @@ use std::path::Path;
 
 use crate::model::pack::{parse_time_default, FilterParams, TimeDefault};
 
-/// The entity measures, in the order of the table "Entity measures".
-pub const ENTITY_MEASURES: [&str; 23] = [
-    "reports",
-    "interval_last",
-    "interval_mean",
-    "interval_max",
-    "age",
-    "latency_mean",
-    "latency_max",
-    "lateness_mean",
-    "lateness_max",
-    "lateness_min",
-    "nis_mean",
-    "speed_err_mean",
-    "out_of_order",
-    "duplicate",
-    "source_out_of_order",
-    "missing_ce",
-    "missing_vel",
-    "missing_hae",
-    "time_error_mean",
-    "time_error_max",
-    "time_state_last",
-    "time_state_worst",
-    "missing_time",
-];
-
-/// The one measure only a source has (table "Source measures").
-pub const SOURCE_ONLY_MEASURE: &str = "entities";
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scope {
     Entity,
@@ -238,8 +208,7 @@ fn parse_rule(args: &[&str], earlier: &[Rule]) -> Result<Rule, String> {
         s => return Err(format!("{}: bad scope {:?}", d, s)),
     };
     let measure = get("measure")?;
-    let known = ENTITY_MEASURES.contains(&measure) || (scope == Scope::Source && measure == SOURCE_ONLY_MEASURE);
-    if !known {
+    if super::measures::find(measure, scope).is_none() {
         return Err(format!("{}: measure {:?} is not a {} measure", d, measure, scope.name()));
     }
     let op = match get("op")? {

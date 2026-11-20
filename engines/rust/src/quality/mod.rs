@@ -12,7 +12,7 @@ use crate::model::pack::TimeState;
 use crate::model::report::{time_error_ms, time_state};
 
 mod forwarding;
-mod measures;
+pub mod measures;
 pub mod pack;
 mod rules;
 mod samples;
@@ -21,7 +21,8 @@ mod snapshot;
 use measures::{quality_event, source_measures};
 use samples::{time_state_code, Ms, Order, Record};
 
-pub use pack::{load_pack, parse_pack, Action, Op, Pack, Rule, Scope, ENTITY_MEASURES, SOURCE_ONLY_MEASURE};
+pub use measures::{Aggregate, Measure, MEASURES};
+pub use pack::{load_pack, parse_pack, Action, Op, Pack, Rule, Scope};
 
 pub use crate::trace::StepResult;
 

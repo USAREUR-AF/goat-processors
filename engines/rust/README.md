@@ -52,12 +52,12 @@ five calls. `Function::NAME` is the name the runner's `--function` takes.
 | Track estimate | `src/model/track.rs` (the per-axis steps, velocity, Measurement variance, `d²`); `src/correlate/entity.rs` (an entity's prediction, first and later reports) |
 | Two-model filter | `src/model/two_model.rs` |
 | Restart | `src/correlate/restart.rs` |
-| Tests | `src/correlate/pair_tests.rs` |
+| Tests | `src/correlate/pair_tests.rs` (the test kinds, `BUILTIN_TESTS`) |
 | Association | `src/correlate/confirm.rs` |
 | Events | `src/correlate/confirm.rs`; `src/trace.rs` |
 | Trace | `src/trace.rs` (the record shape); written where each stage runs |
 | Snapshot | `src/correlate/confirm.rs`; `src/correlate/mod.rs` (`filter_json`); `src/snapshot.rs` |
-| Pack | `src/correlate/pack.rs`; `src/model/pack.rs` (`filter`, `time_default`) |
+| Pack | `src/correlate/pack.rs`; `src/correlate/method.rs` (`method`, `BUILTIN_METHODS`); `src/correlate/registry.rs`; `src/model/pack.rs` (`filter`, `time_default`) |
 | Floats | every number is a binary64 (`f64`); integers of reports are `i64` |
 
 ### spec/correlate-assign.md
@@ -104,7 +104,7 @@ five calls. `Function::NAME` is the name the runner's `--function` takes.
 | What quality does; Reports; Frame and filter; Window; Tick; Ingest | `src/quality/mod.rs` |
 | Reports, Time quality | `src/model/report.rs` (`time_error_ms`, `time_state`) |
 | Order; Input clock; Samples | `src/quality/samples.rs` |
-| Entity measures; Source measures | `src/quality/measures.rs` |
+| Entity measures; Source measures | `src/quality/measures.rs` (`MEASURES`) |
 | Rules | `src/quality/rules.rs` |
 | Forwarding | `src/quality/forwarding.rs` |
 | Events | `src/quality/measures.rs` (`quality`), `src/quality/rules.rs` (actions), `src/quality/forwarding.rs` (`pass`), `src/quality/mod.rs` |
@@ -117,6 +117,23 @@ five calls. `Function::NAME` is the name the runner's `--function` takes.
 | Section | File |
 |---|---|
 | Steps, the comparison | `tests/common/mod.rs`; `src/io/mod.rs` (steps files) |
+
+## Adding a test, a method or a measure
+
+Each extension kind has one registration point:
+
+| Kind | Where | Adding one |
+|---|---|---|
+| correlate test (`gate`, `confirm`, `hold` lines) | `BUILTIN_TESTS` in `src/correlate/pair_tests.rs` | one `TestKind` entry: name, parameters, a builder of a `PairTest` (its `evaluate` is a pure function of a `Pair`). From outside the crate: `Registry::register_test`, then `parse_pack_with` |
+| correlate method (`method` line) | `BUILTIN_METHODS` in `src/correlate/method.rs` | one `MethodKind` entry: name, refused directives, the pack check, and the three hooks (after an accepted report, tick, snapshot) |
+| quality measure | `MEASURES` in `src/quality/measures.rs` | one `Measure` entry: name, the entity measure over the window (a pure function of a `Window`), the source aggregate. Rules may name it at once |
+
+`tests/registry.rs` proves the first: it registers a no-op test kind (one
+`TestKind` value, in the test only) and loads the test-only fixture pack
+`tests/fixtures/correlate-noop` (`packs/correlate-gnn` with `gate noop` and
+`confirm noop`). The spec's registry refuses that pack; with the kind
+registered, every base vector gives the same events and snapshot, the trace
+gains only the passing `noop` records, and every correlate vector still passes.
 
 ## Build
 
