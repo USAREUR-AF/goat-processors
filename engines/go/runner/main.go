@@ -10,210 +10,110 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"time"
 
-	correlator "goat-correlator/engines/go"
+	"goat-correlator/engines/go/correlate"
 	"goat-correlator/engines/go/filter"
 	"goat-correlator/engines/go/fuse"
+	"goat-correlator/engines/go/io"
+	"goat-correlator/engines/go/model"
 	"goat-correlator/engines/go/quality"
 )
 
-type obj = map[string]any
-
-// engine is the shape every function's engine has.
-type engine interface {
-	Ingest(report map[string]any) (events, trace []obj)
-	Tick(now int64) (events, trace []obj)
-	Snapshot() obj
+// functions is the engine's function table: each function's Load, the one
+// entry-point shape (model.Engine).
+var functions = map[string]func(dir string) (model.Engine, error){
+	"correlate": func(dir string) (model.Engine, error) { return correlate.Load(dir) },
+	"filter":    func(dir string) (model.Engine, error) { return filter.Load(dir) },
+	"fuse":      func(dir string) (model.Engine, error) { return fuse.Load(dir) },
+	"quality":   func(dir string) (model.Engine, error) { return quality.Load(dir) },
 }
 
-// loaders maps a function name to its pack loader and engine constructor.
-var loaders = map[string]func(dir string) (engine, error){
-	"correlate": func(dir string) (engine, error) {
-		p, err := correlator.LoadPack(dir)
-		if err != nil {
-			return nil, err
-		}
-		return correlator.New(p), nil
-	},
-	"filter": func(dir string) (engine, error) {
-		p, err := filter.LoadPack(dir)
-		if err != nil {
-			return nil, err
-		}
-		return filter.New(p), nil
-	},
-	"fuse": func(dir string) (engine, error) {
-		p, err := fuse.LoadPack(dir)
-		if err != nil {
-			return nil, err
-		}
-		return fuse.New(p), nil
-	},
-	"quality": func(dir string) (engine, error) {
-		p, err := quality.LoadPack(dir)
-		if err != nil {
-			return nil, err
-		}
-		return quality.New(p), nil
-	},
-}
+// writer is what the counters and diagnostics are written to.
+type writer interface{ Write([]byte) (int, error) }
 
-// step is one ingest or tick of the steps file.
-type step struct {
-	report map[string]any // nil for a tick
-	now    int64
-}
+func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
-func parseSteps(path string) ([]step, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+// run is the runner on its arguments; it returns the exit status.
+func run(args []string, stdout, stderr writer) int {
+	fail := func(format string, a ...any) int {
+		fmt.Fprintf(stderr, "runner: "+format+"\n", a...)
+		return 2
 	}
-	d := json.NewDecoder(bytes.NewReader(b))
-	d.UseNumber()
-	var doc map[string]any
-	if err := d.Decode(&doc); err != nil {
-		return nil, err
+	fs := flag.NewFlagSet("runner", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	function := fs.String("function", "", "correlate, filter, fuse or quality")
+	packDir := fs.String("pack", "", "pack directory")
+	stepsPath := fs.String("steps", "", "steps file")
+	eventsPath := fs.String("events", "", "events file to write")
+	withTrace := fs.Bool("trace", false, "include each step's trace")
+	cpuProfile := fs.String("cpuprofile", "", "write a CPU profile of the engine calls here (diagnostics, not in the contract)")
+	if err := fs.Parse(args); err != nil {
+		return 2
 	}
-	list, ok := doc["steps"].([]any)
+
+	load, ok := functions[*function]
 	if !ok {
-		return nil, errors.New("steps: not a list")
-	}
-	out := make([]step, len(list))
-	for i, s := range list {
-		m, ok := s.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("steps[%d]: not an object", i)
-		}
-		if r, ok := m["ingest"]; ok {
-			rep, ok := r.(map[string]any)
-			if !ok {
-				return nil, fmt.Errorf("steps[%d].ingest: not an object", i)
-			}
-			out[i].report = rep
-			continue
-		}
-		n, ok := m["tick"].(json.Number)
-		if !ok {
-			return nil, fmt.Errorf("steps[%d]: neither ingest nor tick", i)
-		}
-		now, err := n.Int64()
-		if err != nil {
-			return nil, fmt.Errorf("steps[%d].tick: not an integer", i)
-		}
-		out[i].now = now
-	}
-	return out, nil
-}
-
-type result struct{ events, trace []obj }
-
-func fail(format string, a ...any) {
-	fmt.Fprintf(os.Stderr, "runner: "+format+"\n", a...)
-	os.Exit(2)
-}
-
-func main() {
-	function := flag.String("function", "", "correlate, filter, fuse or quality")
-	packDir := flag.String("pack", "", "pack directory")
-	stepsPath := flag.String("steps", "", "steps file")
-	eventsPath := flag.String("events", "", "events file to write")
-	withTrace := flag.Bool("trace", false, "include each step's trace")
-	flag.Parse()
-
-	load, ok := loaders[*function]
-	if !ok {
-		fail("unknown function %q", *function)
+		return fail("unknown function %q", *function)
 	}
 	if *packDir == "" || *stepsPath == "" {
-		fail("--pack and --steps are required")
+		return fail("--pack and --steps are required")
 	}
 
 	t0 := time.Now()
-	steps, err := parseSteps(*stepsPath)
+	doc, err := io.ReadObject(*stepsPath)
 	if err != nil {
-		fail("steps file: %v", err)
+		return fail("steps file: %v", err)
+	}
+	steps, err := io.ParseSteps(doc)
+	if err != nil {
+		return fail("steps file: %v", err)
 	}
 	t1 := time.Now()
 	g, err := load(*packDir)
 	if err != nil {
-		fail("pack: %v", err)
+		return fail("pack: %v", err)
+	}
+	if *cpuProfile != "" {
+		f, err := os.Create(*cpuProfile)
+		if err != nil {
+			return fail("cpuprofile: %v", err)
+		}
+		defer f.Close()
+		pprof.StartCPUProfile(f)
 	}
 	t2 := time.Now()
-	results := make([]result, len(steps))
-	for i, s := range steps {
-		if s.report != nil {
-			results[i].events, results[i].trace = g.Ingest(s.report)
-		} else {
-			results[i].events, results[i].trace = g.Tick(s.now)
-		}
-	}
-	snap := g.Snapshot()
+	results, snap := io.Run(g, steps)
 	t3 := time.Now()
+	if *cpuProfile != "" {
+		pprof.StopCPUProfile()
+	}
 
 	var nIngest, nEvents, nTrace int
 	for i, s := range steps {
-		if s.report != nil {
+		if s.Report != nil {
 			nIngest++
 		}
-		nEvents += len(results[i].events)
-		nTrace += len(results[i].trace)
+		nEvents += len(results[i].Events)
+		nTrace += len(results[i].Trace)
 	}
 	if *eventsPath != "" {
-		if err := writeEvents(*eventsPath, results, snap, *withTrace); err != nil {
-			fail("events file: %v", err)
+		if err := io.WriteEvents(*eventsPath, results, snap, *withTrace); err != nil {
+			return fail("events file: %v", err)
 		}
 	}
-	counters, _ := json.Marshal(obj{
+	counters, _ := json.Marshal(model.Obj{
 		"engine": "go", "function": *function, "pack": filepath.Base(filepath.Clean(*packDir)),
 		"steps": len(steps), "ingest": nIngest, "tick": len(steps) - nIngest,
 		"events": nEvents, "trace_records": nTrace,
 		"parse_ns": t1.Sub(t0).Nanoseconds(), "load_ns": t2.Sub(t1).Nanoseconds(), "run_ns": t3.Sub(t2).Nanoseconds(),
 	})
-	fmt.Println(string(counters))
-}
-
-func writeEvents(path string, results []result, snap obj, withTrace bool) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	w := bufio.NewWriter(f)
-	enc := json.NewEncoder(w)
-	for i, r := range results {
-		line := obj{"step": i, "events": nonNil(r.events)}
-		if withTrace {
-			line["trace"] = nonNil(r.trace)
-		}
-		if err := enc.Encode(line); err != nil {
-			f.Close()
-			return fmt.Errorf("step %d: %w", i, err)
-		}
-	}
-	if err := enc.Encode(obj{"snapshot": snap}); err != nil {
-		f.Close()
-		return fmt.Errorf("snapshot: %w", err)
-	}
-	if err := w.Flush(); err != nil {
-		f.Close()
-		return err
-	}
-	return f.Close()
-}
-
-// nonNil writes an empty list as [] rather than null.
-func nonNil(l []obj) []obj {
-	if l == nil {
-		return []obj{}
-	}
-	return l
+	fmt.Fprintln(stdout, string(counters))
+	return 0
 }

@@ -1,4 +1,4 @@
 #!/bin/sh
 # Runs the built java runner (tools/perf/README.md, Runner contract); never builds.
 here=$(cd "$(dirname "$0")" && pwd)
-exec java -cp "$here/classes" runner.Runner "$@"
+exec java -cp "$here/classes" goat.io.Runner "$@"

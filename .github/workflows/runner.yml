@@ -1,0 +1,85 @@
+# The runner (runner/): its tests, its dependency checks, its .deb for both
+# architectures, and the install proof: install.sh on a fresh Ubuntu 24.04 VM,
+# then a scenario through the running service.
+name: runner
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: runner-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: every vector replays through the runner; config, doctor, selftest, service and fabric tests
+        run: cargo test --locked
+        working-directory: runner
+      - uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2.90.6
+        with:
+          tool: cargo-audit@0.23.0,cargo-deny@0.21.0
+      - name: no dependency with a known advisory
+        run: cargo audit --deny warnings
+        working-directory: runner
+      - name: licenses, sources and bans of every dependency
+        run: cargo deny --locked check
+        working-directory: runner
+      - name: runner/THIRD-PARTY.md lists every crate in Cargo.lock
+        run: python3 -I runner/packaging/third-party.py --check
+      - name: the shell scripts pass shellcheck
+        run: shellcheck -s sh runner/install.sh runner/packaging/*.sh runner/packaging/deb/*
+
+  deb:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: the release binary, with build paths replaced so no build machine path appears in a site's log
+        run: cargo build --release --locked
+        working-directory: runner
+        env:
+          RUSTFLAGS: --remap-path-prefix=${{ github.workspace }}=/src --remap-path-prefix=/home/runner/.cargo=/cargo
+      - run: runner/packaging/build-deb.sh ${{ matrix.arch }} runner/target/release/goat-processors dist
+      - name: the package installs and its selftest passes
+        run: |
+          sudo apt-get install -y -q ./dist/goat-processors_*_${{ matrix.arch }}.deb
+          goat-processors selftest
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: dist/
+          if-no-files-found: error
+
+  install:
+    needs: deb
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: dist
+      - name: install.sh on this fresh VM, a TLS fabric router, then a scenario through the service
+        run: sudo runner/packaging/ci-install-test.sh dist/goat-processors_*_${{ matrix.arch }}.deb

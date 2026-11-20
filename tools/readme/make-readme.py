@@ -23,7 +23,7 @@ REPO = "USAREUR-AF/goat-processors"
 ENGINES = [  # language, directory, command that runs every vector, source globs
     ("Python", "python", "cd engines/python && PYTHONPATH=src python3 -m unittest discover -s tests", ["src/**/*.py"]),
     ("Rust", "rust", "cd engines/rust && cargo test", ["src/**/*.rs"]),
-    ("Go", "go", "cd engines/go && go test ./...", ["*.go"]),
+    ("Go", "go", "cd engines/go && go test ./...", ["**/*.go"]),
     ("Java", "java", "engines/java/build.sh", ["src/**/*.java"]),
     ("C++", "cpp", "cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir build/cpp",
      ["src/**/*.cpp", "src/**/*.hpp", "src/**/*.h"]),
@@ -212,7 +212,7 @@ def lines_of(lang_dir, globs):
     seen = set()
     for g in globs:
         for f in glob.glob(rel("engines", lang_dir, g), recursive=True):
-            if f in seen or "/test" in f.replace(rel("engines", lang_dir), ""):
+            if f in seen or "/test" in f.replace(rel("engines", lang_dir), "") or f.endswith("_test.go"):
                 continue
             seen.add(f)
             n += sum(1 for line in open(f, encoding="utf-8", errors="replace") if line.strip())
@@ -296,6 +296,55 @@ def tolerance():
     m = re.search(r"abs\(got - want\) <= ([0-9.e-]+)", read("spec", "vector-format.md"))
     return m.group(1)
 
+STATUSES = ("Built", "Written", "Designed")
+
+
+def agentic_data():
+    """The agent interfaces and their status, checked so that nothing is claimed ahead of its code."""
+    d = json.loads(read("tools", "readme", "agentic.json"))
+    for i in d["interfaces"]:
+        where = "tools/readme/agentic.json, %s" % i["id"]
+        if i["status"] not in STATUSES:
+            raise SystemExit("%s: status %r is not one of %s" % (where, i["status"], ", ".join(STATUSES)))
+        if i["status"] == "Built":
+            if not i["tests"]:
+                raise SystemExit("%s: Built needs the tests that prove it" % where)
+            for t in i["tests"]:
+                if not os.path.exists(rel(t)):
+                    raise SystemExit("%s: Built names test %s, which is not in the tree" % (where, t))
+        if i["status"] in ("Built", "Written") and not (i["link"] and os.path.exists(rel(i["link"]))):
+            raise SystemExit("%s: %s needs a link to its code or document in the tree" % (where, i["status"]))
+    return d
+
+
+def agentic():
+    d = agentic_data()
+    rows = d["interfaces"]
+    built = sum(1 for i in rows if i["status"] == "Built")
+    if built == 0:
+        lead = ("None of these interfaces is built yet. A row says Built only when its code and its "
+                "tests are on main.")
+    else:
+        lead = ("%s of the %d interfaces are built. A row says Built only when its code and its tests "
+                "are on main." % (WORDS.get(built, str(built)), len(rows)))
+    out = [lead, "",
+           "| Interface | What it lets you build | Status |", "|---|---|---|"]
+    for i in rows:
+        name = i["name"]
+        if i["link"] and os.path.exists(rel(i["link"])):
+            name = "[%s](%s)" % (name, i["link"])
+        out.append("| %s | %s | %s |" % (name, i["lets_you"][0].upper() + i["lets_you"][1:], i["status"]))
+    out += ["", "Built: the code and its tests are on main. Written: the document exists. "
+                "Designed: decided, not yet in the tree."]
+    return "\n".join(out)
+
+
+def agentic_design():
+    doc = agentic_data()["design_doc"]
+    if os.path.exists(rel(doc)):
+        return "The design, with the cost and the matching safeguard for each choice, is in [`%s`](%s)." % (doc, doc)
+    return "The design document, `%s`, is not written yet." % doc
+
 
 def parts():
     c = counts()
@@ -312,6 +361,8 @@ def parts():
         "conformance": conformance(),
         "trace_example": trace_example(),
         "benchmark": benchmark(),
+        "agentic": agentic(),
+        "agentic_design": agentic_design(),
         "n_vectors": format(c["vectors"], ","),
         "n_packs": format(c["packs"], ","),
     }
