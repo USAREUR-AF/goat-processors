@@ -2,13 +2,13 @@
 # 500 ms of the others (time_default), so its position variance on each axis
 # grows by (velocity x 0.5 s)² (spec/correlate.md, Time quality).
 # Derived values, each from a stated probability or unit:
-# - course 42 deg and speed 73 %: each track's velocity
-#   error is vel_sigma_ms = 5 m/s per axis, so the difference of two tracks has
-#   5 * sqrt(2) = 7.1 m/s, and 99 % of it (z = 2.576) lies within 18.2 m/s.
-#   At 25 m/s that is 18.2 / 25 = 0.73 rad (42 deg) of course and a
-#   speed ratio within 73 %. Below 5 m/s, the velocity error itself, course
-#   is not defined, so both tests are skipped; between 5 and 25 m/s the tests
-#   are stricter than 99 %.
+# - course within 60 deg: a target turning at 6 deg/s, the sharpest turn this
+#   pack expects, changes course by 60 deg over a 10 s gap between reports.
+# - speed within 73 %: each track's velocity error is vel_sigma_ms = 5 m/s
+#   per axis, so the difference of two tracks has 5 * sqrt(2) = 7.1 m/s, and
+#   99 % of it (z = 2.576) lies within 18.2 m/s, which is 73 % at 25 m/s.
+# - both skipped below 5 m/s, the velocity error itself, where course is not
+#   defined.
 # - height within 300 m: three times a 100 m height error.
 # - confirm on 2 reports in a row: a different object passes the 99 % gate by
 #   chance at most about one time in ten here, so two in a row keep false
@@ -25,7 +25,7 @@ filter         accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
 gate           mahalanobis gate=9.21
 gate           same key=track.simulated
 gate           same key=@env
-confirm        course max_deg=42 min_speed_ms=5
+confirm        course max_deg=60 min_speed_ms=5
 confirm        speed max_pct=73 min_speed_ms=5
 confirm        altitude max_m=300
 confirm_count  2

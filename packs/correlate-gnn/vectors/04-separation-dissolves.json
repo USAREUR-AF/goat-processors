@@ -76,7 +76,7 @@
      "b": "radar-1/T1",
      "test": "course",
      "value": 0.0,
-     "limit": 42.0,
+     "limit": 60.0,
      "pass": true
     },
     {
@@ -166,7 +166,7 @@
      "b": "adsb/A7",
      "test": "course",
      "value": 0.0,
-     "limit": 42.0,
+     "limit": 60.0,
      "pass": true
     },
     {
