@@ -37,46 +37,110 @@ pub(crate) fn total(values: &[f64]) -> f64 {
     sorted.iter().fold(0.0, |sum, v| sum + v)
 }
 
-/// Ranking: the first `k` assignments, by total, then by choice vector. Brute
-/// force over every assignment, which is exact and fine at vector sizes.
+/// Ranking: the first `k` assignments, by total, then by choice vector.
+///
+/// Exact branch and bound over the assignments: entities of R are fixed in
+/// key order, each to a free allowed column or *alone*, cheapest entry first.
+/// The best `k` complete assignments found so far are kept by (total, choice
+/// vector). A partial assignment is dropped when even the sum of its chosen
+/// entries and of the smallest entry of every entity still to choose is
+/// above the `k`-th kept total by more than any float rounding of the sums
+/// could account for, so every dropped assignment ranks after the `k` kept
+/// ones. The result is the first `k` of the full order, with each total from
+/// `total`, exactly as an enumeration of every assignment gives (the ranking
+/// tests check this against such an enumeration).
 pub(crate) fn ranked_assignments(e: &Entries, k: usize) -> Vec<Assignment> {
-    fn extend(e: &Entries, i: usize, used: &mut Vec<bool>, index: &mut Vec<usize>, all: &mut Vec<Vec<usize>>) {
-        if i == e.rows.len() {
-            all.push(index.clone());
-            return;
+    let (n, m) = (e.rows.len(), e.columns.len());
+    let entry = |i: usize, j: usize| if j == m { Some(e.alone[i]) } else { e.rows[i][j] };
+    // Per entity: its choices, cheapest first (ties by index), its smallest
+    // entry, and the largest magnitude of its entries.
+    let mut choices: Vec<Vec<(usize, f64)>> = Vec::with_capacity(n);
+    let mut rest_min = vec![0.0; n + 1];
+    let mut magnitude = 0.0f64;
+    for i in 0..n {
+        let mut c: Vec<(usize, f64)> = (0..=m).filter_map(|j| entry(i, j).map(|v| (j, v))).collect();
+        c.sort_by(|x, y| x.1.total_cmp(&y.1).then(x.0.cmp(&y.0)));
+        magnitude += c.iter().map(|(_, v)| v.abs()).fold(0.0, f64::max);
+        choices.push(c);
+    }
+    for i in (0..n).rev() {
+        rest_min[i] = rest_min[i + 1] + choices[i][0].1;
+    }
+    // The float sums here and in `total` differ from the exact sums by far
+    // less than this.
+    let slack = 1e-9 * (magnitude + f64::MIN_POSITIVE);
+
+    struct Search<'a> {
+        choices: &'a [Vec<(usize, f64)>],
+        rest_min: &'a [f64],
+        slack: f64,
+        k: usize,
+        m: usize,
+        used: Vec<bool>,
+        index: Vec<usize>,
+        values: Vec<f64>,
+        kept: Vec<Assignment>,
+    }
+
+    fn rank(x: &Assignment, y: &Assignment) -> std::cmp::Ordering {
+        x.total.partial_cmp(&y.total).unwrap().then_with(|| x.index.cmp(&y.index))
+    }
+
+    impl Search<'_> {
+        /// The `k`-th kept total, once `k` are kept.
+        fn bound(&self) -> Option<f64> {
+            (self.kept.len() == self.k).then(|| self.kept[self.k - 1].total)
         }
-        let m = e.columns.len();
-        for j in 0..=m {
-            let allowed = j == m || (!used[j] && e.rows[i][j].is_some());
-            if !allowed {
-                continue;
+
+        fn visit(&mut self, i: usize, partial: f64) {
+            if i == self.choices.len() {
+                let a = Assignment { index: self.index.clone(), values: self.values.clone(), total: total(&self.values) };
+                let at = self.kept.partition_point(|x| rank(x, &a) == std::cmp::Ordering::Less);
+                if at < self.k {
+                    self.kept.insert(at, a);
+                    self.kept.truncate(self.k);
+                }
+                return;
             }
-            if j < m {
-                used[j] = true;
-            }
-            index.push(j);
-            extend(e, i + 1, used, index, all);
-            index.pop();
-            if j < m {
-                used[j] = false;
+            for c in 0..self.choices[i].len() {
+                let (j, v) = self.choices[i][c];
+                if j < self.m && self.used[j] {
+                    continue;
+                }
+                if let Some(b) = self.bound() {
+                    // Choices are cheapest first: the rest are no better.
+                    if partial + v + self.rest_min[i + 1] > b + self.slack {
+                        break;
+                    }
+                }
+                if j < self.m {
+                    self.used[j] = true;
+                }
+                self.index.push(j);
+                self.values.push(v);
+                self.visit(i + 1, partial + v);
+                self.values.pop();
+                self.index.pop();
+                if j < self.m {
+                    self.used[j] = false;
+                }
             }
         }
     }
-    let mut all = Vec::new();
-    extend(e, 0, &mut vec![false; e.columns.len()], &mut Vec::new(), &mut all);
 
-    let m = e.columns.len();
-    let mut ranked: Vec<Assignment> = all
-        .into_iter()
-        .map(|index| {
-            let values: Vec<f64> = index.iter().enumerate().map(|(i, &j)| if j == m { e.alone[i] } else { e.rows[i][j].unwrap() }).collect();
-            let total = total(&values);
-            Assignment { index, values, total }
-        })
-        .collect();
-    ranked.sort_by(|x, y| x.total.partial_cmp(&y.total).unwrap().then_with(|| x.index.cmp(&y.index)));
-    ranked.truncate(k);
-    ranked
+    let mut search = Search {
+        choices: &choices,
+        rest_min: &rest_min,
+        slack,
+        k,
+        m,
+        used: vec![false; m],
+        index: Vec::with_capacity(n),
+        values: Vec::with_capacity(n),
+        kept: Vec::with_capacity(k + 1),
+    };
+    search.visit(0, 0.0);
+    search.kept
 }
 
 #[cfg(test)]
@@ -217,6 +281,25 @@ mod tests {
                 let m = e.columns.len();
                 let values: Vec<f64> = g.index.iter().enumerate().map(|(i, &j)| if j == m { e.alone[i] } else { e.rows[i][j].unwrap() }).collect();
                 assert_eq!(g.values, values);
+            }
+        }
+    }
+
+    #[test]
+    fn ranked_assignments_on_larger_entries_with_wide_magnitudes() {
+        let mut rng = Rng(29);
+        for _ in 0..300 {
+            let (n, m) = (rng.below(8) as usize, rng.below(8) as usize);
+            let scale = |rng: &mut Rng| 10f64.powi(rng.below(12) as i32 - 4);
+            let rows = (0..n).map(|_| (0..m).map(|_| if rng.below(2) == 0 { None } else { Some(rng.value() * scale(&mut rng)) }).collect()).collect();
+            let alone = (0..n).map(|_| rng.value()).collect();
+            let e = Entries { columns: (1..=m as u64).collect(), rows, alone };
+            let k = 1 + rng.below(4) as usize;
+            let want = reference(&e);
+            let got = ranked_assignments(&e, k);
+            assert_eq!(got.len(), want.len().min(k));
+            for (g, (idx, t)) in got.iter().zip(&want) {
+                assert_eq!((&g.index, g.total.to_bits()), (idx, t.to_bits()));
             }
         }
     }
