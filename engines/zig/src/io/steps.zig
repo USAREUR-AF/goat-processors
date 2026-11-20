@@ -39,15 +39,19 @@ pub fn one(s: json.Value) Error!Step {
     return error.StepWithoutIngestOrTick;
 }
 
-test "steps: ingest, tick, other keys ignored, errors" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    const v = try json.parseFromSliceLeaky(json.Value, a, "{\"name\":\"x\",\"steps\":[{\"ingest\":{\"uid\":\"1\"},\"expect\":[]},{\"tick\":5,\"trace\":[]}]}", .{});
-    const s = try read(a, v);
-    try std.testing.expectEqual(@as(usize, 2), s.len);
-    try std.testing.expectEqual(@as(i64, 5), s[1].tick);
-    const bad = try json.parseFromSliceLeaky(json.Value, a, "{\"steps\":[{\"tick\":1.5}]}", .{});
-    try std.testing.expectError(error.TickNotAnInteger, read(a, bad));
-    try std.testing.expectError(error.NoSteps, read(a, .{ .object = json.ObjectMap.init(a) }));
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "steps: ingest, tick, other keys ignored, errors" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const v = try json.parseFromSliceLeaky(json.Value, a, "{\"name\":\"x\",\"steps\":[{\"ingest\":{\"uid\":\"1\"},\"expect\":[]},{\"tick\":5,\"trace\":[]}]}", .{});
+        const s = try read(a, v);
+        try std.testing.expectEqual(@as(usize, 2), s.len);
+        try std.testing.expectEqual(@as(i64, 5), s[1].tick);
+        const bad = try json.parseFromSliceLeaky(json.Value, a, "{\"steps\":[{\"tick\":1.5}]}", .{});
+        try std.testing.expectError(error.TickNotAnInteger, read(a, bad));
+        try std.testing.expectError(error.NoSteps, read(a, .{ .object = json.ObjectMap.init(a) }));
+    }
+};

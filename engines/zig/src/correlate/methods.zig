@@ -95,8 +95,12 @@ fn asPredicted(_: *Engine, _: Entity, _: Entity, b_pred: kalman.Filter) anyerror
     return b_pred;
 }
 
-test "methods by name; confirm is the default" {
-    try std.testing.expectEqualStrings("confirm", default.name);
-    try std.testing.expectEqualStrings("s", find("assign").?.group_prefix);
-    try std.testing.expect(find("vote") == null);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "methods by name; confirm is the default" {
+        try std.testing.expectEqualStrings("confirm", default.name);
+        try std.testing.expectEqualStrings("s", find("assign").?.group_prefix);
+        try std.testing.expect(find("vote") == null);
+    }
+};

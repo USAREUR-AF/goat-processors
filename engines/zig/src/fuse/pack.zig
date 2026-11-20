@@ -200,31 +200,35 @@ pub fn load(alloc: Allocator, dir: []const u8) !Pack {
     return parse(alloc, try json_read.readPackDef(alloc, dir));
 }
 
-test "numbers and integers" {
-    try std.testing.expect(isNumber("1"));
-    try std.testing.expect(isNumber("-1.5e+3"));
-    try std.testing.expect(isNumber("5.0E1"));
-    try std.testing.expect(!isNumber("+1"));
-    try std.testing.expect(!isNumber("1."));
-    try std.testing.expect(!isNumber(".5"));
-    try std.testing.expect(!isNumber("5x"));
-    try std.testing.expectError(error.NotANumber, parseInteger("-1"));
-    try std.testing.expectError(error.NotANumber, parseInteger("1000.0"));
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "numbers and integers" {
+        try std.testing.expect(isNumber("1"));
+        try std.testing.expect(isNumber("-1.5e+3"));
+        try std.testing.expect(isNumber("5.0E1"));
+        try std.testing.expect(!isNumber("+1"));
+        try std.testing.expect(!isNumber("1."));
+        try std.testing.expect(!isNumber(".5"));
+        try std.testing.expect(!isNumber("5x"));
+        try std.testing.expectError(error.NotANumber, parseInteger("-1"));
+        try std.testing.expectError(error.NotANumber, parseInteger("1000.0"));
+    }
 
-test "a fuse pack and its load errors" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    const head = "pack f\nversion 1\nfilter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\nkinematics best\nstale_ms 1000\n";
-    const p = try parse(a, head ++ "source a\nsource b\nattribute type rule=majority\r\n");
-    try std.testing.expectEqual(@as(?usize, 1), p.rank("b"));
-    try std.testing.expectEqual(@as(usize, 2), p.rankOrder("z"));
-    try std.testing.expectEqual(Rule.majority, p.attributes[0].rule);
-    try std.testing.expectError(error.RepeatedKey, parse(a, head ++ "source a\nsource a\n"));
-    try std.testing.expectError(error.BreaksRule, parse(a, head ++ "attribute type rule=vote\n"));
-    try std.testing.expectError(error.UnknownParam, parse(a, head ++ "attribute type how=max\n"));
-    try std.testing.expectError(error.RepeatedDirective, parse(a, head ++ "kinematics latest\n"));
-    try std.testing.expectError(error.BreaksRule, parse(a, "pack f\nversion 1\nfilter accel_var=-1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\n"));
-    try std.testing.expectError(error.MissingDirective, parse(a, "pack f\n"));
-}
+    test "a fuse pack and its load errors" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const head = "pack f\nversion 1\nfilter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\nkinematics best\nstale_ms 1000\n";
+        const p = try parse(a, head ++ "source a\nsource b\nattribute type rule=majority\r\n");
+        try std.testing.expectEqual(@as(?usize, 1), p.rank("b"));
+        try std.testing.expectEqual(@as(usize, 2), p.rankOrder("z"));
+        try std.testing.expectEqual(Rule.majority, p.attributes[0].rule);
+        try std.testing.expectError(error.RepeatedKey, parse(a, head ++ "source a\nsource a\n"));
+        try std.testing.expectError(error.BreaksRule, parse(a, head ++ "attribute type rule=vote\n"));
+        try std.testing.expectError(error.UnknownParam, parse(a, head ++ "attribute type how=max\n"));
+        try std.testing.expectError(error.RepeatedDirective, parse(a, head ++ "kinematics latest\n"));
+        try std.testing.expectError(error.BreaksRule, parse(a, "pack f\nversion 1\nfilter accel_var=-1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\n"));
+        try std.testing.expectError(error.MissingDirective, parse(a, "pack f\n"));
+    }
+};

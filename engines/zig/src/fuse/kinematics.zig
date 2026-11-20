@@ -97,10 +97,14 @@ pub fn fold(x: Estimate, y: Estimate, w: f64) Estimate {
     return .{ .east = foldAxis(x.east, y.east, w), .north = foldAxis(x.north, y.north, w) };
 }
 
-test "weight is 0.5 for equal variances and picks the smaller variance otherwise" {
-    const small = Estimate{ .east = .{ .p = 0, .v = 0, .pp = 900, .vv = 1 }, .north = .{ .p = 0, .v = 0, .pp = 900, .vv = 1 } };
-    const large = Estimate{ .east = .{ .p = 0, .v = 0, .pp = 1600, .vv = 1 }, .north = .{ .p = 0, .v = 0, .pp = 1600, .vv = 1 } };
-    try std.testing.expectEqual(@as(f64, 0.5), intersectionWeight(small, small));
-    try std.testing.expectEqual(@as(f64, 1), intersectionWeight(small, large));
-    try std.testing.expectEqual(@as(f64, 0), intersectionWeight(large, small));
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "weight is 0.5 for equal variances and picks the smaller variance otherwise" {
+        const small = Estimate{ .east = .{ .p = 0, .v = 0, .pp = 900, .vv = 1 }, .north = .{ .p = 0, .v = 0, .pp = 900, .vv = 1 } };
+        const large = Estimate{ .east = .{ .p = 0, .v = 0, .pp = 1600, .vv = 1 }, .north = .{ .p = 0, .v = 0, .pp = 1600, .vv = 1 } };
+        try std.testing.expectEqual(@as(f64, 0.5), intersectionWeight(small, small));
+        try std.testing.expectEqual(@as(f64, 1), intersectionWeight(small, large));
+        try std.testing.expectEqual(@as(f64, 0), intersectionWeight(large, small));
+    }
+};

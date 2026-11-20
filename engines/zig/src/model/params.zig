@@ -42,8 +42,12 @@ pub fn timeDefaultOf(defaults: []const TimeDefault, source: []const u8) ?TimeDef
     return null;
 }
 
-test "time default by source" {
-    const d = [_]TimeDefault{ .{ .source = "a", .error_ms = 1, .state = null }, .{ .source = "b", .error_ms = null, .state = .coherent } };
-    try std.testing.expectEqual(TimeState.coherent, timeDefaultOf(&d, "b").?.state.?);
-    try std.testing.expect(timeDefaultOf(&d, "c") == null);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "time default by source" {
+        const d = [_]TimeDefault{ .{ .source = "a", .error_ms = 1, .state = null }, .{ .source = "b", .error_ms = null, .state = .coherent } };
+        try std.testing.expectEqual(TimeState.coherent, timeDefaultOf(&d, "b").?.state.?);
+        try std.testing.expect(timeDefaultOf(&d, "c") == null);
+    }
+};

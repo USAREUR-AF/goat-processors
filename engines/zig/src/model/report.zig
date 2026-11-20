@@ -127,58 +127,62 @@ fn parseObject(a: Allocator, text: []const u8) !json.ObjectMap {
     return (try json.parseFromSliceLeaky(json.Value, a, text, .{})).object;
 }
 
-test "required keys in the order of the table, by type" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    const ok = try parseObject(a, "{\"track.source_id\":\"s\",\"uid\":\"u\",\"time_ms\":5,\"lat\":1,\"lon\":2.5}");
-    try std.testing.expectEqual(@as(i64, 5), required(ok).ok.time_ms);
-    const no_uid = try parseObject(a, "{\"track.source_id\":\"s\",\"time_ms\":5}");
-    try std.testing.expectEqualStrings("uid", required(no_uid).missing);
-    // `1000.0` is a number but not an integer.
-    const float_time = try parseObject(a, "{\"track.source_id\":\"s\",\"uid\":\"u\",\"time_ms\":1000.0,\"lat\":1,\"lon\":2}");
-    try std.testing.expectEqualStrings("time_ms", required(float_time).missing);
-    const bad_lon = try parseObject(a, "{\"track.source_id\":\"s\",\"uid\":\"u\",\"time_ms\":1,\"lat\":1,\"lon\":\"2\"}");
-    try std.testing.expectEqualStrings("lon", required(bad_lon).missing);
-    try std.testing.expectEqualStrings("track.source_id", required(try parseObject(a, "{}")).missing);
-}
-
-test "ce, time error and time state readers" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    const m = try parseObject(a, "{\"ce\":0,\"time_error_ms\":-1,\"time_state\":\"drifting\",\"big\":123456789012345678901234567890}");
-    try std.testing.expect(ceOf(m) == null);
-    try std.testing.expect(reportTimeErrorOf(m) == null);
-    try std.testing.expectEqual(params.TimeState.drifting, reportTimeStateOf(m).?);
-    try std.testing.expect(numberOf(m, "big").? > 1e29);
-    try std.testing.expect(integerOf(m, "big") == null);
-    const defaults = [_]params.TimeDefault{.{ .source = "s", .error_ms = 50, .state = null }};
-    const q = timeQualityOf(m, "s", &defaults);
-    try std.testing.expectEqual(@as(f64, 50), q.error_ms);
-    try std.testing.expectEqual(params.TimeState.drifting, q.state);
-    const none = timeQualityOf(m, "t", &defaults);
-    try std.testing.expectEqual(@as(f64, 0), none.error_ms);
-}
-
-test "clone is deep, keeps key order and lookups work on a large object" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    const v = try json.parseFromSliceLeaky(json.Value, a, "{\"b\":[1,{\"x\":\"y\"}],\"a\":null}", .{});
-    const c = try cloneValue(a, v);
-    try std.testing.expectEqualStrings("b", c.object.keys()[0]);
-    try std.testing.expectEqualStrings("y", c.object.get("b").?.array.items[1].object.get("x").?.string);
-    try std.testing.expect(isNumber(.{ .number_string = "1e400" }));
-    var big = json.ObjectMap.init(a);
-    var names: [20][]u8 = undefined;
-    for (&names, 0..) |*n, i| {
-        n.* = try std.fmt.allocPrint(a, "key{d}", .{i});
-        try big.put(n.*, .{ .integer = @intCast(i) });
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "required keys in the order of the table, by type" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const ok = try parseObject(a, "{\"track.source_id\":\"s\",\"uid\":\"u\",\"time_ms\":5,\"lat\":1,\"lon\":2.5}");
+        try std.testing.expectEqual(@as(i64, 5), required(ok).ok.time_ms);
+        const no_uid = try parseObject(a, "{\"track.source_id\":\"s\",\"time_ms\":5}");
+        try std.testing.expectEqualStrings("uid", required(no_uid).missing);
+        // `1000.0` is a number but not an integer.
+        const float_time = try parseObject(a, "{\"track.source_id\":\"s\",\"uid\":\"u\",\"time_ms\":1000.0,\"lat\":1,\"lon\":2}");
+        try std.testing.expectEqualStrings("time_ms", required(float_time).missing);
+        const bad_lon = try parseObject(a, "{\"track.source_id\":\"s\",\"uid\":\"u\",\"time_ms\":1,\"lat\":1,\"lon\":\"2\"}");
+        try std.testing.expectEqualStrings("lon", required(bad_lon).missing);
+        try std.testing.expectEqualStrings("track.source_id", required(try parseObject(a, "{}")).missing);
     }
-    const cb = try cloneValue(a, .{ .object = big });
-    for (&names) |n| n[0] = 'X';
-    try std.testing.expectEqual(@as(i64, 13), cb.object.get("key13").?.integer);
-    try std.testing.expect(cb.object.get("Xey13") == null);
-    try std.testing.expect(asNumber(.{ .string = "1" }) == null);
-}
+
+    test "ce, time error and time state readers" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const m = try parseObject(a, "{\"ce\":0,\"time_error_ms\":-1,\"time_state\":\"drifting\",\"big\":123456789012345678901234567890}");
+        try std.testing.expect(ceOf(m) == null);
+        try std.testing.expect(reportTimeErrorOf(m) == null);
+        try std.testing.expectEqual(params.TimeState.drifting, reportTimeStateOf(m).?);
+        try std.testing.expect(numberOf(m, "big").? > 1e29);
+        try std.testing.expect(integerOf(m, "big") == null);
+        const defaults = [_]params.TimeDefault{.{ .source = "s", .error_ms = 50, .state = null }};
+        const q = timeQualityOf(m, "s", &defaults);
+        try std.testing.expectEqual(@as(f64, 50), q.error_ms);
+        try std.testing.expectEqual(params.TimeState.drifting, q.state);
+        const none = timeQualityOf(m, "t", &defaults);
+        try std.testing.expectEqual(@as(f64, 0), none.error_ms);
+    }
+
+    test "clone is deep, keeps key order and lookups work on a large object" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const v = try json.parseFromSliceLeaky(json.Value, a, "{\"b\":[1,{\"x\":\"y\"}],\"a\":null}", .{});
+        const c = try cloneValue(a, v);
+        try std.testing.expectEqualStrings("b", c.object.keys()[0]);
+        try std.testing.expectEqualStrings("y", c.object.get("b").?.array.items[1].object.get("x").?.string);
+        try std.testing.expect(isNumber(.{ .number_string = "1e400" }));
+        var big = json.ObjectMap.init(a);
+        var names: [20][]u8 = undefined;
+        for (&names, 0..) |*n, i| {
+            n.* = try std.fmt.allocPrint(a, "key{d}", .{i});
+            try big.put(n.*, .{ .integer = @intCast(i) });
+        }
+        const cb = try cloneValue(a, .{ .object = big });
+        for (&names) |n| n[0] = 'X';
+        try std.testing.expectEqual(@as(i64, 13), cb.object.get("key13").?.integer);
+        try std.testing.expect(cb.object.get("Xey13") == null);
+        try std.testing.expect(asNumber(.{ .string = "1" }) == null);
+    }
+};

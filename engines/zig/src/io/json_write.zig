@@ -41,14 +41,18 @@ pub fn writeValue(w: anytype, v: json.Value) !void {
     }
 }
 
-test "writes every kind" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const v = try json.parseFromSliceLeaky(json.Value, arena.allocator(), "{\"a\":[1,2.5,null,true,\"x\\\"\"],\"b\":{}}", .{});
-    var buf = std.ArrayList(u8).init(arena.allocator());
-    try writeValue(buf.writer(), v);
-    try std.testing.expectEqualStrings("{\"a\":[1,2.5e0,null,true,\"x\\\"\"],\"b\":{}}", buf.items);
-    buf.clearRetainingCapacity();
-    try writeValue(buf.writer(), .{ .float = std.math.nan(f64) });
-    try std.testing.expectEqualStrings("NaN", buf.items);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "writes every kind" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const v = try json.parseFromSliceLeaky(json.Value, arena.allocator(), "{\"a\":[1,2.5,null,true,\"x\\\"\"],\"b\":{}}", .{});
+        var buf = std.ArrayList(u8).init(arena.allocator());
+        try writeValue(buf.writer(), v);
+        try std.testing.expectEqualStrings("{\"a\":[1,2.5e0,null,true,\"x\\\"\"],\"b\":{}}", buf.items);
+        buf.clearRetainingCapacity();
+        try writeValue(buf.writer(), .{ .float = std.math.nan(f64) });
+        try std.testing.expectEqualStrings("NaN", buf.items);
+    }
+};

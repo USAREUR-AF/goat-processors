@@ -40,22 +40,26 @@ pub fn step(rule: Rule, st: RuleState, value: ?Num) Step {
     return .{ .state = next, .pass = pass, .shown_limit = rule.clear, .change = if (pass) .end else .none };
 }
 
-test "a rule starts after `for` passing ticks and ends at the clear test" {
-    const rule = Rule{ .name = "r", .scope = .entity, .measure = .age, .op = .gt, .limit = 10, .for_n = 2, .clear = 5, .action = .mark, .factor = null };
-    var st = RuleState{ .count = 0, .active = false };
-    var s = step(rule, st, .{ .int = 11 });
-    try std.testing.expect(s.pass and s.change == .none and s.state.count == 1);
-    st = s.state;
-    s = step(rule, st, .{ .int = 12 });
-    try std.testing.expect(s.change == .start and s.state.active and s.state.count == 0);
-    st = s.state;
-    s = step(rule, st, .{ .int = 7 });
-    try std.testing.expect(!s.pass and s.change == .none and s.shown_limit == 5);
-    s = step(rule, st, null);
-    try std.testing.expect(!s.pass and s.state.active);
-    s = step(rule, st, .{ .float = 4.5 });
-    try std.testing.expect(s.pass and s.change == .end and !s.state.active);
-    // An absent value resets the count of an inactive rule.
-    s = step(rule, .{ .count = 1, .active = false }, null);
-    try std.testing.expect(!s.pass and s.state.count == 0);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "a rule starts after `for` passing ticks and ends at the clear test" {
+        const rule = Rule{ .name = "r", .scope = .entity, .measure = .age, .op = .gt, .limit = 10, .for_n = 2, .clear = 5, .action = .mark, .factor = null };
+        var st = RuleState{ .count = 0, .active = false };
+        var s = step(rule, st, .{ .int = 11 });
+        try std.testing.expect(s.pass and s.change == .none and s.state.count == 1);
+        st = s.state;
+        s = step(rule, st, .{ .int = 12 });
+        try std.testing.expect(s.change == .start and s.state.active and s.state.count == 0);
+        st = s.state;
+        s = step(rule, st, .{ .int = 7 });
+        try std.testing.expect(!s.pass and s.change == .none and s.shown_limit == 5);
+        s = step(rule, st, null);
+        try std.testing.expect(!s.pass and s.state.active);
+        s = step(rule, st, .{ .float = 4.5 });
+        try std.testing.expect(s.pass and s.change == .end and !s.state.active);
+        // An absent value resets the count of an inactive rule.
+        s = step(rule, .{ .count = 1, .active = false }, null);
+        try std.testing.expect(!s.pass and s.state.count == 0);
+    }
+};

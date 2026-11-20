@@ -97,10 +97,14 @@ pub fn predict(time_ms: i64, lat: f64, lon: f64, course: ?f64, speed_ms: ?f64, t
     };
 }
 
-test "polygon boundary, inside, outside, across the antimeridian" {
-    const box = [_]fpack.Vertex{ .{ .lat = -10, .lon = 175 }, .{ .lat = -10, .lon = -175 }, .{ .lat = 10, .lon = -175 }, .{ .lat = 10, .lon = 175 } };
-    try std.testing.expectEqual(Side.inside, polygon(&box, 0, 180));
-    try std.testing.expectEqual(Side.inside, polygon(&box, 0, -179));
-    try std.testing.expectEqual(Side.boundary, polygon(&box, 10, 179));
-    try std.testing.expectEqual(Side.outside, polygon(&box, 0, 170));
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "polygon boundary, inside, outside, across the antimeridian" {
+        const box = [_]fpack.Vertex{ .{ .lat = -10, .lon = 175 }, .{ .lat = -10, .lon = -175 }, .{ .lat = 10, .lon = -175 }, .{ .lat = 10, .lon = 175 } };
+        try std.testing.expectEqual(Side.inside, polygon(&box, 0, 180));
+        try std.testing.expectEqual(Side.inside, polygon(&box, 0, -179));
+        try std.testing.expectEqual(Side.boundary, polygon(&box, 10, 179));
+        try std.testing.expectEqual(Side.outside, polygon(&box, 0, 170));
+    }
+};

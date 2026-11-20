@@ -70,6 +70,10 @@ fn checkShape(comptime M: type) void {
     }
 }
 
-test "every function has the entry point shape" {
-    inline for (std.meta.fields(Function)) |f| _ = Module(@enumFromInt(f.value));
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "every function has the entry point shape" {
+        inline for (std.meta.fields(Function)) |f| _ = Module(@enumFromInt(f.value));
+    }
+};

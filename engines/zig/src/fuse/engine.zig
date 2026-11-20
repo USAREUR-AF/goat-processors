@@ -412,30 +412,37 @@ fn fusePack(a: Allocator, kinematics: []const u8) !Pack {
     return fuse_pack.parse(a, text);
 }
 
-test "fuse: every kinematics method, moves, stale reports and drops" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    const steps =
-        \\[{"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 0, "lat": 0, "lon": 0, "fuse.group": "g", "type": "t1", "hae": 3, "name": "A", "x": 1, "y": 2, "ce": 20}},
-        \\ {"ingest": {"track.source_id": "b", "uid": "2", "time_ms": 100, "lat": 0, "lon": 0.0001, "fuse.group": "g", "type": "t1", "hae": 4, "name": "B", "x": 2, "y": 1, "course": 90, "speed_ms": 3}},
-        \\ {"ingest": {"track.source_id": "c", "uid": "3", "time_ms": 100, "lat": 1, "lon": 1, "fuse.group": ""}},
-        \\ {"ingest": {"track.source_id": "a", "uid": "1", "time_ms": -50, "lat": 0, "lon": 0}},
-        \\ {"tick": 200},
-        \\ {"ingest": {"track.source_id": "c", "uid": "3", "time_ms": 300, "lat": 1, "lon": 1, "fuse.group": "g"}},
-        \\ {"tick": 5000},
-        \\ {"ingest": {"lat": 1}}]
-    ;
-    for ([_][]const u8{ "inverse_variance", "covariance_intersection", "best", "priority", "latest" }) |k| {
-        const o = try util.run(@This(), a, try fusePack(a, k), steps);
-        try std.testing.expectEqualStrings("stale-report", util.ev(o, 3, 0));
-        try std.testing.expectEqualStrings("fused", util.ev(o, 4, 0));
-        try std.testing.expectEqual(@as(usize, 2), o.events[4].array.items.len);
-        try std.testing.expectEqualStrings("move", util.ev(o, 5, 0));
-        try std.testing.expectEqualStrings("drop", util.ev(o, 6, 0));
-        try std.testing.expectEqualStrings("reject", util.ev(o, 7, 0));
-        const attrs = o.events[4].array.items[0].object.get("attributes").?.object;
-        try std.testing.expectEqualStrings("t1", attrs.get("type").?.object.get("value").?.string);
-        try std.testing.expectEqualStrings("A", attrs.get("name").?.object.get("value").?.string);
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "fuse: every kinematics method, moves, stale reports and drops" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const steps =
+            \\[{"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 0, "lat": 0, "lon": 0, "fuse.group": "g", "type": "t1", "hae": 3, "name": "A", "x": 1, "y": 2, "ce": 20}},
+            \\ {"ingest": {"track.source_id": "b", "uid": "2", "time_ms": 100, "lat": 0, "lon": 0.0001, "fuse.group": "g", "type": "t1", "hae": 4, "name": "B", "x": 2, "y": 1, "course": 90, "speed_ms": 3}},
+            \\ {"ingest": {"track.source_id": "c", "uid": "3", "time_ms": 100, "lat": 1, "lon": 1, "fuse.group": ""}},
+            \\ {"ingest": {"track.source_id": "a", "uid": "1", "time_ms": -50, "lat": 0, "lon": 0}},
+            \\ {"tick": 200},
+            \\ {"ingest": {"track.source_id": "c", "uid": "3", "time_ms": 300, "lat": 1, "lon": 1, "fuse.group": "g"}},
+            \\ {"tick": 5000},
+            \\ {"ingest": {"lat": 1}}]
+        ;
+        for ([_][]const u8{ "inverse_variance", "covariance_intersection", "best", "priority", "latest" }) |k| {
+            const o = try util.run(this_module, a, try fusePack(a, k), steps);
+            try std.testing.expectEqualStrings("stale-report", util.ev(o, 3, 0));
+            try std.testing.expectEqualStrings("fused", util.ev(o, 4, 0));
+            try std.testing.expectEqual(@as(usize, 2), o.events[4].array.items.len);
+            try std.testing.expectEqualStrings("move", util.ev(o, 5, 0));
+            try std.testing.expectEqualStrings("drop", util.ev(o, 6, 0));
+            try std.testing.expectEqualStrings("reject", util.ev(o, 7, 0));
+            const attrs = o.events[4].array.items[0].object.get("attributes").?.object;
+            try std.testing.expectEqualStrings("t1", attrs.get("type").?.object.get("value").?.string);
+            try std.testing.expectEqualStrings("A", attrs.get("name").?.object.get("value").?.string);
+        }
     }
-}
+};
+
+// This file as a module, for its unit tests.
+const this_module = @This();

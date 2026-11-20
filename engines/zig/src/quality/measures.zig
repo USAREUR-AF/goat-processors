@@ -432,39 +432,43 @@ fn aggregate(how: Aggregate, buf: []f64, entities: []const Measures, name: Measu
     }
 }
 
-test "the table gives the names, their order and the scopes" {
-    try std.testing.expectEqualStrings("reports", @tagName(@as(Measure, @enumFromInt(0))));
-    try std.testing.expect(std.meta.stringToEnum(Measure, "time_state_worst") != null);
-    try std.testing.expect(entry(.entities).source_only);
-    try std.testing.expect(!entry(.age).source_only);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "the table gives the names, their order and the scopes" {
+        try std.testing.expectEqualStrings("reports", @tagName(@as(Measure, @enumFromInt(0))));
+        try std.testing.expect(std.meta.stringToEnum(Measure, "time_state_worst") != null);
+        try std.testing.expect(entry(.entities).source_only);
+        try std.testing.expect(!entry(.age).source_only);
+    }
 
-test "entity and source measures of two small windows" {
-    var buf: [8]f64 = undefined;
-    const base = Record{ .wt = 0, .time_ms = 0, .order = .first, .interval = null, .latency = null, .lateness = null, .nis = null, .speed_err = null, .time_error = null, .time_state = null, .source_out_of_order = false, .ce = true, .vel = false, .hae = true };
-    var r2 = base;
-    r2.order = .advance;
-    r2.interval = 1000;
-    r2.nis = 2;
-    var r3 = r2;
-    r3.interval = 3000;
-    r3.nis = 4;
-    r3.order = .duplicate;
-    const w = [_]Record{ base, r2, r3 };
-    const m = entityMeasures(&buf, &w, 2, 5000, 4000);
-    try std.testing.expectEqual(@as(i64, 3), m.get(.reports).?.int);
-    try std.testing.expectEqual(@as(f64, 2000), m.get(.interval_mean).?.float);
-    try std.testing.expectEqual(@as(i64, 3000), m.get(.interval_max).?.int);
-    try std.testing.expectEqual(@as(i64, 1000), m.get(.age).?.int);
-    try std.testing.expectEqual(@as(f64, 3), m.get(.nis_mean).?.float);
-    try std.testing.expectEqual(@as(i64, 1), m.get(.duplicate).?.int);
-    try std.testing.expectEqual(@as(f64, 1), m.get(.missing_vel).?.float);
-    try std.testing.expect(m.get(.latency_mean) == null);
-    try std.testing.expect(m.get(.entities) == null);
-    const m1 = entityMeasures(&buf, w[0..1], 2, 5000, 0);
-    const s = sourceMeasures(&buf, &.{ m, m1 });
-    try std.testing.expectEqual(@as(i64, 4), s.get(.reports).?.int);
-    try std.testing.expectEqual(@as(i64, 1000), s.get(.age).?.int);
-    try std.testing.expectEqual(@as(i64, 2), s.get(.entities).?.int);
-    try std.testing.expectEqual(@as(f64, 2000), s.get(.interval_mean).?.float);
-}
+    test "entity and source measures of two small windows" {
+        var buf: [8]f64 = undefined;
+        const base = Record{ .wt = 0, .time_ms = 0, .order = .first, .interval = null, .latency = null, .lateness = null, .nis = null, .speed_err = null, .time_error = null, .time_state = null, .source_out_of_order = false, .ce = true, .vel = false, .hae = true };
+        var r2 = base;
+        r2.order = .advance;
+        r2.interval = 1000;
+        r2.nis = 2;
+        var r3 = r2;
+        r3.interval = 3000;
+        r3.nis = 4;
+        r3.order = .duplicate;
+        const w = [_]Record{ base, r2, r3 };
+        const m = entityMeasures(&buf, &w, 2, 5000, 4000);
+        try std.testing.expectEqual(@as(i64, 3), m.get(.reports).?.int);
+        try std.testing.expectEqual(@as(f64, 2000), m.get(.interval_mean).?.float);
+        try std.testing.expectEqual(@as(i64, 3000), m.get(.interval_max).?.int);
+        try std.testing.expectEqual(@as(i64, 1000), m.get(.age).?.int);
+        try std.testing.expectEqual(@as(f64, 3), m.get(.nis_mean).?.float);
+        try std.testing.expectEqual(@as(i64, 1), m.get(.duplicate).?.int);
+        try std.testing.expectEqual(@as(f64, 1), m.get(.missing_vel).?.float);
+        try std.testing.expect(m.get(.latency_mean) == null);
+        try std.testing.expect(m.get(.entities) == null);
+        const m1 = entityMeasures(&buf, w[0..1], 2, 5000, 0);
+        const s = sourceMeasures(&buf, &.{ m, m1 });
+        try std.testing.expectEqual(@as(i64, 4), s.get(.reports).?.int);
+        try std.testing.expectEqual(@as(i64, 1000), s.get(.age).?.int);
+        try std.testing.expectEqual(@as(i64, 2), s.get(.entities).?.int);
+        try std.testing.expectEqual(@as(f64, 2000), s.get(.interval_mean).?.float);
+    }
+};

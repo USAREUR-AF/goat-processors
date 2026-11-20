@@ -138,52 +138,56 @@ fn enumerateAll(alloc: Allocator, e: Entries, row: usize, choice: []usize, used:
     }
 }
 
-test "ranking: totals ascending, ties to the smaller choice vector, columns used once" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    // Two rows, one column; entries [col, alone] per row; row 1 may not take the column.
-    const cols = [_]Column{.{ .id = 7, .others = &.{"x"} }};
-    const values = [_]?f64{ 1, 5, null, 2 };
-    const e = Entries{ .cols = &cols, .rows = &.{ "r0", "r1" }, .values = &values };
-    try std.testing.expectEqual(@as(?u64, 7), e.chosenId(0));
-    try std.testing.expectEqual(@as(?u64, null), e.chosenId(1));
-    const r = try ranked(a, e, 5);
-    try std.testing.expectEqual(@as(usize, 2), r.len);
-    try std.testing.expectEqual(@as(f64, 3), r[0].total);
-    try std.testing.expectEqual(@as(usize, 0), r[0].choice[0]);
-    try std.testing.expectEqual(@as(f64, 7), r[1].total);
-    const one = try ranked(a, e, 1);
-    try std.testing.expectEqual(@as(usize, 1), one.len);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "ranking: totals ascending, ties to the smaller choice vector, columns used once" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        // Two rows, one column; entries [col, alone] per row; row 1 may not take the column.
+        const cols = [_]Column{.{ .id = 7, .others = &.{"x"} }};
+        const values = [_]?f64{ 1, 5, null, 2 };
+        const e = Entries{ .cols = &cols, .rows = &.{ "r0", "r1" }, .values = &values };
+        try std.testing.expectEqual(@as(?u64, 7), e.chosenId(0));
+        try std.testing.expectEqual(@as(?u64, null), e.chosenId(1));
+        const r = try ranked(a, e, 5);
+        try std.testing.expectEqual(@as(usize, 2), r.len);
+        try std.testing.expectEqual(@as(f64, 3), r[0].total);
+        try std.testing.expectEqual(@as(usize, 0), r[0].choice[0]);
+        try std.testing.expectEqual(@as(f64, 7), r[1].total);
+        const one = try ranked(a, e, 1);
+        try std.testing.expectEqual(@as(usize, 1), one.len);
+    }
 
-test "the best k while enumerating equals the first k of the full sort" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    var prng = std.Random.DefaultPrng.init(7);
-    const r = prng.random();
-    for (0..200) |_| {
-        const nrows = 1 + r.uintLessThan(usize, 4);
-        const ncols = r.uintLessThan(usize, 4);
-        const cols = try a.alloc(Column, ncols);
-        for (cols, 0..) |*c, i| c.* = .{ .id = i + 1, .others = &.{} };
-        const values = try a.alloc(?f64, nrows * (ncols + 1));
-        for (values, 0..) |*v, i| {
-            const alone = i % (ncols + 1) == ncols;
-            // Few distinct values, so equal totals are common; some entries forbidden.
-            v.* = if (!alone and r.uintLessThan(u8, 4) == 0) null else @as(f64, @floatFromInt(r.uintLessThan(u8, 5))) - 1.0;
-        }
-        const rows = try a.alloc([]const u8, nrows);
-        for (rows) |*x| x.* = "r";
-        const e = Entries{ .cols = cols, .rows = rows, .values = values };
-        const k = 1 + r.uintLessThan(usize, 6);
-        const fast = try ranked(a, e, k);
-        const slow = try rankedBySort(a, e, k);
-        try std.testing.expectEqual(slow.len, fast.len);
-        for (fast, slow) |x, y| {
-            try std.testing.expectEqual(y.total, x.total);
-            try std.testing.expectEqualSlices(usize, y.choice, x.choice);
+    test "the best k while enumerating equals the first k of the full sort" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        var prng = std.Random.DefaultPrng.init(7);
+        const r = prng.random();
+        for (0..200) |_| {
+            const nrows = 1 + r.uintLessThan(usize, 4);
+            const ncols = r.uintLessThan(usize, 4);
+            const cols = try a.alloc(Column, ncols);
+            for (cols, 0..) |*c, i| c.* = .{ .id = i + 1, .others = &.{} };
+            const values = try a.alloc(?f64, nrows * (ncols + 1));
+            for (values, 0..) |*v, i| {
+                const alone = i % (ncols + 1) == ncols;
+                // Few distinct values, so equal totals are common; some entries forbidden.
+                v.* = if (!alone and r.uintLessThan(u8, 4) == 0) null else @as(f64, @floatFromInt(r.uintLessThan(u8, 5))) - 1.0;
+            }
+            const rows = try a.alloc([]const u8, nrows);
+            for (rows) |*x| x.* = "r";
+            const e = Entries{ .cols = cols, .rows = rows, .values = values };
+            const k = 1 + r.uintLessThan(usize, 6);
+            const fast = try ranked(a, e, k);
+            const slow = try rankedBySort(a, e, k);
+            try std.testing.expectEqual(slow.len, fast.len);
+            for (fast, slow) |x, y| {
+                try std.testing.expectEqual(y.total, x.total);
+                try std.testing.expectEqualSlices(usize, y.choice, x.choice);
+            }
         }
     }
-}
+};

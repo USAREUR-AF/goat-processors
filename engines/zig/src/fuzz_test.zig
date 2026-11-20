@@ -33,17 +33,17 @@ fn scale() usize {
 // Tokens a mutation may insert: the directives, test and condition names,
 // parameter names and values the grammars know, and bytes they do not.
 const dictionary = [_][]const u8{
-    "pack",       "version",    "method",       "assign",      "confirm",    "filter",      "maneuver",  "restart",
-    "bias",       "time_offset", "time_default", "gate",       "hold",       "window",      "hypotheses", "margin",
-    "rule",       "when",       "not",          "keep",        "drop",       "default",     "forget_ms", "kinematics",
-    "attribute",  "source",     "stale_ms",     "priority",    "latest",     "best",        "mahalanobis", "same",
-    "distance",   "course",     "speed",        "altitude",    "circle",     "polygon",     "near",      "key",
-    "has",        "interval",   "order",        "env",         "uid",        "scope=entity", "scope=source", "measure=age",
-    "op=>",       "op=<=",      "limit=1",      "for=1",       "clear=0",    "action=mark", "action=downgrade", "factor=2",
-    "gate=9.21",  "max_m=-1",   "key=@env",     "in=a,b",      "eq=1",       "min=1",       "max=0",     "lat=91",
-    "vertices=0,0;0,1;1,1",     "error_ms=1e309", "state=drifting", "rule=majority", "accel_var=1", "default_ce_m=0", "=",
-    "#",          "\t",         "\r",           "\x00",        "\x7f",       "1.0.0",       "-0",        "99999999999999999999",
-    "1e-400",     "NaN",        "inf",          "",
+    "pack",                 "version",        "method",         "assign",        "confirm",     "filter",         "maneuver",             "restart",
+    "bias",                 "time_offset",    "time_default",   "gate",          "hold",        "window",         "hypotheses",           "margin",
+    "rule",                 "when",           "not",            "keep",          "drop",        "default",        "forget_ms",            "kinematics",
+    "attribute",            "source",         "stale_ms",       "priority",      "latest",      "best",           "mahalanobis",          "same",
+    "distance",             "course",         "speed",          "altitude",      "circle",      "polygon",        "near",                 "key",
+    "has",                  "interval",       "order",          "env",           "uid",         "scope=entity",   "scope=source",         "measure=age",
+    "op=>",                 "op=<=",          "limit=1",        "for=1",         "clear=0",     "action=mark",    "action=downgrade",     "factor=2",
+    "gate=9.21",            "max_m=-1",       "key=@env",       "in=a,b",        "eq=1",        "min=1",          "max=0",                "lat=91",
+    "vertices=0,0;0,1;1,1", "error_ms=1e309", "state=drifting", "rule=majority", "accel_var=1", "default_ce_m=0", "=",                    "#",
+    "\t",                   "\r",             "\x00",           "\x7f",          "1.0.0",       "-0",             "99999999999999999999", "1e-400",
+    "NaN",                  "inf",            "",
 };
 
 fn mutate(r: std.Random, a: Allocator, text: []const u8) ![]u8 {

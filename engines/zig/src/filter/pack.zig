@@ -351,45 +351,49 @@ pub fn load(alloc: Allocator, dir: []const u8) !Pack {
     return parse(alloc, try json_read.readPackDef(alloc, dir));
 }
 
-test "a filter pack with every condition, and its load errors" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    const head = "pack f\nversion 1\ndefault keep\nforget_ms 1000\n";
-    const p = try parse(a, head ++
-        \\rule r1 drop
-        \\when circle lat=1 lon=2 radius_m=3
-        \\when not polygon vertices=0,0;0,1;1,1
-        \\when near reference=s/u radius_m=10 max_age_ms=5
-        \\when env in=A,S
-        \\when affiliation in=h
-        \\when source in=s
-        \\when uid in=u
-        \\when key name=x eq=1.5
-        \\when key name=x in=a,2
-        \\when key name=x min=1
-        \\when has name=hae
-        \\when speed max=3
-        \\when altitude min=1 max=2
-        \\when interval min_ms=10
-        \\when order
-    );
-    try std.testing.expectEqual(@as(usize, 15), p.rules[0].conditions.len);
-    try std.testing.expect(p.rules[0].conditions[1].negated);
-    try std.testing.expectEqual(@as(f64, 1.5), p.rules[0].conditions[7].condition.key.form.eq.number.?);
-    try std.testing.expectError(error.WhenBeforeRule, parse(a, head ++ "when order"));
-    try std.testing.expectError(error.RuleWithoutWhen, parse(a, head ++ "rule r keep"));
-    try std.testing.expectError(error.RuleNamedDefault, parse(a, head ++ "rule default keep\nwhen order"));
-    try std.testing.expectError(error.RepeatedRuleName, parse(a, head ++ "rule r keep\nwhen order\nrule r drop\nwhen order"));
-    try std.testing.expectError(error.BadAction, parse(a, head ++ "rule r maybe\nwhen order"));
-    try std.testing.expectError(error.UnknownCondition, parse(a, head ++ "rule r keep\nwhen nearby"));
-    try std.testing.expectError(error.UnknownParam, parse(a, head ++ "rule r keep\nwhen order x=1"));
-    try std.testing.expectError(error.MissingParam, parse(a, head ++ "rule r keep\nwhen speed"));
-    try std.testing.expectError(error.BadValue, parse(a, head ++ "rule r keep\nwhen speed min=2 max=1"));
-    try std.testing.expectError(error.BadValue, parse(a, head ++ "rule r keep\nwhen circle lat=91 lon=0 radius_m=1"));
-    try std.testing.expectError(error.BadValue, parse(a, head ++ "rule r keep\nwhen polygon vertices=0,0;1,1"));
-    try std.testing.expectError(error.RepeatedParam, parse(a, head ++ "rule r keep\nwhen speed min=1 min=2"));
-    try std.testing.expectError(error.ParamWithoutEquals, parse(a, head ++ "rule r keep\nwhen speed min"));
-    try std.testing.expectError(error.MissingDirective, parse(a, "pack f\nversion 1\ndefault keep\n"));
-    try std.testing.expectError(error.BadValue, parse(a, "pack f\nversion 1\ndefault keep\nforget_ms 0\n"));
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "a filter pack with every condition, and its load errors" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const head = "pack f\nversion 1\ndefault keep\nforget_ms 1000\n";
+        const p = try parse(a, head ++
+            \\rule r1 drop
+            \\when circle lat=1 lon=2 radius_m=3
+            \\when not polygon vertices=0,0;0,1;1,1
+            \\when near reference=s/u radius_m=10 max_age_ms=5
+            \\when env in=A,S
+            \\when affiliation in=h
+            \\when source in=s
+            \\when uid in=u
+            \\when key name=x eq=1.5
+            \\when key name=x in=a,2
+            \\when key name=x min=1
+            \\when has name=hae
+            \\when speed max=3
+            \\when altitude min=1 max=2
+            \\when interval min_ms=10
+            \\when order
+        );
+        try std.testing.expectEqual(@as(usize, 15), p.rules[0].conditions.len);
+        try std.testing.expect(p.rules[0].conditions[1].negated);
+        try std.testing.expectEqual(@as(f64, 1.5), p.rules[0].conditions[7].condition.key.form.eq.number.?);
+        try std.testing.expectError(error.WhenBeforeRule, parse(a, head ++ "when order"));
+        try std.testing.expectError(error.RuleWithoutWhen, parse(a, head ++ "rule r keep"));
+        try std.testing.expectError(error.RuleNamedDefault, parse(a, head ++ "rule default keep\nwhen order"));
+        try std.testing.expectError(error.RepeatedRuleName, parse(a, head ++ "rule r keep\nwhen order\nrule r drop\nwhen order"));
+        try std.testing.expectError(error.BadAction, parse(a, head ++ "rule r maybe\nwhen order"));
+        try std.testing.expectError(error.UnknownCondition, parse(a, head ++ "rule r keep\nwhen nearby"));
+        try std.testing.expectError(error.UnknownParam, parse(a, head ++ "rule r keep\nwhen order x=1"));
+        try std.testing.expectError(error.MissingParam, parse(a, head ++ "rule r keep\nwhen speed"));
+        try std.testing.expectError(error.BadValue, parse(a, head ++ "rule r keep\nwhen speed min=2 max=1"));
+        try std.testing.expectError(error.BadValue, parse(a, head ++ "rule r keep\nwhen circle lat=91 lon=0 radius_m=1"));
+        try std.testing.expectError(error.BadValue, parse(a, head ++ "rule r keep\nwhen polygon vertices=0,0;1,1"));
+        try std.testing.expectError(error.RepeatedParam, parse(a, head ++ "rule r keep\nwhen speed min=1 min=2"));
+        try std.testing.expectError(error.ParamWithoutEquals, parse(a, head ++ "rule r keep\nwhen speed min"));
+        try std.testing.expectError(error.MissingDirective, parse(a, "pack f\nversion 1\ndefault keep\n"));
+        try std.testing.expectError(error.BadValue, parse(a, "pack f\nversion 1\ndefault keep\nforget_ms 0\n"));
+    }
+};

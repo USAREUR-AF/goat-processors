@@ -360,28 +360,32 @@ pub fn load(alloc: Allocator, dir: []const u8) !Pack {
     return parse(alloc, try json_read.readPackDef(alloc, dir));
 }
 
-test "a quality pack, its rules and its load errors" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    const head = "pack q\r\nversion 1\nfilter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\nwindow window_ms=1000 min_samples=2 forget_ms=5000\n";
-    const p = try parse(a, head ++ "time_default s error_ms=5\nrule slow scope=entity measure=age op=> limit=10 for=2 clear=5 action=downgrade factor=2\n");
-    try std.testing.expectEqual(@as(usize, 1), p.rules.len);
-    try std.testing.expectEqual(@as(f64, 2), p.rules[0].factor.?);
-    try std.testing.expectEqual(@as(f64, 5), p.timeDefaultOf("s").?.error_ms.?);
-    try std.testing.expectEqual(Op.ge, Op.parse(">=").?);
-    try std.testing.expect(Op.lt.holds(1, 2) and Op.le.clears(3, 2) and !Op.gt.clears(3, 2));
-    try std.testing.expect(inScope(.entities, .source) and !inScope(.entities, .entity));
-    try std.testing.expectEqual(@as(i64, 2), timeStateCode(.@"free-running"));
-    try std.testing.expectError(error.BadValue, parse(a, head ++ "rule r scope=entity measure=entities op=> limit=1 for=1 clear=0 action=mark\n"));
-    try std.testing.expectError(error.BadValue, parse(a, head ++ "rule r scope=entity measure=age op=> limit=1 for=1 clear=2 action=mark\n"));
-    try std.testing.expectError(error.MissingParam, parse(a, head ++ "rule r scope=entity measure=age op=> limit=1 for=1 clear=0 action=downgrade\n"));
-    try std.testing.expectError(error.BadValue, parse(a, head ++ "rule r scope=entity measure=age op=> limit=1 for=1 clear=0 action=mark factor=2\n"));
-    try std.testing.expectError(error.BadRuleName, parse(a, head ++ "rule a/b scope=entity\n"));
-    try std.testing.expectError(error.RepeatedRuleName, parse(a, head ++ "rule r scope=entity measure=age op=> limit=1 for=1 clear=0 action=mark\nrule r scope=entity measure=age op=> limit=1 for=1 clear=0 action=mark\n"));
-    try std.testing.expectError(error.ControlCharacter, parse(a, head ++ "\x01\n"));
-    try std.testing.expectError(error.NotANumber, parse(a, head ++ "time_default s error_ms=1e3\n"));
-    try std.testing.expectError(error.MissingParam, parse(a, head ++ "time_default s\n"));
-    try std.testing.expectError(error.NotAnInteger, parse(a, "pack q\nversion 1\nfilter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\nwindow window_ms=x min_samples=2 forget_ms=5000\n"));
-    try std.testing.expectError(error.MissingDirective, parse(a, "pack q\nversion 1\n"));
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "a quality pack, its rules and its load errors" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const head = "pack q\r\nversion 1\nfilter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\nwindow window_ms=1000 min_samples=2 forget_ms=5000\n";
+        const p = try parse(a, head ++ "time_default s error_ms=5\nrule slow scope=entity measure=age op=> limit=10 for=2 clear=5 action=downgrade factor=2\n");
+        try std.testing.expectEqual(@as(usize, 1), p.rules.len);
+        try std.testing.expectEqual(@as(f64, 2), p.rules[0].factor.?);
+        try std.testing.expectEqual(@as(f64, 5), p.timeDefaultOf("s").?.error_ms.?);
+        try std.testing.expectEqual(Op.ge, Op.parse(">=").?);
+        try std.testing.expect(Op.lt.holds(1, 2) and Op.le.clears(3, 2) and !Op.gt.clears(3, 2));
+        try std.testing.expect(inScope(.entities, .source) and !inScope(.entities, .entity));
+        try std.testing.expectEqual(@as(i64, 2), timeStateCode(.@"free-running"));
+        try std.testing.expectError(error.BadValue, parse(a, head ++ "rule r scope=entity measure=entities op=> limit=1 for=1 clear=0 action=mark\n"));
+        try std.testing.expectError(error.BadValue, parse(a, head ++ "rule r scope=entity measure=age op=> limit=1 for=1 clear=2 action=mark\n"));
+        try std.testing.expectError(error.MissingParam, parse(a, head ++ "rule r scope=entity measure=age op=> limit=1 for=1 clear=0 action=downgrade\n"));
+        try std.testing.expectError(error.BadValue, parse(a, head ++ "rule r scope=entity measure=age op=> limit=1 for=1 clear=0 action=mark factor=2\n"));
+        try std.testing.expectError(error.BadRuleName, parse(a, head ++ "rule a/b scope=entity\n"));
+        try std.testing.expectError(error.RepeatedRuleName, parse(a, head ++ "rule r scope=entity measure=age op=> limit=1 for=1 clear=0 action=mark\nrule r scope=entity measure=age op=> limit=1 for=1 clear=0 action=mark\n"));
+        try std.testing.expectError(error.ControlCharacter, parse(a, head ++ "\x01\n"));
+        try std.testing.expectError(error.NotANumber, parse(a, head ++ "time_default s error_ms=1e3\n"));
+        try std.testing.expectError(error.MissingParam, parse(a, head ++ "time_default s\n"));
+        try std.testing.expectError(error.NotAnInteger, parse(a, "pack q\nversion 1\nfilter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\nwindow window_ms=x min_samples=2 forget_ms=5000\n"));
+        try std.testing.expectError(error.MissingDirective, parse(a, "pack q\nversion 1\n"));
+    }
+};

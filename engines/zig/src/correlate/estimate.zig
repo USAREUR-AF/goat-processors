@@ -44,19 +44,23 @@ pub fn restartD2(pos: frame.Plane, pred: kalman.Filter, r_east: f64, r_north: f6
     return de * de / (pred.east.pp + r_east) + dn * dn / (pred.north.pp + r_north);
 }
 
-test "measurement variance adds the timing variance only with a time error" {
-    const v0 = measurementVariance(10, 0, null, .{ .east = 3, .north = 4 });
-    try std.testing.expectEqual(@as(f64, 100), v0.r_east);
-    try std.testing.expectEqual(@as(f64, 0), v0.time_var_north);
-    const v1 = measurementVariance(10, 1000, null, .{ .east = 3, .north = 4 });
-    try std.testing.expectEqual(@as(f64, 109), v1.r_east);
-    try std.testing.expectEqual(@as(f64, 116), v1.r_north);
-    const ax = kalman.Axis{ .p = 0, .v = 2, .pp = 1, .pv = 0, .vv = 1 };
-    const v2 = measurementVariance(10, 500, .{ .east = ax, .north = ax }, null);
-    try std.testing.expectEqual(@as(f64, 1), v2.time_var_east);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "measurement variance adds the timing variance only with a time error" {
+        const v0 = measurementVariance(10, 0, null, .{ .east = 3, .north = 4 });
+        try std.testing.expectEqual(@as(f64, 100), v0.r_east);
+        try std.testing.expectEqual(@as(f64, 0), v0.time_var_north);
+        const v1 = measurementVariance(10, 1000, null, .{ .east = 3, .north = 4 });
+        try std.testing.expectEqual(@as(f64, 109), v1.r_east);
+        try std.testing.expectEqual(@as(f64, 116), v1.r_north);
+        const ax = kalman.Axis{ .p = 0, .v = 2, .pp = 1, .pv = 0, .vv = 1 };
+        const v2 = measurementVariance(10, 500, .{ .east = ax, .north = ax }, null);
+        try std.testing.expectEqual(@as(f64, 1), v2.time_var_east);
+    }
 
-test "restart d2" {
-    const ax = kalman.Axis{ .p = 0, .v = 0, .pp = 50, .pv = 0, .vv = 1 };
-    try std.testing.expectEqual(@as(f64, 2), restartD2(.{ .east = 10, .north = 0 }, .{ .east = ax, .north = ax }, 50, 50) * 2);
-}
+    test "restart d2" {
+        const ax = kalman.Axis{ .p = 0, .v = 0, .pp = 50, .pv = 0, .vv = 1 };
+        try std.testing.expectEqual(@as(f64, 2), restartD2(.{ .east = 10, .north = 0 }, .{ .east = ax, .north = ax }, 50, 50) * 2);
+    }
+};

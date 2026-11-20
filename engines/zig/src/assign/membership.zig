@@ -77,18 +77,22 @@ pub fn start(eng: *Engine, m: *Membership, events: *std.ArrayList(json.Value), k
     try events.append(try eng.object(.{ .{ "ev", "start" }, .{ "system", try eng.groupName(id) }, .{ "entity", key } }));
 }
 
-test "systemOf, index and clone" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    var m = Membership.init(a);
-    var l = std.ArrayList([]const u8).init(a);
-    try l.append("s/1");
-    try m.systems.append(.{ .id = 3, .members = l });
-    try std.testing.expectEqual(@as(?u64, 3), m.systemOf("s/1"));
-    try std.testing.expect(m.systemOf("s/2") == null);
-    const c = try m.clone(a);
-    try m.systems.items[0].members.append("s/2");
-    try std.testing.expectEqual(@as(usize, 1), c.members(3).len);
-    try std.testing.expectEqual(@as(usize, 0), c.index(3));
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "systemOf, index and clone" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        var m = Membership.init(a);
+        var l = std.ArrayList([]const u8).init(a);
+        try l.append("s/1");
+        try m.systems.append(.{ .id = 3, .members = l });
+        try std.testing.expectEqual(@as(?u64, 3), m.systemOf("s/1"));
+        try std.testing.expect(m.systemOf("s/2") == null);
+        const c = try m.clone(a);
+        try m.systems.items[0].members.append("s/2");
+        try std.testing.expectEqual(@as(usize, 1), c.members(3).len);
+        try std.testing.expectEqual(@as(usize, 0), c.index(3));
+    }
+};

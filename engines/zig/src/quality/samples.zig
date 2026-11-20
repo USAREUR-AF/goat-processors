@@ -39,20 +39,24 @@ pub fn speedError(last_pos: frame.Plane, pos: frame.Plane, dt: f64, speed_ms: f6
     return .{ .value = @abs(implied - speed_ms), .implied = implied };
 }
 
-test "median of odd, even and no counts" {
-    var odd = [_]i64{ 30, 10, 20 };
-    try std.testing.expectEqual(@as(i64, 20), median(&odd).?.int);
-    var even = [_]i64{ 4, 1 };
-    try std.testing.expectEqual(@as(f64, 2.5), median(&even).?.float);
-    var none = [_]i64{};
-    try std.testing.expect(median(&none) == null);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "median of odd, even and no counts" {
+        var odd = [_]i64{ 30, 10, 20 };
+        try std.testing.expectEqual(@as(i64, 20), median(&odd).?.int);
+        var even = [_]i64{ 4, 1 };
+        try std.testing.expectEqual(@as(f64, 2.5), median(&even).?.float);
+        var none = [_]i64{};
+        try std.testing.expect(median(&none) == null);
+    }
 
-test "nis and speed error" {
-    const ax = kalman.Axis{ .p = 0, .v = 0, .pp = 50, .pv = 0, .vv = 1 };
-    const n = nis(.{ .east = ax, .north = ax }, .{ .east = 10, .north = 0 }, 50);
-    try std.testing.expectEqual(@as(f64, 1), n.value);
-    const s = speedError(.{ .east = 0, .north = 0 }, .{ .east = 3, .north = 4 }, 1, 4);
-    try std.testing.expectEqual(@as(f64, 5), s.implied);
-    try std.testing.expectEqual(@as(f64, 1), s.value);
-}
+    test "nis and speed error" {
+        const ax = kalman.Axis{ .p = 0, .v = 0, .pp = 50, .pv = 0, .vv = 1 };
+        const n = nis(.{ .east = ax, .north = ax }, .{ .east = 10, .north = 0 }, 50);
+        try std.testing.expectEqual(@as(f64, 1), n.value);
+        const s = speedError(.{ .east = 0, .north = 0 }, .{ .east = 3, .north = 4 }, 1, 4);
+        try std.testing.expectEqual(@as(f64, 5), s.implied);
+        try std.testing.expectEqual(@as(f64, 1), s.value);
+    }
+};

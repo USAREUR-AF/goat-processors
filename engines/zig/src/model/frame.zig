@@ -40,18 +40,22 @@ pub const Frame = struct {
     }
 };
 
-test "wrap180 brings into (-180, 180]" {
-    try std.testing.expectEqual(@as(f64, 180), wrap180(-180));
-    try std.testing.expectEqual(@as(f64, -170), wrap180(190));
-    try std.testing.expectEqual(@as(f64, 10), wrap180(370));
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "wrap180 brings into (-180, 180]" {
+        try std.testing.expectEqual(@as(f64, 180), wrap180(-180));
+        try std.testing.expectEqual(@as(f64, -170), wrap180(190));
+        try std.testing.expectEqual(@as(f64, 10), wrap180(370));
+    }
 
-test "plane and back is the identity, across the antimeridian" {
-    const f = Frame{ .lat0 = 10, .lon0 = 179.9 };
-    const p = f.toPlane(10.01, -179.95);
-    try std.testing.expect(p.east > 0 and p.north > 0);
-    const back = f.toDegrees(p);
-    try std.testing.expectApproxEqAbs(@as(f64, 10.01), back.lat, 1e-9);
-    try std.testing.expectApproxEqAbs(@as(f64, -179.95), back.lon, 1e-9);
-    try std.testing.expectEqual(@as(f64, 0), f.toPlane(10, 179.9).east);
-}
+    test "plane and back is the identity, across the antimeridian" {
+        const f = Frame{ .lat0 = 10, .lon0 = 179.9 };
+        const p = f.toPlane(10.01, -179.95);
+        try std.testing.expect(p.east > 0 and p.north > 0);
+        const back = f.toDegrees(p);
+        try std.testing.expectApproxEqAbs(@as(f64, 10.01), back.lat, 1e-9);
+        try std.testing.expectApproxEqAbs(@as(f64, -179.95), back.lon, 1e-9);
+        try std.testing.expectEqual(@as(f64, 0), f.toPlane(10, 179.9).east);
+    }
+};

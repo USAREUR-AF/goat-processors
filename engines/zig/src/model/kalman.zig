@@ -140,26 +140,30 @@ pub fn seconds(from_ms: i64, to_ms: i64) f64 {
     return @as(f64, @floatFromInt(to_ms - from_ms)) / 1000.0;
 }
 
-test "predict then update moves toward the measurement and shrinks the variance" {
-    const a = Axis.init(0, null, 10, 1, 100);
-    try std.testing.expectEqual(@as(f64, 100), a.pp);
-    try std.testing.expectEqual(@as(f64, 10000), a.vv);
-    const p = a.predict(1, 0);
-    try std.testing.expectEqual(@as(f64, 10100), p.pp);
-    const u = p.updatePosition(50, 100);
-    try std.testing.expect(u.p > 0 and u.p < 50);
-    try std.testing.expect(u.pp < p.pp);
-    const f = Filter{ .east = a, .north = a };
-    const m = Measurement{ .east = 1, .north = 2, .r_east = 100, .r_north = 100, .vel = .{ .east = 1, .north = 0 }, .r_vel = 1 };
-    const r = f.predict(1, 0.1).update(m);
-    try std.testing.expect(r.g > 0);
-    try std.testing.expect(r.filter.east.v > 0);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "predict then update moves toward the measurement and shrinks the variance" {
+        const a = Axis.init(0, null, 10, 1, 100);
+        try std.testing.expectEqual(@as(f64, 100), a.pp);
+        try std.testing.expectEqual(@as(f64, 10000), a.vv);
+        const p = a.predict(1, 0);
+        try std.testing.expectEqual(@as(f64, 10100), p.pp);
+        const u = p.updatePosition(50, 100);
+        try std.testing.expect(u.p > 0 and u.p < 50);
+        try std.testing.expect(u.pp < p.pp);
+        const f = Filter{ .east = a, .north = a };
+        const m = Measurement{ .east = 1, .north = 2, .r_east = 100, .r_north = 100, .vel = .{ .east = 1, .north = 0 }, .r_vel = 1 };
+        const r = f.predict(1, 0.1).update(m);
+        try std.testing.expect(r.g > 0);
+        try std.testing.expect(r.filter.east.v > 0);
+    }
 
-test "velocity measurement needs course and speed" {
-    try std.testing.expect(velocityOf(null, 3) == null);
-    try std.testing.expect(velocityOf(90, null) == null);
-    const v = velocityOf(90, 2).?;
-    try std.testing.expectApproxEqAbs(@as(f64, 2), v.east, 1e-12);
-    try std.testing.expectApproxEqAbs(@as(f64, 0), v.north, 1e-12);
-}
+    test "velocity measurement needs course and speed" {
+        try std.testing.expect(velocityOf(null, 3) == null);
+        try std.testing.expect(velocityOf(90, null) == null);
+        const v = velocityOf(90, 2).?;
+        try std.testing.expectApproxEqAbs(@as(f64, 2), v.east, 1e-12);
+        try std.testing.expectApproxEqAbs(@as(f64, 0), v.north, 1e-12);
+    }
+};

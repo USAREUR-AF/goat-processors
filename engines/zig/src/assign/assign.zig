@@ -563,15 +563,19 @@ fn systemEvent(eng: *Engine, s: System, now_ms: i64) !json.Value {
     return ev;
 }
 
-test "the fused estimate weights by inverse variance; the cost is d2" {
-    const x = kalman.Axis{ .p = 0, .v = 0, .pp = 1, .pv = 0, .vv = 1 };
-    var y = x;
-    y.p = 10;
-    y.pp = 3;
-    const f = fuseAxis(&.{ x, y });
-    try std.testing.expectEqual(@as(f64, 0.75), f.pp);
-    try std.testing.expectEqual(@as(f64, 2.5), f.p);
-    const m = Fused{ .east = f, .north = fuseAxis(&.{ x, x }) };
-    const c = costOf(.{ .east = x, .north = x }, 0.25, 0, m);
-    try std.testing.expectEqual(@as(f64, 2.5 * 2.5 / 2.0), c);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "the fused estimate weights by inverse variance; the cost is d2" {
+        const x = kalman.Axis{ .p = 0, .v = 0, .pp = 1, .pv = 0, .vv = 1 };
+        var y = x;
+        y.p = 10;
+        y.pp = 3;
+        const f = fuseAxis(&.{ x, y });
+        try std.testing.expectEqual(@as(f64, 0.75), f.pp);
+        try std.testing.expectEqual(@as(f64, 2.5), f.p);
+        const m = Fused{ .east = f, .north = fuseAxis(&.{ x, x }) };
+        const c = costOf(.{ .east = x, .north = x }, 0.25, 0, m);
+        try std.testing.expectEqual(@as(f64, 2.5 * 2.5 / 2.0), c);
+    }
+};

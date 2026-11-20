@@ -35,14 +35,18 @@ pub fn lessKey(_: void, x: []const u8, y: []const u8) bool {
     return std.mem.order(u8, x, y) == .lt;
 }
 
-test "ref and filter values" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    try std.testing.expect((try refValue(a, null)) == .null);
-    const r = try refValue(a, .{ .lat0 = 1, .lon0 = 2 });
-    try std.testing.expectEqual(@as(f64, 2), r.array.items[1].float);
-    const ax = kalman.Axis{ .p = 1, .v = 2, .pp = 3, .pv = 4, .vv = 5 };
-    const f = try filterValue(a, .{ .east = ax, .north = ax });
-    try std.testing.expectEqual(@as(f64, 5), f.object.get("north").?.array.items[4].float);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "ref and filter values" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        try std.testing.expect((try refValue(a, null)) == .null);
+        const r = try refValue(a, .{ .lat0 = 1, .lon0 = 2 });
+        try std.testing.expectEqual(@as(f64, 2), r.array.items[1].float);
+        const ax = kalman.Axis{ .p = 1, .v = 2, .pp = 3, .pv = 4, .vv = 5 };
+        const f = try filterValue(a, .{ .east = ax, .north = ax });
+        try std.testing.expectEqual(@as(f64, 5), f.object.get("north").?.array.items[4].float);
+    }
+};

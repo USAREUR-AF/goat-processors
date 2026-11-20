@@ -222,31 +222,38 @@ pub const Engine = struct {
 
 const util = @import("../engine_test_util.zig");
 
-test "filter: the first matching rule decides, state follows, tick forgets" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    const pack = try fpack.parse(a,
-        \\rule slow drop
-        \\when speed max=1
-        \\pack f
-        \\version 1
-        \\default keep
-        \\forget_ms 1000
-    );
-    const o = try util.run(@This(), a, pack,
-        \\[{"ingest": {"track.source_id": "s", "uid": "1", "time_ms": 0, "lat": 0, "lon": 0, "speed_ms": 0.5}},
-        \\ {"ingest": {"track.source_id": "s", "uid": "1", "time_ms": 100, "lat": 0, "lon": 0, "speed_ms": 5}},
-        \\ {"ingest": {"track.source_id": "s", "uid": "1", "time_ms": 50, "lat": 0, "lon": 0}},
-        \\ {"ingest": {"uid": "1"}},
-        \\ {"tick": 500},
-        \\ {"tick": 5000}]
-    );
-    try std.testing.expectEqualStrings("drop", util.ev(o, 0, 0));
-    try std.testing.expectEqualStrings("keep", util.ev(o, 1, 0));
-    try std.testing.expectEqualStrings("default", o.events[1].array.items[0].object.get("rule").?.string);
-    try std.testing.expectEqualStrings("unknown", o.trace[2].array.items[0].object.keys()[8]);
-    try std.testing.expectEqualStrings("reject", util.ev(o, 3, 0));
-    try std.testing.expectEqual(@as(usize, 0), o.events[4].array.items.len);
-    try std.testing.expectEqualStrings("forget", util.ev(o, 5, 0));
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "filter: the first matching rule decides, state follows, tick forgets" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const pack = try fpack.parse(a,
+            \\rule slow drop
+            \\when speed max=1
+            \\pack f
+            \\version 1
+            \\default keep
+            \\forget_ms 1000
+        );
+        const o = try util.run(this_module, a, pack,
+            \\[{"ingest": {"track.source_id": "s", "uid": "1", "time_ms": 0, "lat": 0, "lon": 0, "speed_ms": 0.5}},
+            \\ {"ingest": {"track.source_id": "s", "uid": "1", "time_ms": 100, "lat": 0, "lon": 0, "speed_ms": 5}},
+            \\ {"ingest": {"track.source_id": "s", "uid": "1", "time_ms": 50, "lat": 0, "lon": 0}},
+            \\ {"ingest": {"uid": "1"}},
+            \\ {"tick": 500},
+            \\ {"tick": 5000}]
+        );
+        try std.testing.expectEqualStrings("drop", util.ev(o, 0, 0));
+        try std.testing.expectEqualStrings("keep", util.ev(o, 1, 0));
+        try std.testing.expectEqualStrings("default", o.events[1].array.items[0].object.get("rule").?.string);
+        try std.testing.expectEqualStrings("unknown", o.trace[2].array.items[0].object.keys()[8]);
+        try std.testing.expectEqualStrings("reject", util.ev(o, 3, 0));
+        try std.testing.expectEqual(@as(usize, 0), o.events[4].array.items.len);
+        try std.testing.expectEqualStrings("forget", util.ev(o, 5, 0));
+    }
+};
+
+// This file as a module, for its unit tests.
+const this_module = @This();

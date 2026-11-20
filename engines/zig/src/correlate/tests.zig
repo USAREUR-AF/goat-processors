@@ -229,22 +229,26 @@ fn runSame(pr: Pair, args: []const Arg) Outcome {
     return .{ .value = va orelse .null, .limit = vb orelse .null, .pass = pass };
 }
 
-test "the registry parses parameters by name, once each, and refuses unknown kinds" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    const r = default_registry;
-    const t = try r.parse(a, &.{ "course", "min_speed_ms=2", "max_deg=30" });
-    try std.testing.expectEqualStrings("course", t.name());
-    try std.testing.expectEqual(@as(f64, 30), t.args[0].number);
-    try std.testing.expectEqual(@as(f64, 2), t.args[1].number);
-    try std.testing.expectError(error.UnknownTest, r.parse(a, &.{"noop"}));
-    try std.testing.expectError(error.RepeatedParam, r.parse(a, &.{ "distance", "max_m=1", "max_m=2" }));
-    try std.testing.expectError(error.MissingParam, r.parse(a, &.{"distance"}));
-    try std.testing.expectError(error.UnknownParam, r.parse(a, &.{ "distance", "max=1" }));
-    try std.testing.expectError(error.ParamWithoutValue, r.parse(a, &.{ "distance", "max_m" }));
-    try std.testing.expectError(error.BadValue, r.parse(a, &.{ "same", "key=" }));
-    try std.testing.expectError(error.WrongArgumentCount, r.parse(a, &.{}));
-    const s = try r.parse(a, &.{ "same", "key=@env" });
-    try std.testing.expectEqualStrings("@env", s.args[0].text);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "the registry parses parameters by name, once each, and refuses unknown kinds" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const r = default_registry;
+        const t = try r.parse(a, &.{ "course", "min_speed_ms=2", "max_deg=30" });
+        try std.testing.expectEqualStrings("course", t.name());
+        try std.testing.expectEqual(@as(f64, 30), t.args[0].number);
+        try std.testing.expectEqual(@as(f64, 2), t.args[1].number);
+        try std.testing.expectError(error.UnknownTest, r.parse(a, &.{"noop"}));
+        try std.testing.expectError(error.RepeatedParam, r.parse(a, &.{ "distance", "max_m=1", "max_m=2" }));
+        try std.testing.expectError(error.MissingParam, r.parse(a, &.{"distance"}));
+        try std.testing.expectError(error.UnknownParam, r.parse(a, &.{ "distance", "max=1" }));
+        try std.testing.expectError(error.ParamWithoutValue, r.parse(a, &.{ "distance", "max_m" }));
+        try std.testing.expectError(error.BadValue, r.parse(a, &.{ "same", "key=" }));
+        try std.testing.expectError(error.WrongArgumentCount, r.parse(a, &.{}));
+        const s = try r.parse(a, &.{ "same", "key=@env" });
+        try std.testing.expectEqualStrings("@env", s.args[0].text);
+    }
+};

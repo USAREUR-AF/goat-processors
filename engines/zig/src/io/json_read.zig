@@ -24,22 +24,26 @@ pub fn readPackDef(a: Allocator, dir: []const u8) ![]u8 {
     return readFile(a, path);
 }
 
-test "reads a file larger than 16 MiB" {
-    var tmp = std.testing.tmpDir(.{});
-    defer tmp.cleanup();
-    const n: usize = (1 << 24) + 10;
-    {
-        const f = try tmp.dir.createFile("big.json", .{});
-        defer f.close();
-        var bw = std.io.bufferedWriter(f.writer());
-        try bw.writer().writeByte('"');
-        try bw.writer().writeByteNTimes('x', n - 2);
-        try bw.writer().writeByte('"');
-        try bw.flush();
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "reads a file larger than 16 MiB" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const n: usize = (1 << 24) + 10;
+        {
+            const f = try tmp.dir.createFile("big.json", .{});
+            defer f.close();
+            var bw = std.io.bufferedWriter(f.writer());
+            try bw.writer().writeByte('"');
+            try bw.writer().writeByteNTimes('x', n - 2);
+            try bw.writer().writeByte('"');
+            try bw.flush();
+        }
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const path = try tmp.dir.realpathAlloc(arena.allocator(), "big.json");
+        const v = try readJson(arena.allocator(), path);
+        try std.testing.expectEqual(n - 2, v.string.len);
     }
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const path = try tmp.dir.realpathAlloc(arena.allocator(), "big.json");
-    const v = try readJson(arena.allocator(), path);
-    try std.testing.expectEqual(n - 2, v.string.len);
-}
+};

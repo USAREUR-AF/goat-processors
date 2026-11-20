@@ -188,36 +188,40 @@ fn rangeCondition(a: Allocator, value: ?json.Value, rg: fpack.Range) !Outcome {
     return .{ .result = truth(inRange(x, rg)), .value = v, .limit = limit };
 }
 
-test "conditions: present, unknown, lists, ranges and the reference" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    const map = (try json.parseFromSliceLeaky(json.Value, a, "{\"type\":\"a-h-G\",\"speed_ms\":\"fast\",\"hae\":12,\"x\":true}", .{})).object;
-    const r = Report{ .map = map, .key = "s/u", .source = "s", .uid = "u", .time_ms = 1000, .lat = 0, .lon = 0 };
-    var ents = std.StringArrayHashMap(State).init(a);
-    try std.testing.expectEqualStrings("G", environment("a-h-G").?);
-    try std.testing.expectEqualStrings("h", affiliation("a-h-G").?);
-    try std.testing.expect(affiliation("f-h-G") == null);
-    try std.testing.expect(present(map, "speed_ms") == null);
-    try std.testing.expect(keyEquals(.{ .bool = true }, .{ .text = "true", .number = null }));
-    try std.testing.expect(keyEquals(.{ .integer = 2 }, .{ .text = "2.0", .number = 2 }));
-    const env = try evaluate(a, &ents, .{ .env = .{ .in = &.{"G"} } }, r);
-    try std.testing.expectEqual(Truth.yes, env.result);
-    const sp = try evaluate(a, &ents, .{ .speed = .{ .min = 1, .max = null } }, r);
-    try std.testing.expectEqual(Truth.unknown, sp.result);
-    const alt = try evaluate(a, &ents, .{ .altitude = .{ .min = null, .max = 10 } }, r);
-    try std.testing.expectEqual(Truth.no, alt.result);
-    const near = try evaluate(a, &ents, .{ .near = .{ .reference = "t/v", .radius_m = 1, .max_age_ms = 10 } }, r);
-    try std.testing.expectEqual(Truth.unknown, near.result);
-    try ents.put("t/v", .{ .time_ms = 995, .lat = 0, .lon = 0, .course = null, .speed_ms = null, .stale_ms = null, .kept_ms = 900 });
-    const near2 = try evaluate(a, &ents, .{ .near = .{ .reference = "t/v", .radius_m = 1, .max_age_ms = 10 } }, r);
-    try std.testing.expectEqual(Truth.yes, near2.result);
-    const ord = try evaluate(a, &ents, .order, r);
-    try std.testing.expectEqual(Truth.no, ord.result);
-    const iv = try evaluate(a, &ents, .{ .interval = .{ .min_ms = 10 } }, r);
-    try std.testing.expectEqual(Truth.no, iv.result);
-    const has = try evaluate(a, &ents, .{ .has = .{ .name = "hae" } }, r);
-    try std.testing.expectEqual(Truth.yes, has.result);
-    try std.testing.expectEqual(@as(i64, 5), intValue(5).integer);
-    try std.testing.expect(intValue(@as(i128, std.math.maxInt(i64)) + 1) == .float);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "conditions: present, unknown, lists, ranges and the reference" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const map = (try json.parseFromSliceLeaky(json.Value, a, "{\"type\":\"a-h-G\",\"speed_ms\":\"fast\",\"hae\":12,\"x\":true}", .{})).object;
+        const r = Report{ .map = map, .key = "s/u", .source = "s", .uid = "u", .time_ms = 1000, .lat = 0, .lon = 0 };
+        var ents = std.StringArrayHashMap(State).init(a);
+        try std.testing.expectEqualStrings("G", environment("a-h-G").?);
+        try std.testing.expectEqualStrings("h", affiliation("a-h-G").?);
+        try std.testing.expect(affiliation("f-h-G") == null);
+        try std.testing.expect(present(map, "speed_ms") == null);
+        try std.testing.expect(keyEquals(.{ .bool = true }, .{ .text = "true", .number = null }));
+        try std.testing.expect(keyEquals(.{ .integer = 2 }, .{ .text = "2.0", .number = 2 }));
+        const env = try evaluate(a, &ents, .{ .env = .{ .in = &.{"G"} } }, r);
+        try std.testing.expectEqual(Truth.yes, env.result);
+        const sp = try evaluate(a, &ents, .{ .speed = .{ .min = 1, .max = null } }, r);
+        try std.testing.expectEqual(Truth.unknown, sp.result);
+        const alt = try evaluate(a, &ents, .{ .altitude = .{ .min = null, .max = 10 } }, r);
+        try std.testing.expectEqual(Truth.no, alt.result);
+        const near = try evaluate(a, &ents, .{ .near = .{ .reference = "t/v", .radius_m = 1, .max_age_ms = 10 } }, r);
+        try std.testing.expectEqual(Truth.unknown, near.result);
+        try ents.put("t/v", .{ .time_ms = 995, .lat = 0, .lon = 0, .course = null, .speed_ms = null, .stale_ms = null, .kept_ms = 900 });
+        const near2 = try evaluate(a, &ents, .{ .near = .{ .reference = "t/v", .radius_m = 1, .max_age_ms = 10 } }, r);
+        try std.testing.expectEqual(Truth.yes, near2.result);
+        const ord = try evaluate(a, &ents, .order, r);
+        try std.testing.expectEqual(Truth.no, ord.result);
+        const iv = try evaluate(a, &ents, .{ .interval = .{ .min_ms = 10 } }, r);
+        try std.testing.expectEqual(Truth.no, iv.result);
+        const has = try evaluate(a, &ents, .{ .has = .{ .name = "hae" } }, r);
+        try std.testing.expectEqual(Truth.yes, has.result);
+        try std.testing.expectEqual(@as(i64, 5), intValue(5).integer);
+        try std.testing.expect(intValue(@as(i128, std.math.maxInt(i64)) + 1) == .float);
+    }
+};

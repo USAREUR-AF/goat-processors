@@ -5,7 +5,7 @@
 # binaries and the runner run under gdb, and a line is covered when its
 # breakpoint was hit in any of them. Lines are those of src/ less the test
 # code: the test roots, *_test.zig, engine_test_util.zig and every `test`
-# block. Needs gdb and objdump (binutils).
+# block (each file's `unit_tests` struct). Needs gdb and objdump (binutils).
 #
 # coverage/run.sh            measure, print per file and total
 # coverage/run.sh --check    also exit 1 when the total is below coverage/floor
@@ -19,9 +19,11 @@ trap 'rm -rf "$work"' EXIT
 zig build coverage-bins -Doptimize=Debug
 bins=zig-out/coverage
 
-# The test lines to leave out: `test` blocks, file by file.
+# The test lines to leave out, file by file: `test` blocks and each file's
+# `unit_tests` struct.
 for f in $(cd src && find . -name '*.zig' | sed 's|^\./||'); do
-    awk -v f="$f" '/^test[ {]/ { t = 1 } t { print f, FNR } t && /^}/ { t = 0 }' "src/$f"
+    awk -v f="$f" '/^test[ {]/ { t = 1 } /^pub const unit_tests = struct/ { u = 1 }
+        t || u { print f, FNR } t && /^}/ { t = 0 } u && /^};/ { u = 0 }' "src/$f"
 done > "$work/test-lines"
 
 excluded() {

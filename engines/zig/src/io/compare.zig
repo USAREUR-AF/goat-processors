@@ -55,13 +55,17 @@ pub fn firstMismatch(alloc: Allocator, path: []const u8, got: json.Value, want: 
     }
 }
 
-test "numbers compare within tolerance, null differs from absent" {
-    const a = std.testing.allocator;
-    var arena = std.heap.ArenaAllocator.init(a);
-    defer arena.deinit();
-    const p = try json.parseFromSliceLeaky(json.Value, arena.allocator(), "{\"x\":1,\"y\":null}", .{});
-    const q = try json.parseFromSliceLeaky(json.Value, arena.allocator(), "{\"x\":1.0000000001,\"y\":null}", .{});
-    const r = try json.parseFromSliceLeaky(json.Value, arena.allocator(), "{\"x\":1}", .{});
-    try std.testing.expect((try firstMismatch(arena.allocator(), "$", p, q)) == null);
-    try std.testing.expect((try firstMismatch(arena.allocator(), "$", r, p)) != null);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "numbers compare within tolerance, null differs from absent" {
+        const a = std.testing.allocator;
+        var arena = std.heap.ArenaAllocator.init(a);
+        defer arena.deinit();
+        const p = try json.parseFromSliceLeaky(json.Value, arena.allocator(), "{\"x\":1,\"y\":null}", .{});
+        const q = try json.parseFromSliceLeaky(json.Value, arena.allocator(), "{\"x\":1.0000000001,\"y\":null}", .{});
+        const r = try json.parseFromSliceLeaky(json.Value, arena.allocator(), "{\"x\":1}", .{});
+        try std.testing.expect((try firstMismatch(arena.allocator(), "$", p, q)) == null);
+        try std.testing.expect((try firstMismatch(arena.allocator(), "$", r, p)) != null);
+    }
+};

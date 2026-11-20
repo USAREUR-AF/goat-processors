@@ -94,38 +94,42 @@ pub fn floatList(a: Allocator, items: []const f64) Allocator.Error!json.Value {
     return .{ .array = arr };
 }
 
-test "objects built by append look up like objects built by put, above and below eight fields" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    var small = (try object(a, .{ .{ "a", 1 }, .{ "b", 2 } })).object;
-    try std.testing.expectEqual(@as(i64, 2), small.get("b").?.integer);
-    try small.put("c", .{ .integer = 3 });
-    try small.put("a", .{ .integer = 9 });
-    try std.testing.expectEqual(@as(i64, 9), small.get("a").?.integer);
-    try std.testing.expectEqualStrings("a", small.keys()[0]);
-    var big = (try object(a, .{ .{ "k1", 1 }, .{ "k2", 2 }, .{ "k3", 3 }, .{ "k4", 4 }, .{ "k5", 5 }, .{ "k6", 6 }, .{ "k7", 7 }, .{ "k8", 8 }, .{ "k9", 9 }, .{ "k10", 10 } })).object;
-    for (big.keys(), 0..) |k, i| try std.testing.expectEqual(@as(i64, @intCast(i + 1)), big.get(k).?.integer);
-    try big.put("k11", .{ .integer = 11 });
-    try std.testing.expectEqual(@as(i64, 11), big.get("k11").?.integer);
-    try std.testing.expect(big.get("k12") == null);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "objects built by append look up like objects built by put, above and below eight fields" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        var small = (try object(a, .{ .{ "a", 1 }, .{ "b", 2 } })).object;
+        try std.testing.expectEqual(@as(i64, 2), small.get("b").?.integer);
+        try small.put("c", .{ .integer = 3 });
+        try small.put("a", .{ .integer = 9 });
+        try std.testing.expectEqual(@as(i64, 9), small.get("a").?.integer);
+        try std.testing.expectEqualStrings("a", small.keys()[0]);
+        var big = (try object(a, .{ .{ "k1", 1 }, .{ "k2", 2 }, .{ "k3", 3 }, .{ "k4", 4 }, .{ "k5", 5 }, .{ "k6", 6 }, .{ "k7", 7 }, .{ "k8", 8 }, .{ "k9", 9 }, .{ "k10", 10 } })).object;
+        for (big.keys(), 0..) |k, i| try std.testing.expectEqual(@as(i64, @intCast(i + 1)), big.get(k).?.integer);
+        try big.put("k11", .{ .integer = 11 });
+        try std.testing.expectEqual(@as(i64, 11), big.get("k11").?.integer);
+        try std.testing.expect(big.get("k12") == null);
+    }
 
-test "object keeps field order and converts values" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    const none: ?f64 = null;
-    const v = try object(a, .{ .{ "b", 1 }, .{ "a", 2.5 }, .{ "c", "x" }, .{ "d", none }, .{ "e", true }, .{ "f", @as(usize, 3) } });
-    const keys = v.object.keys();
-    try std.testing.expectEqualStrings("b", keys[0]);
-    try std.testing.expectEqualStrings("a", keys[1]);
-    try std.testing.expectEqual(@as(i64, 1), v.object.get("b").?.integer);
-    try std.testing.expectEqual(@as(f64, 2.5), v.object.get("a").?.float);
-    try std.testing.expectEqualStrings("x", v.object.get("c").?.string);
-    try std.testing.expect(v.object.get("d").? == .null);
-    try std.testing.expect(v.object.get("e").?.bool);
-    try std.testing.expectEqual(@as(i64, 3), v.object.get("f").?.integer);
-    const l = try list(a, .{ 1.0, "y" });
-    try std.testing.expectEqual(@as(usize, 2), l.array.items.len);
-}
+    test "object keeps field order and converts values" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const none: ?f64 = null;
+        const v = try object(a, .{ .{ "b", 1 }, .{ "a", 2.5 }, .{ "c", "x" }, .{ "d", none }, .{ "e", true }, .{ "f", @as(usize, 3) } });
+        const keys = v.object.keys();
+        try std.testing.expectEqualStrings("b", keys[0]);
+        try std.testing.expectEqualStrings("a", keys[1]);
+        try std.testing.expectEqual(@as(i64, 1), v.object.get("b").?.integer);
+        try std.testing.expectEqual(@as(f64, 2.5), v.object.get("a").?.float);
+        try std.testing.expectEqualStrings("x", v.object.get("c").?.string);
+        try std.testing.expect(v.object.get("d").? == .null);
+        try std.testing.expect(v.object.get("e").?.bool);
+        try std.testing.expectEqual(@as(i64, 3), v.object.get("f").?.integer);
+        const l = try list(a, .{ 1.0, "y" });
+        try std.testing.expectEqual(@as(usize, 2), l.array.items.len);
+    }
+};

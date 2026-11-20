@@ -112,9 +112,13 @@ fn majorityEqual(x: json.Value, y: json.Value) bool {
     return false;
 }
 
-test "majority equality: numbers by value, kinds never mixed" {
-    try std.testing.expect(majorityEqual(.{ .integer = 1 }, .{ .float = 1.0 }));
-    try std.testing.expect(!majorityEqual(.{ .integer = 1 }, .{ .string = "1" }));
-    try std.testing.expect(majorityEqual(.{ .bool = true }, .{ .bool = true }));
-    try std.testing.expectEqual(@as(f64, 2.5), numberValue(.{ .number_string = "2.5" }));
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "majority equality: numbers by value, kinds never mixed" {
+        try std.testing.expect(majorityEqual(.{ .integer = 1 }, .{ .float = 1.0 }));
+        try std.testing.expect(!majorityEqual(.{ .integer = 1 }, .{ .string = "1" }));
+        try std.testing.expect(majorityEqual(.{ .bool = true }, .{ .bool = true }));
+        try std.testing.expectEqual(@as(f64, 2.5), numberValue(.{ .number_string = "2.5" }));
+    }
+};

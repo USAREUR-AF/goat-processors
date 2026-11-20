@@ -199,35 +199,39 @@ fn updateWithTime(
     return .{ .d2 = d2, .accepted = true, .after = after };
 }
 
-test "an accepted update moves the offset toward the observation; a rejected one keeps it" {
-    const b = pack_mod.Bias{ .sigma_m = 100, .floor_m = 5, .gate = 9 };
-    const ax = kalman.Axis{ .p = 0, .v = 0, .pp = 25, .pv = 0, .vv = 1 };
-    var bx = ax;
-    bx.p = 30;
-    const o = update(Pair.initial(b), b, null, .{ .east = ax, .north = ax }, .{ .east = bx, .north = ax });
-    try std.testing.expect(o.accepted);
-    try std.testing.expect(o.after.east > 0 and o.after.east <= 30);
-    try std.testing.expectEqual(@as(i64, 1), o.after.pairs);
-    bx.p = 100000;
-    const r = update(o.after, b, null, .{ .east = ax, .north = ax }, .{ .east = bx, .north = ax });
-    try std.testing.expect(!r.accepted);
-    try std.testing.expectEqual(o.after.east, r.after.east);
-    const t = update(Pair.initial(b), b, .{ .sigma_ms = 100 }, .{ .east = ax, .north = ax }, .{ .east = ax, .north = ax });
-    try std.testing.expect(t.accepted);
-}
+// The unit tests of this file, run by src/unit_test.zig only: not compiled
+// into the vector test binaries the perf harness times.
+pub const unit_tests = struct {
+    test "an accepted update moves the offset toward the observation; a rejected one keeps it" {
+        const b = pack_mod.Bias{ .sigma_m = 100, .floor_m = 5, .gate = 9 };
+        const ax = kalman.Axis{ .p = 0, .v = 0, .pp = 25, .pv = 0, .vv = 1 };
+        var bx = ax;
+        bx.p = 30;
+        const o = update(Pair.initial(b), b, null, .{ .east = ax, .north = ax }, .{ .east = bx, .north = ax });
+        try std.testing.expect(o.accepted);
+        try std.testing.expect(o.after.east > 0 and o.after.east <= 30);
+        try std.testing.expectEqual(@as(i64, 1), o.after.pairs);
+        bx.p = 100000;
+        const r = update(o.after, b, null, .{ .east = ax, .north = ax }, .{ .east = bx, .north = ax });
+        try std.testing.expect(!r.accepted);
+        try std.testing.expectEqual(o.after.east, r.after.east);
+        const t = update(Pair.initial(b), b, .{ .sigma_ms = 100 }, .{ .east = ax, .north = ax }, .{ .east = ax, .north = ax });
+        try std.testing.expect(t.accepted);
+    }
 
-test "moving into A's frame adds or subtracts the offset by source order" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = arena.allocator();
-    const b = pack_mod.Bias{ .sigma_m = 10, .floor_m = 1, .gate = 9 };
-    var st = State.init(a);
-    var p = Pair.initial(b);
-    p.east = 5;
-    try st.store(a, "S|T", p);
-    const ax = kalman.Axis{ .p = 0, .v = 0, .pp = 1, .pv = 0, .vv = 1 };
-    const f = kalman.Filter{ .east = ax, .north = ax };
-    try std.testing.expectEqual(@as(f64, 5), (try moveInto(a, &st, b, null, "T", "S", f)).east.p);
-    try std.testing.expectEqual(@as(f64, -5), (try moveInto(a, &st, b, null, "S", "T", f)).east.p);
-    try std.testing.expectEqual(@as(f64, 0), (try moveInto(a, &st, b, null, "S", "S", f)).east.p);
-}
+    test "moving into A's frame adds or subtracts the offset by source order" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const b = pack_mod.Bias{ .sigma_m = 10, .floor_m = 1, .gate = 9 };
+        var st = State.init(a);
+        var p = Pair.initial(b);
+        p.east = 5;
+        try st.store(a, "S|T", p);
+        const ax = kalman.Axis{ .p = 0, .v = 0, .pp = 1, .pv = 0, .vv = 1 };
+        const f = kalman.Filter{ .east = ax, .north = ax };
+        try std.testing.expectEqual(@as(f64, 5), (try moveInto(a, &st, b, null, "T", "S", f)).east.p);
+        try std.testing.expectEqual(@as(f64, -5), (try moveInto(a, &st, b, null, "S", "T", f)).east.p);
+        try std.testing.expectEqual(@as(f64, 0), (try moveInto(a, &st, b, null, "S", "S", f)).east.p);
+    }
+};
