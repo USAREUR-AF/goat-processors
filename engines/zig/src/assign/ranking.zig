@@ -25,9 +25,10 @@ pub const Entries = struct {
 // `choice[i]` is row i's column index, `cols.len` for `alone`: the choice vector.
 pub const Assignment = struct { choice: []const usize, total: f64 };
 
-// The total: the chosen entries in ascending order of value, added left to right from 0.
-fn totalOf(alloc: Allocator, e: Entries, choice: []const usize) !f64 {
-    const vals = try alloc.alloc(f64, choice.len);
+// The total: the chosen entries in ascending order of value, added left to
+// right from 0. `vals` is scratch space of `choice.len` values. (The
+// enumeration keeps its values sorted as it goes and adds them the same way.)
+fn totalOf(vals: []f64, e: Entries, choice: []const usize) f64 {
     for (choice, 0..) |j, i| vals[i] = e.at(i, j).?;
     std.mem.sort(f64, vals, {}, std.sort.asc(f64));
     var t: f64 = 0;
@@ -42,12 +43,88 @@ fn ranksBefore(_: void, x: Assignment, y: Assignment) bool {
     return false;
 }
 
+// The best `k` assignments seen so far, in ranking order. Two different
+// assignments have different choice vectors, so ranksBefore is a strict total
+// order (with no NaN total) and keeping the best k while enumerating gives
+// exactly the first k of the full sorted list. A NaN total breaks that order,
+// so it is flagged and the full sort is used instead.
+const Best = struct {
+    k: usize,
+    top: std.ArrayList(Assignment),
+    nan: bool = false,
+
+    // `sorted` holds the chosen entries in ascending order, equal values in
+    // row order: the order totalOf's stable sort gives them.
+    fn offer(self: *Best, choice: []const usize, sorted: []const f64) !void {
+        var total: f64 = 0;
+        for (sorted) |v| total += v;
+        if (std.math.isNan(total)) self.nan = true;
+        const cand = Assignment{ .choice = choice, .total = total };
+        const items = self.top.items;
+        if (items.len == self.k and !ranksBefore({}, cand, items[items.len - 1])) return;
+        var at: usize = items.len;
+        while (at > 0 and ranksBefore({}, cand, items[at - 1])) at -= 1;
+        // The new entry's choice vector: the dropped last one's buffer, or a new one.
+        var buf: []usize = undefined;
+        if (items.len == self.k) {
+            buf = @constCast(self.top.pop().choice);
+        } else buf = try self.top.allocator.alloc(usize, choice.len);
+        @memcpy(buf, choice);
+        try self.top.insert(at, .{ .choice = buf, .total = total });
+    }
+};
+
 // Every assignment: each row one column or `alone`, each column at most once,
 // no forbidden entry. Brute force, rows in key order.
-fn enumerate(alloc: Allocator, e: Entries, row: usize, choice: []usize, used: []bool, out: *std.ArrayList(Assignment)) !void {
+// `sorted[0..row]` holds the entries chosen for the rows before `row`, sorted.
+fn enumerate(e: Entries, row: usize, choice: []usize, used: []bool, sorted: []f64, best: *Best) !void {
+    if (row == e.rows.len) return best.offer(choice, sorted);
+    for (0..e.cols.len + 1) |j| {
+        const v = e.at(row, j) orelse continue;
+        const is_col = j < e.cols.len;
+        if (is_col and used[j]) continue;
+        if (is_col) used[j] = true;
+        choice[row] = j;
+        // After every value it is not below: a stable insertion.
+        var at: usize = row;
+        while (at > 0 and v < sorted[at - 1]) at -= 1;
+        std.mem.copyBackwards(f64, sorted[at + 1 .. row + 1], sorted[at..row]);
+        sorted[at] = v;
+        try enumerate(e, row + 1, choice, used, sorted, best);
+        std.mem.copyForwards(f64, sorted[at..row], sorted[at + 1 .. row + 1]);
+        if (is_col) used[j] = false;
+    }
+}
+
+// Step 3: the first `k` assignments in Ranking order.
+pub fn ranked(alloc: Allocator, e: Entries, k: usize) ![]const Assignment {
+    if (k == 0) return &.{};
+    const choice = try alloc.alloc(usize, e.rows.len);
+    const used = try alloc.alloc(bool, e.cols.len);
+    @memset(used, false);
+    var best = Best{ .k = k, .top = std.ArrayList(Assignment).init(alloc) };
+    try enumerate(e, 0, choice, used, try alloc.alloc(f64, e.rows.len), &best);
+    if (best.nan) return rankedBySort(alloc, e, k);
+    return best.top.items;
+}
+
+// Every assignment sorted, then the first `k`: the definition, for the case
+// of a NaN total.
+fn rankedBySort(alloc: Allocator, e: Entries, k: usize) ![]const Assignment {
+    var all = std.ArrayList(Assignment).init(alloc);
+    const choice = try alloc.alloc(usize, e.rows.len);
+    const used = try alloc.alloc(bool, e.cols.len);
+    @memset(used, false);
+    try enumerateAll(alloc, e, 0, choice, used, &all);
+    std.mem.sort(Assignment, all.items, {}, ranksBefore);
+    return all.items[0..@min(k, all.items.len)];
+}
+
+fn enumerateAll(alloc: Allocator, e: Entries, row: usize, choice: []usize, used: []bool, out: *std.ArrayList(Assignment)) !void {
     if (row == e.rows.len) {
         const c = try alloc.dupe(usize, choice);
-        try out.append(.{ .choice = c, .total = try totalOf(alloc, e, c) });
+        const vals = try alloc.alloc(f64, c.len);
+        try out.append(.{ .choice = c, .total = totalOf(vals, e, c) });
         return;
     }
     for (0..e.cols.len + 1) |j| {
@@ -56,20 +133,9 @@ fn enumerate(alloc: Allocator, e: Entries, row: usize, choice: []usize, used: []
         if (is_col and used[j]) continue;
         if (is_col) used[j] = true;
         choice[row] = j;
-        try enumerate(alloc, e, row + 1, choice, used, out);
+        try enumerateAll(alloc, e, row + 1, choice, used, out);
         if (is_col) used[j] = false;
     }
-}
-
-// Step 3: the first `k` assignments in Ranking order.
-pub fn ranked(alloc: Allocator, e: Entries, k: usize) ![]const Assignment {
-    var all = std.ArrayList(Assignment).init(alloc);
-    const choice = try alloc.alloc(usize, e.rows.len);
-    const used = try alloc.alloc(bool, e.cols.len);
-    @memset(used, false);
-    try enumerate(alloc, e, 0, choice, used, &all);
-    std.mem.sort(Assignment, all.items, {}, ranksBefore);
-    return all.items[0..@min(k, all.items.len)];
 }
 
 test "ranking: totals ascending, ties to the smaller choice vector, columns used once" {
@@ -89,4 +155,35 @@ test "ranking: totals ascending, ties to the smaller choice vector, columns used
     try std.testing.expectEqual(@as(f64, 7), r[1].total);
     const one = try ranked(a, e, 1);
     try std.testing.expectEqual(@as(usize, 1), one.len);
+}
+
+test "the best k while enumerating equals the first k of the full sort" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var prng = std.Random.DefaultPrng.init(7);
+    const r = prng.random();
+    for (0..200) |_| {
+        const nrows = 1 + r.uintLessThan(usize, 4);
+        const ncols = r.uintLessThan(usize, 4);
+        const cols = try a.alloc(Column, ncols);
+        for (cols, 0..) |*c, i| c.* = .{ .id = i + 1, .others = &.{} };
+        const values = try a.alloc(?f64, nrows * (ncols + 1));
+        for (values, 0..) |*v, i| {
+            const alone = i % (ncols + 1) == ncols;
+            // Few distinct values, so equal totals are common; some entries forbidden.
+            v.* = if (!alone and r.uintLessThan(u8, 4) == 0) null else @as(f64, @floatFromInt(r.uintLessThan(u8, 5))) - 1.0;
+        }
+        const rows = try a.alloc([]const u8, nrows);
+        for (rows) |*x| x.* = "r";
+        const e = Entries{ .cols = cols, .rows = rows, .values = values };
+        const k = 1 + r.uintLessThan(usize, 6);
+        const fast = try ranked(a, e, k);
+        const slow = try rankedBySort(a, e, k);
+        try std.testing.expectEqual(slow.len, fast.len);
+        for (fast, slow) |x, y| {
+            try std.testing.expectEqual(y.total, x.total);
+            try std.testing.expectEqualSlices(usize, y.choice, x.choice);
+        }
+    }
 }
