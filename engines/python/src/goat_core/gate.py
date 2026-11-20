@@ -19,6 +19,31 @@ TESTS = {
 }
 
 
+def mahalanobis(pe, pn, pred, r):
+    """Tests, d2: (p - pb)^2 / (pp_b + r) summed over east and north, for
+    the position (pe, pn), the prediction pred = (east, north) and the
+    measurement variances r = (r_east, r_north)."""
+    be, bn = pred
+    return (pe - be[0]) ** 2 / (be[2] + r[0]) + (pn - bn[0]) ** 2 / (bn[2] + r[1])
+
+
+def plane_distance(pe, pn, pred):
+    """Tests, distance: in the plane, from (pe, pn) to the predicted position."""
+    return math.hypot(pe - pred[0][0], pn - pred[1][0])
+
+
+def course_difference(ca, cb):
+    """Tests, course: the smaller angle between two courses, deg."""
+    d = abs(ca - cb)
+    return min(d, 360.0 - d)
+
+
+def speed_difference_pct(sa, sb):
+    """Tests, speed: abs(1 - slow/fast) * 100, 0 when the faster speed is 0."""
+    slow, fast = sorted((sa, sb))
+    return 0.0 if fast == 0 else abs(1.0 - slow / fast) * 100.0
+
+
 def run_test(eng, stage, name, prm, a, b, trace):
     rec = {"stage": stage, "a": a.key, "b": b.key, "test": name}
     ra, rb = a.report, b.report
@@ -44,12 +69,9 @@ def run_test(eng, stage, name, prm, a, b, trace):
             trace.append(rec)
             return True
         if name == "course":
-            d = abs(float(ca) - float(cb))
-            value, limit = min(d, 360.0 - d), prm["max_deg"]
+            value, limit = course_difference(float(ca), float(cb)), prm["max_deg"]
         else:
-            slow, fast = sorted((float(sa), float(sb)))
-            value = 0.0 if fast == 0 else abs(1.0 - slow / fast) * 100.0
-            limit = prm["max_pct"]
+            value, limit = speed_difference_pct(float(sa), float(sb)), prm["max_pct"]
         ok = value <= limit
     elif name == "altitude":
         ha, hb = ra.get("hae"), rb.get("hae")

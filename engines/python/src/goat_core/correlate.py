@@ -4,12 +4,10 @@ Track estimate, Two-model filter, Restart), and the choice of method.
 `Correlator` holds the entities and their filters; `ConfirmEngine`
 (confirm.py) and `AssignEngine` (assign.py) add the method."""
 
-import math
-
 from . import estimate
 from .correlate_pack import Pack, PackError, load_pack, parse_pack  # noqa: F401  (re-exported)
 from .estimate import MODELS
-from .gate import run_stage
+from .gate import mahalanobis, plane_distance, run_stage
 from .model import missing_key, normalize, to_deg, to_plane, velocity
 
 
@@ -69,14 +67,10 @@ class Correlator:
         return estimate.with_variance(self._predict(b, t), b.t_var)
 
     def _d2(self, a, b):
-        be, bn = self._predict_in(b, a.last_time_ms, a)
-        re_, rn_ = a.r_meas
-        return ((a.east[0] - be[0]) ** 2 / (be[2] + re_)
-                + (a.north[0] - bn[0]) ** 2 / (bn[2] + rn_))
+        return mahalanobis(a.east[0], a.north[0], self._predict_in(b, a.last_time_ms, a), a.r_meas)
 
     def _dist(self, a, b):
-        be, bn = self._predict_in(b, a.last_time_ms, a)
-        return math.hypot(a.east[0] - be[0], a.north[0] - bn[0])
+        return plane_distance(a.east[0], a.north[0], self._predict_in(b, a.last_time_ms, a))
 
     def _run_stage(self, stage, a, b, trace):
         return run_stage(self, stage, getattr(self.pack, stage), a, b, trace)
@@ -138,8 +132,7 @@ class Correlator:
                           "var_east": ae, "var_north": an})
         fresh = ent is None
         if ent is not None and self.pack.restart is not None:
-            pe, pn = pred
-            d2 = (e - pe[0]) ** 2 / (pe[2] + re_) + (n - pn[0]) ** 2 / (pn[2] + rn_)
+            d2 = mahalanobis(e, n, pred, (re_, rn_))
             ok = d2 < self.pack.restart
             trace.append({"stage": "filter", "a": key, "b": None, "test": "restart",
                           "value": d2, "limit": self.pack.restart, "pass": ok})

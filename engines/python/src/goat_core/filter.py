@@ -316,70 +316,73 @@ def _in_range(v, p):
     return (lo is None or lo <= v) and (hi is None or v <= hi)
 
 
+def evaluate(cond, report, state, entities):
+    """Conditions: one condition on a report, with the entity's state (or
+    None) and every entity's state for `near`. Returns (value, limit,
+    result), result True, False or None (unknown)."""
+    p, name = cond.p, cond.name
+    lat, lon, t = float(report["lat"]), float(report["lon"]), report["time_ms"]
+    if name == "circle":
+        value = distance(lat, lon, p["lat"], p["lon"])
+        return value, p["radius_m"], value <= p["radius_m"]
+    if name == "polygon":
+        value = polygon(p["vertices"], lat, lon)
+        return value, None, value != "outside"
+    if name == "near":
+        ref = entities.get(p["reference"])
+        if (ref is None or abs(t - ref["time_ms"]) > p["max_age_ms"]
+                or (ref["stale_ms"] is not None and t >= ref["stale_ms"])):
+            return None, p["radius_m"], None
+        rlat, rlon = predict(ref, t)
+        value = distance(lat, lon, rlat, rlon)
+        return value, p["radius_m"], value <= p["radius_m"]
+    if name in ("env", "affiliation", "source", "uid"):
+        value = {"env": environment, "affiliation": affiliation,
+                 "source": lambda r: r["track.source_id"], "uid": lambda r: r["uid"]}[name](report)
+        if value is None:
+            return None, list(p["in"]), None
+        return value, list(p["in"]), value in p["in"]
+    if name == "key":
+        value = report.get(p["name"])
+        if "eq" in p:
+            limit = p["eq"]
+        elif "in" in p:
+            limit = list(p["in"])
+        else:
+            limit = [p.get("min"), p.get("max")]
+        if value is None:
+            return None, limit, None
+        if "eq" in p:
+            return value, limit, key_equal(value, p["eq"])
+        if "in" in p:
+            return value, limit, any(key_equal(value, x) for x in p["in"])
+        if not _is_number(value):
+            return value, limit, None
+        return value, limit, _in_range(value, p)
+    if name == "has":
+        value = report.get(p["name"]) is not None
+        return value, None, value
+    if name in ("speed", "altitude"):
+        value = report.get("speed_ms" if name == "speed" else "hae")
+        limit = [p.get("min"), p.get("max")]
+        if value is None:
+            return None, limit, None
+        return value, limit, _in_range(value, p)
+    kept = state["kept_ms"] if state else None
+    if name == "interval":
+        value = None if kept is None else t - kept
+        return value, p["min_ms"], value is not None and value < p["min_ms"]
+    if name == "order":
+        return t, kept, kept is not None and t < kept
+    raise AssertionError(name)
+
+
 # --- engine ---------------------------------------------------------------
 
 class Engine:
     def __init__(self, pack):
         self.pack = pack
         self.entities = {}
-
-    def _evaluate(self, cond, report, key, state):
-        """One condition: returns (value, limit, result) with result True, False or None (unknown)."""
-        p, name = cond.p, cond.name
-        lat, lon, t = float(report["lat"]), float(report["lon"]), report["time_ms"]
-        if name == "circle":
-            value = distance(lat, lon, p["lat"], p["lon"])
-            return value, p["radius_m"], value <= p["radius_m"]
-        if name == "polygon":
-            value = polygon(p["vertices"], lat, lon)
-            return value, None, value != "outside"
-        if name == "near":
-            ref = self.entities.get(p["reference"])
-            if (ref is None or abs(t - ref["time_ms"]) > p["max_age_ms"]
-                    or (ref["stale_ms"] is not None and t >= ref["stale_ms"])):
-                return None, p["radius_m"], None
-            rlat, rlon = predict(ref, t)
-            value = distance(lat, lon, rlat, rlon)
-            return value, p["radius_m"], value <= p["radius_m"]
-        if name in ("env", "affiliation", "source", "uid"):
-            value = {"env": environment, "affiliation": affiliation,
-                     "source": lambda r: r["track.source_id"], "uid": lambda r: r["uid"]}[name](report)
-            if value is None:
-                return None, list(p["in"]), None
-            return value, list(p["in"]), value in p["in"]
-        if name == "key":
-            value = report.get(p["name"])
-            if "eq" in p:
-                limit = p["eq"]
-            elif "in" in p:
-                limit = list(p["in"])
-            else:
-                limit = [p.get("min"), p.get("max")]
-            if value is None:
-                return None, limit, None
-            if "eq" in p:
-                return value, limit, key_equal(value, p["eq"])
-            if "in" in p:
-                return value, limit, any(key_equal(value, x) for x in p["in"])
-            if not _is_number(value):
-                return value, limit, None
-            return value, limit, _in_range(value, p)
-        if name == "has":
-            value = report.get(p["name"]) is not None
-            return value, None, value
-        if name in ("speed", "altitude"):
-            value = report.get("speed_ms" if name == "speed" else "hae")
-            limit = [p.get("min"), p.get("max")]
-            if value is None:
-                return None, limit, None
-            return value, limit, _in_range(value, p)
-        kept = state["kept_ms"] if state else None
-        if name == "interval":
-            value = None if kept is None else t - kept
-            return value, p["min_ms"], value is not None and value < p["min_ms"]
-        if name == "order":
-            return t, kept, kept is not None and t < kept
-        raise AssertionError(name)
 
     def ingest(self, report):
         k = missing_key(report)
@@ -394,7 +397,7 @@ class Engine:
         for rule in self.pack.rules:
             matched = True
             for cond in rule.conditions:
-                value, limit, result = self._evaluate(cond, report, key, state)
+                value, limit, result = evaluate(cond, report, state, self.entities)
                 passed = result is not None and (result != cond.negated)
                 trace.append(_trace.filter_rule(rule.name, key, cond.name, cond.negated,
                                                 value, limit, passed, result is None))

@@ -24,7 +24,9 @@ have always had, for the tools that import them.
 | `correlate_pack.py` | the correlate `pack.def` (both methods) |
 | `gate.py` | the correlate tests |
 | `confirm.py` | correlate method `confirm` (moved unchanged; correlate 1.0 replaces it) |
-| `assign.py` | correlate method `assign`: memberships, assignment, ranking, window, bias |
+| `assign.py` | correlate method `assign`: memberships, the assignment of one source, window, output |
+| `ranking.py` | the exact minimum-cost assignment and Murty's ranking, pure functions of the cost matrix |
+| `bias.py` | sensor bias and time offset per pair of sources, pure functions |
 | `filter.py` | the filter function |
 | `fuse.py` | the fuse function |
 | `quality.py` | the quality function |
@@ -43,6 +45,15 @@ events, trace = engine.ingest(report)        # one entity
 events, trace = engine.tick(now_ms)          # one tick
 state = engine.snapshot()
 ```
+
+**Pure functions, state in the engine.** The math is in module functions
+that take values and return new values: `estimate.py` (predict, update,
+two-model, inverse variance), `gate.py` (d2, distance, course, speed),
+`ranking.py`, `bias.py`, `assign.assignment_cost`, `fuse.kinematics`,
+`fuse.attribute_winner`, `filter.evaluate` and the geometry,
+`quality.entity_measures`, `quality.source_measures`, `quality.rule_step`,
+`quality.input_clock`. An engine's state is only its object's attributes;
+`snapshot()` (snapshot.py) reads them. Module-level names are constants.
 
 ## Where each spec section lives
 
@@ -74,8 +85,8 @@ state = engine.snapshot()
 | Shared with `correlate.md` | `correlate.py` |
 | Memberships | `assign.py` |
 | Assignment of one source | `assign.py` |
-| Sensor bias | `assign.py` |
-| Ranking | `assign.py` |
+| Sensor bias | `bias.py` |
+| Ranking | `ranking.py` |
 | Window | `assign.py` |
 | Events | `assign.py` |
 | Trace | `trace.py` |

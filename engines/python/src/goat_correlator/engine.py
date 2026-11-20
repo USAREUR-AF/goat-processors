@@ -1,7 +1,7 @@
 """The names goat_correlator.engine has always exported, now in goat_core."""
 
-from goat_core.assign import (INF, AssignEngine, assignment_total, min_cost_assignment,  # noqa: F401
-                              ranked_assignments)
+from goat_core.assign import AssignEngine  # noqa: F401
+from goat_core.ranking import INF, assignment_total, min_cost_assignment, ranked_assignments  # noqa: F401
 from goat_core.confirm import ConfirmEngine as Engine  # noqa: F401
 from goat_core.correlate import Track as _Entity, make_engine  # noqa: F401
 from goat_core.correlate_pack import (BIAS_PARAMS, FILTER_PARAMS, MANEUVER_PARAMS, Pack,  # noqa: F401

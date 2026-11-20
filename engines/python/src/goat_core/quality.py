@@ -7,6 +7,7 @@ import re
 
 from . import estimate
 from . import snapshot as _snapshot
+from . import trace as _trace
 from .io import read_pack_def
 from .model import REQUIRED, TIME_STATES, is_kind as _is, to_plane
 from .packdef import PackError
@@ -234,6 +235,87 @@ def _median(xs):
     return (xs[n // 2 - 1] + xs[n // 2]) / 2.0
 
 
+def input_clock(entities, source):
+    """Input clock: the median over the other sources of each one's latest
+    report time, and this source's latest (each None when there is none)."""
+    latest = {}
+    for other in entities:
+        if other.source not in latest or other.last_time_ms > latest[other.source]:
+            latest[other.source] = other.last_time_ms
+    src_latest = latest.pop(source, None)
+    clock = _median(sorted(latest.values())) if latest else None
+    return clock, src_latest
+
+
+def entity_measures(w, age, k):
+    """Entity measures over the window w of one entity, with k = min_samples."""
+    iv = [x["interval"] for x in w if x["interval"] is not None]
+    lt = [x["latency"] for x in w if x["latency"] is not None]
+    ln = [x["lateness"] for x in w if x["lateness"] is not None]
+    te = [x["time_error"] for x in w if x["time_error"] is not None]
+    tc = [TIME_CODE[x["time_state"]] for x in w if x["time_state"] is not None]
+    ns = [x["nis"] for x in w if x["nis"] is not None]
+    se = [x["speed_err"] for x in w if x["speed_err"] is not None]
+    enough = len(w) >= k
+    return {
+        "reports": len(w),
+        "interval_last": iv[-1] if len(iv) >= k else None,
+        "interval_mean": _mean(iv) if len(iv) >= k else None,
+        "interval_max": max(iv) if len(iv) >= k else None,
+        "age": age,
+        "latency_mean": _mean(lt) if len(lt) >= k else None,
+        "latency_max": max(lt) if len(lt) >= k else None,
+        "lateness_mean": _mean(ln) if len(ln) >= k else None,
+        "lateness_max": max(ln) if len(ln) >= k else None,
+        "lateness_min": min(ln) if len(ln) >= k else None,
+        "nis_mean": _mean(ns) if len(ns) >= k else None,
+        "speed_err_mean": _mean(se) if len(se) >= k else None,
+        "out_of_order": sum(1 for x in w if x["order"] == "out-of-order"),
+        "duplicate": sum(1 for x in w if x["order"] == "duplicate"),
+        "source_out_of_order": sum(1 for x in w if x["source_out_of_order"]),
+        "missing_ce": sum(1 for x in w if not x["ce"]) / len(w) if enough else None,
+        "missing_vel": sum(1 for x in w if not x["vel"]) / len(w) if enough else None,
+        "missing_hae": sum(1 for x in w if not x["hae"]) / len(w) if enough else None,
+        "time_error_mean": _mean(te) if len(te) >= k else None,
+        "time_error_max": max(te) if len(te) >= k else None,
+        "time_state_last": tc[-1] if len(tc) >= k else None,
+        "time_state_worst": max(tc) if len(tc) >= k else None,
+        "missing_time": sum(1 for x in w if x["time_state"] is None) / len(w) if enough else None,
+    }
+
+
+def source_measures(ms):
+    """Source measures: each entity measure aggregated over the source's entities."""
+    out = {}
+    for m, how in MEASURES:
+        xs = [x[m] for x in ms if x[m] is not None]
+        if how == "sum":
+            out[m] = sum(xs)
+        elif not xs:
+            out[m] = None
+        elif how == "mean":
+            out[m] = _mean(xs)
+        elif how == "max":
+            out[m] = max(xs)
+        else:
+            out[m] = min(xs)
+    out["entities"] = len(ms)
+    return out
+
+
+def rule_step(rule, count, active, v):
+    """Rules: one evaluation of a rule on a subject whose state is (count,
+    active), with measure value v. Returns (count, active, pass, limit)."""
+    if not active:
+        ok = v is not None and _met(rule.op, v, rule.limit)
+        count = count + 1 if ok else 0
+        if count >= rule.n:
+            return 0, True, ok, rule.limit
+        return count, False, ok, rule.limit
+    ok = v is not None and (v < rule.clear if rule.op in (">", ">=") else v > rule.clear)
+    return count, not ok, ok, rule.clear
+
+
 def _met(op, v, x):
     if op == "<":
         return v < x
@@ -312,12 +394,7 @@ class Engine:
             rec["latency"] = opt["received_ms"] - t
             trace.append({"stage": "sample", "entity": key, "sample": "latency",
                           "value": rec["latency"], "inputs": [opt["received_ms"], t]})
-        latest = {}
-        for other in self.entities.values():
-            if other.source not in latest or other.last_time_ms > latest[other.source]:
-                latest[other.source] = other.last_time_ms
-        src_latest = latest.pop(source, None)
-        clock = _median(sorted(latest.values())) if latest else None
+        clock, src_latest = input_clock(self.entities.values(), source)
         if clock is not None:
             rec["lateness"] = clock - t
             trace.append({"stage": "sample", "entity": key, "sample": "lateness",
@@ -413,87 +490,26 @@ class Engine:
         return events, trace
 
     # measures ----------------------------------------------------------
-    def _entity_measures(self, ent, now):
-        w = ent.window
-        k = self.pack.min_samples
-        iv = [x["interval"] for x in w if x["interval"] is not None]
-        lt = [x["latency"] for x in w if x["latency"] is not None]
-        ln = [x["lateness"] for x in w if x["lateness"] is not None]
-        te = [x["time_error"] for x in w if x["time_error"] is not None]
-        tc = [TIME_CODE[x["time_state"]] for x in w if x["time_state"] is not None]
-        ns = [x["nis"] for x in w if x["nis"] is not None]
-        se = [x["speed_err"] for x in w if x["speed_err"] is not None]
-        enough = len(w) >= k
-        return {
-            "reports": len(w),
-            "interval_last": iv[-1] if len(iv) >= k else None,
-            "interval_mean": _mean(iv) if len(iv) >= k else None,
-            "interval_max": max(iv) if len(iv) >= k else None,
-            "age": now - ent.last_time_ms,
-            "latency_mean": _mean(lt) if len(lt) >= k else None,
-            "latency_max": max(lt) if len(lt) >= k else None,
-            "lateness_mean": _mean(ln) if len(ln) >= k else None,
-            "lateness_max": max(ln) if len(ln) >= k else None,
-            "lateness_min": min(ln) if len(ln) >= k else None,
-            "nis_mean": _mean(ns) if len(ns) >= k else None,
-            "speed_err_mean": _mean(se) if len(se) >= k else None,
-            "out_of_order": sum(1 for x in w if x["order"] == "out-of-order"),
-            "duplicate": sum(1 for x in w if x["order"] == "duplicate"),
-            "source_out_of_order": sum(1 for x in w if x["source_out_of_order"]),
-            "missing_ce": sum(1 for x in w if not x["ce"]) / len(w) if enough else None,
-            "missing_vel": sum(1 for x in w if not x["vel"]) / len(w) if enough else None,
-            "missing_hae": sum(1 for x in w if not x["hae"]) / len(w) if enough else None,
-            "time_error_mean": _mean(te) if len(te) >= k else None,
-            "time_error_max": max(te) if len(te) >= k else None,
-            "time_state_last": tc[-1] if len(tc) >= k else None,
-            "time_state_worst": max(tc) if len(tc) >= k else None,
-            "missing_time": sum(1 for x in w if x["time_state"] is None) / len(w) if enough else None,
-        }
-
-    @staticmethod
-    def _source_measures(ms):
-        out = {}
-        for m, how in MEASURES:
-            xs = [x[m] for x in ms if x[m] is not None]
-            if how == "sum":
-                out[m] = sum(xs)
-            elif not xs:
-                out[m] = None
-            elif how == "mean":
-                out[m] = _mean(xs)
-            elif how == "max":
-                out[m] = max(xs)
-            else:
-                out[m] = min(xs)
-        out["entities"] = len(ms)
-        return out
-
     def _evaluate(self, scope, subject, measures, events, trace):
+        """Rules: each rule of this scope, in pack order, on one subject."""
         for rule in self.pack.rules:
             if rule.scope != scope:
                 continue
-            st = self.rules[rule.name].setdefault(subject, {"count": 0, "active": False})
+            states = self.rules[rule.name]
+            st = states.get(subject)
+            count, active = (0, False) if st is None else (st["count"], st["active"])
             v = measures[rule.measure]
-            if not st["active"]:
-                ok = v is not None and _met(rule.op, v, rule.limit)
-                st["count"] = st["count"] + 1 if ok else 0
-                limit = rule.limit
-                if st["count"] >= rule.n:
-                    st["active"] = True
-                    st["count"] = 0
-                    events.append({"ev": "action-start", "rule": rule.name, "scope": scope,
-                                   "subject": subject, "action": rule.action, "value": v})
-            else:
-                limit = rule.clear
-                ok = v is not None and (v < rule.clear if rule.op in (">", ">=") else v > rule.clear)
-                if ok:
-                    st["active"] = False
-                    events.append({"ev": "action-end", "rule": rule.name, "scope": scope,
-                                   "subject": subject, "action": rule.action,
-                                   "reason": "clear", "value": v})
-            trace.append({"stage": "rule", "rule": rule.name, "subject": subject,
-                          "measure": rule.measure, "value": v, "limit": limit, "pass": ok,
-                          "count": st["count"], "active": st["active"]})
+            count, now_active, ok, limit = rule_step(rule, count, active, v)
+            states[subject] = {"count": count, "active": now_active}
+            if now_active and not active:
+                events.append({"ev": "action-start", "rule": rule.name, "scope": scope,
+                               "subject": subject, "action": rule.action, "value": v})
+            elif active and not now_active:
+                events.append({"ev": "action-end", "rule": rule.name, "scope": scope,
+                               "subject": subject, "action": rule.action,
+                               "reason": "clear", "value": v})
+            trace.append(_trace.quality_rule(rule.name, subject, rule.measure, v, limit, ok,
+                                             count, now_active))
 
     def _forget_subject(self, scope, subject, events):
         for rule in self.pack.rules:
@@ -528,12 +544,12 @@ class Engine:
         by_source = {}
         for k in sorted(self.entities):
             ent = self.entities[k]
-            m = self._entity_measures(ent, now_ms)
+            m = entity_measures(ent.window, now_ms - ent.last_time_ms, self.pack.min_samples)
             by_source.setdefault(ent.source, []).append(m)
             events.append({"ev": "quality", "scope": "entity", "subject": k, "measures": m})
             self._evaluate("entity", k, m, events, trace)
         for s in sorted(by_source):
-            m = self._source_measures(by_source[s])
+            m = source_measures(by_source[s])
             events.append({"ev": "quality", "scope": "source", "subject": s, "measures": m})
             self._evaluate("source", s, m, events, trace)
         return events, trace

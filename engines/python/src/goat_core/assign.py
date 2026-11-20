@@ -5,161 +5,13 @@ pair of sources; fused estimate by inverse-variance weights."""
 
 import math
 
+from . import bias as _bias
 from . import estimate
 from . import snapshot as _snapshot
+from . import trace as _trace
 from .correlate import Correlator
 from .model import course_deg
-
-INF = float("inf")
-
-
-def min_cost_assignment(cost):
-    """Exact minimum-cost assignment of every row to a distinct column.
-
-    `cost` is a list of rows, each a list of column costs (INF = forbidden),
-    with at least as many columns as rows. Shortest augmenting path
-    (Hungarian, potentials). Returns the column of each row, or None when no
-    assignment of finite cost exists."""
-    n = len(cost)
-    if n == 0:
-        return []
-    m = len(cost[0])
-    u = [0.0] * (n + 1)
-    v = [0.0] * (m + 1)
-    p = [0] * (m + 1)
-    way = [0] * (m + 1)
-    for i in range(1, n + 1):
-        p[0] = i
-        j0 = 0
-        minv = [INF] * (m + 1)
-        used = [False] * (m + 1)
-        while True:
-            used[j0] = True
-            i0 = p[j0]
-            delta = INF
-            j1 = -1
-            for j in range(1, m + 1):
-                if not used[j]:
-                    c = cost[i0 - 1][j - 1]
-                    cur = INF if c == INF else c - u[i0] - v[j]
-                    if cur < minv[j]:
-                        minv[j] = cur
-                        way[j] = j0
-                    if minv[j] < delta:
-                        delta = minv[j]
-                        j1 = j
-            if j1 == -1:
-                return None
-            for j in range(m + 1):
-                if used[j]:
-                    u[p[j]] += delta
-                    v[j] -= delta
-                else:
-                    minv[j] -= delta
-            j0 = j1
-            if p[j0] == 0:
-                break
-        while True:
-            j1 = way[j0]
-            p[j0] = p[j1]
-            j0 = j1
-            if j0 == 0:
-                break
-    out = [None] * n
-    for j in range(1, m + 1):
-        if p[j]:
-            out[p[j] - 1] = j - 1
-    return out
-
-
-def assignment_total(matrix, cols):
-    """correlate-assign.md, Ranking: the chosen entries in ascending order of
-    value, added left to right from 0."""
-    t = 0.0
-    for x in sorted(matrix[i][j] for i, j in enumerate(cols)):
-        t += x
-    return t
-
-
-def _choice_vector(cols, c):
-    """Column index per row; every alone column counts as c, after the system columns."""
-    return [j if j < c else c for j in cols]
-
-
-def _constrained(matrix, fixed, forbidden):
-    out = [list(r) for r in matrix]
-    for i, j in forbidden:
-        out[i][j] = INF
-    for i, j in fixed:
-        for jj in range(len(out[i])):
-            if jj != j:
-                out[i][jj] = INF
-        for ii in range(len(out)):
-            if ii != i:
-                out[ii][j] = INF
-    return out
-
-
-def _order_key(matrix, cols, c):
-    return (assignment_total(matrix, cols), _choice_vector(cols, c))
-
-
-def _first_assignment(matrix, c):
-    """The first assignment in ranking order (least total, then the smallest
-    choice vector), found with the exact assignment and row-by-row fixing."""
-    if min_cost_assignment(matrix) is None:
-        return None
-    n = len(matrix)
-    fixed = []
-    best = None
-    for i in range(n):
-        best = None
-        cands = list(range(c)) + [c + i]
-        for j in cands:
-            if matrix[i][j] == INF:
-                continue
-            cols = min_cost_assignment(_constrained(matrix, fixed + [(i, j)], ()))
-            if cols is None:
-                continue
-            key = _order_key(matrix, cols, c)
-            if best is None or key[0] < best[0][0]:
-                best = (key, j, cols)
-        fixed.append((i, best[1]))
-    if best is None:
-        return []
-    return best[2]
-
-
-def ranked_assignments(matrix, c, k):
-    """correlate-assign.md, Ranking: the first k assignments in ranking order,
-    by Murty's partition of the solution space around each one found."""
-    n = len(matrix)
-    first = _first_assignment(matrix, c)
-    if first is None:
-        return []
-    out = [first]
-    queue = []
-
-    def partition(cols, fixed, forbidden):
-        fixed_rows = {i for i, _ in fixed}
-        prefix = list(fixed)
-        for i in range(n):
-            if i in fixed_rows:
-                continue
-            forb = list(forbidden) + [(i, cols[i])]
-            sub = _constrained(matrix, prefix, forb)
-            got = _first_assignment(sub, c)
-            if got is not None:
-                queue.append((_order_key(matrix, got, c), got, list(prefix), forb))
-            prefix.append((i, cols[i]))
-
-    partition(first, [], [])
-    while len(out) < k and queue:
-        queue.sort(key=lambda e: e[0])
-        _, cols, fixed, forbidden = queue.pop(0)
-        out.append(cols)
-        partition(cols, fixed, forbidden)
-    return out
+from .ranking import INF, assignment_total, ranked_assignments
 
 
 class _Members:
@@ -238,56 +90,28 @@ class AssignEngine(Correlator):
 
     def _offset(self, src, dst, vel):
         """Per axis (shift, variance) that moves a position of source src, with
-        velocity vel, into the frame of source dst: the pair estimate, or 0
-        with the prior."""
+        velocity vel, into the frame of source dst, or None."""
         if self.pack.bias is None or src == dst:
             return None
-        key = self._pair(src, dst)
-        st = self.bias.get(key)
-        if st is None:
-            v = self.pack.bias["sigma_m"] ** 2
-            return ((0.0, v), (0.0, v))
-        sign = 1.0 if src < dst else -1.0
-        out = []
-        for x in (0, 1):
-            o = st[x][0]
-            if self.pack.time_offset is not None:
-                o = o - vel[x] * st[3]
-            out.append((sign * o, st[x][1]))
-        return tuple(out)
+        return _bias.offset(self.bias.get(self._pair(src, dst)), self.pack.bias,
+                            self.pack.time_offset is not None, src < dst, vel)
 
     def _predict_in(self, b, t, a):
         pr = estimate.with_variance(self._predict(b, t), b.t_var)
         off = self._offset(b.source, a if isinstance(a, str) else a.source, (pr[0][1], pr[1][1]))
-        if off is None:
-            return pr
-        return tuple((x[0] + o[0], x[1], x[2] + o[1]) + tuple(x[3:]) for x, o in zip(pr, off))
+        return pr if off is None else _bias.shifted(pr, off)
 
     def _fused(self, members, t, frame=None):
-        """Fused estimate: per axis (p, pp, v, vv) at time t; with `frame` (an
-        entity), each member is first moved into that entity's frame."""
-        out = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]
-        for k in members:
-            pr = self._predict(self.entities[k], t) if frame is None \
-                else self._predict_in(self.entities[k], t, frame)
-            for x in (0, 1):
-                a = pr[x]
-                o = out[x]
-                o[0] += 1.0 / a[2]
-                o[1] += a[0] / a[2]
-                o[2] += 1.0 / a[4]
-                o[3] += a[1] / a[4]
-        res = []
-        for ip, sp, iv, sv in out:
-            pp = 1.0 / ip
-            vv = 1.0 / iv
-            res.append((pp * sp, pp, vv * sv, vv))
-        return res
+        """Fused estimate: per axis [p, v, pp, 0, vv] at time t; with `frame`
+        (an entity), each member is first moved into that entity's frame."""
+        if frame is None:
+            preds = [self._predict(self.entities[k], t) for k in members]
+        else:
+            preds = [self._predict_in(self.entities[k], t, frame) for k in members]
+        return estimate.inverse_variance(preds)
 
     def _cost(self, a, members):
-        fe, fn = self._fused(members, a.last_time_ms, a)
-        return ((a.east[0] - fe[0]) ** 2 / (a.east[2] + a.t_var[0] + fe[1])
-                + (a.north[0] - fn[0]) ** 2 / (a.north[2] + a.t_var[1] + fn[1]))
+        return assignment_cost(a.east, a.north, a.t_var, self._fused(members, a.last_time_ms, a))
 
     def _stale(self, ent, now_ms):
         if now_ms - ent.last_time_ms > self.pack.stale_ms:
@@ -471,9 +295,9 @@ class AssignEngine(Correlator):
             members = shown.systems[s]
             fe, fn = self._fused(members, now_ms)
             lat, lon = self._to_deg(fe[0], fn[0])
-            course = course_deg(fe[2], fn[2])
+            course = course_deg(fe[1], fn[1])
             ev = {"ev": "system", "system": s, "members": list(members),
-                  "lat": lat, "lon": lon, "course": course, "speed_ms": math.hypot(fe[2], fn[2])}
+                  "lat": lat, "lon": lon, "course": course, "speed_ms": math.hypot(fe[1], fn[1])}
             best_e = None
             for m in members:
                 e = self.entities[m]
@@ -489,10 +313,10 @@ class AssignEngine(Correlator):
         return events, trace
 
     def _bias_update(self, now_ms, rows, trace):
-        """correlate-assign.md, Sensor bias: every pair of members of one
-        committed system track, from two sources, one of which reported."""
+        """Sensor bias: every pair of members of one committed system track,
+        from two sources, one of which reported."""
         prm = self.pack.bias
-        floor2 = prm["floor_m"] ** 2
+        timed = self.pack.time_offset is not None
         for s in self.committed.order:
             members = [m for m in self.committed.systems[s] if m not in self.retiring]
             for i in range(len(members)):
@@ -503,79 +327,25 @@ class AssignEngine(Correlator):
                     lo, hi = (a, b) if a.source < b.source else (b, a)
                     key = self._pair(a.source, b.source)
                     st = self.bias.get(key)
-                    timed = self.pack.time_offset is not None
                     if st is None:
-                        v = prm["sigma_m"] ** 2
-                        st = [[0.0, v, 0.0], [0.0, v, 0.0], 0]
-                        if timed:
-                            st += [0.0, [0.0] * 8]
-                    pl, ph = self._predict(lo, now_ms), self._predict(hi, now_ms)
-                    ys, rs, vs = [], [], []
-                    d2 = 0.0
-                    for x in (0, 1):
-                        y = ph[x][0] - pl[x][0]
-                        r = pl[x][2] + ph[x][2]
-                        vx = (pl[x][1] + ph[x][1]) / 2
-                        ys.append(y)
-                        rs.append(r)
-                        vs.append(vx)
-                        want = st[x][0] - vx * st[3] if timed else st[x][0]
-                        d2 += (y - want) ** 2 / (st[x][1] + r)
+                        st = _bias.prior(prm, timed)
+                    d2, ys, rs, vs = _bias.residual(st, self._predict(lo, now_ms),
+                                                    self._predict(hi, now_ms), timed)
                     ok = d2 < prm["gate"]
-                    if ok and timed:
-                        st = self._time_fit(st, ys, rs, vs)
+                    if ok:
+                        st = (_bias.time_fit(st, ys, rs, vs, prm, self.pack.time_offset) if timed
+                              else _bias.update(st, ys, rs, prm))
                         self.bias[key] = st
-                    elif ok:
-                        n = st[2] + 1
-                        pv = prm["sigma_m"] ** 2 / (n + 1)
-                        if pv < floor2:
-                            pv = floor2
-                        new = []
-                        for x in (0, 1):
-                            w = 1.0 / rs[x]
-                            ws = st[x][2] + w
-                            new.append([st[x][0] + (w / ws) * (ys[x] - st[x][0]), pv, ws])
-                        st = [new[0], new[1], n]
-                        self.bias[key] = st
-                    rec = {"stage": "bias", "a": lo.key, "b": hi.key, "test": "offset",
-                           "value": d2, "limit": prm["gate"], "pass": ok,
-                           "east": st[0][0], "north": st[1][0], "var": st[0][1],
-                           "pairs": st[2]}
-                    if timed:
-                        rec["time_offset_ms"] = st[3] * 1000.0
-                    trace.append(rec)
-
-    def _time_fit(self, st, ys, rs, vs):
-        """correlate-assign.md, Sensor bias, Time offset: add one pair to the
-        sums and solve for the offsets o east, o north and the time offset."""
-        prm = self.pack.bias
-        n = st[2] + 1
-        var = prm["sigma_m"] ** 2 / (n + 1)
-        if var < prm["floor_m"] ** 2:
-            var = prm["floor_m"] ** 2
-        S = list(st[4])
-        we, wn = 1.0 / rs[0], 1.0 / rs[1]
-        ve, vn = vs[0], vs[1]
-        S[0] += we
-        S[1] += wn
-        S[2] += we * ve
-        S[3] += wn * vn
-        S[4] += we * ve * ve + wn * vn * vn
-        S[5] += we * ys[0]
-        S[6] += wn * ys[1]
-        S[7] += we * ve * ys[0] + wn * vn * ys[1]
-        po = 1.0 / prm["sigma_m"] ** 2
-        pt = 1.0 / (self.pack.time_offset / 1000.0) ** 2
-        a11 = po + S[0]
-        a22 = po + S[1]
-        a13 = -S[2]
-        a23 = -S[3]
-        a33 = pt + S[4]
-        b1, b2, b3 = S[5], S[6], -S[7]
-        tau = (b3 - a13 * b1 / a11 - a23 * b2 / a22) / (a33 - a13 * a13 / a11 - a23 * a23 / a22)
-        oe = (b1 - a13 * tau) / a11
-        on = (b2 - a23 * tau) / a22
-        return [[oe, var, S[0]], [on, var, S[1]], n, tau, S]
+                    trace.append(_trace.bias(lo.key, hi.key, d2, prm["gate"], ok, st, timed))
 
     def snapshot(self):
         return _snapshot.assign(self)
+
+
+def assignment_cost(east, north, t_var, fused):
+    """Assignment of one source, Cost: the squared distance of the entity
+    from the fused estimate of the other members, over the sum of the
+    variances, on both axes."""
+    fe, fn = fused
+    return ((east[0] - fe[0]) ** 2 / (east[2] + t_var[0] + fe[2])
+            + (north[0] - fn[0]) ** 2 / (north[2] + t_var[1] + fn[2]))

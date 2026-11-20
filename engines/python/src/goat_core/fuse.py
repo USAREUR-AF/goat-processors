@@ -9,6 +9,7 @@ import re
 from . import estimate
 from . import snapshot as _snapshot
 from . import trace as _trace
+from . import trace as _trace
 from .io import read_pack_def
 from .model import course_deg, missing_key, normalize, to_deg, to_plane, velocity
 from .packdef import PackError
@@ -174,20 +175,82 @@ def ci_fold(x, y, w):
     return out
 
 
-def inverse_variance(axes_list):
-    out = []
-    for ax in (0, 1):
-        ip = sp = iv = sv = 0.0
-        for axes in axes_list:
-            a = axes[ax]
-            ip += 1.0 / a[2]
-            sp += a[0] / a[2]
-            iv += 1.0 / a[4]
-            sv += a[1] / a[4]
-        pp = 1.0 / ip
-        vv = 1.0 / iv
-        out.append([pp * sp, vv * sv, pp, 0.0, vv])
-    return out
+inverse_variance = estimate.inverse_variance
+
+
+def _latest_key(e):
+    """latest: the member reported last, ties to the smaller key."""
+    return (-e.last_time_ms, e.key)
+
+
+def kinematics(method, ents, pred, var, rank_key):
+    """Kinematics: the estimate of one group by `method` from its members
+    ents (key order), their predictions pred and position variances var.
+    Returns (estimate, the member it came from or None, the covariance
+    intersection weights as (member, w))."""
+    if method == "inverse_variance":
+        return inverse_variance([pred[e.key] for e in ents]), None, []
+    if method == "covariance_intersection":
+        est = pred[ents[0].key]
+        weights = []
+        for e in ents[1:]:
+            w = ci_weight(est, pred[e.key])
+            weights.append((e.key, w))
+            est = ci_fold(est, pred[e.key], w)
+        return est, None, weights
+    if method == "best":
+        src = min(ents, key=lambda e: (var[e.key], e.key))
+    elif method == "priority":
+        src = min(ents, key=rank_key)
+    else:
+        src = min(ents, key=_latest_key)
+    return pred[src.key], src, []
+
+
+def height_source(ents, src):
+    """Fused event, hae: the chosen member's, or for a combining method the
+    latest member with one."""
+    if src is not None:
+        return src if src.report.get("hae") is not None else None
+    withh = [e for e in ents if e.report.get("hae") is not None]
+    return min(withh, key=_latest_key) if withh else None
+
+
+def attribute_winner(cands, key, rule, rank_key):
+    """Attributes: the member whose value of `key` wins by `rule`, among the
+    candidates (key order) that hold a usable value; None without one."""
+    if not cands:
+        return None
+    if rule == "priority":
+        return min(cands, key=rank_key)
+    if rule == "latest":
+        return min(cands, key=_latest_key)
+    if rule == "max":
+        win = cands[0]
+        for e in cands[1:]:
+            if e.report[key] > win.report[key]:
+                win = e
+        return win
+    if rule == "min":
+        win = cands[0]
+        for e in cands[1:]:
+            if e.report[key] < win.report[key]:
+                win = e
+        return win
+    firsts, counts = [], []  # majority
+    for e in cands:
+        for j, h in enumerate(firsts):
+            if _same(h.report[key], e.report[key]):
+                counts[j] += 1
+                break
+        else:
+            firsts.append(e)
+            counts.append(1)
+    best = 0
+    for j in range(1, len(firsts)):
+        if counts[j] > counts[best]:
+            best = j
+    return firsts[best]
 
 
 class _Entity:
@@ -282,43 +345,12 @@ class Engine:
             v = ent.report.get(key)
             if v is not None and _usable(v, rule):
                 cands.append(ent)
-        win = None
-        if cands:
-            if rule == "priority":
-                win = min(cands, key=self._rank_key)
-            elif rule == "latest":
-                win = min(cands, key=lambda e: (-e.last_time_ms, e.key))
-            elif rule == "max":
-                win = cands[0]
-                for e in cands[1:]:
-                    if e.report[key] > win.report[key]:
-                        win = e
-            elif rule == "min":
-                win = cands[0]
-                for e in cands[1:]:
-                    if e.report[key] < win.report[key]:
-                        win = e
-            else:  # majority
-                firsts, counts = [], []
-                for e in cands:
-                    for j, h in enumerate(firsts):
-                        if _same(h.report[key], e.report[key]):
-                            counts[j] += 1
-                            break
-                    else:
-                        firsts.append(e)
-                        counts.append(1)
-                best = 0
-                for j in range(1, len(firsts)):
-                    if counts[j] > counts[best]:
-                        best = j
-                win = firsts[best]
-        trace.append({"stage": "attribute", "group": g, "key": key, "rule": rule,
-                      "candidates": [{"member": e.key, "value": e.report[key],
-                                      "time_ms": e.last_time_ms, "rank": self._rank(e)}
-                                     for e in cands],
-                      "winner": win.key if win else None,
-                      "value": win.report[key] if win else None})
+        win = attribute_winner(cands, key, rule, self._rank_key)
+        trace.append(_trace.fuse_attribute(
+            g, key, rule,
+            [_trace.fuse_attribute_candidate(e.key, e.report[key], e.last_time_ms, self._rank(e))
+             for e in cands],
+            win.key if win else None, win.report[key] if win else None))
         return win
 
     def tick(self, now_ms):
@@ -341,28 +373,13 @@ class Engine:
                 dt = (now_ms - e.last_time_ms) / 1000.0
                 pred[e.key] = [estimate.predict_axis(e.east, dt, q), estimate.predict_axis(e.north, dt, q)]
             var = {m: pred[m][0][2] + pred[m][1][2] for m in members}
-            src = None
-            if method == "inverse_variance":
-                est = inverse_variance([pred[m] for m in members])
-            elif method == "covariance_intersection":
-                est = pred[members[0]]
-                for m in members[1:]:
-                    w = ci_weight(est, pred[m])
-                    trace.append({"stage": "intersect", "group": g, "member": m, "value": w})
-                    est = ci_fold(est, pred[m], w)
-            else:
-                if method == "best":
-                    src = min(ents, key=lambda e: (var[e.key], e.key))
-                elif method == "priority":
-                    src = min(ents, key=self._rank_key)
-                else:
-                    src = min(ents, key=lambda e: (-e.last_time_ms, e.key))
-                est = pred[src.key]
-            trace.append({"stage": "kinematics", "group": g, "method": method,
-                          "candidates": [{"member": e.key, "var": var[e.key],
-                                          "time_ms": e.last_time_ms, "rank": self._rank(e)}
-                                         for e in ents],
-                          "winner": src.key if src else None})
+            est, src, weights = kinematics(method, ents, pred, var, self._rank_key)
+            for m, w in weights:
+                trace.append(_trace.fuse_intersect(g, m, w))
+            trace.append(_trace.fuse_kinematics(
+                g, method,
+                [_trace.fuse_candidate(e.key, var[e.key], e.last_time_ms, self._rank(e)) for e in ents],
+                src.key if src else None))
             east, north = est
             lat, lon = self._to_deg(east[0], north[0])
             course = course_deg(east[1], north[1])
@@ -371,11 +388,7 @@ class Engine:
                   "lat": lat, "lon": lon, "course": course,
                   "speed_ms": math.hypot(east[1], north[1]),
                   "ce": math.sqrt((east[2] + north[2]) / 2.0)}
-            if src is not None:
-                h = src if src.report.get("hae") is not None else None
-            else:
-                withh = [e for e in ents if e.report.get("hae") is not None]
-                h = min(withh, key=lambda e: (-e.last_time_ms, e.key)) if withh else None
+            h = height_source(ents, src)
             if h is not None:
                 ev["hae"] = float(h.report["hae"])
                 ev["hae_from"] = h.key

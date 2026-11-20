@@ -157,3 +157,22 @@ def with_variance(pr, add):
     if add == (0.0, 0.0):
         return pr
     return tuple((x[0], x[1], x[2] + tv) + tuple(x[3:]) for x, tv in zip(pr, add))
+
+
+def inverse_variance(preds):
+    """The inverse-variance combination of predictions, each (east, north):
+    per axis [p, v, pp, 0, vv], the sums taken in the order given
+    (spec/correlate-assign.md, Output and Cost; spec/fuse.md, inverse_variance)."""
+    out = []
+    for ax in (0, 1):
+        ip = sp = iv = sv = 0.0
+        for pr in preds:
+            a = pr[ax]
+            ip += 1.0 / a[2]
+            sp += a[0] / a[2]
+            iv += 1.0 / a[4]
+            sv += a[1] / a[4]
+        pp = 1.0 / ip
+        vv = 1.0 / iv
+        out.append([pp * sp, vv * sv, pp, 0.0, vv])
+    return out
