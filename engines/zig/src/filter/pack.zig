@@ -1,5 +1,6 @@
 // spec/filter.md "Pack": parsing of a filter pack.def and its load errors.
 const std = @import("std");
+const json_read = @import("../io/json_read.zig");
 const Allocator = std.mem.Allocator;
 
 pub const Action = enum { keep, drop };
@@ -347,7 +348,5 @@ pub fn parse(alloc: Allocator, def: []const u8) Error!Pack {
 
 // Operation `load_pack(dir)`.
 pub fn load(alloc: Allocator, dir: []const u8) !Pack {
-    const path = try std.fs.path.join(alloc, &.{ dir, "pack.def" });
-    const def = try std.fs.cwd().readFileAlloc(alloc, path, 1 << 20);
-    return parse(alloc, def);
+    return parse(alloc, try json_read.readPackDef(alloc, dir));
 }

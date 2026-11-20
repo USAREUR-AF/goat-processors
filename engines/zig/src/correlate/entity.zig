@@ -1,9 +1,17 @@
 // Spec "Reports" and "Track estimate": one entity per `<track.source_id>/<uid>`.
 const std = @import("std");
 const json = std.json;
-const kalman = @import("kalman.zig");
-const imm = @import("imm.zig");
+const kalman = @import("../model/kalman.zig");
+const imm = @import("../model/imm.zig");
+const report = @import("../model/report.zig");
 const pack_mod = @import("pack.zig");
+
+pub const numberOf = report.numberOf;
+pub const integerOf = report.integerOf;
+pub const stringOf = report.stringOf;
+pub const ceOf = report.ceOf;
+pub const TimeQuality = report.TimeQuality;
+pub const timeQualityOf = report.timeQualityOf;
 
 pub const Entity = struct {
     key: []const u8,
@@ -74,64 +82,3 @@ pub const Entity = struct {
         return f;
     }
 };
-
-pub fn numberOf(m: json.ObjectMap, key: []const u8) ?f64 {
-    const v = m.get(key) orelse return null;
-    return switch (v) {
-        .integer => |i| @floatFromInt(i),
-        .float => |f| f,
-        .number_string => |s| std.fmt.parseFloat(f64, s) catch null,
-        else => null,
-    };
-}
-
-// Spec 0.3 "Reports": a `ce` of 0 or below is treated as absent.
-pub fn ceOf(m: json.ObjectMap) ?f64 {
-    const c = numberOf(m, "ce") orelse return null;
-    return if (c > 0) c else null;
-}
-
-// correlate.md 0.8 "Reports", "Time quality": the time error and time state of
-// a report, found per key: the report's own key when present, otherwise the
-// pack's `time_default` for its source, otherwise 0 and `coherent`.
-pub const TimeQuality = struct { error_ms: f64, state: pack_mod.TimeState };
-
-pub fn timeQualityOf(m: json.ObjectMap, source: []const u8, pack: pack_mod.Pack) TimeQuality {
-    const default = pack.timeDefaultOf(source);
-    const error_ms = reportTimeErrorOf(m) orelse if (default) |d| d.error_ms else null;
-    const state = reportTimeStateOf(m) orelse if (default) |d| d.state else null;
-    return .{ .error_ms = error_ms orelse 0, .state = state orelse .coherent };
-}
-
-// correlate.md 0.8 "Time quality", step 1, shared with quality.md 0.2 "Time
-// quality": the report's own `time_error_ms`, a finite number 0 or above;
-// anything else is absent.
-pub fn reportTimeErrorOf(m: json.ObjectMap) ?f64 {
-    const x = numberOf(m, "time_error_ms") orelse return null;
-    return if (std.math.isFinite(x) and x >= 0) x else null;
-}
-
-// The report's own `time_state`: one of the three strings, byte for byte;
-// anything else is absent.
-pub fn reportTimeStateOf(m: json.ObjectMap) ?pack_mod.TimeState {
-    const t = stringOf(m, "time_state") orelse return null;
-    return std.meta.stringToEnum(pack_mod.TimeState, t);
-}
-
-pub fn integerOf(m: json.ObjectMap, key: []const u8) ?i64 {
-    const v = m.get(key) orelse return null;
-    return switch (v) {
-        // Spec 0.3 "Reports": an integer is a JSON number written without a fraction or
-        // an exponent; std.json yields `.float` for `1000.0` and `1e3`, so those are the wrong type.
-        .integer => |i| i,
-        else => null,
-    };
-}
-
-pub fn stringOf(m: json.ObjectMap, key: []const u8) ?[]const u8 {
-    const v = m.get(key) orelse return null;
-    return switch (v) {
-        .string => |s| s,
-        else => null,
-    };
-}

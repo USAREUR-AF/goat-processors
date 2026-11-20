@@ -1,5 +1,6 @@
 // Spec "Pack": parsing of pack.def.
 const std = @import("std");
+const json_read = @import("../io/json_read.zig");
 const Allocator = std.mem.Allocator;
 
 // Spec "Tests": each test's parameter names are the payload's field names.
@@ -13,20 +14,13 @@ pub const Test = union(enum) {
     same: struct { key: []const u8 },
 };
 
+const params = @import("../model/params.zig");
+
 // Spec "Track estimate": the `filter` line.
-pub const Filter = struct {
-    accel_var: f64,
-    default_ce_m: f64,
-    vel_sigma_ms: f64,
-    unknown_vel_ms: f64,
-};
+pub const Filter = params.Filter;
 
 // correlate.md "Two-model filter": the `maneuver` line.
-pub const Maneuver = struct {
-    accel_var: f64,
-    p_enter: f64,
-    p_leave: f64,
-};
+pub const Maneuver = params.Maneuver;
 
 // correlate.md 0.7 "Restart": the `restart` line.
 pub const Restart = struct {
@@ -45,20 +39,9 @@ pub const TimeOffset = struct {
     sigma_ms: f64,
 };
 
-// correlate.md 0.8 "Reports", "Time quality": the state of a report's clock.
-pub const TimeState = enum {
-    coherent,
-    drifting,
-    @"free-running",
-};
-
-// correlate.md 0.8 "Pack": one `time_default <source_id> error_ms= state=`
-// line; each key is null when the line does not give it.
-pub const TimeDefault = struct {
-    source: []const u8,
-    error_ms: ?f64,
-    state: ?TimeState,
-};
+// correlate.md 0.8 "Reports", "Time quality".
+pub const TimeState = params.TimeState;
+pub const TimeDefault = params.TimeDefault;
 
 pub const Output = enum { priority, latest };
 
@@ -106,10 +89,7 @@ pub const Pack = struct {
 
     // correlate.md 0.8 "Time quality": the pack's `time_default` for a source.
     pub fn timeDefaultOf(self: Pack, source: []const u8) ?TimeDefault {
-        for (self.time_default) |d| {
-            if (std.mem.eql(u8, d.source, source)) return d;
-        }
-        return null;
+        return params.timeDefaultOf(self.time_default, source);
     }
 };
 
@@ -431,7 +411,5 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
 
 // Spec operation `load_pack(dir)`.
 pub fn load(alloc: Allocator, dir: []const u8) !Pack {
-    const path = try std.fs.path.join(alloc, &.{ dir, "pack.def" });
-    const text = try std.fs.cwd().readFileAlloc(alloc, path, 1 << 20);
-    return parse(alloc, text);
+    return parse(alloc, try json_read.readPackDef(alloc, dir));
 }

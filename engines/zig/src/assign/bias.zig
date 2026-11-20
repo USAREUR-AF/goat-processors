@@ -3,8 +3,8 @@
 // with `time_offset` ("Time offset"), a clock offset `tau` fitted with it.
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const pack_mod = @import("pack.zig");
-const kalman = @import("kalman.zig");
+const pack_mod = @import("../correlate/pack.zig");
+const kalman = @import("../model/kalman.zig");
 
 fn lessKey(a: []const u8, b: []const u8) bool {
     return std.mem.order(u8, a, b) == .lt;

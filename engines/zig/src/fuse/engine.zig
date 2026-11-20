@@ -4,22 +4,23 @@
 const std = @import("std");
 const json = std.json;
 const Allocator = std.mem.Allocator;
-const frame = @import("frame.zig");
-const kalman = @import("kalman.zig");
-const reports = @import("entity.zig");
-const fuse_pack = @import("fuse_pack.zig");
-const kin = @import("fuse_kinematics.zig");
+const frame = @import("../model/frame.zig");
+const kalman = @import("../model/kalman.zig");
+const reports = @import("../model/report.zig");
+const fuse_pack = @import("pack.zig");
+const kin = @import("kinematics.zig");
+const attributes_mod = @import("attributes.zig");
+const record = @import("../trace/record.zig");
+const common = @import("../snapshot/common.zig");
+const snapshot_fuse = @import("../snapshot/fuse.zig");
 
 pub const Pack = fuse_pack.Pack;
 pub const load_pack = fuse_pack.load;
 
-pub const Result = struct {
-    events: json.Array,
-    trace: json.Array,
-};
+pub const Result = record.Result;
 
 // One entity: its filter and its last normalized report.
-const Entity = struct {
+pub const Entity = struct {
     key: []const u8,
     source: []const u8,
     last_time_ms: i64,
@@ -37,77 +38,25 @@ const Entity = struct {
 };
 
 // fuse.md "Groups": a named group, or the unnamed group of one entity.
-const Group = struct {
+pub const Group = struct {
     name: ?[]const u8,
     // In key order.
     members: []const []const u8,
 };
 
-fn lessKey(_: void, a: []const u8, b: []const u8) bool {
-    return std.mem.order(u8, a, b) == .lt;
-}
+const lessKey = common.lessKey;
 
 fn optEql(a: ?[]const u8, b: ?[]const u8) bool {
     if (a == null or b == null) return a == null and b == null;
     return std.mem.eql(u8, a.?, b.?);
 }
 
-// ---- JSON output -------------------------------------------------------------
-
-fn toValue(x: anytype) json.Value {
-    const T = @TypeOf(x);
-    if (T == json.Value) return x;
-    if (T == bool) return .{ .bool = x };
-    if (T == f64 or T == comptime_float) return .{ .float = x };
-    if (T == i64 or T == usize or T == comptime_int) return .{ .integer = @intCast(x) };
-    switch (@typeInfo(T)) {
-        .Pointer => |p| {
-            if (p.size == .Slice and p.child == u8) return .{ .string = x };
-            if (p.size == .One and @typeInfo(p.child) == .Array) return .{ .string = x };
-        },
-        .Optional => return if (x) |v| toValue(v) else .null,
-        else => {},
-    }
-    @compileError("unsupported value type " ++ @typeName(T));
-}
-
-// `fields` is a tuple of .{ name, value } pairs.
-fn object(a: Allocator, fields: anytype) !json.Value {
-    var m = json.ObjectMap.init(a);
-    inline for (fields) |kv| try m.put(kv[0], toValue(kv[1]));
-    return .{ .object = m };
-}
-
-fn stringList(a: Allocator, items: []const []const u8) !json.Value {
-    var arr = json.Array.init(a);
-    for (items) |s| try arr.append(.{ .string = s });
-    return .{ .array = arr };
-}
-
-fn cloneValue(a: Allocator, v: json.Value) Allocator.Error!json.Value {
-    return switch (v) {
-        .null, .bool, .integer, .float => v,
-        .number_string => |s| .{ .number_string = try a.dupe(u8, s) },
-        .string => |s| .{ .string = try a.dupe(u8, s) },
-        .array => |arr| blk: {
-            var out = json.Array.init(a);
-            for (arr.items) |item| try out.append(try cloneValue(a, item));
-            break :blk .{ .array = out };
-        },
-        .object => |obj| blk: {
-            var out = json.ObjectMap.init(a);
-            var it = obj.iterator();
-            while (it.next()) |e| try out.put(try a.dupe(u8, e.key_ptr.*), try cloneValue(a, e.value_ptr.*));
-            break :blk .{ .object = out };
-        },
-    };
-}
+const object = record.object;
+const stringList = record.stringList;
+const cloneValue = reports.cloneValue;
+const isNumber = reports.isNumber;
 
 // ---- Reports -----------------------------------------------------------------
-
-fn isNumber(v: json.Value) bool {
-    return v == .integer or v == .float or v == .number_string;
-}
 
 // fuse.md "Reports", the normalized report: every key removed that is `null`,
 // an optional key of correlate.md of the wrong type, a `ce` of 0 or below, or an
@@ -158,18 +107,16 @@ pub const Engine = struct {
         backing.destroy(self);
     }
 
-    fn alloc(self: *Engine) Allocator {
+    pub fn alloc(self: *Engine) Allocator {
         return self.arena.allocator();
     }
 
     fn newResult(self: *Engine) Result {
-        return .{ .events = json.Array.init(self.alloc()), .trace = json.Array.init(self.alloc()) };
+        return Result.init(self.alloc());
     }
 
-    fn sortedKeys(self: *Engine) ![][]const u8 {
-        const keys = try self.alloc().dupe([]const u8, self.entities.keys());
-        std.mem.sort([]const u8, keys, {}, lessKey);
-        return keys;
+    pub fn sortedKeys(self: *Engine) ![][]const u8 {
+        return common.sortedKeys(self.alloc(), self.entities.keys());
     }
 
     // ---- ingest: fuse.md "Reports" and "Groups" ----------------------------
@@ -179,16 +126,18 @@ pub const Engine = struct {
         var res = self.newResult();
 
         // correlate.md "Reports": required keys, in the order of the table.
-        const source = reports.stringOf(report, "track.source_id");
-        const uid = reports.stringOf(report, "uid");
-        const time_ms = reports.integerOf(report, "time_ms");
-        const lat = reports.numberOf(report, "lat");
-        const lon = reports.numberOf(report, "lon");
-        const missing: ?[]const u8 = if (source == null) "track.source_id" else if (uid == null) "uid" else if (time_ms == null) "time_ms" else if (lat == null) "lat" else if (lon == null) "lon" else null;
-        if (missing) |k| {
-            try res.events.append(try object(a, .{ .{ "ev", "reject" }, .{ "reason", try std.fmt.allocPrint(a, "missing:{s}", .{k}) } }));
-            return res;
-        }
+        const req = switch (reports.required(report)) {
+            .ok => |x| x,
+            .missing => |k| {
+                try res.events.append(try object(a, .{ .{ "ev", "reject" }, .{ "reason", try std.fmt.allocPrint(a, "missing:{s}", .{k}) } }));
+                return res;
+            },
+        };
+        const source: ?[]const u8 = req.source;
+        const uid: ?[]const u8 = req.uid;
+        const time_ms: ?i64 = req.time_ms;
+        const lat: ?f64 = req.lat;
+        const lon: ?f64 = req.lon;
 
         // A report earlier than the entity's last accepted report is ignored.
         const key = try std.fmt.allocPrint(a, "{s}/{s}", .{ source.?, uid.? });
@@ -351,7 +300,7 @@ pub const Engine = struct {
         // 2.3 Decide every attribute, in pack order.
         var attributes = json.ObjectMap.init(a);
         for (self.pack.attributes) |attr| {
-            if (try self.decideAttribute(res, g, members, attr)) |won| {
+            if (try attributes_mod.decide(a, self.pack, res, g, members, attr)) |won| {
                 try attributes.put(attr.key, try object(a, .{ .{ "value", won.value }, .{ "from", won.from } }));
             }
         }
@@ -445,135 +394,9 @@ pub const Engine = struct {
         }
     }
 
-    // ---- fuse.md "Attributes" -------------------------------------------------
-
-    const Won = struct { value: json.Value, from: []const u8 };
-
-    // Decides one attribute for a group and writes its trace record.
-    fn decideAttribute(self: *Engine, res: *Result, g: Group, members: []const Entity, attr: fuse_pack.Attribute) !?Won {
-        const a = self.alloc();
-
-        // Candidates: members in key order whose last report holds the key
-        // with a usable value.
-        const Candidate = struct { m: Entity, value: json.Value };
-        var cands = std.ArrayList(Candidate).init(a);
-        for (members) |m| {
-            const v = m.report.get(attr.key) orelse continue;
-            const usable = switch (attr.rule) {
-                .priority, .latest, .majority => v == .string or v == .bool or isNumber(v),
-                .max, .min => isNumber(v),
-            };
-            if (usable) try cands.append(.{ .m = m, .value = v });
-        }
-
-        var winner: ?usize = null;
-        if (cands.items.len > 0) {
-            const c = cands.items;
-            var win: usize = 0;
-            switch (attr.rule) {
-                // Strictly better replaces, so ties go to key order.
-                .priority => for (1..c.len) |i| {
-                    if (self.pack.rankOrder(c[i].m.source) < self.pack.rankOrder(c[win].m.source)) win = i;
-                },
-                .latest => for (1..c.len) |i| {
-                    if (c[i].m.last_time_ms > c[win].m.last_time_ms) win = i;
-                },
-                .max => for (1..c.len) |i| {
-                    if (numberValue(c[i].value) > numberValue(c[win].value)) win = i;
-                },
-                .min => for (1..c.len) |i| {
-                    if (numberValue(c[i].value) < numberValue(c[win].value)) win = i;
-                },
-                // Count each value at its first holder in key order; the most
-                // held value wins, ties to the earlier first holder.
-                .majority => {
-                    var best_count: usize = 0;
-                    for (c, 0..) |ci, i| {
-                        const first_holder = for (c[0..i]) |cj| {
-                            if (majorityEqual(cj.value, ci.value)) break false;
-                        } else true;
-                        if (!first_holder) continue;
-                        var count: usize = 0;
-                        for (c[i..]) |cj| {
-                            if (majorityEqual(cj.value, ci.value)) count += 1;
-                        }
-                        if (count > best_count) {
-                            best_count = count;
-                            win = i;
-                        }
-                    }
-                },
-            }
-            winner = win;
-        }
-
-        var tc = json.Array.init(a);
-        for (cands.items) |c| {
-            try tc.append(try object(a, .{
-                .{ "member", c.m.key },
-                .{ "value", c.value },
-                .{ "time_ms", c.m.last_time_ms },
-                .{ "rank", self.pack.rank(c.m.source) },
-            }));
-        }
-        const won: ?Won = if (winner) |i| .{ .value = cands.items[i].value, .from = cands.items[i].m.key } else null;
-        try res.trace.append(try object(a, .{
-            .{ "stage", "attribute" },
-            .{ "group", g.name },
-            .{ "key", attr.key },
-            .{ "rule", @tagName(attr.rule) },
-            .{ "candidates", json.Value{ .array = tc } },
-            .{ "winner", if (won) |w| w.from else null },
-            .{ "value", if (won) |w| w.value else json.Value.null },
-        }));
-        return won;
-    }
-
-    // ---- fuse.md "Snapshot" ---------------------------------------------------
+    // ---- fuse.md "Snapshot": snapshot/fuse.zig --------------------------------
 
     pub fn snapshot(self: *Engine) !json.Value {
-        const a = self.alloc();
-        var ents = json.ObjectMap.init(a);
-        for (try self.sortedKeys()) |k| {
-            const e = self.entities.get(k).?;
-            try ents.put(k, try object(a, .{
-                .{ "last_time_ms", e.last_time_ms },
-                .{ "group", e.group },
-                .{ "filter", try object(a, .{ .{ "east", try axisList(a, e.filter.east) }, .{ "north", try axisList(a, e.filter.north) } }) },
-                .{ "report", json.Value{ .object = e.report } },
-            }));
-        }
-        var ref: json.Value = .null;
-        if (self.ref) |r| {
-            var arr = json.Array.init(a);
-            try arr.append(.{ .float = r.lat0 });
-            try arr.append(.{ .float = r.lon0 });
-            ref = .{ .array = arr };
-        }
-        return object(a, .{ .{ "ref", ref }, .{ "entities", json.Value{ .object = ents } } });
+        return snapshot_fuse.snapshot(self);
     }
 };
-
-fn axisList(a: Allocator, x: kalman.Axis) !json.Value {
-    var arr = json.Array.init(a);
-    for ([_]f64{ x.p, x.v, x.pp, x.pv, x.vv }) |v| try arr.append(.{ .float = v });
-    return .{ .array = arr };
-}
-
-fn numberValue(v: json.Value) f64 {
-    return switch (v) {
-        .integer => |i| @floatFromInt(i),
-        .float => |f| f,
-        .number_string => |s| std.fmt.parseFloat(f64, s) catch std.math.nan(f64),
-        else => unreachable,
-    };
-}
-
-// fuse.md "Attributes": equality for `majority`. Strings by bytes, numbers by
-// value (`1` equals `1.0`), booleans by value; different kinds are never equal.
-fn majorityEqual(x: json.Value, y: json.Value) bool {
-    if (isNumber(x) and isNumber(y)) return numberValue(x) == numberValue(y);
-    if (x == .string and y == .string) return std.mem.eql(u8, x.string, y.string);
-    if (x == .bool and y == .bool) return x.bool == y.bool;
-    return false;
-}

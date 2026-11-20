@@ -2,7 +2,7 @@
 const std = @import("std");
 const json = std.json;
 const pack_mod = @import("pack.zig");
-const kalman = @import("kalman.zig");
+const kalman = @import("../model/kalman.zig");
 const Entity = @import("entity.zig").Entity;
 
 pub const Outcome = struct {

@@ -1,15 +1,16 @@
 // tools/perf/README.md "Runner contract": the command-line runner of the zig
-// engine. Reads a steps file, loads the pack, feeds every step to the engine
+// engine (its IO module, with json_read, json_write and steps). Reads a steps file, loads the pack, feeds every step to the engine
 // of the chosen function, then snapshot(); writes the events file and the
 // counters line.
 const std = @import("std");
 const json = std.json;
 const Allocator = std.mem.Allocator;
 
-const correlate = @import("engine.zig");
-const filter = @import("filter.zig");
-const fuse = @import("fuse.zig");
-const quality = @import("quality.zig");
+const api = @import("../api.zig");
+const json_read = @import("json_read.zig");
+const json_write = @import("json_write.zig");
+const steps_mod = @import("steps.zig");
+const Step = steps_mod.Step;
 
 const Args = struct {
     function: []const u8,
@@ -56,46 +57,6 @@ fn parseArgs(alloc: Allocator) !Args {
     return out;
 }
 
-// ---- JSON writing ------------------------------------------------------------
-
-fn writeValue(w: anytype, v: json.Value) !void {
-    switch (v) {
-        .null => try w.writeAll("null"),
-        .bool => |b| try w.writeAll(if (b) "true" else "false"),
-        .integer => |i| try w.print("{d}", .{i}),
-        .float => |f| {
-            if (std.math.isNan(f)) {
-                try w.writeAll("NaN");
-            } else if (std.math.isInf(f)) {
-                try w.writeAll(if (f > 0) "Infinity" else "-Infinity");
-            } else try w.print("{}", .{f});
-        },
-        .number_string => |s| try w.writeAll(s),
-        .string => |s| try json.encodeJsonString(s, .{}, w),
-        .array => |arr| {
-            try w.writeByte('[');
-            for (arr.items, 0..) |x, i| {
-                if (i > 0) try w.writeByte(',');
-                try writeValue(w, x);
-            }
-            try w.writeByte(']');
-        },
-        .object => |obj| {
-            try w.writeByte('{');
-            var it = obj.iterator();
-            var first = true;
-            while (it.next()) |e| {
-                if (!first) try w.writeByte(',');
-                first = false;
-                try json.encodeJsonString(e.key_ptr.*, .{}, w);
-                try w.writeByte(':');
-                try writeValue(w, e.value_ptr.*);
-            }
-            try w.writeByte('}');
-        },
-    }
-}
-
 const StepOut = struct { events: json.Array, trace: json.Array };
 
 const Counters = struct {
@@ -107,27 +68,6 @@ const Counters = struct {
     load_ns: u64 = 0,
     run_ns: u64 = 0,
 };
-
-const Step = union(enum) { ingest: json.ObjectMap, tick: i64 };
-
-// The steps of a steps file; any key other than `ingest` and `tick` is ignored.
-fn readSteps(alloc: Allocator, root: json.Value) ![]Step {
-    if (root != .object) return error.NotAnObject;
-    const list = root.object.get("steps") orelse return error.NoSteps;
-    if (list != .array) return error.StepsNotAList;
-    const out = try alloc.alloc(Step, list.array.items.len);
-    for (list.array.items, out) |s, *o| {
-        if (s != .object) return error.StepNotAnObject;
-        if (s.object.get("ingest")) |r| {
-            if (r != .object) return error.IngestNotAnObject;
-            o.* = .{ .ingest = r.object };
-        } else if (s.object.get("tick")) |t| {
-            if (t != .integer) return error.TickNotAnInteger;
-            o.* = .{ .tick = t.integer };
-        } else return error.StepWithoutIngestOrTick;
-    }
-    return out;
-}
 
 fn runFunction(comptime M: type, alloc: Allocator, pack_dir: []const u8, steps: []const Step, outs: []StepOut, c: *Counters) !json.Value {
     var timer = try std.time.Timer.start();
@@ -153,14 +93,13 @@ pub fn main() !void {
     const alloc = arena.allocator();
     const args = try parseArgs(alloc);
 
-    const Fn = enum { correlate, filter, fuse, quality };
-    const function = std.meta.stringToEnum(Fn, args.function) orelse fail("unknown function {s}", .{args.function});
+    const function = std.meta.stringToEnum(api.Function, args.function) orelse fail("unknown function {s}", .{args.function});
 
     // Reading and parsing the steps file.
     var timer = try std.time.Timer.start();
-    const text = std.fs.cwd().readFileAlloc(alloc, args.steps, std.math.maxInt(usize)) catch |e| fail("cannot read {s}: {s}", .{ args.steps, @errorName(e) });
-    const root = json.parseFromSliceLeaky(json.Value, alloc, text, .{}) catch |e| fail("{s} does not parse: {s}", .{ args.steps, @errorName(e) });
-    const steps = readSteps(alloc, root) catch |e| fail("{s} is not a steps file: {s}", .{ args.steps, @errorName(e) });
+    const text = json_read.readFile(alloc, args.steps) catch |e| fail("cannot read {s}: {s}", .{ args.steps, @errorName(e) });
+    const root = json_read.parse(alloc, text) catch |e| fail("{s} does not parse: {s}", .{ args.steps, @errorName(e) });
+    const steps = steps_mod.read(alloc, root) catch |e| fail("{s} is not a steps file: {s}", .{ args.steps, @errorName(e) });
     const parse_ns = timer.read();
 
     var c = Counters{ .steps = steps.len };
@@ -170,10 +109,7 @@ pub fn main() !void {
     };
     const outs = try alloc.alloc(StepOut, steps.len);
     const snap = switch (function) {
-        .correlate => try runFunction(correlate, alloc, args.pack, steps, outs, &c),
-        .filter => try runFunction(filter, alloc, args.pack, steps, outs, &c),
-        .fuse => try runFunction(fuse, alloc, args.pack, steps, outs, &c),
-        .quality => try runFunction(quality, alloc, args.pack, steps, outs, &c),
+        inline else => |f| try runFunction(api.Module(f), alloc, args.pack, steps, outs, &c),
     };
     for (outs) |o| {
         c.events += o.events.items.len;
@@ -187,15 +123,15 @@ pub fn main() !void {
         const w = bw.writer();
         for (outs, 0..) |o, i| {
             try w.print("{{\"step\":{d},\"events\":", .{i});
-            try writeValue(w, .{ .array = o.events });
+            try json_write.writeValue(w, .{ .array = o.events });
             if (args.trace) {
                 try w.writeAll(",\"trace\":");
-                try writeValue(w, .{ .array = o.trace });
+                try json_write.writeValue(w, .{ .array = o.trace });
             }
             try w.writeAll("}\n");
         }
         try w.writeAll("{\"snapshot\":");
-        try writeValue(w, snap);
+        try json_write.writeValue(w, snap);
         try w.writeAll("}\n");
         try bw.flush();
     }

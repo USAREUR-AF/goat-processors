@@ -1,7 +1,7 @@
 // spec/fuse.md "Kinematics": combining the members' predicted filters.
 // Pure arithmetic; the engine (fuse.zig) chooses the method and writes the trace.
 const std = @import("std");
-const kalman = @import("kalman.zig");
+const kalman = @import("../model/kalman.zig");
 
 // Per axis: `p`, `v`, `pp`, `vv`.
 pub const AxisEstimate = struct {

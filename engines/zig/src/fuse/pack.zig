@@ -1,10 +1,11 @@
 // spec/fuse.md "Pack": parsing of a fuse pack.def.
 const std = @import("std");
+const json_read = @import("../io/json_read.zig");
 const Allocator = std.mem.Allocator;
-const correlate_pack = @import("pack.zig");
+const params = @import("../model/params.zig");
 
 // The `filter` line is the one of correlate.md "Track estimate".
-pub const Filter = correlate_pack.Filter;
+pub const Filter = params.Filter;
 
 // spec/fuse.md "Kinematics": the five methods.
 pub const Kinematics = enum { inverse_variance, covariance_intersection, best, priority, latest };
@@ -196,9 +197,7 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
 
 // `load_pack(dir)`: `<dir>/pack.def`.
 pub fn load(alloc: Allocator, dir: []const u8) !Pack {
-    const path = try std.fs.path.join(alloc, &.{ dir, "pack.def" });
-    const text = try std.fs.cwd().readFileAlloc(alloc, path, 1 << 20);
-    return parse(alloc, text);
+    return parse(alloc, try json_read.readPackDef(alloc, dir));
 }
 
 test "numbers and integers" {

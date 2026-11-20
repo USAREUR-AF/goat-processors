@@ -1,9 +1,7 @@
-// spec/vector-format.md: finding and reading vector files, shared by the
-// correlate, quality and filter vector tests.
+// spec/vector-format.md: finding vector files, shared by the vector tests.
 const std = @import("std");
 const json = std.json;
 const Allocator = std.mem.Allocator;
-const paths = @import("paths");
 
 fn lessName(_: void, a: []const u8, b: []const u8) bool {
     return std.mem.order(u8, a, b) == .lt;
@@ -35,14 +33,4 @@ pub fn sortedPackNames(alloc: Allocator, packs_dir: []const u8, prefix: []const 
     }
     std.mem.sort([]const u8, names.items, {}, lessName);
     return names.items;
-}
-
-// The pack directories under paths.packs_dir whose names start with `prefix`, in byte order.
-pub fn packDirs(alloc: Allocator, prefix: []const u8) ![][]const u8 {
-    return sortedPackNames(alloc, paths.packs_dir, prefix);
-}
-
-pub fn readJson(alloc: Allocator, path: []const u8) !json.Value {
-    const text = try std.fs.cwd().readFileAlloc(alloc, path, 1 << 24);
-    return json.parseFromSliceLeaky(json.Value, alloc, text, .{});
 }

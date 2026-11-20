@@ -1,7 +1,7 @@
 // spec/quality.md 0.2 "Samples" (the record), "Window", "Entity measures" and
 // "Source measures".
 const std = @import("std");
-const qpack = @import("quality_pack.zig");
+const qpack = @import("pack.zig");
 const Measure = qpack.Measure;
 const TimeState = qpack.TimeState;
 
@@ -46,6 +46,13 @@ pub const Record = struct {
 pub const Num = union(enum) {
     int: i64,
     float: f64,
+
+    pub fn toJson(n: Num) @import("std").json.Value {
+        return switch (n) {
+            .int => |i| .{ .integer = i },
+            .float => |f| .{ .float = f },
+        };
+    }
 
     pub fn toF64(n: Num) f64 {
         return switch (n) {

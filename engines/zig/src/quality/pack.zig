@@ -1,17 +1,18 @@
 // spec/quality.md 0.2 "Pack" and "Rules": parsing of a quality pack.def.
 const std = @import("std");
+const json_read = @import("../io/json_read.zig");
 const Allocator = std.mem.Allocator;
-const correlate_pack = @import("pack.zig");
+const params = @import("../model/params.zig");
 
 // spec/quality.md "Frame and filter": the `filter` line has the parameters of
 // correlate.md "Track estimate", so the correlate type is reused.
-pub const Filter = correlate_pack.Filter;
+pub const Filter = params.Filter;
 
 // spec/quality.md "Reports", "Time quality": the clock states and the
 // `time_default` line are those of correlate.md 0.8, so the correlate types
 // are reused.
-pub const TimeState = correlate_pack.TimeState;
-pub const TimeDefault = correlate_pack.TimeDefault;
+pub const TimeState = params.TimeState;
+pub const TimeDefault = params.TimeDefault;
 
 // "Time quality": the code of a time state for measures; higher is worse.
 pub fn timeStateCode(state: TimeState) i64 {
@@ -380,7 +381,5 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
 
 // spec/quality.md operation `load_pack(dir)`: reads `<dir>/pack.def`.
 pub fn load(alloc: Allocator, dir: []const u8) !Pack {
-    const path = try std.fs.path.join(alloc, &.{ dir, "pack.def" });
-    const text = try std.fs.cwd().readFileAlloc(alloc, path, 1 << 20);
-    return parse(alloc, text);
+    return parse(alloc, try json_read.readPackDef(alloc, dir));
 }

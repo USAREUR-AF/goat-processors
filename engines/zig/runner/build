@@ -3,4 +3,4 @@
 set -e
 cd "$(dirname "$0")/.."
 mkdir -p zig-out/bin
-exec zig build-exe -O ReleaseFast src/runner.zig -femit-bin=zig-out/bin/goat-runner
+exec zig build-exe -O ReleaseFast src/main.zig -femit-bin=zig-out/bin/goat-runner

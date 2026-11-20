@@ -2,8 +2,8 @@
 // R, rad, deg and wrap are the correlate engine's (src/frame.zig); the
 // definitions are the same in both specifications.
 const std = @import("std");
-const frame = @import("frame.zig");
-const fpack = @import("filter_pack.zig");
+const frame = @import("../model/frame.zig");
+const fpack = @import("pack.zig");
 
 const R = frame.R;
 const rad = frame.rad;

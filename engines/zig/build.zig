@@ -58,9 +58,28 @@ pub fn build(b: *std.Build) void {
     const run_filter_tests = b.addRunArtifact(filter_tests);
     run_filter_tests.has_side_effects = true;
 
+    // The unit tests of every module.
+    const unit_tests = b.addTest(.{
+        .root_source_file = b.path("src/unit_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const run_unit_tests = b.addRunArtifact(unit_tests);
+    run_unit_tests.has_side_effects = true;
+
+    // The runner of tools/perf/README.md "Runner contract" (runner/build builds it ReleaseFast).
+    const runner = b.addExecutable(.{
+        .name = "goat-runner",
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    b.installArtifact(runner);
+
     const test_step = b.step("test", "Run every load vector and scenario vector: correlate, fuse, filter and quality");
     test_step.dependOn(&run_tests.step);
     test_step.dependOn(&run_fuse_tests.step);
     test_step.dependOn(&run_filter_tests.step);
     test_step.dependOn(&run_quality_tests.step);
+    test_step.dependOn(&run_unit_tests.step);
 }

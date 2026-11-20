@@ -6,12 +6,16 @@
 const std = @import("std");
 const json = std.json;
 const Allocator = std.mem.Allocator;
-const frame = @import("frame.zig");
-const kalman = @import("kalman.zig");
-const reports = @import("entity.zig"); // correlate's typed key readers (spec "Reports")
-const qpack = @import("quality_pack.zig");
-const measures = @import("quality_measures.zig");
-const Pack = qpack.Pack;
+const frame = @import("../model/frame.zig");
+const kalman = @import("../model/kalman.zig");
+const reports = @import("../model/report.zig"); // correlate's typed key readers (spec "Reports")
+const qpack = @import("pack.zig");
+const measures = @import("measures.zig");
+const rules = @import("rules.zig");
+const record = @import("../trace/record.zig");
+const common = @import("../snapshot/common.zig");
+const snapshot_quality = @import("../snapshot/quality.zig");
+pub const Pack = qpack.Pack;
 const Rule = qpack.Rule;
 const Record = measures.Record;
 const Order = measures.Order;
@@ -21,12 +25,9 @@ const TimeState = qpack.TimeState;
 
 pub const load_pack = qpack.load;
 
-pub const Result = struct {
-    events: json.Array,
-    trace: json.Array,
-};
+pub const Result = record.Result;
 
-const Entity = struct {
+pub const Entity = struct {
     source: []const u8,
     // `last`: the entity's latest accepted time of a `first` or `advance` report.
     last_time_ms: i64,
@@ -36,12 +37,9 @@ const Entity = struct {
     window: std.ArrayList(Record),
 };
 
-// "Rules": per rule, per subject.
-const RuleState = struct { count: i64, active: bool };
+pub const RuleState = rules.RuleState;
 
-fn lessKey(_: void, a: []const u8, b: []const u8) bool {
-    return std.mem.order(u8, a, b) == .lt;
-}
+const toValue = record.toValue;
 
 pub const Engine = struct {
     arena: std.heap.ArenaAllocator,
@@ -73,64 +71,19 @@ pub const Engine = struct {
         backing.destroy(self);
     }
 
-    fn alloc(self: *Engine) Allocator {
+    pub fn alloc(self: *Engine) Allocator {
         return self.arena.allocator();
     }
 
     // ---- JSON output -------------------------------------------------------
 
-    fn toValue(x: anytype) json.Value {
-        const T = @TypeOf(x);
-        if (T == json.Value) return x;
-        if (T == bool) return .{ .bool = x };
-        if (T == f64) return .{ .float = x };
-        if (T == i64) return .{ .integer = x };
-        if (T == Num) return switch (x) {
-            .int => |i| .{ .integer = i },
-            .float => |f| .{ .float = f },
-        };
-        switch (@typeInfo(T)) {
-            .Pointer => |p| {
-                if (p.size == .Slice and p.child == u8) return .{ .string = x };
-                if (p.size == .One and @typeInfo(p.child) == .Array) return .{ .string = x };
-            },
-            .Optional => return if (x) |v| toValue(v) else .null,
-            else => {},
-        }
-        @compileError("unsupported value type " ++ @typeName(T));
-    }
-
     // `fields` is a tuple of .{ name, value } pairs.
-    fn object(self: *Engine, fields: anytype) !json.Value {
-        var m = json.ObjectMap.init(self.alloc());
-        inline for (fields) |kv| try m.put(kv[0], toValue(kv[1]));
-        return .{ .object = m };
+    pub fn object(self: *Engine, fields: anytype) !json.Value {
+        return record.object(self.alloc(), fields);
     }
 
-    fn list(self: *Engine, items: anytype) !json.Value {
-        var arr = json.Array.init(self.alloc());
-        inline for (items) |x| try arr.append(toValue(x));
-        return .{ .array = arr };
-    }
-
-    fn cloneValue(self: *Engine, v: json.Value) !json.Value {
-        const a = self.alloc();
-        return switch (v) {
-            .null, .bool, .integer, .float => v,
-            .number_string => |s| .{ .number_string = try a.dupe(u8, s) },
-            .string => |s| .{ .string = try a.dupe(u8, s) },
-            .array => |arr| blk: {
-                var out = json.Array.init(a);
-                for (arr.items) |item| try out.append(try self.cloneValue(item));
-                break :blk .{ .array = out };
-            },
-            .object => |obj| blk: {
-                var out = json.ObjectMap.init(a);
-                var it = obj.iterator();
-                while (it.next()) |e| try out.put(try a.dupe(u8, e.key_ptr.*), try self.cloneValue(e.value_ptr.*));
-                break :blk .{ .object = out };
-            },
-        };
+    pub fn list(self: *Engine, items: anytype) !json.Value {
+        return record.list(self.alloc(), items);
     }
 
     // The `measures` object of a `quality` event: every measure of the scope's table.
@@ -202,21 +155,23 @@ pub const Engine = struct {
 
     // Spec "Ingest", operation `ingest(report)`.
     pub fn ingest(self: *Engine, report: json.ObjectMap) !Result {
-        var res = Result{ .events = json.Array.init(self.alloc()), .trace = json.Array.init(self.alloc()) };
+        var res = Result.init(self.alloc());
         const f = self.pack.filter;
 
         // "Reports": required keys, in the order of the table; a missing one rejects.
-        const source_id = reports.stringOf(report, "track.source_id");
-        const uid = reports.stringOf(report, "uid");
-        const time_ms = reports.integerOf(report, "time_ms");
-        const lat = reports.numberOf(report, "lat");
-        const lon = reports.numberOf(report, "lon");
-        const missing: ?[]const u8 = if (source_id == null) "track.source_id" else if (uid == null) "uid" else if (time_ms == null) "time_ms" else if (lat == null) "lat" else if (lon == null) "lon" else null;
-        if (missing) |k| {
-            const reason = try std.fmt.allocPrint(self.alloc(), "missing:{s}", .{k});
-            try res.events.append(try self.object(.{ .{ "ev", "reject" }, .{ "reason", reason } }));
-            return res;
-        }
+        const req = switch (reports.required(report)) {
+            .ok => |x| x,
+            .missing => |k| {
+                const reason = try std.fmt.allocPrint(self.alloc(), "missing:{s}", .{k});
+                try res.events.append(try self.object(.{ .{ "ev", "reject" }, .{ "reason", reason } }));
+                return res;
+            },
+        };
+        const source_id: ?[]const u8 = req.source;
+        const uid: ?[]const u8 = req.uid;
+        const time_ms: ?i64 = req.time_ms;
+        const lat: ?f64 = req.lat;
+        const lon: ?f64 = req.lon;
         const t = time_ms.?;
         const key = try std.fmt.allocPrint(self.alloc(), "{s}/{s}", .{ source_id.?, uid.? });
 
@@ -402,7 +357,7 @@ pub const Engine = struct {
         }
 
         // The report exactly as received, with `ce` and `quality.marks` changed.
-        var out = (try self.cloneValue(.{ .object = report })).object;
+        var out = (try reports.cloneValue(self.alloc(), .{ .object = report })).object;
         if (factors.items.len > 0) {
             // `x = x * factor` for each `downgrade` in pack order.
             var x = ce_valid orelse self.pack.filter.default_ce_m;
@@ -444,10 +399,8 @@ pub const Engine = struct {
 
     // ---- tick --------------------------------------------------------------
 
-    fn sortedEntityKeys(self: *Engine) ![][]const u8 {
-        const keys = try self.alloc().dupe([]const u8, self.entities.keys());
-        std.mem.sort([]const u8, keys, {}, lessKey);
-        return keys;
+    pub fn sortedEntityKeys(self: *Engine) ![][]const u8 {
+        return common.sortedKeys(self.alloc(), self.entities.keys());
     }
 
     // The sources that have at least one entity, in key order.
@@ -458,7 +411,7 @@ pub const Engine = struct {
                 if (std.mem.eql(u8, s, e.source)) break;
             } else try out.append(e.source);
         }
-        std.mem.sort([]const u8, out.items, {}, lessKey);
+        std.mem.sort([]const u8, out.items, {}, common.lessKey);
         return out.items;
     }
 
@@ -488,44 +441,28 @@ pub const Engine = struct {
         }
     }
 
-    // Spec "Rules", evaluation, once for one rule and one subject.
+    // Spec "Rules", evaluation, once for one rule and one subject (rules.zig).
     fn evaluate(self: *Engine, res: *Result, rule: Rule, states: *std.StringArrayHashMap(RuleState), subject: []const u8, m: Measures) !void {
         const gop = try states.getOrPut(subject);
         if (!gop.found_existing) gop.value_ptr.* = .{ .count = 0, .active = false };
-        const st = gop.value_ptr;
         const value = m.get(rule.measure);
-        const v: ?f64 = if (value) |x| x.toF64() else null;
-
-        var shown_limit: f64 = undefined;
-        var pass: bool = undefined;
-        if (!st.active) {
-            shown_limit = rule.limit;
-            pass = v != null and rule.op.holds(v.?, rule.limit);
-            st.count = if (pass) st.count + 1 else 0;
-            if (st.count >= rule.for_n) {
-                st.active = true;
-                st.count = 0;
-                try self.actionEvent(res, rule, subject, "action-start", null, value);
-            }
-        } else {
-            shown_limit = rule.clear;
-            pass = v != null and rule.op.clears(v.?, rule.clear);
-            if (pass) {
-                st.active = false;
-                try self.actionEvent(res, rule, subject, "action-end", "clear", value);
-            }
+        const out = rules.step(rule, gop.value_ptr.*, value);
+        gop.value_ptr.* = out.state;
+        switch (out.change) {
+            .none => {},
+            .start => try self.actionEvent(res, rule, subject, "action-start", null, value),
+            .end => try self.actionEvent(res, rule, subject, "action-end", "clear", value),
         }
-
         try res.trace.append(try self.object(.{
             .{ "stage", "rule" },
             .{ "rule", rule.name },
             .{ "subject", subject },
             .{ "measure", @tagName(rule.measure) },
             .{ "value", value },
-            .{ "limit", shown_limit },
-            .{ "pass", pass },
-            .{ "count", st.count },
-            .{ "active", st.active },
+            .{ "limit", out.shown_limit },
+            .{ "pass", out.pass },
+            .{ "count", out.state.count },
+            .{ "active", out.state.active },
         }));
     }
 
@@ -553,7 +490,7 @@ pub const Engine = struct {
 
     // Spec "Tick", operation `tick(now_ms)`.
     pub fn tick(self: *Engine, now_ms: i64) !Result {
-        var res = Result{ .events = json.Array.init(self.alloc()), .trace = json.Array.init(self.alloc()) };
+        var res = Result.init(self.alloc());
         const w = self.pack.window;
 
         // 1. Order.
@@ -617,66 +554,9 @@ pub const Engine = struct {
         return res;
     }
 
-    // ---- snapshot ----------------------------------------------------------
+    // ---- snapshot: snapshot/quality.zig --------------------------------------
 
-    fn axisValue(self: *Engine, a: kalman.Axis) !json.Value {
-        return self.list(.{ a.p, a.v, a.pp, a.pv, a.vv });
-    }
-
-    fn recordValue(self: *Engine, r: Record) !json.Value {
-        return self.object(.{
-            .{ "wt", r.wt },
-            .{ "time_ms", r.time_ms },
-            .{ "order", r.order.name() },
-            .{ "interval", r.interval },
-            .{ "latency", r.latency },
-            .{ "lateness", r.lateness },
-            .{ "source_out_of_order", r.source_out_of_order },
-            .{ "time_error", r.time_error },
-            .{ "time_state", if (r.time_state) |ts| @tagName(ts) else null },
-            .{ "nis", r.nis },
-            .{ "speed_err", r.speed_err },
-            .{ "ce", r.ce },
-            .{ "vel", r.vel },
-            .{ "hae", r.hae },
-        });
-    }
-
-    // Spec "Snapshot", operation `snapshot()`.
     pub fn snapshot(self: *Engine) !json.Value {
-        const a = self.alloc();
-        var entities = json.ObjectMap.init(a);
-        for (try self.sortedEntityKeys()) |key| {
-            const e = self.entities.get(key).?;
-            var window = json.Array.init(a);
-            for (e.window.items) |r| try window.append(try self.recordValue(r));
-            try entities.put(key, try self.object(.{
-                .{ "source", e.source },
-                .{ "last_time_ms", e.last_time_ms },
-                .{ "last_pos", try self.list(.{ e.last_pos.east, e.last_pos.north }) },
-                .{ "filter", try self.object(.{ .{ "east", try self.axisValue(e.filter.east) }, .{ "north", try self.axisValue(e.filter.north) } }) },
-                .{ "window", json.Value{ .array = window } },
-            }));
-        }
-
-        var rules = json.ObjectMap.init(a);
-        for (self.pack.rules, self.rule_states) |rule, states| {
-            var by_subject = json.ObjectMap.init(a);
-            const subjects = try a.dupe([]const u8, states.keys());
-            std.mem.sort([]const u8, subjects, {}, lessKey);
-            for (subjects) |s| {
-                const st = states.get(s).?;
-                try by_subject.put(s, try self.object(.{ .{ "count", st.count }, .{ "active", st.active } }));
-            }
-            try rules.put(rule.name, .{ .object = by_subject });
-        }
-
-        const ref: json.Value = if (self.ref) |r| try self.list(.{ r.lat0, r.lon0 }) else .null;
-        return self.object(.{
-            .{ "ref", ref },
-            .{ "last_tick", self.last_tick },
-            .{ "entities", json.Value{ .object = entities } },
-            .{ "rules", json.Value{ .object = rules } },
-        });
+        return snapshot_quality.snapshot(self);
     }
 };

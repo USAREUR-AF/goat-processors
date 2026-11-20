@@ -3,7 +3,7 @@
 // `maneuver` (index 2, [1] here).
 const std = @import("std");
 const kalman = @import("kalman.zig");
-const pack_mod = @import("pack.zig");
+const params = @import("params.zig");
 const Axis = kalman.Axis;
 const Filter = kalman.Filter;
 
@@ -16,7 +16,7 @@ pub const State = struct {
 
 // "Switching over dt seconds": t[i][j] is the probability of model j at the end
 // of dt given model i at its start.
-fn switching(m: pack_mod.Maneuver, dt: f64) [2][2]f64 {
+fn switching(m: params.Maneuver, dt: f64) [2][2]f64 {
     const a = m.p_enter;
     const b = m.p_leave;
     const s = a + b;
@@ -48,7 +48,7 @@ pub fn blend(w1: f64, w2: f64, f1: Filter, f2: Filter) Filter {
 }
 
 // "First report": both models are the first-report filter; mu is the long-run share.
-pub fn init(m: pack_mod.Maneuver, first: Filter) State {
+pub fn init(m: params.Maneuver, first: Filter) State {
     const s = m.p_enter + m.p_leave;
     return .{ .models = .{ first, first }, .mu = .{ m.p_leave / s, m.p_enter / s } };
 }
@@ -61,7 +61,7 @@ pub fn combined(st: State) Filter {
 pub const Step = struct { state: State, lambda: [2]f64 };
 
 // "Later reports", steps 1 to 4. The combination (step 5) is `combined`.
-pub fn update(st: State, m: pack_mod.Maneuver, q1: f64, dt: f64, meas: kalman.Measurement) Step {
+pub fn update(st: State, m: params.Maneuver, q1: f64, dt: f64, meas: kalman.Measurement) Step {
     const t = switching(m, dt);
     const mu = st.mu;
     const q = [2]f64{ q1, m.accel_var };
@@ -101,6 +101,6 @@ pub fn update(st: State, m: pack_mod.Maneuver, q1: f64, dt: f64, meas: kalman.Me
 
 // "Prediction": each model with its own acceleration variance, combined with the
 // current mode probabilities. Never changes the entity.
-pub fn predict(st: State, m: pack_mod.Maneuver, q1: f64, dt: f64) Filter {
+pub fn predict(st: State, m: params.Maneuver, q1: f64, dt: f64) Filter {
     return blend(st.mu[0], st.mu[1], st.models[0].predict(dt, q1), st.models[1].predict(dt, m.accel_var));
 }
