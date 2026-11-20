@@ -1,50 +1,6 @@
-//! Frame, track estimate and two-model filter (spec: Frame, Track estimate,
-//! Two-model filter).
-
-pub const R: f64 = 6371008.8;
-
-pub fn rad(x: f64) -> f64 {
-    x * std::f64::consts::PI / 180.0
-}
-
-pub fn deg(x: f64) -> f64 {
-    x * 180.0 / std::f64::consts::PI
-}
-
-/// Brings a longitude difference or longitude into (-180, 180].
-pub fn wrap180(mut x: f64) -> f64 {
-    while x > 180.0 {
-        x -= 360.0;
-    }
-    while x <= -180.0 {
-        x += 360.0;
-    }
-    x
-}
-
-/// The local plane, meters east and north of the reference point.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Frame {
-    pub lat0: f64,
-    pub lon0: f64,
-}
-
-impl Frame {
-    /// `(east, north)` of a position in degrees.
-    pub fn to_plane(&self, lat: f64, lon: f64) -> (f64, f64) {
-        let dlon = wrap180(lon - self.lon0);
-        let east = R * rad(dlon) * rad(self.lat0).cos();
-        let north = R * rad(lat - self.lat0);
-        (east, north)
-    }
-
-    /// `(lat, lon)` in degrees of a plane position.
-    pub fn to_degrees(&self, east: f64, north: f64) -> (f64, f64) {
-        let lat = self.lat0 + deg(north / R);
-        let lon = self.lon0 + deg(east / (R * rad(self.lat0).cos()));
-        (lat, wrap180(lon))
-    }
-}
+//! correlate.md Track estimate: one constant-velocity Kalman filter per axis
+//! (prediction, position and velocity updates, likelihood terms). Every
+//! function here is pure: it takes a state and returns a new one.
 
 /// One axis of the constant-velocity filter.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -194,85 +150,125 @@ impl Model {
     }
 }
 
-/// The two models of Two-model filter: index 0 is `quiet` (model 1), index 1
-/// is `maneuver` (model 2), with mode probabilities `mu`.
+/// correlate.md Track estimate: the velocity measurement `(ve, vn) =
+/// (s * sin(c), s * cos(c))` from `course` (degrees) and `speed_ms`, when a
+/// report has both.
+pub fn velocity(course: Option<f64>, speed_ms: Option<f64>) -> Option<(f64, f64)> {
+    match (course, speed_ms) {
+        (Some(c), Some(s)) => Some((s * super::rad(c).sin(), s * super::rad(c).cos())),
+        _ => None,
+    }
+}
+
+/// correlate.md Track estimate, Measurement variance, for one report.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct TwoModel {
-    pub models: [Model; 2],
-    pub mu: [f64; 2],
+pub struct MeasurementVariance {
+    /// `(r_east, r_north)`.
+    pub r: (f64, f64),
+    /// The timing variance `((v_e*ts)², (v_n*ts)²)`; `None` when the time
+    /// error is 0.
+    pub time_var: Option<(f64, f64)>,
 }
 
-/// What one later report gives for the trace: `lambda` and the new `mu`.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ModeUpdate {
-    pub lambda: [f64; 2],
-    pub mu: [f64; 2],
+/// With time error `te_ms` 0, `r = ce²` on both axes. Otherwise
+/// `ts = te / 1000` and `r = ce² + (v*ts)²` per axis, `v` the velocity
+/// `(v_e, v_n)` the caller found (the entity's prediction to the report's
+/// time; for a first report the measured velocity, or 0).
+pub fn measurement_variance(ce: f64, te_ms: f64, v: impl FnOnce() -> (f64, f64)) -> MeasurementVariance {
+    if te_ms == 0.0 {
+        return MeasurementVariance { r: (ce * ce, ce * ce), time_var: None };
+    }
+    let (v_e, v_n) = v();
+    let ts = te_ms / 1000.0;
+    let (de, dn) = (v_e * ts, v_n * ts);
+    let (var_e, var_n) = (de * de, dn * dn);
+    MeasurementVariance { r: (ce * ce + var_e, ce * ce + var_n), time_var: Some((var_e, var_n)) }
 }
 
-/// Switching over `dt` seconds: `t[i][j]`, the probability of model `j` at
-/// the end of `dt` given model `i` at its start.
-fn switching(a: f64, b: f64, dt: f64) -> [[f64; 2]; 2] {
-    let s = a + b;
-    let l = (1.0 - s).powf(dt);
-    let t12 = a / s * (1.0 - l);
-    let t21 = b / s * (1.0 - l);
-    [[1.0 - t12, t12], [t21, 1.0 - t21]]
+/// `d² = sum over east, north of (z - p)² / (pp + r)`: a position `z` against
+/// a prediction, with the measurement variance `r` per axis (the form of
+/// correlate.md Restart, Tests and correlate-assign.md Cost).
+pub fn d2(z: (f64, f64), (pe, pn): (&Axis, &Axis), r: (f64, f64)) -> f64 {
+    (z.0 - pe.p) * (z.0 - pe.p) / (pe.pp + r.0) + (z.1 - pn.p) * (z.1 - pn.p) / (pn.pp + r.1)
 }
 
-impl TwoModel {
-    /// First report: both models the first-report filter, `mu1 = b / s`,
-    /// `mu2 = a / s`.
-    pub fn first(filter: Model, a: f64, b: f64) -> TwoModel {
-        let s = a + b;
-        TwoModel { models: [filter, filter], mu: [b / s, a / s] }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn axis() -> Axis {
+        Axis { p: 10.0, v: 2.0, pp: 4.0, pv: 1.0, vv: 9.0 }
     }
 
-    /// The entity's filter: `blend(mu1, mu2)` of the two models (step 5).
-    pub fn combined(&self) -> Model {
-        Model::blend(self.mu[0], &self.models[0], self.mu[1], &self.models[1])
+    #[test]
+    fn first_report_variances() {
+        assert_eq!(Axis::first(5.0, Some(1.0), 3.0, 2.0, 50.0), Axis { p: 5.0, v: 1.0, pp: 9.0, pv: 0.0, vv: 4.0 });
+        assert_eq!(Axis::first(5.0, None, 3.0, 2.0, 50.0), Axis { p: 5.0, v: 0.0, pp: 9.0, pv: 0.0, vv: 2500.0 });
     }
 
-    /// Prediction: each model by its own `q`, combined with the current `mu`.
-    pub fn predict(&self, dt: f64, q: [f64; 2]) -> Model {
-        let p1 = self.models[0].predict(dt, q[0]);
-        let p2 = self.models[1].predict(dt, q[1]);
-        Model::blend(self.mu[0], &p1, self.mu[1], &p2)
+    #[test]
+    fn predict_by_zero_is_the_identity_and_grows_otherwise() {
+        assert_eq!(axis().predict(0.0, 1.0), axis());
+        let p = axis().predict(2.0, 1.0);
+        assert_eq!((p.p, p.v), (14.0, 2.0));
+        assert_eq!(p.pp, 4.0 + 2.0 * 2.0 * 1.0 + 4.0 * 9.0 + 16.0 / 4.0);
+        assert_eq!(p.pv, 1.0 + 2.0 * 9.0 + 8.0 / 2.0);
+        assert_eq!(p.vv, 9.0 + 4.0);
     }
 
-    /// A later report, steps 1 to 4. `q` holds `[q1, q2]`; `a`, `b` are
-    /// `p_enter`, `p_leave`.
-    pub fn step(&self, dt: f64, q: [f64; 2], a: f64, b: f64, m: &Measurement) -> (TwoModel, ModeUpdate) {
-        let t = switching(a, b, dt);
-        let [mu1, mu2] = self.mu;
-        let [m1, m2] = &self.models;
+    #[test]
+    fn updates_shrink_the_variance_and_report_the_innovation() {
+        let (u, i) = axis().update_position(12.0, 4.0);
+        assert_eq!((i.y, i.s), (2.0, 8.0));
+        assert!(u.pp < axis().pp && u.p == 11.0);
+        assert_eq!(i.term(), 4.0 / 8.0 + 8f64.ln());
+        let (u, i) = axis().update_velocity(5.0, 9.0);
+        assert_eq!((i.y, i.s), (3.0, 18.0));
+        assert!(u.vv < axis().vv && u.v == 3.5);
+    }
 
-        // 1. Mixing, both from the model states before mixing.
-        let c = [t[0][0] * mu1 + t[1][0] * mu2, t[0][1] * mu1 + t[1][1] * mu2];
-        let mixed: [Model; 2] = std::array::from_fn(|j| {
-            if c[j] == 0.0 {
-                self.models[j]
-            } else {
-                let w1 = t[0][j] * mu1 / c[j];
-                let w2 = t[1][j] * mu2 / c[j];
-                Model::blend(w1, m1, w2, m2)
-            }
-        });
+    #[test]
+    fn blend_of_equal_states_is_that_state() {
+        assert_eq!(Axis::blend(0.25, &axis(), 0.75, &axis()), axis());
+        let m = Model { east: axis(), north: axis() };
+        assert_eq!(Model::blend(0.5, &m, 0.5, &m), m);
+        assert_eq!(axis().as_list(), [10.0, 2.0, 4.0, 1.0, 9.0]);
+    }
 
-        // 2. Predict and update each model; 3. its log-likelihood.
-        let (u1, g1) = mixed[0].step(dt, q[0], m);
-        let (u2, g2) = mixed[1].step(dt, q[1], m);
-        let lambda = [-0.5 * g1, -0.5 * g2];
+    #[test]
+    fn model_step_sums_the_likelihood_terms_in_order() {
+        let m = Model { east: axis(), north: axis() };
+        let meas = Measurement { pos: (11.0, 9.0), r_pos: (1.0, 2.0), vel: Some((1.0, 3.0)), r_vel: 4.0 };
+        let (next, g) = m.step(0.0, 1.0, &meas);
+        let (e, ie) = axis().update_position(11.0, 1.0);
+        let (n, in_) = axis().update_position(9.0, 2.0);
+        let (e2, iev) = e.update_velocity(1.0, 4.0);
+        let (n2, inv) = n.update_velocity(3.0, 4.0);
+        assert_eq!(next, Model { east: e2, north: n2 });
+        assert_eq!(g, 0.0 + ie.term() + in_.term() + iev.term() + inv.term());
+        let without = Measurement { vel: None, ..meas };
+        assert_eq!(m.step(0.0, 1.0, &without).0, Model { east: e, north: n });
+    }
 
-        // 4. Mode probabilities.
-        let mut best = f64::NEG_INFINITY;
-        for j in 0..2 {
-            if c[j] > 0.0 && lambda[j] > best {
-                best = lambda[j];
-            }
-        }
-        let e: [f64; 2] = std::array::from_fn(|j| if c[j] > 0.0 { c[j] * (lambda[j] - best).exp() } else { 0.0 });
-        let mu = [e[0] / (e[0] + e[1]), e[1] / (e[0] + e[1])];
+    #[test]
+    fn velocity_needs_course_and_speed() {
+        assert_eq!(velocity(Some(90.0), None), None);
+        assert_eq!(velocity(None, Some(3.0)), None);
+        let (ve, vn) = velocity(Some(90.0), Some(3.0)).unwrap();
+        assert!((ve - 3.0).abs() < 1e-12 && vn.abs() < 1e-12);
+    }
 
-        (TwoModel { models: [u1, u2], mu }, ModeUpdate { lambda, mu })
+    #[test]
+    fn measurement_variance_adds_the_timing_term() {
+        let none = measurement_variance(10.0, 0.0, || panic!("not read when te is 0"));
+        assert_eq!(none, MeasurementVariance { r: (100.0, 100.0), time_var: None });
+        let v = measurement_variance(10.0, 500.0, || (4.0, -2.0));
+        assert_eq!(v, MeasurementVariance { r: (104.0, 101.0), time_var: Some((4.0, 1.0)) });
+    }
+
+    #[test]
+    fn d2_sums_both_axes() {
+        let a = Axis { p: 0.0, v: 0.0, pp: 1.0, pv: 0.0, vv: 1.0 };
+        assert_eq!(d2((3.0, 4.0), (&a, &a), (1.0, 3.0)), 9.0 / 2.0 + 16.0 / 4.0);
     }
 }

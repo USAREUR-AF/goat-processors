@@ -1,0 +1,8 @@
+#!/bin/sh
+# Builds the rust runner with the optimized (release) profile
+# (tools/perf/README.md, Runner contract).
+set -e
+here=$(cd "$(dirname "$0")/.." && pwd)
+PATH="$PATH:$HOME/.cargo/bin"
+cd "$here"
+exec cargo build --release --quiet --bin runner

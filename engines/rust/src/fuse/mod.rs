@@ -7,17 +7,21 @@
 
 use std::collections::BTreeMap;
 
-use crate::filter::{deg, rad, Axis, Frame};
-use crate::json::{obj, Json};
-pub use crate::engine::StepResult;
+use crate::model::{deg, velocity, Axis, Frame};
+use crate::model::{obj, Json};
+pub use crate::trace::StepResult;
 
 pub mod attributes;
+mod report;
+mod snapshot;
+
+use report::{missing_required, normalize};
 pub mod kinematics;
 pub mod pack;
 
 pub use pack::{load_pack, parse_pack, Kinematics, Pack, Rule};
 
-const REQUIRED: [&str; 5] = ["track.source_id", "uid", "time_ms", "lat", "lon"];
+crate::function::function!(Engine, "fuse", Pack, parse_pack);
 
 #[derive(Debug, Clone)]
 struct Entity {
@@ -28,7 +32,7 @@ struct Entity {
     east: Axis,
     north: Axis,
     /// The last normalized report.
-    report: BTreeMap<String, Json>,
+    report: crate::model::json::Map,
 }
 
 /// One member of a group at a tick, its filter predicted to `now_ms`.
@@ -39,7 +43,7 @@ pub struct Member<'a> {
     pub rank: Option<usize>,
     pub east: Axis,
     pub north: Axis,
-    pub report: &'a BTreeMap<String, Json>,
+    pub report: &'a crate::model::json::Map,
 }
 
 impl Member<'_> {
@@ -47,37 +51,6 @@ impl Member<'_> {
     pub fn var(&self) -> f64 {
         self.east.pp + self.north.pp
     }
-}
-
-/// Reports: the required key that is missing, checked in table order.
-fn missing_required(fields: &BTreeMap<String, Json>) -> Option<&'static str> {
-    REQUIRED.into_iter().find(|key| {
-        let v = fields.get(*key);
-        match *key {
-            "track.source_id" | "uid" => v.and_then(Json::as_str).is_none(),
-            "time_ms" => v.and_then(Json::as_i64).is_none(),
-            _ => v.and_then(Json::as_f64).is_none(),
-        }
-    })
-}
-
-/// The normalized report: every key removed that is `null`, an optional
-/// correlate key of the wrong type, a `ce` of 0 or below, or an unusable
-/// `fuse.group` (not a string, or empty).
-fn normalize(fields: &BTreeMap<String, Json>) -> BTreeMap<String, Json> {
-    fields
-        .iter()
-        .filter(|(key, value)| match key.as_str() {
-            _ if **value == Json::Null => false,
-            "hae" | "course" | "speed_ms" => value.as_f64().is_some(),
-            "ce" => value.as_f64().is_some_and(|c| c > 0.0),
-            "type" => value.as_str().is_some(),
-            "stale_ms" => value.as_i64().is_some(),
-            "fuse.group" => value.as_str().is_some_and(|g| !g.is_empty()),
-            _ => true,
-        })
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect()
 }
 
 fn group_json(group: &Option<String>) -> Json {
@@ -88,6 +61,9 @@ fn rank_json(rank: Option<usize>) -> Json {
     rank.map_or(Json::Null, |r| Json::Int(r as i64))
 }
 
+/// The engine: all of its state, read out by `snapshot()`. `Clone` copies
+/// the state, so a copy continues exactly as the original would.
+#[derive(Clone)]
 pub struct Engine {
     pack: Pack,
     frame: Option<Frame>,
@@ -140,10 +116,7 @@ impl Engine {
         // Track estimate: first report, or predict and update.
         let f = &self.pack.filter;
         let ce = report.get("ce").and_then(Json::as_f64).unwrap_or(f.default_ce_m);
-        let vel = match (report.get("course").and_then(Json::as_f64), report.get("speed_ms").and_then(Json::as_f64)) {
-            (Some(c), Some(s)) => Some((s * rad(c).sin(), s * rad(c).cos())),
-            _ => None,
-        };
+        let vel = velocity(report.get("course").and_then(Json::as_f64), report.get("speed_ms").and_then(Json::as_f64));
 
         match self.entities.get_mut(&key) {
             None => {
@@ -299,7 +272,7 @@ impl Engine {
             ]));
             if let Some(c) = won {
                 let value = obj(vec![("value", c.value.clone()), ("from", members[c.member].key.as_str().into())]);
-                attrs.insert(key.clone(), value);
+                attrs.insert(key.into(), value);
             }
         }
 
@@ -353,23 +326,4 @@ impl Engine {
 
     // ---- snapshot (spec/fuse.md: Snapshot)
 
-    pub fn snapshot(&self) -> Json {
-        let reference = self.frame.map_or(Json::Null, |f| Json::Arr(vec![f.lat0.into(), f.lon0.into()]));
-        let entities = self
-            .entities
-            .iter()
-            .map(|(key, e)| {
-                let axis = |a: &Axis| Json::Arr(a.as_list().iter().map(|x| Json::Num(*x)).collect());
-                let filter = obj(vec![("east", axis(&e.east)), ("north", axis(&e.north))]);
-                let entity = obj(vec![
-                    ("last_time_ms", e.last_time_ms.into()),
-                    ("group", group_json(&e.group)),
-                    ("filter", filter),
-                    ("report", Json::Obj(e.report.clone())),
-                ]);
-                (key.clone(), entity)
-            })
-            .collect();
-        obj(vec![("ref", reference), ("entities", Json::Obj(entities))])
-    }
 }

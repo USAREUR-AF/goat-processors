@@ -414,3 +414,82 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         rules,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const HEAD: &str = "pack f\nversion 1\ndefault keep\nforget_ms 1000\n";
+
+    fn when(line: &str) -> Result<When, String> {
+        let p = parse_pack(&format!("{}rule r drop\nwhen {}\n", HEAD, line))?;
+        Ok(p.rules[0].conditions[0].clone())
+    }
+
+    #[test]
+    fn conditions_and_their_parameter_sets() {
+        assert_eq!(when("not order").unwrap(), When { negated: true, condition: Condition::Order });
+        assert_eq!(when("key name=x eq=1.5").unwrap().condition, Condition::KeyEq { name: "x".into(), text: "1.5".into(), number: Some(1.5) });
+        assert_eq!(when("key name=x in=a,b").unwrap().condition, Condition::KeyIn { name: "x".into(), items: vec!["a".into(), "b".into()] });
+        let range = Range { min: None, max: Some(3.0) };
+        assert_eq!(when("key name=x max=3").unwrap().condition, Condition::KeyRange { name: "x".into(), range });
+        assert_eq!(when("speed min=1 max=2").unwrap().condition.name(), "speed");
+        assert_eq!(when("altitude min=1").unwrap().condition.name(), "altitude");
+        assert_eq!(when("polygon vertices=0,0;0,1;1,1").unwrap().condition.name(), "polygon");
+        assert_eq!(when("near reference=a/b radius_m=10 max_age_ms=5").unwrap().condition.name(), "near");
+        assert_eq!(when("circle lat=1 lon=2 radius_m=3").unwrap().condition.name(), "circle");
+        assert_eq!(when("has name=x").unwrap().condition.name(), "has");
+        assert_eq!(when("interval min_ms=5").unwrap().condition.name(), "interval");
+        for c in ["env", "affiliation", "source", "uid"] {
+            assert_eq!(when(&format!("{} in=a", c)).unwrap().condition.name(), c);
+        }
+        for bad in [
+            "speed min=2 max=1",
+            "speed",
+            "key name=x",
+            "polygon vertices=0,0;0,1",
+            "polygon vertices=0,0;0,1;1",
+            "circle lat=91 lon=0 radius_m=1",
+            "circle lat=0 lon=181 radius_m=1",
+            "circle lat=0 lon=0 radius_m=-1",
+            "env in=a,,b",
+            "interval min_ms=0",
+            "order x=1",
+            "has name=x name=y",
+            "has name",
+            "has name=",
+            "nearest x=1",
+            "not",
+            "near reference=a radius_m=1 max_age_ms=99999999999999999999",
+            "key name=x eq=1 extra=2",
+            "speed min=1e3",
+        ] {
+            assert!(when(bad).is_err(), "{}", bad);
+        }
+        assert!(Range { min: Some(1.0), max: None }.holds(1.0) && !Range { min: None, max: Some(0.0) }.holds(1.0));
+    }
+
+    #[test]
+    fn pack_lines() {
+        assert!(parse_pack(HEAD).unwrap().rules.is_empty());
+        for bad in [
+            "pack f\n",
+            &format!("{}pack g\n", HEAD),
+            &format!("{}rule r drop\n", HEAD),
+            &format!("{}rule r drop\nrule s keep\nwhen order\n", HEAD),
+            &format!("{}rule default drop\nwhen order\n", HEAD),
+            &format!("{}rule r drop\nwhen order\nrule r keep\nwhen order\n", HEAD),
+            &format!("{}rule r hold\nwhen order\n", HEAD),
+            &format!("{}rule r\n", HEAD),
+            &format!("{}when order\n", HEAD),
+            &format!("{}colour red\n", HEAD),
+            "pack f\nversion 1\ndefault keep\nforget_ms 0\n",
+            "pack f g\nversion 1\ndefault keep\nforget_ms 5\n",
+            "pack f\nversion 1\ndefault maybe\nforget_ms 5\n",
+        ] {
+            assert!(parse_pack(bad).is_err(), "{:?}", bad);
+        }
+        assert_eq!((Action::Keep.name(), Action::Drop.name()), ("keep", "drop"));
+        assert!(number("-1.5").is_ok() && number("1.").is_err() && number(".5").is_err());
+    }
+}

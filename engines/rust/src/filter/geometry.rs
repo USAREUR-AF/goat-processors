@@ -1,8 +1,8 @@
 //! spec/filter.md, Geometry: distance, polygon, reference prediction.
 //!
-//! `R`, `rad`, `deg` and `wrap` are the correlate engine's own (src/filter.rs).
+//! `R`, `rad`, `deg` and `wrap` are the correlate engine's own (`crate::model::frame`).
 
-use crate::filter::{deg, rad, wrap180 as wrap, R};
+use crate::model::{deg, rad, wrap180 as wrap, R};
 
 /// Distance (haversine) from point 1 to point 2, in meters, in the spec's order.
 pub fn distance(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
@@ -92,4 +92,42 @@ pub fn predict(time_ms: i64, lat: f64, lon: f64, course: Option<f64>, speed_ms: 
     let lat_p = lat + deg(dn / R);
     let lon_p = wrap(lon + deg(de / (R * rad(lat).cos())));
     (lat_p, lon_p)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn haversine_distance() {
+        assert_eq!(distance(10.0, 20.0, 10.0, 20.0), 0.0);
+        // A quarter of a meridian.
+        let q = distance(0.0, 0.0, 90.0, 0.0);
+        assert!((q - std::f64::consts::PI / 2.0 * R).abs() < 1e-6);
+        // Across the antimeridian is short.
+        assert!(distance(0.0, 179.99, 0.0, -179.99) < 2500.0);
+    }
+
+    #[test]
+    fn polygon_boundary_inside_outside() {
+        let square = [(0.0, 0.0), (0.0, 2.0), (2.0, 2.0), (2.0, 0.0)];
+        assert_eq!(polygon(&square, 1.0, 1.0), Place::Inside);
+        assert_eq!(polygon(&square, 0.0, 1.0), Place::Boundary);
+        assert_eq!(polygon(&square, 2.0, 2.0), Place::Boundary);
+        assert_eq!(polygon(&square, 3.0, 1.0), Place::Outside);
+        // Across the antimeridian.
+        let wrapped = [(0.0, 179.0), (0.0, -179.0), (2.0, -179.0), (2.0, 179.0)];
+        assert_eq!(polygon(&wrapped, 1.0, 180.0), Place::Inside);
+        assert_eq!(polygon(&wrapped, 1.0, 0.0).name(), "outside");
+        assert_eq!((Place::Inside.name(), Place::Boundary.name()), ("inside", "boundary"));
+    }
+
+    #[test]
+    fn reference_prediction() {
+        assert_eq!(predict(0, 10.0, 20.0, None, Some(5.0), 1000), (10.0, 20.0));
+        let (lat, lon) = predict(0, 0.0, 0.0, Some(0.0), Some(R * rad(1.0)), 1000);
+        assert!((lat - 1.0).abs() < 1e-12 && lon == 0.0);
+        let (lat, _) = predict(2000, 0.0, 0.0, Some(0.0), Some(R * rad(1.0)), 1000);
+        assert!((lat + 1.0).abs() < 1e-12, "backwards in time: {}", lat);
+    }
 }

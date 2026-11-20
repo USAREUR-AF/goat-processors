@@ -1,15 +1,14 @@
-//! Pack loading (spec: Pack).
+//! correlate.md Pack and correlate-assign.md Pack: `load_pack(dir)` and
+//! `parse_pack(text)`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct FilterParams {
-    pub accel_var: f64,
-    pub default_ce_m: f64,
-    pub vel_sigma_ms: f64,
-    pub unknown_vel_ms: f64,
-}
+pub use super::method::MethodKind;
+pub(crate) use super::pair_tests::parse_test;
+pub use super::pair_tests::Test;
+pub use super::registry::Registry;
+pub use crate::model::pack::{parse_time_default, FilterParams, TimeDefault, TimeState};
 
 /// The `maneuver` directive (spec: correlate.md Two-model filter).
 #[derive(Debug, Clone, PartialEq)]
@@ -33,120 +32,17 @@ pub struct Bias {
     pub gate: f64,
 }
 
-/// The state of a clock (spec: correlate.md Reports, Time quality).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum TimeState {
-    Coherent,
-    Drifting,
-    FreeRunning,
-}
-
-impl TimeState {
-    /// One of `coherent`, `drifting`, `free-running`, compared byte for byte.
-    pub fn parse(s: &str) -> Option<TimeState> {
-        match s {
-            "coherent" => Some(TimeState::Coherent),
-            "drifting" => Some(TimeState::Drifting),
-            "free-running" => Some(TimeState::FreeRunning),
-            _ => None,
-        }
-    }
-
-    /// The state as written in a report or a pack.
-    pub fn name(self) -> &'static str {
-        match self {
-            TimeState::Coherent => "coherent",
-            TimeState::Drifting => "drifting",
-            TimeState::FreeRunning => "free-running",
-        }
-    }
-}
-
-/// One `time_default <source_id> error_ms=<ms> state=<state>` line (spec:
-/// correlate.md Pack, Time quality); either key may be absent, not both.
-#[derive(Debug, Clone, PartialEq)]
-pub struct TimeDefault {
-    pub error_ms: Option<f64>,
-    pub state: Option<TimeState>,
-}
-
-/// The values of one `time_default` line (correlate.md 0.8 Pack): a source
-/// id (a first token without `=`), then `error_ms` (a number 0 or above),
-/// `state` (one of the three states) or both, each at most once. `number`
-/// reads `error_ms` with the calling function's own number grammar. The
-/// caller checks that no earlier line gave the same source id. Shared with
-/// the quality function (quality.md 0.2 Pack).
-pub fn parse_time_default(args: &[&str], number: fn(&str) -> Result<f64, String>) -> Result<(String, TimeDefault), String> {
-    let (source, params) = match args.split_first() {
-        Some((s, rest)) if !s.contains('=') => (*s, rest),
-        _ => return Err("time_default needs a source id".to_string()),
-    };
-    let mut d = TimeDefault { error_ms: None, state: None };
-    for a in params {
-        let (k, v) = a.split_once('=').ok_or_else(|| format!("parameter without '=': {:?}", a))?;
-        match k {
-            "error_ms" if d.error_ms.is_none() => {
-                let ms = number(v)?;
-                if !(ms >= 0.0) {
-                    return Err("time_default error_ms must be 0 or above".to_string());
-                }
-                d.error_ms = Some(ms);
-            }
-            "state" if d.state.is_none() => {
-                d.state = Some(TimeState::parse(v).ok_or_else(|| format!("unknown time state: {:?}", v))?);
-            }
-            _ => return Err(format!("unknown or repeated time_default parameter: {:?}", k)),
-        }
-    }
-    if d.error_ms.is_none() && d.state.is_none() {
-        return Err("time_default needs error_ms, state or both".to_string());
-    }
-    Ok((source.to_string(), d))
-}
-
-/// One named test with its parameters (spec: Tests).
-#[derive(Debug, Clone, PartialEq)]
-pub enum Test {
-    Distance { max_m: f64 },
-    Window { multiplier: f64, window_m: f64, err_min_m: f64, err_max_m: f64 },
-    Mahalanobis { gate: f64 },
-    Course { max_deg: f64, min_speed_ms: f64 },
-    Speed { max_pct: f64, min_speed_ms: f64 },
-    Altitude { max_m: f64 },
-    Same { key: String },
-}
-
-impl Test {
-    pub fn name(&self) -> &'static str {
-        match self {
-            Test::Distance { .. } => "distance",
-            Test::Window { .. } => "window",
-            Test::Mahalanobis { .. } => "mahalanobis",
-            Test::Course { .. } => "course",
-            Test::Speed { .. } => "speed",
-            Test::Altitude { .. } => "altitude",
-            Test::Same { .. } => "same",
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Output {
     Priority,
     Latest,
 }
 
-/// The pack's `method` (spec: correlate.md Pack; correlate-assign.md).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Method {
-    Confirm,
-    Assign,
-}
-
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Pack {
     pub name: String,
-    pub method: Method,
+    /// The `method` line's kind (`super::method`), `confirm` by default.
+    pub method: MethodKind,
     pub version: String,
     pub filter: FilterParams,
     /// Present when the pack has the `maneuver` directive.
@@ -192,8 +88,7 @@ impl Pack {
 
 /// `load_pack(dir)`: reads `<dir>/pack.def`.
 pub fn load_pack(dir: &Path) -> Result<Pack, String> {
-    let text = std::fs::read_to_string(dir.join("pack.def")).map_err(|e| format!("{}: {}", dir.display(), e))?;
-    parse_pack(&text)
+    parse_pack(&crate::model::pack::read_pack_def(dir)?)
 }
 
 /// A decimal number: optional sign, digits, optional fraction.
@@ -244,11 +139,11 @@ fn semver(s: &str) -> Result<String, String> {
     Ok(s.to_string())
 }
 
-/// `name=value` parameters; each named exactly once, no others.
-struct Params(BTreeMap<String, String>);
+/// `name=value` parameters of a test line; each named exactly once, no others.
+pub struct Params(BTreeMap<String, String>);
 
 impl Params {
-    fn parse(args: &[&str], allowed: &[&str]) -> Result<Params, String> {
+    pub(crate) fn parse(args: &[&str], allowed: &[&str]) -> Result<Params, String> {
         let mut m = BTreeMap::new();
         for a in args {
             let (k, v) = a.split_once('=').ok_or_else(|| format!("parameter without '=': {:?}", a))?;
@@ -267,58 +162,19 @@ impl Params {
         Ok(Params(m))
     }
 
-    fn num(&self, k: &str) -> Result<f64, String> {
+    /// A decimal parameter. `k` is one of the kind's declared parameters.
+    pub fn num(&self, k: &str) -> Result<f64, String> {
         decimal(&self.0[k])
     }
 
-    fn string(&self, k: &str) -> Result<String, String> {
+    /// A non-empty string parameter. `k` is one of the kind's declared parameters.
+    pub fn string(&self, k: &str) -> Result<String, String> {
         let v = &self.0[k];
         if v.is_empty() {
             return Err(format!("empty parameter: {:?}", k));
         }
         Ok(v.clone())
     }
-}
-
-fn parse_test(args: &[&str]) -> Result<Test, String> {
-    let (name, rest) = args.split_first().ok_or("test line without a test name")?;
-    let t = match *name {
-        "distance" => {
-            let p = Params::parse(rest, &["max_m"])?;
-            Test::Distance { max_m: p.num("max_m")? }
-        }
-        "window" => {
-            let p = Params::parse(rest, &["multiplier", "window_m", "err_min_m", "err_max_m"])?;
-            Test::Window {
-                multiplier: p.num("multiplier")?,
-                window_m: p.num("window_m")?,
-                err_min_m: p.num("err_min_m")?,
-                err_max_m: p.num("err_max_m")?,
-            }
-        }
-        "mahalanobis" => {
-            let p = Params::parse(rest, &["gate"])?;
-            Test::Mahalanobis { gate: p.num("gate")? }
-        }
-        "course" => {
-            let p = Params::parse(rest, &["max_deg", "min_speed_ms"])?;
-            Test::Course { max_deg: p.num("max_deg")?, min_speed_ms: p.num("min_speed_ms")? }
-        }
-        "speed" => {
-            let p = Params::parse(rest, &["max_pct", "min_speed_ms"])?;
-            Test::Speed { max_pct: p.num("max_pct")?, min_speed_ms: p.num("min_speed_ms")? }
-        }
-        "altitude" => {
-            let p = Params::parse(rest, &["max_m"])?;
-            Test::Altitude { max_m: p.num("max_m")? }
-        }
-        "same" => {
-            let p = Params::parse(rest, &["key"])?;
-            Test::Same { key: p.string("key")? }
-        }
-        other => return Err(format!("unknown test: {:?}", other)),
-    };
-    Ok(t)
 }
 
 fn one_arg<'a>(directive: &str, args: &[&'a str]) -> Result<&'a str, String> {
@@ -328,8 +184,44 @@ fn one_arg<'a>(directive: &str, args: &[&'a str]) -> Result<&'a str, String> {
     }
 }
 
-/// Parses the text of a `pack.def`.
+/// Parses the text of a `pack.def` with the spec's tests and methods.
 pub fn parse_pack(text: &str) -> Result<Pack, String> {
+    parse_pack_with(text, &Registry::builtin())
+}
+
+/// Every value a `pack.def` gave, before the method checks and completes it.
+pub(crate) struct Draft {
+    pub(crate) name: Option<String>,
+    pub(crate) version: Option<String>,
+    pub(crate) filter: FilterParams,
+    pub(crate) maneuver: Option<Maneuver>,
+    pub(crate) restart: Option<f64>,
+    pub(crate) gate: Vec<Test>,
+    pub(crate) confirm: Vec<Test>,
+    pub(crate) hold: Vec<Test>,
+    pub(crate) confirm_count: Option<u64>,
+    pub(crate) hold_failures: Option<u64>,
+    pub(crate) stale_ms: Option<i64>,
+    pub(crate) same_source_allow: bool,
+    pub(crate) output: Output,
+    pub(crate) priority: Vec<(String, i64)>,
+    pub(crate) method: MethodKind,
+    pub(crate) new_cost: Option<f64>,
+    pub(crate) keep_bonus: Option<f64>,
+    pub(crate) window: Option<usize>,
+    pub(crate) hypotheses: Option<usize>,
+    pub(crate) bias: Option<Bias>,
+    pub(crate) margin: Option<f64>,
+    pub(crate) time_default: BTreeMap<String, TimeDefault>,
+    pub(crate) time_offset: Option<f64>,
+}
+
+fn need(what: &str) -> String {
+    format!("missing required directive: {}", what)
+}
+
+/// Parses the text of a `pack.def` with the tests and methods of `registry`.
+pub fn parse_pack_with(text: &str, registry: &Registry) -> Result<Pack, String> {
     let mut seen: BTreeSet<String> = BTreeSet::new();
     let mut name = None;
     let mut version = None;
@@ -343,7 +235,7 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
     let mut same_source_allow = false;
     let mut output = Output::Priority;
     let mut priority: Vec<(String, i64)> = Vec::new();
-    let mut method = Method::Confirm;
+    let mut method = registry.method("confirm").expect("the confirm method is registered");
     let mut new_cost = None;
     let mut keep_bonus = None;
     let mut maneuver = None;
@@ -369,11 +261,8 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         seen.insert(directive.to_string());
         match directive {
             "method" => {
-                method = match one_arg(directive, args).map_err(at)? {
-                    "confirm" => Method::Confirm,
-                    "assign" => Method::Assign,
-                    v => return Err(at(format!("method must be confirm or assign, not {:?}", v))),
-                }
+                let v = one_arg(directive, args).map_err(at)?;
+                method = registry.method(v).ok_or_else(|| at(format!("unknown method: {:?}", v)))?;
             }
             "new_cost" => new_cost = Some(decimal(one_arg(directive, args).map_err(at)?).map_err(at)?),
             "keep_bonus" => keep_bonus = Some(decimal(one_arg(directive, args).map_err(at)?).map_err(at)?),
@@ -453,9 +342,9 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
             }
             "window" => window = Some(positive(one_arg(directive, args).map_err(at)?).map_err(at)?),
             "hypotheses" => hypotheses = Some(positive(one_arg(directive, args).map_err(at)?).map_err(at)?),
-            "gate" => gate.push(parse_test(args).map_err(at)?),
-            "confirm" => confirm.push(parse_test(args).map_err(at)?),
-            "hold" => hold.push(parse_test(args).map_err(at)?),
+            "gate" => gate.push(parse_test(args, &registry.tests).map_err(at)?),
+            "confirm" => confirm.push(parse_test(args, &registry.tests).map_err(at)?),
+            "hold" => hold.push(parse_test(args, &registry.tests).map_err(at)?),
             "confirm_count" => confirm_count = Some(count(one_arg(directive, args).map_err(at)?).map_err(at)?),
             "hold_failures" => hold_failures = Some(count(one_arg(directive, args).map_err(at)?).map_err(at)?),
             "stale_ms" => stale_ms = Some(integer(one_arg(directive, args).map_err(at)?).map_err(at)?),
@@ -481,94 +370,195 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         }
     }
 
-    let need = |what: &str| format!("missing required directive: {}", what);
     let filter = filter.ok_or_else(|| need("filter"))?;
     if let Some(m) = &maneuver {
         if !(m.accel_var > filter.accel_var) {
             return Err("maneuver accel_var must be above filter accel_var".to_string());
         }
     }
-    let refused: &[&str] = match method {
-        Method::Confirm => &["new_cost", "keep_bonus", "window", "hypotheses", "margin", "bias", "time_offset"],
-        Method::Assign => &["confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"],
-    };
-    if let Some(d) = refused.iter().find(|d| seen.contains(**d)) {
-        return Err(format!("directive {} is not allowed with method {}", d, if method == Method::Assign { "assign" } else { "confirm" }));
+    if let Some(d) = method.refuses.iter().find(|d| seen.contains(**d)) {
+        return Err(format!("directive {} is not allowed with method {}", d, method.name));
     }
-    if method == Method::Assign {
-        // correlate-assign.md 0.2: new_cost above 0, keep_bonus 0 or above.
-        if let Some(c) = new_cost {
-            if !(c > 0.0) {
-                return Err("new_cost must be above 0".to_string());
-            }
-        }
-        // correlate-assign.md 0.4: hypotheses above 1 needs window above 1.
-        let (window, hypotheses) = (window.unwrap_or(1), hypotheses.unwrap_or(1));
-        if hypotheses > 1 && window == 1 {
-            return Err("hypotheses above 1 needs window above 1".to_string());
-        }
-        // correlate-assign.md 0.5: margin needs hypotheses above 1.
-        if margin.is_some() && hypotheses == 1 {
-            return Err("margin needs hypotheses above 1".to_string());
-        }
-        // correlate-assign.md 0.6: time_offset needs bias.
-        if time_offset.is_some() && bias.is_none() {
-            return Err("time_offset needs bias".to_string());
-        }
-        if let Some(b) = keep_bonus {
-            if !(b >= 0.0) {
-                return Err("keep_bonus must be 0 or above".to_string());
-            }
-        }
-        return Ok(Pack {
-            name: name.ok_or_else(|| need("pack"))?,
-            method,
-            version: version.ok_or_else(|| need("version"))?,
-            filter,
-            maneuver,
-            restart,
-            gate,
-            confirm,
-            hold,
-            confirm_count: 0,
-            hold_failures: 0,
-            stale_ms: stale_ms.ok_or_else(|| need("stale_ms"))?,
-            same_source_allow,
-            output,
-            priority,
-            new_cost: new_cost.ok_or_else(|| need("new_cost"))?,
-            keep_bonus: keep_bonus.ok_or_else(|| need("keep_bonus"))?,
-            window,
-            hypotheses,
-            bias,
-            margin,
-            time_default,
-            time_offset,
-        });
-    }
-    Ok(Pack {
-        method,
-        new_cost: 0.0,
-        keep_bonus: 0.0,
-        window: 1,
-        hypotheses: 1,
-        bias: None,
-        margin: None,
-        time_default,
-        time_offset: None,
-        name: name.ok_or_else(|| need("pack"))?,
-        version: version.ok_or_else(|| need("version"))?,
+    (method.finish)(Draft {
+        name,
+        version,
         filter,
         maneuver,
         restart,
         gate,
         confirm,
         hold,
-        confirm_count: confirm_count.ok_or_else(|| need("confirm_count"))?,
-        hold_failures: hold_failures.ok_or_else(|| need("hold_failures"))?,
-        stale_ms: stale_ms.ok_or_else(|| need("stale_ms"))?,
+        confirm_count,
+        hold_failures,
+        stale_ms,
         same_source_allow,
         output,
         priority,
+        method,
+        new_cost,
+        keep_bonus,
+        window,
+        hypotheses,
+        bias,
+        margin,
+        time_default,
+        time_offset,
     })
+}
+
+/// `method confirm`: `confirm_count`, `hold_failures` and `stale_ms` are
+/// required; the assign directives take their defaults.
+pub(crate) fn finish_confirm(d: Draft) -> Result<Pack, String> {
+    Ok(Pack {
+        method: d.method,
+        new_cost: 0.0,
+        keep_bonus: 0.0,
+        window: 1,
+        hypotheses: 1,
+        bias: None,
+        margin: None,
+        time_default: d.time_default,
+        time_offset: None,
+        name: d.name.ok_or_else(|| need("pack"))?,
+        version: d.version.ok_or_else(|| need("version"))?,
+        filter: d.filter,
+        maneuver: d.maneuver,
+        restart: d.restart,
+        gate: d.gate,
+        confirm: d.confirm,
+        hold: d.hold,
+        confirm_count: d.confirm_count.ok_or_else(|| need("confirm_count"))?,
+        hold_failures: d.hold_failures.ok_or_else(|| need("hold_failures"))?,
+        stale_ms: d.stale_ms.ok_or_else(|| need("stale_ms"))?,
+        same_source_allow: d.same_source_allow,
+        output: d.output,
+        priority: d.priority,
+    })
+}
+
+/// `method assign` (correlate-assign.md Pack): `new_cost` above 0,
+/// `keep_bonus` 0 or above, both required; `hypotheses` above 1 needs
+/// `window` above 1; `margin` needs `hypotheses` above 1; `time_offset`
+/// needs `bias`.
+pub(crate) fn finish_assign(d: Draft) -> Result<Pack, String> {
+    // correlate-assign.md 0.2: new_cost above 0, keep_bonus 0 or above.
+    if let Some(c) = d.new_cost {
+        if !(c > 0.0) {
+            return Err("new_cost must be above 0".to_string());
+        }
+    }
+    // correlate-assign.md 0.4: hypotheses above 1 needs window above 1.
+    let (window, hypotheses) = (d.window.unwrap_or(1), d.hypotheses.unwrap_or(1));
+    if hypotheses > 1 && window == 1 {
+        return Err("hypotheses above 1 needs window above 1".to_string());
+    }
+    // correlate-assign.md 0.5: margin needs hypotheses above 1.
+    if d.margin.is_some() && hypotheses == 1 {
+        return Err("margin needs hypotheses above 1".to_string());
+    }
+    // correlate-assign.md 0.6: time_offset needs bias.
+    if d.time_offset.is_some() && d.bias.is_none() {
+        return Err("time_offset needs bias".to_string());
+    }
+    if let Some(b) = d.keep_bonus {
+        if !(b >= 0.0) {
+            return Err("keep_bonus must be 0 or above".to_string());
+        }
+    }
+    Ok(Pack {
+        name: d.name.ok_or_else(|| need("pack"))?,
+        method: d.method,
+        version: d.version.ok_or_else(|| need("version"))?,
+        filter: d.filter,
+        maneuver: d.maneuver,
+        restart: d.restart,
+        gate: d.gate,
+        confirm: d.confirm,
+        hold: d.hold,
+        confirm_count: 0,
+        hold_failures: 0,
+        stale_ms: d.stale_ms.ok_or_else(|| need("stale_ms"))?,
+        same_source_allow: d.same_source_allow,
+        output: d.output,
+        priority: d.priority,
+        new_cost: d.new_cost.ok_or_else(|| need("new_cost"))?,
+        keep_bonus: d.keep_bonus.ok_or_else(|| need("keep_bonus"))?,
+        window,
+        hypotheses,
+        bias: d.bias,
+        margin: d.margin,
+        time_default: d.time_default,
+        time_offset: d.time_offset,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const BASE: &str = "pack p\nversion 0.1.0\nfilter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\nstale_ms 1000\n";
+
+    fn confirm(extra: &str) -> Result<Pack, String> {
+        parse_pack(&format!("{}confirm_count 2\nhold_failures 1\n{}", BASE, extra))
+    }
+
+    fn assign(extra: &str) -> Result<Pack, String> {
+        parse_pack(&format!("{}method assign\nnew_cost 9\nkeep_bonus 1\n{}", BASE, extra))
+    }
+
+    #[test]
+    fn the_method_line_picks_a_registered_method() {
+        assert_eq!(confirm("").unwrap().method.name, "confirm");
+        let p = assign("gate mahalanobis gate=9 # comment\n").unwrap();
+        assert_eq!((p.method.name, p.window, p.hypotheses, p.gate.len()), ("assign", 1, 1, 1));
+        assert_eq!(p.gate[0].name(), "mahalanobis");
+        assert!(assign("method assign\n").unwrap_err().contains("repeated"));
+        assert!(parse_pack(&format!("{}method vote\n", BASE)).unwrap_err().contains("unknown method"));
+    }
+
+    #[test]
+    fn each_method_refuses_the_others_directives() {
+        assert!(confirm("new_cost 3\n").unwrap_err().contains("not allowed with method confirm"));
+        assert!(assign("hold mahalanobis gate=9\n").unwrap_err().contains("not allowed with method assign"));
+        assert!(assign("priority radar 1\n").is_err());
+    }
+
+    #[test]
+    fn assign_checks() {
+        assert!(assign("hypotheses 2\n").unwrap_err().contains("needs window"));
+        assert!(assign("window 2\nmargin 1\n").unwrap_err().contains("margin needs"));
+        assert!(assign("time_offset sigma_ms=10\n").unwrap_err().contains("needs bias"));
+        let p = assign("window 3\nhypotheses 2\nmargin 0.5\nbias sigma_m=5 floor_m=1 gate=9\ntime_offset sigma_ms=10\n").unwrap();
+        assert_eq!((p.window, p.hypotheses, p.margin, p.time_offset), (3, 2, Some(0.5), Some(10.0)));
+        assert!(parse_pack(&format!("{}method assign\nnew_cost 0\nkeep_bonus 1\n", BASE)).is_err());
+        assert!(parse_pack(&format!("{}method assign\nnew_cost 1\nkeep_bonus -1\n", BASE)).is_err());
+        assert!(parse_pack(&format!("{}method assign\nnew_cost 1\n", BASE)).unwrap_err().contains("keep_bonus"));
+    }
+
+    #[test]
+    fn values_and_parameters() {
+        assert!(confirm("gate distance max_m=1 max_m=2\n").unwrap_err().contains("repeated parameter"));
+        assert!(confirm("gate distance\n").unwrap_err().contains("missing parameter"));
+        assert!(confirm("gate distance max=1\n").unwrap_err().contains("unknown parameter"));
+        assert!(confirm("gate distance max_m\n").unwrap_err().contains("without '='"));
+        assert!(confirm("gate distance max_m=1e3\n").is_err());
+        assert!(confirm("gate same key=\n").unwrap_err().contains("empty"));
+        assert!(confirm("gate\n").unwrap_err().contains("without a test name"));
+        assert!(parse_pack(&BASE.replace("0.1.0", "1.0")).unwrap_err().contains("semver"));
+        let p = confirm("output latest\nsame_source allow\npriority radar 3\nmaneuver accel_var=9 p_enter=0.1 p_leave=0.2\nrestart gate=13.8\ntime_default radar error_ms=5\n").unwrap();
+        assert_eq!((p.output, p.same_source_allow, p.priority_of("radar"), p.priority_of("x")), (Output::Latest, true, 3, 100));
+        assert_eq!((p.restart, p.maneuver.map(|m| m.accel_var)), (Some(13.8), Some(9.0)));
+        assert!(confirm("maneuver accel_var=0.5 p_enter=0.1 p_leave=0.2\n").unwrap_err().contains("above filter"));
+        assert!(confirm("restart gate=0\n").is_err());
+        assert!(confirm("output newest\n").is_err());
+        assert!(confirm("hold_failures 2\n").unwrap_err().contains("repeated"));
+        assert!(parse_pack("pack p\n").unwrap_err().contains("filter"));
+    }
+
+    #[test]
+    fn load_pack_reads_the_directory() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs/correlate-gnn");
+        assert_eq!(load_pack(&dir).unwrap().name, "correlate-gnn");
+        assert!(load_pack(std::path::Path::new("/nonexistent")).is_err());
+    }
 }

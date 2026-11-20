@@ -156,8 +156,8 @@ the vector is changed only through the specification.
 | Language | Engine | Lines of source | Runs every vector with |
 |---|---|---:|---|
 | Python | [`engines/python`](engines/python) | 2,565 | `cd engines/python && PYTHONPATH=src python3 -m unittest discover -s tests` |
-| Rust | [`engines/rust`](engines/rust) | 5,289 | `cd engines/rust && cargo test` |
-| Go | [`engines/go`](engines/go) | 75 | `cd engines/go && go test ./...` |
+| Rust | [`engines/rust`](engines/rust) | 7,470 | `cd engines/rust && cargo test` |
+| Go | [`engines/go`](engines/go) | 6,134 | `cd engines/go && go test ./...` |
 | Java | [`engines/java`](engines/java) | 5,476 | `engines/java/build.sh` |
 | C++ | [`engines/cpp`](engines/cpp) | 5,762 | `cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir build/cpp` |
 | Erlang | [`engines/erlang`](engines/erlang) | 3,318 | `engines/erlang/run_tests` |

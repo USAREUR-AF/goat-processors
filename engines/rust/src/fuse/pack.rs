@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use crate::pack::FilterParams;
+use crate::model::pack::FilterParams;
 
 /// The pack's `kinematics` method (spec/fuse.md, Kinematics).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -235,4 +235,47 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         sources,
         stale_ms: stale_ms.ok_or_else(|| missing("stale_ms"))?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const OK: &str = "pack f\nversion 0.1.0\nfilter accel_var=1 default_ce_m=10 vel_sigma_ms=5 unknown_vel_ms=100\nkinematics best\nstale_ms 100\n";
+
+    #[test]
+    fn directives() {
+        let p = parse_pack(&format!("{}attribute type rule=majority\nsource a\nsource b\r\n", OK)).unwrap();
+        assert_eq!((p.kinematics, p.rank("b"), p.rank("c")), (Kinematics::Best, Some(1), None));
+        assert_eq!(p.attributes, vec![("type".to_string(), Rule::Majority)]);
+        for k in ["inverse_variance", "covariance_intersection", "best", "priority", "latest"] {
+            assert_eq!(Kinematics::parse(k).unwrap().name(), k);
+        }
+        for bad in [
+            format!("{}source a\nsource a\n", OK),
+            format!("{}attribute a rule=majority\nattribute a rule=max\n", OK),
+            format!("{}attribute a=b rule=max\n", OK),
+            format!("{}attribute a rul=max\n", OK),
+            format!("{}attribute a rule=mode\n", OK),
+            format!("{}attribute a\n", OK),
+            format!("{}attribute a rulemax\n", OK),
+            format!("{}kinematics best\n", OK),
+            format!("{}colour red\n", OK),
+            OK.replace("best", "median"),
+            OK.replace("stale_ms 100", "stale_ms -1"),
+            OK.replace("stale_ms 100", "stale_ms 1 2"),
+            OK.replace("accel_var=1", "accel_var=-1"),
+            OK.replace("accel_var=1", "accel_var=1 accel_var=2"),
+            OK.replace("accel_var=1", "accel=1"),
+            OK.replace("accel_var=1", "accel_var"),
+            OK.replace("default_ce_m=10", "default_ce_m=0"),
+            OK.replace(" default_ce_m=10", ""),
+            OK.replace("accel_var=1", "accel_var=1e"),
+            OK.replace("pack f\n", ""),
+        ] {
+            assert!(parse_pack(&bad).is_err(), "{:?}", bad);
+        }
+        assert_eq!(number("-1.5e+3").unwrap(), -1500.0);
+        assert!(number("1.").is_err() && number("e3").is_err() && number("1e3x").is_err());
+    }
 }
