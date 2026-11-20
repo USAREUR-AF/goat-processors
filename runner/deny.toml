@@ -5,14 +5,11 @@ targets = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]
 [advisories]
 version = 2
 yanked = "deny"
-# Each is explained in runner/.cargo/audit.toml.
+# Explained in runner/.cargo/audit.toml. cargo deny reports unmaintained
+# crates only among the runner's direct dependencies, so the unmaintained
+# crates zenoh pulls in are listed there only.
 ignore = [
   "RUSTSEC-2026-0041",
-  "RUSTSEC-2026-0543",
-  "RUSTSEC-2026-0542",
-  "RUSTSEC-2024-0436",
-  "RUSTSEC-2025-0134",
-  "RUSTSEC-2024-0449",
 ]
 
 [licenses]
@@ -34,6 +31,12 @@ allow = [
   "CDLA-Permissive-2.0",
   "EPL-2.0",
 ]
+
+# The engine crate (engines/rust) is this repository's own, under its LICENSE.
+[[licenses.clarify]]
+crate = "goat_correlator"
+expression = "Apache-2.0"
+license-files = []
 
 [bans]
 multiple-versions = "allow"
