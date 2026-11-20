@@ -153,9 +153,20 @@ pub fn write_response(stream: &mut impl Write, r: &Response) -> std::io::Result<
 
 /// A plain HTTP call, for the CLI on the same host.
 pub fn call(addr: &str, method: &str, path: &str, token: Option<&str>, body: Option<&[u8]>) -> Result<(u16, Vec<u8>), String> {
-    let sock = addr.to_socket_addrs().map_err(|e| format!("{addr}: {e}"))?.next().ok_or(format!("{addr}: no address"))?;
-    let mut s = TcpStream::connect_timeout(&sock, Duration::from_secs(3))
-        .map_err(|e| format!("cannot reach the runner's API at {addr} ({e}); is the service running? sudo systemctl status goat-processors"))?;
+    let socks: Vec<_> = addr.to_socket_addrs().map_err(|e| format!("{addr}: {e}"))?.collect();
+    // A name may resolve to several addresses (IPv6 and IPv4): try each in turn.
+    let mut last = format!("{addr}: no address");
+    let mut found = None;
+    for sock in &socks {
+        match TcpStream::connect_timeout(sock, Duration::from_secs(3)) {
+            Ok(s) => {
+                found = Some(s);
+                break;
+            }
+            Err(e) => last = e.to_string(),
+        }
+    }
+    let mut s = found.ok_or_else(|| format!("cannot reach the runner's API at {addr} ({last}); is the service running? sudo systemctl status goat-processors"))?;
     s.set_read_timeout(Some(Duration::from_secs(120))).ok();
     let body = body.unwrap_or(b"");
     let mut req = format!("{method} {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\nContent-Length: {}\r\n", body.len());

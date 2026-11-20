@@ -84,9 +84,21 @@ fn tls_client(e: &Endpoint) -> Result<Arc<rustls::ClientConfig>, String> {
 /// One POST of a JSON body; returns the status and the response body.
 pub fn post_json(e: &Endpoint, body: &str) -> Result<(u16, String), String> {
     let u = parse_url(&e.url)?;
-    let addr = (u.host.as_str(), u.port).to_socket_addrs().map_err(|x| format!("{}: {x}", e.url))?.next().ok_or("no address")?;
+    let addrs: Vec<_> = (u.host.as_str(), u.port).to_socket_addrs().map_err(|x| format!("{}: {x}", e.url))?.collect();
     let timeout = Duration::from_millis(e.timeout_ms);
-    let tcp = TcpStream::connect_timeout(&addr, timeout).map_err(|x| format!("cannot reach the model endpoint {} ({}): {x}", e.name, e.url))?;
+    // A name may resolve to several addresses (IPv6 and IPv4): try each in turn.
+    let mut last = String::from("no address");
+    let mut tcp = None;
+    for a in &addrs {
+        match TcpStream::connect_timeout(a, timeout) {
+            Ok(t) => {
+                tcp = Some(t);
+                break;
+            }
+            Err(x) => last = x.to_string(),
+        }
+    }
+    let tcp = tcp.ok_or_else(|| format!("cannot reach the model endpoint {} ({}): {last}", e.name, e.url))?;
     tcp.set_read_timeout(Some(timeout)).ok();
     tcp.set_write_timeout(Some(timeout)).ok();
     let key = match &e.key_file {
