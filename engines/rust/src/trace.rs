@@ -47,3 +47,19 @@ pub fn tagged(mut rec: Json, tags: &[(&str, usize)]) -> Json {
     }
     rec
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn record_event_and_tags() {
+        let r = record("gate", "a/1", "b/2", "distance", 3.0.into(), 4.0.into(), true, false);
+        assert_eq!(r.to_string(), r#"{"a":"a/1","b":"b/2","limit":4.0,"pass":true,"stage":"gate","test":"distance","value":3.0}"#);
+        let s = record("gate", "a", "b", "course", Json::Null, Json::Null, true, true);
+        assert_eq!(s.get("skipped"), Some(&Json::Bool(true)));
+        assert_eq!(event("drop", vec![("entity", "a".into())]).to_string(), r#"{"entity":"a","ev":"drop"}"#);
+        assert_eq!(tagged(r, &[("h", 1), ("r", 0)]).get("h"), Some(&Json::Int(1)));
+        assert_eq!(tagged(Json::Null, &[("h", 1)]), Json::Null);
+    }
+}

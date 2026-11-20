@@ -38,3 +38,20 @@ pub fn opt_num(v: Option<f64>) -> Json {
 pub fn names<'a>(items: impl IntoIterator<Item = &'a String>) -> Json {
     Json::Arr(items.into_iter().map(|s| Json::from(s.as_str())).collect())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shared_forms() {
+        let a = Axis { p: 1.0, v: 2.0, pp: 3.0, pv: 4.0, vv: 5.0 };
+        assert_eq!(axis(&a).to_string(), "[1.0,2.0,3.0,4.0,5.0]");
+        assert_eq!(model(&Model { east: a, north: a }).get("north"), Some(&axis(&a)));
+        assert_eq!(reference(None), Json::Null);
+        assert_eq!(reference(Some(Frame { lat0: 1.0, lon0: -2.0 })).to_string(), "[1.0,-2.0]");
+        assert_eq!((opt_int(None), opt_int(Some(3))), (Json::Null, Json::Int(3)));
+        assert_eq!((opt_num(None), opt_num(Some(0.5))), (Json::Null, Json::Num(0.5)));
+        assert_eq!(names(&["x".to_string()]).to_string(), r#"["x"]"#);
+    }
+}

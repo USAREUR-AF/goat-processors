@@ -152,3 +152,68 @@ pub fn shipped_packs_load<F: Function>(prefix: &str) {
         F::load_pack(&dir).unwrap_or_else(|e| panic!("{}: {}", dir.display(), e));
     }
 }
+
+/// A seeded generator (splitmix64) for the property and fuzz tests: the
+/// same seed gives the same sequence on every machine.
+pub struct Rng(u64);
+
+impl Rng {
+    pub fn new(seed: u64) -> Rng {
+        Rng(seed)
+    }
+
+    pub fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    /// Uniform in `0..n` (`n` above 0).
+    pub fn below(&mut self, n: usize) -> usize {
+        (self.next_u64() % n as u64) as usize
+    }
+
+    /// Uniform in [0, 1).
+    pub fn unit(&mut self) -> f64 {
+        (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64
+    }
+
+    pub fn chance(&mut self, p: f64) -> bool {
+        self.unit() < p
+    }
+
+    pub fn pick<'a, T>(&mut self, items: &'a [T]) -> &'a T {
+        &items[self.below(items.len())]
+    }
+
+    pub fn shuffle<T>(&mut self, items: &mut [T]) {
+        for i in (1..items.len()).rev() {
+            items.swap(i, self.below(i + 1));
+        }
+    }
+}
+
+/// Every scenario vector of every function: `(function name, pack dir, vector path)`.
+pub fn all_scenario_vectors() -> Vec<(String, PathBuf, PathBuf)> {
+    let root = repo_root();
+    let mut out = Vec::new();
+    for function in ["correlate", "filter", "fuse", "quality"] {
+        for pack in packs_with_prefix(&root, &format!("{}-", function)) {
+            for v in json_files(&pack.join("vectors")) {
+                out.push((function.to_string(), pack.clone(), v));
+            }
+        }
+    }
+    out
+}
+
+/// Every shipped pack of every function: `(function name, pack dir)`.
+pub fn all_packs() -> Vec<(String, PathBuf)> {
+    let root = repo_root();
+    ["correlate", "filter", "fuse", "quality"]
+        .iter()
+        .flat_map(|f| packs_with_prefix(&root, &format!("{}-", f)).into_iter().map(move |p| (f.to_string(), p)))
+        .collect()
+}

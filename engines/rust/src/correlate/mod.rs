@@ -41,6 +41,9 @@ pub(crate) fn group_name(n: u64) -> String {
     format!("g{}", n)
 }
 
+/// The engine: all of its state, read out by `snapshot()`. `Clone` copies
+/// the state, so a copy continues exactly as the original would.
+#[derive(Clone)]
 pub struct Engine {
     pub(crate) pack: Pack,
     pub(crate) frame: Option<Frame>,

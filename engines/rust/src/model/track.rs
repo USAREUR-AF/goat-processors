@@ -191,3 +191,84 @@ pub fn measurement_variance(ce: f64, te_ms: f64, v: impl FnOnce() -> (f64, f64))
 pub fn d2(z: (f64, f64), (pe, pn): (&Axis, &Axis), r: (f64, f64)) -> f64 {
     (z.0 - pe.p) * (z.0 - pe.p) / (pe.pp + r.0) + (z.1 - pn.p) * (z.1 - pn.p) / (pn.pp + r.1)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn axis() -> Axis {
+        Axis { p: 10.0, v: 2.0, pp: 4.0, pv: 1.0, vv: 9.0 }
+    }
+
+    #[test]
+    fn first_report_variances() {
+        assert_eq!(Axis::first(5.0, Some(1.0), 3.0, 2.0, 50.0), Axis { p: 5.0, v: 1.0, pp: 9.0, pv: 0.0, vv: 4.0 });
+        assert_eq!(Axis::first(5.0, None, 3.0, 2.0, 50.0), Axis { p: 5.0, v: 0.0, pp: 9.0, pv: 0.0, vv: 2500.0 });
+    }
+
+    #[test]
+    fn predict_by_zero_is_the_identity_and_grows_otherwise() {
+        assert_eq!(axis().predict(0.0, 1.0), axis());
+        let p = axis().predict(2.0, 1.0);
+        assert_eq!((p.p, p.v), (14.0, 2.0));
+        assert_eq!(p.pp, 4.0 + 2.0 * 2.0 * 1.0 + 4.0 * 9.0 + 16.0 / 4.0);
+        assert_eq!(p.pv, 1.0 + 2.0 * 9.0 + 8.0 / 2.0);
+        assert_eq!(p.vv, 9.0 + 4.0);
+    }
+
+    #[test]
+    fn updates_shrink_the_variance_and_report_the_innovation() {
+        let (u, i) = axis().update_position(12.0, 4.0);
+        assert_eq!((i.y, i.s), (2.0, 8.0));
+        assert!(u.pp < axis().pp && u.p == 11.0);
+        assert_eq!(i.term(), 4.0 / 8.0 + 8f64.ln());
+        let (u, i) = axis().update_velocity(5.0, 9.0);
+        assert_eq!((i.y, i.s), (3.0, 18.0));
+        assert!(u.vv < axis().vv && u.v == 3.5);
+    }
+
+    #[test]
+    fn blend_of_equal_states_is_that_state() {
+        assert_eq!(Axis::blend(0.25, &axis(), 0.75, &axis()), axis());
+        let m = Model { east: axis(), north: axis() };
+        assert_eq!(Model::blend(0.5, &m, 0.5, &m), m);
+        assert_eq!(axis().as_list(), [10.0, 2.0, 4.0, 1.0, 9.0]);
+    }
+
+    #[test]
+    fn model_step_sums_the_likelihood_terms_in_order() {
+        let m = Model { east: axis(), north: axis() };
+        let meas = Measurement { pos: (11.0, 9.0), r_pos: (1.0, 2.0), vel: Some((1.0, 3.0)), r_vel: 4.0 };
+        let (next, g) = m.step(0.0, 1.0, &meas);
+        let (e, ie) = axis().update_position(11.0, 1.0);
+        let (n, in_) = axis().update_position(9.0, 2.0);
+        let (e2, iev) = e.update_velocity(1.0, 4.0);
+        let (n2, inv) = n.update_velocity(3.0, 4.0);
+        assert_eq!(next, Model { east: e2, north: n2 });
+        assert_eq!(g, 0.0 + ie.term() + in_.term() + iev.term() + inv.term());
+        let without = Measurement { vel: None, ..meas };
+        assert_eq!(m.step(0.0, 1.0, &without).0, Model { east: e, north: n });
+    }
+
+    #[test]
+    fn velocity_needs_course_and_speed() {
+        assert_eq!(velocity(Some(90.0), None), None);
+        assert_eq!(velocity(None, Some(3.0)), None);
+        let (ve, vn) = velocity(Some(90.0), Some(3.0)).unwrap();
+        assert!((ve - 3.0).abs() < 1e-12 && vn.abs() < 1e-12);
+    }
+
+    #[test]
+    fn measurement_variance_adds_the_timing_term() {
+        let none = measurement_variance(10.0, 0.0, || panic!("not read when te is 0"));
+        assert_eq!(none, MeasurementVariance { r: (100.0, 100.0), time_var: None });
+        let v = measurement_variance(10.0, 500.0, || (4.0, -2.0));
+        assert_eq!(v, MeasurementVariance { r: (104.0, 101.0), time_var: Some((4.0, 1.0)) });
+    }
+
+    #[test]
+    fn d2_sums_both_axes() {
+        let a = Axis { p: 0.0, v: 0.0, pp: 1.0, pv: 0.0, vv: 1.0 };
+        assert_eq!(d2((3.0, 4.0), (&a, &a), (1.0, 3.0)), 9.0 / 2.0 + 16.0 / 4.0);
+    }
+}

@@ -86,32 +86,30 @@ pub(super) struct Record {
     pub(super) hae: bool,
 }
 
-impl Engine {
-    /// Spec Input clock: the median of the latest times of the sources other
-    /// than `source`, None with no other source; and the source latest of
-    /// `source`, None when it has no entity. A source's latest time is the
-    /// greatest `last` among the entities whose source it is.
-    pub(super) fn input_clock(&self, source: &str) -> (Option<Ms>, Option<i64>) {
-        let mut latest: BTreeMap<&str, i64> = BTreeMap::new();
-        for entity in self.entities.values() {
-            let l = latest.entry(entity.source.as_str()).or_insert(entity.last_time_ms);
-            *l = (*l).max(entity.last_time_ms);
-        }
-        let source_latest = latest.remove(source);
-
-        let mut others: Vec<i64> = latest.into_values().collect();
-        others.sort();
-        let count = others.len();
-        let clock = if count == 0 {
-            None
-        } else if count % 2 == 1 {
-            Some(Ms::Int(others[count / 2]))
-        } else {
-            let (a, b) = (others[count / 2 - 1] as f64, others[count / 2] as f64);
-            Some(Ms::Float((a + b) / 2.0))
-        };
-        (clock, source_latest)
+/// Spec Input clock: the median of the latest times of the sources other
+/// than `source`, None with no other source; and the source latest of
+/// `source`, None when it has no entity. A source's latest time is the
+/// greatest `last` among the entities whose source it is.
+pub(super) fn input_clock(entities: &BTreeMap<String, Entity>, source: &str) -> (Option<Ms>, Option<i64>) {
+    let mut latest: BTreeMap<&str, i64> = BTreeMap::new();
+    for entity in entities.values() {
+        let l = latest.entry(entity.source.as_str()).or_insert(entity.last_time_ms);
+        *l = (*l).max(entity.last_time_ms);
     }
+    let source_latest = latest.remove(source);
+
+    let mut others: Vec<i64> = latest.into_values().collect();
+    others.sort();
+    let count = others.len();
+    let clock = if count == 0 {
+        None
+    } else if count % 2 == 1 {
+        Some(Ms::Int(others[count / 2]))
+    } else {
+        let (a, b) = (others[count / 2 - 1] as f64, others[count / 2] as f64);
+        Some(Ms::Float((a + b) / 2.0))
+    };
+    (clock, source_latest)
 }
 
 /// Spec Samples, `nis`: the report's plane position `z` against the entity's
@@ -141,4 +139,48 @@ pub(super) fn nis((e, n): (f64, f64), (pe, pn): (&Axis, &Axis), ce: f64) -> Nis 
 pub(super) fn speed_err((e, n): (f64, f64), (lpe, lpn): (f64, f64), dt: f64, speed: f64) -> (f64, f64) {
     let implied = (e - lpe).hypot(n - lpn) / dt;
     (implied, (implied - speed).abs())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entity(source: &str, last: i64) -> Entity {
+        let a = Axis { p: 0.0, v: 0.0, pp: 1.0, pv: 0.0, vv: 1.0 };
+        Entity { source: source.into(), last_time_ms: last, last_pos: (0.0, 0.0), east: a, north: a, window: Vec::new() }
+    }
+
+    fn entities(list: &[(&str, &str, i64)]) -> BTreeMap<String, Entity> {
+        list.iter().map(|(k, s, t)| (k.to_string(), entity(s, *t))).collect()
+    }
+
+    #[test]
+    fn input_clock_is_the_median_of_the_other_sources_latest() {
+        let e = entities(&[("a/1", "a", 100), ("a/2", "a", 300), ("b/1", "b", 200), ("c/1", "c", 50), ("d/1", "d", 400)]);
+        // Others of a: b 200, c 50, d 400: median 200. a's latest is 300.
+        assert_eq!(input_clock(&e, "a"), (Some(Ms::Int(200)), Some(300)));
+        // Others of b: a 300, c 50, d 400.
+        assert_eq!(input_clock(&e, "b").0, Some(Ms::Int(300)));
+        let two = entities(&[("a/1", "a", 100), ("b/1", "b", 201)]);
+        assert_eq!(input_clock(&two, "z"), (Some(Ms::Float(150.5)), None));
+        assert_eq!(input_clock(&entities(&[("a/1", "a", 1)]), "a"), (None, Some(1)));
+    }
+
+    #[test]
+    fn ms_and_order_forms() {
+        assert_eq!(Ms::Int(5).minus(7), Ms::Int(-2));
+        assert_eq!(Ms::Float(5.5).minus(1).to_json(), Json::Num(4.5));
+        assert_eq!(Ms::Int(3).as_f64(), 3.0);
+        let names: Vec<&str> = [Order::First, Order::Advance, Order::Duplicate, Order::OutOfOrder].iter().map(|o| o.name()).collect();
+        assert_eq!(names, ["first", "advance", "duplicate", "out-of-order"]);
+        assert_eq!([TimeState::Coherent, TimeState::Drifting, TimeState::FreeRunning].map(time_state_code), [0, 1, 2]);
+    }
+
+    #[test]
+    fn nis_and_speed_err() {
+        let p = Axis { p: 1.0, v: 0.0, pp: 3.0, pv: 0.0, vv: 1.0 };
+        let n = nis((3.0, 1.0), (&p, &p), 1.0);
+        assert_eq!((n.value, n.de, n.dn, n.se, n.sn), (1.0, 2.0, 0.0, 4.0, 4.0));
+        assert_eq!(speed_err((3.0, 4.0), (0.0, 0.0), 2.0, 2.0), (2.5, 0.5));
+    }
 }

@@ -93,3 +93,48 @@ pub fn time_quality(fields: &BTreeMap<String, Json>, source: &str, defaults: &BT
     let state = time_state(fields).or_else(|| default.and_then(|d| d.state)).unwrap_or(TimeState::Coherent);
     TimeQuality { error_ms, state }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::json::parse;
+
+    fn fields(text: &str) -> BTreeMap<String, Json> {
+        parse(text).unwrap().as_object().unwrap().clone()
+    }
+
+    #[test]
+    fn required_keys_in_table_order() {
+        assert_eq!(required(&fields("{}")).unwrap_err(), "track.source_id");
+        assert_eq!(required(&fields(r#"{"track.source_id":"a","time_ms":1}"#)).unwrap_err(), "uid");
+        assert_eq!(required(&fields(r#"{"track.source_id":"a","uid":"u","time_ms":1.0,"lat":0,"lon":0}"#)).unwrap_err(), "time_ms");
+        assert_eq!(required(&fields(r#"{"track.source_id":"a","uid":"u","time_ms":1,"lat":"0","lon":0}"#)).unwrap_err(), "lat");
+        let ok = fields(r#"{"track.source_id":"a","uid":"u","time_ms":1,"lat":2,"lon":3.5}"#);
+        let r = required(&ok).unwrap();
+        assert_eq!((r.key(), r.time_ms, r.lat, r.lon), ("a/u".to_string(), 1, 2.0, 3.5));
+        assert_eq!(reject_missing("uid").to_string(), r#"{"ev":"reject","reason":"missing:uid"}"#);
+    }
+
+    #[test]
+    fn optional_keys_of_the_wrong_type_are_absent() {
+        let f = fields(r#"{"hae":"1","ce":0,"course":3,"type":5,"stale_ms":1.5,"x":null,"y":false}"#);
+        assert_eq!(optional(&f, "hae"), None);
+        assert_eq!(optional(&f, "ce"), None);
+        assert_eq!(optional_f64(&f, "course"), Some(3.0));
+        assert_eq!(optional(&f, "type"), None);
+        assert_eq!(optional(&f, "stale_ms"), None);
+        assert_eq!(optional(&f, "x"), None);
+        assert_eq!(optional(&f, "y"), Some(&Json::Bool(false)));
+    }
+
+    #[test]
+    fn time_quality_takes_the_report_then_the_default_then_zero() {
+        let mut defaults = BTreeMap::new();
+        defaults.insert("radar".to_string(), TimeDefault { error_ms: Some(500.0), state: None });
+        let report = fields(r#"{"time_error_ms":0,"time_state":"drifting"}"#);
+        assert_eq!(time_quality(&report, "radar", &defaults), TimeQuality { error_ms: 0.0, state: TimeState::Drifting });
+        let invalid = fields(r#"{"time_error_ms":-1,"time_state":"Drifting"}"#);
+        assert_eq!(time_quality(&invalid, "radar", &defaults), TimeQuality { error_ms: 500.0, state: TimeState::Coherent });
+        assert_eq!(time_quality(&invalid, "other", &defaults).error_ms, 0.0);
+    }
+}

@@ -39,10 +39,15 @@ jobs:
         working-directory: engines/python
   rust:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: cargo test
+        working-directory: engines/rust
+      # Line coverage with rustc's own instrumentation and the rustup
+      # component llvm-tools; the floor is max(baseline 94.01 %, 80 %).
+      - run: rustup component add llvm-tools
+      - run: ./coverage.sh 94.01
         working-directory: engines/rust
   go:
     runs-on: ubuntu-latest

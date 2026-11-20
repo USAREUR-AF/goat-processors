@@ -337,3 +337,61 @@ impl<'a> Parser<'a> {
         t.parse::<f64>().map(Json::Num).map_err(|_| self.err("bad number"))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn integers_and_numbers_keep_their_form() {
+        assert_eq!(parse("12").unwrap(), Json::Int(12));
+        assert_eq!(parse("-0").unwrap(), Json::Int(0));
+        assert_eq!(parse("12.0").unwrap(), Json::Num(12.0));
+        assert_eq!(parse("1e2").unwrap(), Json::Num(100.0));
+        // Outside the signed 64-bit range: a non-integer number (DISAGREEMENTS.md).
+        assert_eq!(parse("9223372036854775808").unwrap(), Json::Num(9223372036854775808.0));
+        assert_eq!(Json::Int(3).as_f64(), Some(3.0));
+        assert_eq!(Json::Num(3.0).as_i64(), None);
+    }
+
+    #[test]
+    fn strings_unescape_and_print_back() {
+        let v = parse(r#""a\"b\\c\/\n\t\r\b\f\u00e9\ud83d\ude00\u0001""#).unwrap();
+        assert_eq!(v, Json::Str("a\"b\\c/\n\t\r\u{8}\u{c}é😀\u{1}".to_string()));
+        assert_eq!(parse(&v.to_string()).unwrap(), v);
+        assert_eq!(Json::from("\u{1}").to_string(), "\"\\u0001\"");
+        // A lone high surrogate becomes U+FFFD.
+        assert_eq!(parse(r#""\ud800""#).unwrap(), Json::Str("\u{FFFD}".into()));
+    }
+
+    #[test]
+    fn errors_name_the_byte() {
+        for bad in ["", "{", "[1,", "{\"a\" 1}", "tru", "nul", "\"abc", "1 2", "[1 2]", "{1:2}", "\"\\x\"", "\"\\u12\"", "-", "+1"] {
+            let e = parse(bad).unwrap_err();
+            assert!(e.starts_with("json: "), "{:?}: {}", bad, e);
+        }
+    }
+
+    #[test]
+    fn objects_print_in_key_order() {
+        let v = parse(r#"{"b": [1, 2.5, null, true, false], "a": {}}"#).unwrap();
+        assert_eq!(v.to_string(), r#"{"a":{},"b":[1,2.5,null,true,false]}"#);
+        assert_eq!(v.get("a").and_then(Json::as_object).map(|m| m.len()), Some(0));
+        assert_eq!(v.get("b").and_then(Json::as_array).map(|a| a.len()), Some(5));
+        assert_eq!(Json::Null.get("a"), None);
+        assert_eq!(obj(vec![("k", Json::from(true))]).to_string(), r#"{"k":true}"#);
+    }
+
+    #[test]
+    fn same_compares_numbers_by_value_and_never_across_kinds() {
+        let p = |s: &str| parse(s).unwrap();
+        assert!(p("1").same(&p("1.0")));
+        assert!(!p("1").same(&p("\"1\"")));
+        assert!(!p("true").same(&p("1")));
+        assert!(p("[1, {\"a\": 2}]").same(&p("[1.0, {\"a\": 2.0}]")));
+        assert!(!p("{\"a\": 1}").same(&p("{\"b\": 1}")));
+        assert!(!p("[1]").same(&p("[1, 2]")));
+        assert!(p("9007199254740993").same(&p("9007199254740993")));
+        assert!(!p("9007199254740993").same(&p("9007199254740992")));
+    }
+}

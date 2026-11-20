@@ -160,6 +160,33 @@ failure the test prints the vector and the path of the first mismatch, for
 example `steps[2].trace[6].value: got 1.0, want 2.0`. Add `-- --nocapture` to
 see one line per vector.
 
+## Tests
+
+`cargo test` runs, besides the vectors:
+
+| Kind | Where |
+|---|---|
+| unit tests per module | `#[cfg(test)] mod tests` in each file of `src/` |
+| the registration point (no-op test kind) | `tests/registry.rs`, fixture `tests/fixtures/correlate-noop` |
+| properties: determinism; order independence (report key order, comments and blank lines, filter directives against rules, `time_default` lines); snapshot | `tests/properties.rs`; ranking (total and order against a reference) in `src/assign/ranking.rs` |
+| fuzzing of the JSON reader, the four `pack.def` readers and the engines on malformed reports, seeded, bounded by `GOAT_FUZZ_CASES` and `GOAT_FUZZ_SECONDS` | `tests/fuzz.rs` |
+| the runner binary | `tests/runner_cli.rs`, `src/io/mod.rs` |
+
+The engines have no restore: a snapshot is an observation of the state and
+is never read back. The snapshot property tested instead is that taking a
+snapshot changes nothing and that a copy of an engine (`Clone`) continues
+exactly as the original.
+
+Line coverage uses rustc's own instrumentation (`-C instrument-coverage`) and
+`llvm-profdata`/`llvm-cov` from the rustup component `llvm-tools`; no
+third-party crate:
+
+```
+rustup component add llvm-tools
+./coverage.sh          # the report and the total
+./coverage.sh 94.01    # exits 1 below the floor (CI)
+```
+
 ## The runner
 
 `runner/build` builds `src/bin/runner.rs` with the release profile;

@@ -103,3 +103,44 @@ impl History {
         self.records.last().map_or(committed, |r| &r.membership)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn keys(ks: &[&str]) -> Vec<String> {
+        ks.iter().map(|k| k.to_string()).collect()
+    }
+
+    #[test]
+    fn start_join_leave_end() {
+        let mut m = Membership::default();
+        let mut events = Vec::new();
+        m.apply(&keys(&["a/1", "b/1"]), &[Choice::Alone, Choice::Alone], &mut events);
+        assert_eq!(m.systems_json().to_string(), r#"{"s1":["a/1"],"s2":["b/1"]}"#);
+        // b/1 joins s1: leaves s2 (which ends), joins s1.
+        m.apply(&keys(&["b/1"]), &[Choice::Column(1)], &mut events);
+        assert_eq!(m.system_of("b/1"), Some(1));
+        assert!(!m.alone("b/1"));
+        // Unchanged choices give no events.
+        let before = events.len();
+        m.apply(&keys(&["a/1"]), &[Choice::Column(1)], &mut events);
+        assert_eq!(events.len(), before);
+        m.leave("a/1", "stale", &mut events);
+        m.leave("a/1", "stale", &mut events);
+        let evs: Vec<String> = events.iter().map(|e| e.get("ev").and_then(Json::as_str).unwrap().to_string()).collect();
+        assert_eq!(evs, ["start", "start", "leave", "end", "join", "leave"]);
+        assert!(m.alone("b/1"));
+    }
+
+    #[test]
+    fn history_total_and_latest() {
+        let committed = Membership::default();
+        let mut h = History::default();
+        assert_eq!((h.total(), h.latest(&committed) == &committed), (0.0, true));
+        let rec = |cost| Record { cost, choices: Vec::new(), events: Vec::new(), membership: Membership::default() };
+        h.records.push(rec(1.5));
+        h.records.push(rec(2.0));
+        assert_eq!(h.total(), 3.5);
+    }
+}

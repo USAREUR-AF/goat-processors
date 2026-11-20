@@ -338,3 +338,48 @@ pub fn parse_pack(text: &str) -> Result<Pack, String> {
         rules,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const OK: &str = "pack q\nversion 0.2.0\nfilter accel_var=1 default_ce_m=10 vel_sigma_ms=5 unknown_vel_ms=100\nwindow window_ms=60000 min_samples=2 forget_ms=120000\n";
+
+    #[test]
+    fn rules_and_lines() {
+        let p = parse_pack(&format!("{}rule slow scope=source measure=entities op=< limit=1 for=1 clear=2 action=downgrade factor=2\r\n", OK)).unwrap();
+        assert_eq!((p.rules[0].action, p.rules[0].scope.name()), (Action::Downgrade(2.0), "source"));
+        assert_eq!([Action::Mark, Action::Drop, Action::Alert].map(Action::name), ["mark", "drop", "alert"]);
+        let rule = |extra: &str| format!("{}rule r scope=entity measure=age op=> limit=5 for=1 clear=4 {}\n", OK, extra);
+        assert!(parse_pack(&rule("action=mark")).is_ok());
+        for bad in [
+            rule("action=downgrade"),
+            rule("action=downgrade factor=0.5"),
+            rule("action=mark factor=2"),
+            rule("action=shout"),
+            rule("action=mark extra=1"),
+            rule("action=mark").replace("clear=4", "clear=6"),
+            rule("action=mark").replace("for=1", "for=0"),
+            rule("action=mark").replace("op=>", "op=!"),
+            rule("action=mark").replace("scope=entity", "scope=world"),
+            rule("action=mark").replace("measure=age", "measure=entities"),
+            rule("action=mark").replace("rule r", "rule r!"),
+            format!("{}{}", rule("action=mark"), "rule r scope=entity measure=age op=> limit=5 for=1 clear=4 action=mark"),
+            rule("action=mark").replace("limit=5", "limit=1e400"),
+            format!("{}window window_ms=1 min_samples=1 forget_ms=1\n", OK),
+            OK.replace("min_samples=2", "min_samples=0"),
+            OK.replace("accel_var=1", "accel_var=-1"),
+            OK.replace("default_ce_m=10", "default_ce_m=0"),
+            format!("{}bell\u{7}\n", OK),
+            format!("{}a\rb\n", OK),
+            format!("{}time_default a error_ms=1\ntime_default a state=drifting\n", OK),
+            format!("{}colour red\n", OK),
+            OK.replace("version 0.2.0", "version 0.2.0 0.3.0"),
+            "pack q\n".to_string(),
+        ] {
+            assert!(parse_pack(&bad).is_err(), "{:?}", bad);
+        }
+        assert!(number(&"9".repeat(400)).is_err());
+        assert!(integer("99999999999999999999").is_err());
+    }
+}

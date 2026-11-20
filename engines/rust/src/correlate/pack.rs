@@ -491,3 +491,74 @@ pub(crate) fn finish_assign(d: Draft) -> Result<Pack, String> {
         time_offset: d.time_offset,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const BASE: &str = "pack p\nversion 0.1.0\nfilter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\nstale_ms 1000\n";
+
+    fn confirm(extra: &str) -> Result<Pack, String> {
+        parse_pack(&format!("{}confirm_count 2\nhold_failures 1\n{}", BASE, extra))
+    }
+
+    fn assign(extra: &str) -> Result<Pack, String> {
+        parse_pack(&format!("{}method assign\nnew_cost 9\nkeep_bonus 1\n{}", BASE, extra))
+    }
+
+    #[test]
+    fn the_method_line_picks_a_registered_method() {
+        assert_eq!(confirm("").unwrap().method.name, "confirm");
+        let p = assign("gate mahalanobis gate=9 # comment\n").unwrap();
+        assert_eq!((p.method.name, p.window, p.hypotheses, p.gate.len()), ("assign", 1, 1, 1));
+        assert_eq!(p.gate[0].name(), "mahalanobis");
+        assert!(assign("method assign\n").unwrap_err().contains("repeated"));
+        assert!(parse_pack(&format!("{}method vote\n", BASE)).unwrap_err().contains("unknown method"));
+    }
+
+    #[test]
+    fn each_method_refuses_the_others_directives() {
+        assert!(confirm("new_cost 3\n").unwrap_err().contains("not allowed with method confirm"));
+        assert!(assign("hold mahalanobis gate=9\n").unwrap_err().contains("not allowed with method assign"));
+        assert!(assign("priority radar 1\n").is_err());
+    }
+
+    #[test]
+    fn assign_checks() {
+        assert!(assign("hypotheses 2\n").unwrap_err().contains("needs window"));
+        assert!(assign("window 2\nmargin 1\n").unwrap_err().contains("margin needs"));
+        assert!(assign("time_offset sigma_ms=10\n").unwrap_err().contains("needs bias"));
+        let p = assign("window 3\nhypotheses 2\nmargin 0.5\nbias sigma_m=5 floor_m=1 gate=9\ntime_offset sigma_ms=10\n").unwrap();
+        assert_eq!((p.window, p.hypotheses, p.margin, p.time_offset), (3, 2, Some(0.5), Some(10.0)));
+        assert!(parse_pack(&format!("{}method assign\nnew_cost 0\nkeep_bonus 1\n", BASE)).is_err());
+        assert!(parse_pack(&format!("{}method assign\nnew_cost 1\nkeep_bonus -1\n", BASE)).is_err());
+        assert!(parse_pack(&format!("{}method assign\nnew_cost 1\n", BASE)).unwrap_err().contains("keep_bonus"));
+    }
+
+    #[test]
+    fn values_and_parameters() {
+        assert!(confirm("gate distance max_m=1 max_m=2\n").unwrap_err().contains("repeated parameter"));
+        assert!(confirm("gate distance\n").unwrap_err().contains("missing parameter"));
+        assert!(confirm("gate distance max=1\n").unwrap_err().contains("unknown parameter"));
+        assert!(confirm("gate distance max_m\n").unwrap_err().contains("without '='"));
+        assert!(confirm("gate distance max_m=1e3\n").is_err());
+        assert!(confirm("gate same key=\n").unwrap_err().contains("empty"));
+        assert!(confirm("gate\n").unwrap_err().contains("without a test name"));
+        assert!(parse_pack(&BASE.replace("0.1.0", "1.0")).unwrap_err().contains("semver"));
+        let p = confirm("output latest\nsame_source allow\npriority radar 3\nmaneuver accel_var=9 p_enter=0.1 p_leave=0.2\nrestart gate=13.8\ntime_default radar error_ms=5\n").unwrap();
+        assert_eq!((p.output, p.same_source_allow, p.priority_of("radar"), p.priority_of("x")), (Output::Latest, true, 3, 100));
+        assert_eq!((p.restart, p.maneuver.map(|m| m.accel_var)), (Some(13.8), Some(9.0)));
+        assert!(confirm("maneuver accel_var=0.5 p_enter=0.1 p_leave=0.2\n").unwrap_err().contains("above filter"));
+        assert!(confirm("restart gate=0\n").is_err());
+        assert!(confirm("output newest\n").is_err());
+        assert!(confirm("hold_failures 2\n").unwrap_err().contains("repeated"));
+        assert!(parse_pack("pack p\n").unwrap_err().contains("filter"));
+    }
+
+    #[test]
+    fn load_pack_reads_the_directory() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs/correlate-gnn");
+        assert_eq!(load_pack(&dir).unwrap().name, "correlate-gnn");
+        assert!(load_pack(std::path::Path::new("/nonexistent")).is_err());
+    }
+}

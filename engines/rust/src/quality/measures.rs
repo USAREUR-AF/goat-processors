@@ -255,3 +255,44 @@ pub(super) fn quality_event(scope: Scope, subject: &str, measures: &Measures) ->
         ("measures", Json::Obj(measures)),
     ])
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_registry_holds_the_spec_tables() {
+        assert_eq!(MEASURES.len(), 24);
+        assert!(find("entities", Scope::Source).is_some() && find("entities", Scope::Entity).is_none());
+        assert!(find("nis_mean", Scope::Entity).is_some() && find("nis", Scope::Entity).is_none());
+        assert_eq!(find("age", Scope::Source).map(|m| m.source), Some(Aggregate::Smallest));
+        assert!(format!("{:?}", MEASURES[0]).contains("reports"));
+    }
+
+    #[test]
+    fn largest_smallest_and_mean() {
+        let v = vec![Json::Int(2), Json::Num(2.0), Json::Int(-1)];
+        assert_eq!(largest(v.clone()), Json::Int(2));
+        assert_eq!(smallest(v), Json::Int(-1));
+        assert_eq!(largest(Vec::new()), Json::Null);
+        assert_eq!(mean(&[1.0, 2.0, 4.0]), 7.0 / 3.0);
+    }
+
+    #[test]
+    fn source_aggregates() {
+        let mut a = Measures::new();
+        let mut b = Measures::new();
+        for m in MEASURES.iter().filter(|m| m.entity.is_some()) {
+            a.insert(m.name, Json::Null);
+            b.insert(m.name, Json::Null);
+        }
+        a.insert("reports", Json::Int(3));
+        b.insert("reports", Json::Int(4));
+        a.insert("age", Json::Int(10));
+        b.insert("age", Json::Int(5));
+        a.insert("interval_last", Json::Int(1000));
+        let s = source_measures(&[&a, &b]);
+        assert_eq!((s["reports"].clone(), s["age"].clone(), s["entities"].clone()), (Json::Int(7), Json::Int(5), Json::Int(2)));
+        assert_eq!((s["interval_last"].clone(), s["nis_mean"].clone()), (Json::Num(1000.0), Json::Null));
+    }
+}

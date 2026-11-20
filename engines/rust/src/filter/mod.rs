@@ -61,6 +61,9 @@ fn opt_num(v: Option<f64>) -> Json {
     v.map(Json::from).unwrap_or(Json::Null)
 }
 
+/// The engine: all of its state, read out by `snapshot()`. `Clone` copies
+/// the state, so a copy continues exactly as the original would.
+#[derive(Clone)]
 pub struct Engine {
     pack: Pack,
     entities: BTreeMap<String, Entity>,

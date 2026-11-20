@@ -85,3 +85,42 @@ impl TwoModel {
         (TwoModel { models: [u1, u2], mu }, ModeUpdate { lambda, mu })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::Axis;
+
+    fn model() -> Model {
+        let a = Axis { p: 0.0, v: 1.0, pp: 25.0, pv: 0.0, vv: 4.0 };
+        Model { east: a, north: a }
+    }
+
+    #[test]
+    fn first_report_mode_probabilities() {
+        let t = TwoModel::first(model(), 0.1, 0.3);
+        assert_eq!(t.mu, [0.3 / 0.4, 0.1 / 0.4]);
+        let c = t.combined();
+        assert!((c.east.v - 1.0).abs() < 1e-12 && (c.north.pp - 25.0).abs() < 1e-12, "{:?}", c);
+    }
+
+    #[test]
+    fn switching_rows_sum_to_one() {
+        for dt in [0.0, 0.5, 3.0] {
+            let t = switching(0.05, 0.2, dt);
+            assert!((t[0][0] + t[0][1] - 1.0).abs() < 1e-15 && (t[1][0] + t[1][1] - 1.0).abs() < 1e-15);
+        }
+    }
+
+    #[test]
+    fn a_step_keeps_mu_a_distribution_and_favors_the_model_that_fits() {
+        let t = TwoModel::first(model(), 0.05, 0.2);
+        let far = Measurement { pos: (400.0, -300.0), r_pos: (25.0, 25.0), vel: Some((30.0, -20.0)), r_vel: 4.0 };
+        let (next, mode) = t.step(2.0, [0.1, 50.0], 0.05, 0.2, &far);
+        assert!((next.mu[0] + next.mu[1] - 1.0).abs() < 1e-12);
+        assert_eq!(mode.mu, next.mu);
+        assert!(next.mu[1] > t.mu[1], "a maneuver raises the maneuver model: {:?}", next.mu);
+        let p = t.predict(1.0, [0.1, 50.0]);
+        assert_eq!(p.east.p, 1.0);
+    }
+}

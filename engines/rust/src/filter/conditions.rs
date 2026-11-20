@@ -199,3 +199,30 @@ impl Engine {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn three_valued_results() {
+        assert_eq!(Truth::True.negate(), Truth::False);
+        assert_eq!(Truth::False.negate(), Truth::True);
+        assert_eq!(Truth::Unknown.negate(), Truth::Unknown);
+        assert_eq!(Truth::of(true), Truth::True);
+    }
+
+    #[test]
+    fn key_equality_and_differences() {
+        assert!(key_equals(&Json::Str("a".into()), "a", None));
+        assert!(key_equals(&Json::Int(2), "2.0", Some(2.0)));
+        assert!(!key_equals(&Json::Int(2), "two", None));
+        assert!(key_equals(&Json::Bool(true), "true", None) && key_equals(&Json::Bool(false), "false", None));
+        assert!(!key_equals(&Json::Arr(vec![]), "[]", None));
+        assert_eq!(difference(5, 7), (-2, Json::Int(-2)));
+        assert_eq!(difference(i64::MAX, -1).1, Json::Num(i64::MAX as f64 + 1.0));
+        assert_eq!(range_json(&Range { min: Some(1.0), max: None }).to_string(), "[1.0,null]");
+        assert_eq!(in_list(None, &["a".to_string()]).truth, Truth::Unknown);
+        assert_eq!(in_range(Some(&Json::Bool(true)), &Range { min: None, max: None }).truth, Truth::Unknown);
+    }
+}

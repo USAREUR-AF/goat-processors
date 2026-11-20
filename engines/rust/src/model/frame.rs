@@ -45,3 +45,28 @@ impl Frame {
         (lat, wrap180(lon))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wrap180_is_in_the_half_open_range() {
+        assert_eq!(wrap180(180.0), 180.0);
+        assert_eq!(wrap180(-180.0), 180.0);
+        assert_eq!(wrap180(540.0), 180.0);
+        assert_eq!(wrap180(190.0), -170.0);
+        assert_eq!(wrap180(-725.0), -5.0);
+    }
+
+    #[test]
+    fn plane_and_degrees_are_inverse() {
+        let f = Frame { lat0: 52.0, lon0: 179.9 };
+        assert_eq!(f.to_plane(52.0, 179.9), (0.0, 0.0));
+        let (e, n) = f.to_plane(52.01, -179.95);
+        assert!(e > 0.0 && n > 0.0, "across the antimeridian is east: {} {}", e, n);
+        let (lat, lon) = f.to_degrees(e, n);
+        assert!((lat - 52.01).abs() < 1e-9 && (lon + 179.95).abs() < 1e-9, "{} {}", lat, lon);
+        assert!((deg(rad(33.0)) - 33.0).abs() < 1e-12);
+    }
+}

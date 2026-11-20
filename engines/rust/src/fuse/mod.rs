@@ -61,6 +61,9 @@ fn rank_json(rank: Option<usize>) -> Json {
     rank.map_or(Json::Null, |r| Json::Int(r as i64))
 }
 
+/// The engine: all of its state, read out by `snapshot()`. `Clone` copies
+/// the state, so a copy continues exactly as the original would.
+#[derive(Clone)]
 pub struct Engine {
     pack: Pack,
     frame: Option<Frame>,

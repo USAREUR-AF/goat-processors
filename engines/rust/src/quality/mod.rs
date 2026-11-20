@@ -52,6 +52,9 @@ pub(crate) struct RuleState {
 /// A scope's measures, keyed by measure name; `Json::Null` when absent.
 type Measures = BTreeMap<&'static str, Json>;
 
+/// The engine: all of its state, read out by `snapshot()`. `Clone` copies
+/// the state, so a copy continues exactly as the original would.
+#[derive(Clone)]
 pub struct Engine {
     pack: Pack,
     frame: Option<Frame>,
@@ -153,7 +156,7 @@ impl Engine {
 
         // Input clock and source latest, from the entities that exist just
         // before the report is applied.
-        let (clock, source_latest) = self.input_clock(source);
+        let (clock, source_latest) = samples::input_clock(&self.entities, source);
 
         // Reports, Time quality: each key resolved from the report's own
         // valid value, else the pack's `time_default` for the report's

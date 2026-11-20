@@ -113,3 +113,36 @@ pub(super) fn action_event(ev: &str, rule: &Rule, subject: &str, value: Json, re
     }
     obj(fields)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rule(op: Op, limit: f64, for_n: u64, clear: f64) -> Rule {
+        Rule { name: "r".into(), scope: Scope::Entity, measure: "age".into(), op, limit, for_n, clear, action: Action::Alert }
+    }
+
+    #[test]
+    fn starts_after_for_consecutive_passes_and_clears() {
+        let r = rule(Op::Gt, 10.0, 2, 5.0);
+        let s0 = RuleState::default();
+        let s1 = step(&r, s0, Some(11.0));
+        assert_eq!((s1.state.count, s1.state.active, s1.event, s1.pass, s1.limit), (1, false, None, true, 10.0));
+        // A null value or a miss resets the count.
+        assert_eq!(step(&r, s1.state, None).state.count, 0);
+        let s2 = step(&r, s1.state, Some(12.0));
+        assert_eq!((s2.state.active, s2.state.count, s2.event), (true, 0, Some(("action-start", None))));
+        let held = step(&r, s2.state, Some(6.0));
+        assert_eq!((held.state.active, held.pass, held.limit), (true, false, 5.0));
+        let cleared = step(&r, held.state, Some(4.0));
+        assert_eq!((cleared.state.active, cleared.event), (false, Some(("action-end", Some("clear")))));
+    }
+
+    #[test]
+    fn ops_hold_and_clear_on_their_side() {
+        assert!(Op::Lt.holds(1.0, 2.0) && Op::Le.holds(2.0, 2.0) && Op::Ge.holds(2.0, 2.0) && !Op::Gt.holds(2.0, 2.0));
+        assert!(Op::Lt.clears(3.0, 2.0) && !Op::Le.clears(2.0, 2.0) && Op::Ge.clears(1.0, 2.0));
+        let e = action_event("action-end", &rule(Op::Lt, 1.0, 1, 1.0), "s", Json::Null, Some("forget"));
+        assert_eq!(e.to_string(), r#"{"action":"alert","ev":"action-end","reason":"forget","rule":"r","scope":"entity","subject":"s","value":null}"#);
+    }
+}

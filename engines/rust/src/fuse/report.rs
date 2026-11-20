@@ -34,3 +34,17 @@ pub(super) fn normalize(fields: &BTreeMap<String, Json>) -> BTreeMap<String, Jso
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::json::parse;
+
+    #[test]
+    fn normalized_report_drops_unusable_keys() {
+        let f = parse(r#"{"ce":0,"hae":"x","course":1,"type":3,"stale_ms":2.5,"fuse.group":"","n":null,"k":"v"}"#).unwrap();
+        let n = normalize(f.as_object().unwrap());
+        assert_eq!(Json::Obj(n).to_string(), r#"{"course":1,"k":"v"}"#);
+        assert_eq!(missing_required(f.as_object().unwrap()), Some("track.source_id"));
+    }
+}

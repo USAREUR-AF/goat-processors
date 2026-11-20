@@ -141,3 +141,35 @@ fn fold(x: &Estimate, y: &Estimate, w: f64) -> Estimate {
     }
     Estimate { east: axis(&x.east, &y.east, w), north: axis(&x.north, &y.north, w) }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn est(pp_e: f64, pp_n: f64) -> Estimate {
+        let a = |pp| AxisEstimate { p: 1.0, v: 1.0, pp, vv: pp };
+        Estimate { east: a(pp_e), north: a(pp_n) }
+    }
+
+    #[test]
+    fn weight_cases() {
+        // X tighter on both axes: c2 >= 0 and c1 + c2 > 0, so w = 1.
+        assert_eq!(weight(&est(1.0, 1.0), &est(4.0, 4.0)), 1.0);
+        // Y tighter on both: w = 0.
+        assert_eq!(weight(&est(4.0, 4.0), &est(1.0, 1.0)), 0.0);
+        // Equal: 0.5.
+        assert_eq!(weight(&est(2.0, 2.0), &est(2.0, 2.0)), 0.5);
+        // Crossed: an interior w.
+        let w = weight(&est(1.0, 9.0), &est(9.0, 1.0));
+        assert!(w > 0.0 && w < 1.0 && (w - 0.5).abs() < 1e-12, "{}", w);
+    }
+
+    #[test]
+    fn fold_endpoints_and_interior() {
+        let (x, y) = (est(1.0, 9.0), est(9.0, 1.0));
+        assert_eq!(fold(&x, &y, 1.0), x);
+        assert_eq!(fold(&x, &y, 0.0), y);
+        let f = fold(&x, &y, 0.5);
+        assert!((f.east.pp - 1.8).abs() < 1e-12 && (f.east.p - 1.0).abs() < 1e-12);
+    }
+}

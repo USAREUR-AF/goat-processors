@@ -244,3 +244,47 @@ fn fit_time_offset(st: &mut PairBias, s: f64, t: f64, (ve, vn): (f64, f64), (ye,
     st.weight_east = s1;
     st.weight_north = s2;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn axis(p: f64, v: f64) -> Axis {
+        Axis { p, v, pp: 4.0, pv: 0.0, vv: 1.0 }
+    }
+
+    #[test]
+    fn moving_adds_or_subtracts_the_offset_by_source_order() {
+        let st = PairBias { east: 10.0, north: -2.0, var: 3.0, tau: 0.5, ..PairBias::initial(1.0) };
+        let (e, n) = move_into_frame(&st, true, false, (axis(1.0, 4.0), axis(1.0, 0.0)));
+        assert_eq!((e.p, e.pp, n.p, n.pp), (11.0, 7.0, -1.0, 7.0));
+        let (e, _) = move_into_frame(&st, false, false, (axis(1.0, 4.0), axis(1.0, 0.0)));
+        assert_eq!(e.p, -9.0);
+        // With time_offset: o - v*tau = 10 - 4*0.5.
+        let (e, _) = move_into_frame(&st, true, true, (axis(1.0, 4.0), axis(1.0, 0.0)));
+        assert_eq!(e.p, 9.0);
+    }
+
+    #[test]
+    fn update_accepts_below_the_gate_and_floors_the_variance() {
+        let params = Bias { sigma_m: 10.0, floor_m: 8.0, gate: 9.0 };
+        let st = PairBias::initial(10.0);
+        let (next, d2, ok) = update_pair(st.clone(), &params, None, (5.0, 0.0), (100.0, 100.0), (0.0, 0.0));
+        assert!(ok && d2 == 25.0 / 200.0);
+        assert_eq!((next.pairs, next.var), (1, 64.0));
+        assert_eq!((next.weight_east, next.east), (0.01, 5.0));
+        let (same, _, ok) = update_pair(st.clone(), &params, None, (500.0, 0.0), (1.0, 1.0), (0.0, 0.0));
+        assert!(!ok && same == st);
+    }
+
+    #[test]
+    fn time_offset_fit_moves_tau_and_sets_the_weights() {
+        let params = Bias { sigma_m: 10.0, floor_m: 1.0, gate: 1e9 };
+        let (next, _, ok) = update_pair(PairBias::initial(10.0), &params, Some(100.0), (-2.0, -1.0), (1.0, 1.0), (20.0, 10.0));
+        assert!(ok && next.tau > 0.0, "{:?}", next);
+        assert_eq!((next.weight_east, next.weight_north), (next.sums[0], next.sums[1]));
+        let json = next.json(true);
+        assert!(json.get("time_offset_ms").is_some() && json.get("sums").is_some());
+        assert!(next.json(false).get("sums").is_none());
+    }
+}

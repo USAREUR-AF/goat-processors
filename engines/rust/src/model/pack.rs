@@ -89,3 +89,38 @@ pub fn parse_time_default(args: &[&str], number: fn(&str) -> Result<f64, String>
     Ok((source.to_string(), d))
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn number(s: &str) -> Result<f64, String> {
+        s.parse::<f64>().map_err(|e| e.to_string())
+    }
+
+    #[test]
+    fn time_default_grammar() {
+        let (s, d) = parse_time_default(&["radar", "error_ms=250", "state=free-running"], number).unwrap();
+        assert_eq!((s.as_str(), d.error_ms, d.state), ("radar", Some(250.0), Some(TimeState::FreeRunning)));
+        let (_, d) = parse_time_default(&["radar", "state=coherent"], number).unwrap();
+        assert_eq!((d.error_ms, d.state.map(TimeState::name)), (None, Some("coherent")));
+        for bad in [
+            &["error_ms=1"][..],
+            &["radar"],
+            &["radar", "error_ms=-1"],
+            &["radar", "error_ms=1", "error_ms=2"],
+            &["radar", "state=late"],
+            &["radar", "noise"],
+            &["radar", "other=1"],
+            &[],
+        ] {
+            assert!(parse_time_default(bad, number).is_err(), "{:?}", bad);
+        }
+    }
+
+    #[test]
+    fn read_pack_def_names_the_directory() {
+        let e = read_pack_def(Path::new("/nonexistent-goat-pack")).unwrap_err();
+        assert!(e.starts_with("/nonexistent-goat-pack"), "{}", e);
+    }
+}

@@ -112,3 +112,27 @@ impl Engine {
         Entries { columns: columns.into_iter().map(|(s, _)| s).collect(), rows, alone }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inverse_variance_of_one_is_itself_and_of_two_weights_them() {
+        let a = Axis { p: 2.0, v: 1.0, pp: 4.0, pv: 0.5, vv: 2.0 };
+        let (e, n) = inverse_variance([(a, a)]);
+        assert_eq!((e.p, e.v, e.pp, e.vv, e.pv), (2.0, 1.0, 4.0, 2.0, 0.0));
+        assert_eq!(n, e);
+        let b = Axis { p: 8.0, v: 3.0, pp: 4.0, pv: 0.0, vv: 2.0 };
+        let (e, _) = inverse_variance([(a, a), (b, b)]);
+        assert_eq!((e.p, e.pp, e.v, e.vv), (5.0, 2.0, 2.0, 1.0));
+    }
+
+    #[test]
+    fn cost_adds_the_timing_variance_to_a() {
+        let a = Axis { p: 3.0, v: 0.0, pp: 1.0, pv: 0.0, vv: 1.0 };
+        let f = Axis { p: 0.0, v: 0.0, pp: 1.0, pv: 0.0, vv: 1.0 };
+        assert_eq!(cost((&a, &a), (0.0, 0.0), (f, f)), 9.0);
+        assert_eq!(cost((&a, &a), (1.0, 7.0), (f, f)), 3.0 + 1.0);
+    }
+}

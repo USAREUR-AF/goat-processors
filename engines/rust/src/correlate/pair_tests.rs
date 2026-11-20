@@ -340,3 +340,83 @@ impl Engine {
         d2(&self.entities[a], self.predict_seen_by(a, b))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::correlate::parse_pack;
+    use crate::model::json::parse;
+    use std::collections::BTreeMap;
+
+    fn entity(p: (f64, f64), report: &str) -> Entity {
+        let axis = |p: f64| Axis { p, v: 0.0, pp: 1.0, pv: 0.0, vv: 1.0 };
+        Entity {
+            source: "s".into(),
+            last_time_ms: 0,
+            group: None,
+            system: None,
+            hold_failures: 0,
+            east: axis(p.0),
+            north: axis(p.1),
+            imm: None,
+            report: parse(report).unwrap().as_object().cloned().unwrap_or_else(BTreeMap::new),
+            r: (1.0, 1.0),
+            time_var: None,
+        }
+    }
+
+    /// Runs the pack's gate tests (the test lines `lines`) between A and B.
+    fn outcomes(lines: &str, a: &Entity, b: &Entity) -> Vec<Outcome> {
+        let text = format!("pack p\nversion 0.1.0\nfilter accel_var=1 default_ce_m=10 vel_sigma_ms=5 unknown_vel_ms=100\nconfirm_count 1\nhold_failures 1\nstale_ms 1\n{}", lines);
+        let pack = parse_pack(&text).unwrap();
+        let seen = || (b.east, b.north);
+        let pair = Pair { a, b, default_ce_m: 10.0, seen: &seen };
+        pack.gate.iter().map(|t| t.0.evaluate(&pair)).collect()
+    }
+
+    #[test]
+    fn distance_mahalanobis_and_window() {
+        let (a, b) = (entity((0.0, 0.0), "{}"), entity((3.0, 4.0), r#"{"ce": 20}"#));
+        let o = outcomes("gate distance max_m=5\ngate mahalanobis gate=12.6\ngate window multiplier=1 window_m=0 err_min_m=1 err_max_m=15\n", &a, &b);
+        assert_eq!(o[0], Outcome::ran(5.0, 5.0, false));
+        assert_eq!(o[1], Outcome::ran(12.5, 12.6, true));
+        // ea = 10 (default), eb = 20 clamped to 15: limit sqrt(100 + 225).
+        assert_eq!(o[2], Outcome::ran(5.0, 325f64.sqrt(), true));
+    }
+
+    #[test]
+    fn course_speed_altitude_skip_without_values() {
+        let a = entity((0.0, 0.0), r#"{"course": 350, "speed_ms": 10, "hae": 100}"#);
+        let b = entity((0.0, 0.0), r#"{"course": 20, "speed_ms": 8, "hae": 400}"#);
+        let lines = "gate course max_deg=30 min_speed_ms=5\ngate speed max_pct=10 min_speed_ms=5\ngate altitude max_m=250\n";
+        let o = outcomes(lines, &a, &b);
+        assert_eq!(o[0], Outcome::ran(30.0, 30.0, true));
+        assert!((o[1].value.as_f64().unwrap() - 20.0).abs() < 1e-12 && !o[1].pass);
+        assert_eq!(o[2], Outcome::ran(300.0, 250.0, false));
+        let bare = entity((0.0, 0.0), r#"{"speed_ms": 1}"#);
+        assert!(outcomes(lines, &a, &bare).iter().all(|o| o.skipped && o.pass));
+        let still = entity((0.0, 0.0), r#"{"speed_ms": 0}"#);
+        assert_eq!(outcomes("gate speed max_pct=10 min_speed_ms=0\n", &still, &still)[0], Outcome::ran(0.0, 10.0, true));
+    }
+
+    #[test]
+    fn same_compares_values_and_env() {
+        let a = entity((0.0, 0.0), r#"{"type": "a-f-G-U", "k": 1}"#);
+        let b = entity((0.0, 0.0), r#"{"type": "a-h-G", "k": 1.0}"#);
+        let o = outcomes("gate same key=@env\ngate same key=k\ngate same key=absent\n", &a, &b);
+        assert!(o.iter().all(|o| o.pass), "{:?}", o);
+        assert_eq!(o[0].value, Json::from("G"));
+        let c = entity((0.0, 0.0), r#"{"type": "a-h"}"#);
+        let o = outcomes("gate same key=@env\ngate same key=k\n", &a, &c);
+        assert_eq!((o[0].pass, o[0].limit.clone(), o[1].pass), (false, Json::Null, false));
+    }
+
+    #[test]
+    fn builtin_kinds_are_the_spec_tests() {
+        let names: Vec<&str> = BUILTIN_TESTS.iter().map(|k| k.name).collect();
+        assert_eq!(names, ["distance", "window", "mahalanobis", "course", "speed", "altitude", "same"]);
+        assert!(format!("{:?}", BUILTIN_TESTS[0]).contains("distance"));
+        assert!(parse_test(&["nearby"], BUILTIN_TESTS).unwrap_err().contains("unknown test"));
+        assert_eq!(format!("{:?}", parse_test(&["mahalanobis", "gate=1"], BUILTIN_TESTS).unwrap()), "Test(mahalanobis)");
+    }
+}
