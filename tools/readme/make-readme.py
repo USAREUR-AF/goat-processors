@@ -23,7 +23,7 @@ REPO = "USAREUR-AF/goat-processors"
 ENGINES = [  # language, directory, command that runs every vector, source globs
     ("Python", "python", "cd engines/python && PYTHONPATH=src python3 -m unittest discover -s tests", ["src/**/*.py"]),
     ("Rust", "rust", "cd engines/rust && cargo test", ["src/**/*.rs"]),
-    ("Go", "go", "cd engines/go && go test ./...", ["*.go"]),
+    ("Go", "go", "cd engines/go && go test ./...", ["**/*.go"]),
     ("Java", "java", "engines/java/build.sh", ["src/**/*.java"]),
     ("C++", "cpp", "cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir build/cpp",
      ["src/**/*.cpp", "src/**/*.hpp", "src/**/*.h"]),
@@ -212,7 +212,7 @@ def lines_of(lang_dir, globs):
     seen = set()
     for g in globs:
         for f in glob.glob(rel("engines", lang_dir, g), recursive=True):
-            if f in seen or "/test" in f.replace(rel("engines", lang_dir), ""):
+            if f in seen or "/test" in f.replace(rel("engines", lang_dir), "") or f.endswith("_test.go"):
                 continue
             seen.add(f)
             n += sum(1 for line in open(f, encoding="utf-8", errors="replace") if line.strip())
