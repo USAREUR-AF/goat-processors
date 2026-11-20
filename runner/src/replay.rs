@@ -182,7 +182,7 @@ pub fn run(p: &mut Pipeline, file: &ReplayFile, tick_ms: i64, packs_dir: &std::p
             Step::Tick(t) => p.tick(*t),
             Step::Pack { function, pack } => {
                 let mut m = BTreeMap::new();
-                m.insert("step".to_string(), Json::Int(n as i64));
+                m.insert("step".into(), Json::Int(n as i64));
                 m.insert("call".into(), Json::Str("pack".into()));
                 m.insert("stage".into(), Json::Str(function.clone()));
                 m.insert("pack".into(), Json::Str(pack.clone()));

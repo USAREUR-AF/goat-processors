@@ -122,7 +122,7 @@ pub fn route(method: &str, path: &str) -> Result<(usize, Vec<String>), (u16, Str
 
 pub fn error(status: u16, what: &str, fix: &str) -> Response {
     let mut m = BTreeMap::new();
-    m.insert("error".to_string(), Json::Str(what.into()));
+    m.insert("error".into(), Json::Str(what.into()));
     if !fix.is_empty() {
         m.insert("fix".into(), Json::Str(fix.into()));
     }
@@ -142,7 +142,7 @@ const MAX_CONNECTIONS: usize = 32;
 impl Server {
     fn audit(&self, who: &Identity, req: &Request, status: u16) {
         let mut m = BTreeMap::new();
-        m.insert("time_ms".to_string(), Json::Int(crate::service::wall_ms()));
+        m.insert("time_ms".into(), Json::Int(crate::service::wall_ms()));
         m.insert("who".into(), Json::Str(who.name.clone()));
         m.insert("via".into(), Json::Str(who.via.into()));
         m.insert("role".into(), Json::Str(who.role.name().into()));
@@ -228,7 +228,7 @@ impl Server {
                 let f = n.split('-').next()?;
                 crate::config::FUNCTIONS.contains(&f).then(|| {
                     let mut m = BTreeMap::new();
-                    m.insert("function".to_string(), Json::Str(f.into()));
+                    m.insert("function".into(), Json::Str(f.into()));
                     m.insert("pack".into(), Json::Str(n.clone()));
                     Json::Obj(m)
                 })
@@ -271,7 +271,7 @@ pub fn routes_json() -> Response {
         .iter()
         .map(|(m, p, r, d)| {
             let mut o = BTreeMap::new();
-            o.insert("method".to_string(), Json::Str((*m).into()));
+            o.insert("method".into(), Json::Str((*m).into()));
             o.insert("path".into(), Json::Str((*p).into()));
             o.insert("role".into(), Json::Str(r.name().into()));
             o.insert("does".into(), Json::Str((*d).into()));
