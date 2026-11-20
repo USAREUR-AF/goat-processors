@@ -19,6 +19,32 @@ import java.util.TreeSet;
  */
 final class Confirm implements Method {
 
+    /** Method confirm's registration: its directives (correlate.md, Pack) and the required ones. */
+    static final MethodKind KIND = new MethodKind("confirm", Confirm::new, List.of(
+            new Directive("confirm", true, (pk, tok, ln) -> pk.confirm.add(CorrelatePack.test(pk, tok, ln))),
+            new Directive("hold", true, (pk, tok, ln) -> pk.hold.add(CorrelatePack.test(pk, tok, ln))),
+            new Directive("confirm_count", false,
+                    (pk, tok, ln) -> pk.confirmCount = CorrelatePack.integer(CorrelatePack.one(tok, ln), ln)),
+            new Directive("hold_failures", false,
+                    (pk, tok, ln) -> pk.holdFailures = CorrelatePack.integer(CorrelatePack.one(tok, ln), ln)),
+            new Directive("same_source", false, (pk, tok, ln) -> {
+                String v = CorrelatePack.one(tok, ln);
+                if (v.equals("allow")) pk.sameSourceAllow = true;
+                else if (!v.equals("forbid")) throw CorrelatePack.err(ln, "same_source is forbid or allow");
+            }),
+            new Directive("output", false, (pk, tok, ln) -> {
+                String v = CorrelatePack.one(tok, ln);
+                if (v.equals("latest")) pk.outputLatest = true;
+                else if (!v.equals("priority")) throw CorrelatePack.err(ln, "output is priority or latest");
+            }),
+            new Directive("priority", true, (pk, tok, ln) -> {
+                if (tok.length != 3) throw CorrelatePack.err(ln, "priority <source_id> <n>");
+                if (pk.priority.containsKey(tok[1])) throw CorrelatePack.err(ln, "repeated priority " + tok[1]);
+                pk.priority.put(tok[1], CorrelatePack.integer(tok[2], ln));
+            })),
+            List.of("pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms"),
+            pk -> {});
+
     private final Correlator engine;
     private final CorrelatePack pack;
     private final LinkedHashMap<String, TreeSet<String>> groups = new LinkedHashMap<>();

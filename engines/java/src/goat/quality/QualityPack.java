@@ -65,27 +65,17 @@ public final class QualityPack {
     public final Map<String, Double> defaultErrorMs = new HashMap<>();
     public final Map<String, String> defaultState = new HashMap<>();
 
-    /** Spec: Entity measures, the table's measures in table order. */
-    public static final List<String> ENTITY_MEASURES = List.of(
-            "reports", "interval_last", "interval_mean", "interval_max", "age",
-            "latency_mean", "latency_max", "lateness_mean", "lateness_max", "lateness_min",
-            "nis_mean", "speed_err_mean", "out_of_order", "duplicate", "source_out_of_order",
-            "missing_ce", "missing_vel", "missing_hae", "time_error_mean", "time_error_max",
-            "time_state_last", "time_state_worst", "missing_time");
+    /** The measures rules may name (quality.md, Entity measures and Source measures). */
+    public final Measures measures;
 
-    /** Spec: Source measures, the entity measures plus `entities`. */
-    public static final List<String> SOURCE_MEASURES;
-
-    static {
-        List<String> s = new ArrayList<>(ENTITY_MEASURES);
-        s.add("entities");
-        SOURCE_MEASURES = List.copyOf(s);
+    private QualityPack(Measures measures) {
+        this.measures = measures;
     }
 
     private static final List<String> FILTER = List.of("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms");
     private static final List<String> WINDOW = List.of("window_ms", "min_samples", "forget_ms");
     private static final List<String> RULE_REQUIRED = List.of("scope", "measure", "op", "limit", "for", "clear", "action");
-    private static final Set<String> RULE_ALLOWED = new HashSet<>(Arrays.asList(
+    private static final Set<String> RULE_ALLOWED = Set.copyOf(Arrays.asList(
             "scope", "measure", "op", "limit", "for", "clear", "action", "factor"));
     private static final Set<String> SINGLE = Set.of("pack", "version", "filter", "window");
     private static final Set<String> REPEATING = Set.of("rule", "time_default");
@@ -114,7 +104,12 @@ public final class QualityPack {
 
     /** Parses the text of a pack.def; every error of the spec's table is a LoadError. */
     public static QualityPack parse(String text) throws LoadError {
-        QualityPack pk = new QualityPack();
+        return parse(text, Measures.STANDARD);
+    }
+
+    /** Parses pack.def text with a table of measures. */
+    public static QualityPack parse(String text, Measures measures) throws LoadError {
+        QualityPack pk = new QualityPack(measures);
         Set<String> seen = new HashSet<>();
         Set<String> ruleNames = new HashSet<>();
         // Step 1: lines end at LF; a final LF does not start another line (an empty last
@@ -174,7 +169,7 @@ public final class QualityPack {
                     timeDefault(pk, ln, vals);
                     break;
                 default:
-                    pk.rules.add(rule(ln, vals, ruleNames));
+                    pk.rules.add(rule(ln, vals, ruleNames, measures));
             }
         }
         for (String d : List.of("pack", "version", "filter", "window"))
@@ -182,7 +177,7 @@ public final class QualityPack {
         return pk;
     }
 
-    private static Rule rule(int ln, List<String> vals, Set<String> ruleNames) throws LoadError {
+    private static Rule rule(int ln, List<String> vals, Set<String> ruleNames, Measures table) throws LoadError {
         if (vals.isEmpty()) throw err(ln, "rule without a name");
         String name = vals.get(0);
         if (!RULE_NAME.matcher(name).matches()) throw err(ln, "bad rule name " + name);
@@ -193,7 +188,7 @@ public final class QualityPack {
         String scope = kv.get("scope");
         if (!scope.equals("entity") && !scope.equals("source")) throw err(ln, "bad scope " + scope);
         String measure = kv.get("measure");
-        List<String> measures = scope.equals("entity") ? ENTITY_MEASURES : SOURCE_MEASURES;
+        List<String> measures = scope.equals("entity") ? table.entityNames() : table.sourceNames();
         if (!measures.contains(measure)) throw err(ln, "measure " + measure + " not in scope " + scope);
         String op = kv.get("op");
         if (!List.of("<", "<=", ">", ">=").contains(op)) throw err(ln, "bad op " + op);

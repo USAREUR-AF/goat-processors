@@ -6,8 +6,9 @@ import goat.trace.Result;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-/** correlate.md, Tests: the test formulas and their trace records. */
+/** correlate.md, Tests: the registered test kinds, how a stage runs them, and their trace records. */
 public final class Tests {
     private Tests() {}
 
@@ -24,60 +25,59 @@ public final class Tests {
             pb = new Predicted(moved[0], moved[1]);
         }
         for (CorrelatePack.Test t : tests) {
-            Map<String, Object> r = runTest(t, stage, a, b, pb);
+            Map<String, Object> r = t.kind.formula.apply(t, stage, a, b, pb);
             res.trace.add(r);
             if (!(Boolean) r.get("pass")) return false;
         }
         return true;
     }
 
-    private static Map<String, Object> runTest(CorrelatePack.Test t, String stage, Entity a, Entity b, Predicted pb) {
-        switch (t.name) {
-            case "distance": {
+    /**
+     * correlate.md, Tests table: each test's parameters and formula, in table order. A new test is
+     * one more entry here (or {@link Registry#withTest} from outside).
+     */
+    static final List<TestKind> STANDARD = List.of(
+            new TestKind("distance", List.of("max_m"), (t, stage, a, b, pb) -> {
                 double d = distance(a, pb);
                 return rec(stage, a, b, t.name, d, t.p("max_m"), d < t.p("max_m"), false);
-            }
-            case "window": {
+            }),
+            new TestKind("window", List.of("multiplier", "window_m", "err_min_m", "err_max_m"), (t, stage, a, b, pb) -> {
                 double d = distance(a, pb);
                 double ea = clamp(a.ce, t.p("err_min_m"), t.p("err_max_m"));
                 double eb = clamp(b.ce, t.p("err_min_m"), t.p("err_max_m"));
                 double limit = t.p("multiplier") * Math.sqrt(ea * ea + eb * eb) + t.p("window_m");
                 return rec(stage, a, b, t.name, d, limit, d < limit, false);
-            }
-            case "mahalanobis": {
+            }),
+            new TestKind("mahalanobis", List.of("gate"), (t, stage, a, b, pb) -> {
                 double d2 = mahalanobis(a, pb);
                 return rec(stage, a, b, t.name, d2, t.p("gate"), d2 < t.p("gate"), false);
-            }
-            case "course": {
+            }),
+            new TestKind("course", List.of("max_deg", "min_speed_ms"), (t, stage, a, b, pb) -> {
                 Double ca = a.num("course"), cb = b.num("course");
                 if (ca == null || cb == null || slow(a, b, t.p("min_speed_ms")))
                     return rec(stage, a, b, t.name, null, null, true, true);
                 double diff = Math.abs(ca - cb);
                 double v = Math.min(diff, 360 - diff);
                 return rec(stage, a, b, t.name, v, t.p("max_deg"), v <= t.p("max_deg"), false);
-            }
-            case "speed": {
+            }),
+            new TestKind("speed", List.of("max_pct", "min_speed_ms"), (t, stage, a, b, pb) -> {
                 if (slow(a, b, t.p("min_speed_ms")))
                     return rec(stage, a, b, t.name, null, null, true, true);
                 double sa = a.num("speed_ms"), sb = b.num("speed_ms");
                 double fast = Math.max(sa, sb);
                 double v = fast == 0 ? 0 : Math.abs(1 - Math.min(sa, sb) / fast) * 100;
                 return rec(stage, a, b, t.name, v, t.p("max_pct"), v <= t.p("max_pct"), false);
-            }
-            case "altitude": {
+            }),
+            new TestKind("altitude", List.of("max_m"), (t, stage, a, b, pb) -> {
                 Double ha = a.num("hae"), hb = b.num("hae");
                 if (ha == null || hb == null) return rec(stage, a, b, t.name, null, null, true, true);
                 double v = Math.abs(ha - hb);
                 return rec(stage, a, b, t.name, v, t.p("max_m"), v <= t.p("max_m"), false);
-            }
-            case "same": {
+            }),
+            new TestKind("same", List.of("key"), Set.of("key"), (t, stage, a, b, pb) -> {
                 Object va = sameValue(a, t.key), vb = sameValue(b, t.key);
                 return rec(stage, a, b, t.name, va, vb, sameEqual(va, vb), false);
-            }
-            default:
-                throw new IllegalStateException("unknown test " + t.name);
-        }
-    }
+            }));
 
     /** Speed missing on either entity, or below min_speed_ms on either. */
     private static boolean slow(Entity a, Entity b, double min) {

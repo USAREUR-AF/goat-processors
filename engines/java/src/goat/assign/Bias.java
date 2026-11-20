@@ -1,17 +1,24 @@
 package goat.assign;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import static goat.correlate.CorrelatePack.dec;
+import static goat.correlate.CorrelatePack.err;
+import static goat.correlate.CorrelatePack.params;
+import static goat.correlate.CorrelatePack.positive;
+
 import goat.correlate.CorrelatePack;
 import goat.correlate.Entity;
 import goat.correlate.FrameMove;
 import goat.correlate.Predicted;
 import goat.model.Axis;
+import goat.io.LoadError;
 import goat.model.KeyOrder;
 
 /**
@@ -50,6 +57,32 @@ final class Bias implements FrameMove {
     private final CorrelatePack pack;
     /** The stored pairs, by pair key in key order. */
     private final TreeMap<String, PairState> pairs = new TreeMap<>(KeyOrder.KEY_ORDER);
+
+    private static final List<String> BIAS = List.of("sigma_m", "floor_m", "gate");
+    private static final List<String> TIME_OFFSET = List.of("sigma_ms");
+
+    /**
+     * correlate-assign.md, Pack, {@code bias}: exactly sigma_m, floor_m and gate; sigma_m and gate
+     * above 0, floor_m above 0 and at most sigma_m.
+     */
+    static void biasLine(CorrelatePack pk, String[] tok, int ln) throws LoadError {
+        Map<String, String> kv = params(tok, 1, ln);
+        if (!kv.keySet().equals(new HashSet<>(BIAS))) throw err(ln, "bias takes " + BIAS);
+        pk.bias = true;
+        pk.biasSigma = positive(dec(kv.get("sigma_m"), ln), "sigma_m", ln);
+        pk.biasFloor = positive(dec(kv.get("floor_m"), ln), "floor_m", ln);
+        pk.biasGate = positive(dec(kv.get("gate"), ln), "bias gate", ln);
+        if (!(pk.biasFloor <= pk.biasSigma)) throw err(ln, "floor_m must be at most sigma_m");
+    }
+
+    /** correlate-assign.md, Pack, {@code time_offset}: exactly sigma_ms, above 0; needs bias (checked at the end). */
+    static void timeOffsetLine(CorrelatePack pk, String[] tok, int ln) throws LoadError {
+        Map<String, String> kv = params(tok, 1, ln);
+        if (!kv.keySet().equals(new HashSet<>(TIME_OFFSET)))
+            throw err(ln, "time_offset takes " + TIME_OFFSET);
+        pk.timeOffset = true;
+        pk.timeOffsetSigmaMs = positive(dec(kv.get("sigma_ms"), ln), "sigma_ms", ln);
+    }
 
     Bias(CorrelatePack pack) {
         this.pack = pack;

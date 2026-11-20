@@ -9,7 +9,17 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import static goat.correlate.CorrelatePack.atLeastOne;
+import static goat.correlate.CorrelatePack.dec;
+import static goat.correlate.CorrelatePack.err;
+import static goat.correlate.CorrelatePack.integer;
+import static goat.correlate.CorrelatePack.nonNegative;
+import static goat.correlate.CorrelatePack.one;
+import static goat.correlate.CorrelatePack.positive;
+
 import goat.correlate.CorrelatePack;
+import goat.correlate.Directive;
+import goat.correlate.MethodKind;
 import goat.correlate.Correlator;
 import goat.correlate.Entity;
 import goat.correlate.FrameMove;
@@ -27,6 +37,32 @@ import goat.trace.Result;
  * engine's; this class holds the memberships, the histories and the tick.
  */
 public final class Assign implements Method {
+
+    /** Method assign's registration: its directives (correlate-assign.md, Pack), the required ones, its checks. */
+    public static final MethodKind KIND = new MethodKind("assign", Assign::new, List.of(
+            // correlate-assign.md, Pack: new_cost above 0, keep_bonus 0 or above.
+            new Directive("new_cost", false, (pk, tok, ln) ->
+                    pk.newCost = positive(dec(one(tok, ln), ln), "new_cost", ln)),
+            new Directive("keep_bonus", false, (pk, tok, ln) ->
+                    pk.keepBonus = nonNegative(dec(one(tok, ln), ln), "keep_bonus", ln)),
+            // Integers, 1 or above, written as one value.
+            new Directive("window", false, (pk, tok, ln) ->
+                    pk.window = atLeastOne(integer(one(tok, ln), ln), "window", ln)),
+            new Directive("hypotheses", false, (pk, tok, ln) ->
+                    pk.hypotheses = atLeastOne(integer(one(tok, ln), ln), "hypotheses", ln)),
+            // One number above 0; needs hypotheses above 1 (checked at the end).
+            new Directive("margin", false, (pk, tok, ln) -> {
+                pk.margin = true;
+                pk.marginValue = positive(dec(one(tok, ln), ln), "margin", ln);
+            }),
+            new Directive("bias", false, Bias::biasLine),
+            new Directive("time_offset", false, Bias::timeOffsetLine)),
+            List.of("pack", "version", "method", "filter", "new_cost", "keep_bonus", "stale_ms"),
+            pk -> {
+                if (pk.hypotheses > 1 && pk.window <= 1) throw err("hypotheses above 1 needs window above 1");
+                if (pk.margin && pk.hypotheses <= 1) throw err("margin needs hypotheses above 1");
+                if (pk.timeOffset && !pk.bias) throw err("time_offset needs bias");
+            });
 
     private final Correlator engine;
     private final CorrelatePack pack;

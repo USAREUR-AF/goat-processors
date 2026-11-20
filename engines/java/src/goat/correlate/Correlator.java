@@ -1,6 +1,5 @@
 package goat.correlate;
 
-import goat.assign.Assign;
 import goat.io.LoadError;
 import goat.io.Processor;
 import goat.model.Frame;
@@ -29,7 +28,7 @@ public final class Correlator implements Processor {
 
     public Correlator(CorrelatePack pack) {
         this.pack = pack;
-        this.method = pack.methodAssign ? new Assign(this, pack) : new Confirm(this, pack);
+        this.method = pack.registry.method(pack.method).factory.create(this, pack);
     }
 
     public static Correlator load(Path dir) throws LoadError {
@@ -38,6 +37,11 @@ public final class Correlator implements Processor {
 
     public static Correlator fromText(String packDef) throws LoadError {
         return new Correlator(CorrelatePack.parse(packDef));
+    }
+
+    /** load_pack from pack.def text read against a registry of tests and methods. */
+    public static Correlator fromText(String packDef, Registry registry) throws LoadError {
+        return new Correlator(CorrelatePack.parse(packDef, registry));
     }
 
     /** The entities, in key order. */

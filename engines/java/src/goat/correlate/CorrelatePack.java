@@ -18,14 +18,16 @@ import java.util.regex.Pattern;
 
 /** A loaded pack (spec: Pack). */
 public final class CorrelatePack {
-    /** One test line: a name from the tests table and its parameters. */
+    /** One test line: a registered test kind and its parameters. */
     public static final class Test {
+        public final TestKind kind;
         public final String name;
         public final Map<String, Double> num = new LinkedHashMap<>();
         public String key;
 
-        Test(String name) {
-            this.name = name;
+        Test(TestKind kind) {
+            this.kind = kind;
+            this.name = kind.name;
         }
 
         public double p(String param) {
@@ -43,8 +45,10 @@ public final class CorrelatePack {
     public boolean sameSourceAllow = false;
     public boolean outputLatest = false;
     public final Map<String, Long> priority = new LinkedHashMap<>();
-    /** Spec: Pack, `method`; false is `confirm` (correlate.md), true is `assign` (correlate-assign.md). */
-    public boolean methodAssign = false;
+    /** Spec: Pack, `method`: a registered method, {@code confirm} without the line. */
+    public String method = Registry.DEFAULT_METHOD;
+    /** The registry the pack was read against: its tests and methods. */
+    public final Registry registry;
     public double newCost, keepBonus;
     /** correlate-assign.md, Window: {@code window <n>} and {@code hypotheses <k>}, both default 1. */
     public long window = 1, hypotheses = 1;
@@ -72,49 +76,35 @@ public final class CorrelatePack {
     public boolean margin = false;
     public double marginValue;
 
-    /** Spec: Tests table, the parameters of each test. */
-    private static final Map<String, List<String>> TESTS = new LinkedHashMap<>();
-    static {
-        TESTS.put("distance", List.of("max_m"));
-        TESTS.put("window", List.of("multiplier", "window_m", "err_min_m", "err_max_m"));
-        TESTS.put("mahalanobis", List.of("gate"));
-        TESTS.put("course", List.of("max_deg", "min_speed_ms"));
-        TESTS.put("speed", List.of("max_pct", "min_speed_ms"));
-        TESTS.put("altitude", List.of("max_m"));
-        TESTS.put("same", List.of("key"));
-    }
-
     private static final List<String> FILTER = List.of("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms");
     private static final List<String> MANEUVER = List.of("accel_var", "p_enter", "p_leave");
     private static final List<String> RESTART = List.of("gate");
-    private static final List<String> BIAS = List.of("sigma_m", "floor_m", "gate");
-    private static final List<String> TIME_OFFSET = List.of("sigma_ms");
     /** correlate.md, Reports, "Time quality": the three clock states. */
     public static final Set<String> TIME_STATES = Report.TIME_STATES;
-    private static final Set<String> REPEATING = Set.of("gate", "confirm", "hold", "priority", "time_default");
-    private static final Set<String> SINGLE = Set.of("pack", "version", "method", "filter", "confirm_count",
-            "hold_failures", "stale_ms", "same_source", "output", "new_cost", "keep_bonus", "maneuver", "window",
-            "hypotheses", "restart", "bias", "margin", "time_offset");
-    private static final List<String> REQUIRED = List.of("pack", "version", "filter", "confirm_count",
-            "hold_failures", "stale_ms");
-    /** Spec: correlate-assign.md, Pack. */
-    private static final List<String> REQUIRED_ASSIGN = List.of("pack", "version", "method", "filter",
-            "new_cost", "keep_bonus", "stale_ms");
-    private static final Set<String> ONLY_CONFIRM = Set.of("confirm", "hold", "confirm_count", "hold_failures",
-            "same_source", "output", "priority");
-    private static final Set<String> ONLY_ASSIGN = Set.of("new_cost", "keep_bonus", "window", "hypotheses",
-            "margin", "bias", "time_offset");
+
+    /** The directives every method takes (correlate.md, Pack); each method adds its own. */
+    static final List<Directive> SHARED = List.of(
+            new Directive("pack", false, (pk, tok, ln) -> pk.name = one(tok, ln)),
+            new Directive("version", false, (pk, tok, ln) -> pk.version = one(tok, ln)),
+            new Directive("method", false, CorrelatePack::methodLine),
+            new Directive("filter", false, CorrelatePack::filterLine),
+            new Directive("stale_ms", false, (pk, tok, ln) -> pk.staleMs = integer(one(tok, ln), ln)),
+            new Directive("maneuver", false, CorrelatePack::maneuverLine),
+            new Directive("restart", false, CorrelatePack::restartLine),
+            new Directive("gate", true, (pk, tok, ln) -> pk.gate.add(test(pk, tok, ln))),
+            new Directive("time_default", true, CorrelatePack::timeDefaultLine));
+
     private static final Pattern DECIMAL = Pattern.compile("[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?");
     private static final Pattern INTEGER = Pattern.compile("[+-]?[0-9]+");
 
     /** The filter and maneuver lines, for the track estimate. */
     public FilterParams filter;
 
-    private static LoadError err(int line, String m) {
+    public static LoadError err(int line, String m) {
         return new LoadError("pack.def line " + line + ": " + m);
     }
 
-    private static LoadError err(String m) {
+    public static LoadError err(String m) {
         return new LoadError("pack.def: " + m);
     }
 
@@ -126,8 +116,18 @@ public final class CorrelatePack {
         }
     }
 
+    private CorrelatePack(Registry registry) {
+        this.registry = registry;
+    }
+
+    /** Reads pack.def text against the standard registry. */
     public static CorrelatePack parse(String text) throws LoadError {
-        CorrelatePack pk = new CorrelatePack();
+        return parse(text, Registry.STANDARD);
+    }
+
+    /** Reads pack.def text against a registry: its tests, methods and directives. */
+    public static CorrelatePack parse(String text, Registry registry) throws LoadError {
+        CorrelatePack pk = new CorrelatePack(registry);
         Set<String> seen = new HashSet<>();
         Map<String, Integer> firstLine = new LinkedHashMap<>();
         String[] lines = text.split("\n", -1);
@@ -140,153 +140,98 @@ public final class CorrelatePack {
             if (line.isEmpty()) continue;
             String[] tok = line.split("\\s+");
             String dir = tok[0];
-            if (!REPEATING.contains(dir) && !SINGLE.contains(dir)) throw err(ln, "unknown directive " + dir);
-            if (SINGLE.contains(dir) && !seen.add(dir)) throw err(ln, "repeated directive " + dir);
+            Directive d = registry.directive(dir);
+            if (d == null) throw err(ln, "unknown directive " + dir);
+            if (!d.repeating && !seen.add(dir)) throw err(ln, "repeated directive " + dir);
             firstLine.putIfAbsent(dir, ln);
-            switch (dir) {
-                case "pack": pk.name = one(tok, ln); break;
-                case "version": pk.version = one(tok, ln); break;
-                case "method": {
-                    String v = one(tok, ln);
-                    if (v.equals("assign")) pk.methodAssign = true;
-                    else if (!v.equals("confirm")) throw err(ln, "method is confirm or assign");
-                    break;
-                }
-                // correlate-assign.md, Pack: new_cost above 0, keep_bonus 0 or above.
-                case "new_cost": pk.newCost = positive(dec(one(tok, ln), ln), "new_cost", ln); break;
-                case "keep_bonus": pk.keepBonus = nonNegative(dec(one(tok, ln), ln), "keep_bonus", ln); break;
-                case "filter": {
-                    Map<String, String> kv = params(tok, 1, ln);
-                    if (!kv.keySet().equals(new HashSet<>(FILTER))) throw err(ln, "filter takes " + FILTER);
-                    // correlate.md, Pack: accel_var 0 or above, the others above 0.
-                    pk.accelVar = nonNegative(dec(kv.get("accel_var"), ln), "accel_var", ln);
-                    pk.defaultCe = positive(dec(kv.get("default_ce_m"), ln), "default_ce_m", ln);
-                    pk.velSigma = positive(dec(kv.get("vel_sigma_ms"), ln), "vel_sigma_ms", ln);
-                    pk.unknownVel = positive(dec(kv.get("unknown_vel_ms"), ln), "unknown_vel_ms", ln);
-                    break;
-                }
-                case "maneuver": {
-                    Map<String, String> kv = params(tok, 1, ln);
-                    if (!kv.keySet().equals(new HashSet<>(MANEUVER)))
-                        throw err(ln, "maneuver takes " + MANEUVER);
-                    // correlate.md, Pack: p_enter and p_leave above 0 with a sum below 1; accel_var
-                    // above filter's is checked once the whole file is read.
-                    pk.maneuver = true;
-                    pk.maneuverAccelVar = dec(kv.get("accel_var"), ln);
-                    pk.pEnter = positive(dec(kv.get("p_enter"), ln), "p_enter", ln);
-                    pk.pLeave = positive(dec(kv.get("p_leave"), ln), "p_leave", ln);
-                    if (!(pk.pEnter + pk.pLeave < 1)) throw err(ln, "p_enter + p_leave must be below 1");
-                    break;
-                }
-                case "restart": {
-                    // correlate.md, Pack: exactly gate, above 0; valid with either method.
-                    Map<String, String> kv = params(tok, 1, ln);
-                    if (!kv.keySet().equals(new HashSet<>(RESTART))) throw err(ln, "restart takes " + RESTART);
-                    pk.restart = true;
-                    pk.restartGate = positive(dec(kv.get("gate"), ln), "restart gate", ln);
-                    break;
-                }
-                case "bias": {
-                    // correlate-assign.md, Pack: exactly sigma_m, floor_m and gate; sigma_m and gate
-                    // above 0, floor_m above 0 and at most sigma_m.
-                    Map<String, String> kv = params(tok, 1, ln);
-                    if (!kv.keySet().equals(new HashSet<>(BIAS))) throw err(ln, "bias takes " + BIAS);
-                    pk.bias = true;
-                    pk.biasSigma = positive(dec(kv.get("sigma_m"), ln), "sigma_m", ln);
-                    pk.biasFloor = positive(dec(kv.get("floor_m"), ln), "floor_m", ln);
-                    pk.biasGate = positive(dec(kv.get("gate"), ln), "bias gate", ln);
-                    if (!(pk.biasFloor <= pk.biasSigma)) throw err(ln, "floor_m must be at most sigma_m");
-                    break;
-                }
-                case "time_offset": {
-                    // correlate-assign.md, Pack: exactly sigma_ms, above 0; needs bias (checked at the end).
-                    Map<String, String> kv = params(tok, 1, ln);
-                    if (!kv.keySet().equals(new HashSet<>(TIME_OFFSET)))
-                        throw err(ln, "time_offset takes " + TIME_OFFSET);
-                    pk.timeOffset = true;
-                    pk.timeOffsetSigmaMs = positive(dec(kv.get("sigma_ms"), ln), "sigma_ms", ln);
-                    break;
-                }
-                case "time_default": {
-                    // correlate.md, Pack: the source id (a first token without '='), then error_ms,
-                    // state or both, each at most once; at most one line per source.
-                    if (tok.length < 2 || tok[1].indexOf('=') >= 0)
-                        throw err(ln, "time_default <source_id> error_ms=<ms> state=<state>");
-                    String source = tok[1];
-                    if (pk.timeDefault.containsKey(source)) throw err(ln, "repeated time_default " + source);
-                    Map<String, String> kv = params(tok, 2, ln);
-                    if (kv.isEmpty()) throw err(ln, "time_default needs error_ms, state or both");
-                    Map<String, Object> given = new LinkedHashMap<>();
-                    for (Map.Entry<String, String> p : kv.entrySet()) {
-                        if (p.getKey().equals("error_ms")) {
-                            given.put("error_ms", nonNegative(dec(p.getValue(), ln), "error_ms", ln));
-                        } else if (p.getKey().equals("state")) {
-                            if (!TIME_STATES.contains(p.getValue()))
-                                throw err(ln, "state is coherent, drifting or free-running");
-                            given.put("state", p.getValue());
-                        } else throw err(ln, "time_default takes error_ms and state");
-                    }
-                    pk.timeDefault.put(source, given);
-                    break;
-                }
-                // correlate-assign.md, Pack: one number above 0; needs hypotheses above 1 (checked at the end).
-                case "margin":
-                    pk.margin = true;
-                    pk.marginValue = positive(dec(one(tok, ln), ln), "margin", ln);
-                    break;
-                // correlate-assign.md, Pack: integers, 1 or above, written as one value.
-                case "window": pk.window = atLeastOne(integer(one(tok, ln), ln), "window", ln); break;
-                case "hypotheses": pk.hypotheses = atLeastOne(integer(one(tok, ln), ln), "hypotheses", ln); break;
-                case "gate": pk.gate.add(test(tok, ln)); break;
-                case "confirm": pk.confirm.add(test(tok, ln)); break;
-                case "hold": pk.hold.add(test(tok, ln)); break;
-                case "confirm_count": pk.confirmCount = integer(one(tok, ln), ln); break;
-                case "hold_failures": pk.holdFailures = integer(one(tok, ln), ln); break;
-                case "stale_ms": pk.staleMs = integer(one(tok, ln), ln); break;
-                case "same_source": {
-                    String v = one(tok, ln);
-                    if (v.equals("allow")) pk.sameSourceAllow = true;
-                    else if (!v.equals("forbid")) throw err(ln, "same_source is forbid or allow");
-                    break;
-                }
-                case "output": {
-                    String v = one(tok, ln);
-                    if (v.equals("latest")) pk.outputLatest = true;
-                    else if (!v.equals("priority")) throw err(ln, "output is priority or latest");
-                    break;
-                }
-                case "priority": {
-                    if (tok.length != 3) throw err(ln, "priority <source_id> <n>");
-                    if (pk.priority.containsKey(tok[1])) throw err(ln, "repeated priority " + tok[1]);
-                    pk.priority.put(tok[1], integer(tok[2], ln));
-                    break;
-                }
-                default: throw err(ln, "unknown directive " + dir);
-            }
+            d.parser.parse(pk, tok, ln);
         }
-        Set<String> refused = pk.methodAssign ? ONLY_CONFIRM : ONLY_ASSIGN;
-        for (Map.Entry<String, Integer> d : firstLine.entrySet())
-            if (refused.contains(d.getKey()))
-                throw err(d.getValue(), d.getKey() + " is not a directive of method "
-                        + (pk.methodAssign ? "assign" : "confirm"));
-        for (String r : pk.methodAssign ? REQUIRED_ASSIGN : REQUIRED)
+        MethodKind method = registry.method(pk.method);
+        for (Map.Entry<String, Integer> d : firstLine.entrySet()) {
+            String owner = registry.ownerOf(d.getKey());
+            if (owner != null && !owner.equals(method.name))
+                throw err(d.getValue(), d.getKey() + " is not a directive of method " + method.name);
+        }
+        for (String r : method.required)
             if (!seen.contains(r)) throw err("missing directive " + r);
         if (pk.maneuver && !(pk.maneuverAccelVar > pk.accelVar))
             throw err("maneuver accel_var must be above filter accel_var");
-        if (pk.hypotheses > 1 && pk.window <= 1) throw err("hypotheses above 1 needs window above 1");
-        if (pk.margin && pk.hypotheses <= 1) throw err("margin needs hypotheses above 1");
-        if (pk.timeOffset && !pk.bias) throw err("time_offset needs bias");
+        method.check.check(pk);
         pk.filter = new FilterParams(pk.accelVar, pk.defaultCe, pk.velSigma, pk.unknownVel,
                 pk.maneuver, pk.maneuverAccelVar, pk.pEnter, pk.pLeave);
         return pk;
     }
 
-    private static String one(String[] tok, int ln) throws LoadError {
+    // ---- the shared directives ----
+
+    private static void methodLine(CorrelatePack pk, String[] tok, int ln) throws LoadError {
+        String v = one(tok, ln);
+        if (pk.registry.method(v) == null)
+            throw err(ln, "method is " + String.join(" or ", pk.registry.methods().keySet()));
+        pk.method = v;
+    }
+
+    private static void filterLine(CorrelatePack pk, String[] tok, int ln) throws LoadError {
+        Map<String, String> kv = params(tok, 1, ln);
+        if (!kv.keySet().equals(new HashSet<>(FILTER))) throw err(ln, "filter takes " + FILTER);
+        // correlate.md, Pack: accel_var 0 or above, the others above 0.
+        pk.accelVar = nonNegative(dec(kv.get("accel_var"), ln), "accel_var", ln);
+        pk.defaultCe = positive(dec(kv.get("default_ce_m"), ln), "default_ce_m", ln);
+        pk.velSigma = positive(dec(kv.get("vel_sigma_ms"), ln), "vel_sigma_ms", ln);
+        pk.unknownVel = positive(dec(kv.get("unknown_vel_ms"), ln), "unknown_vel_ms", ln);
+    }
+
+    private static void maneuverLine(CorrelatePack pk, String[] tok, int ln) throws LoadError {
+        Map<String, String> kv = params(tok, 1, ln);
+        if (!kv.keySet().equals(new HashSet<>(MANEUVER)))
+            throw err(ln, "maneuver takes " + MANEUVER);
+        // correlate.md, Pack: p_enter and p_leave above 0 with a sum below 1; accel_var
+        // above filter's is checked once the whole file is read.
+        pk.maneuver = true;
+        pk.maneuverAccelVar = dec(kv.get("accel_var"), ln);
+        pk.pEnter = positive(dec(kv.get("p_enter"), ln), "p_enter", ln);
+        pk.pLeave = positive(dec(kv.get("p_leave"), ln), "p_leave", ln);
+        if (!(pk.pEnter + pk.pLeave < 1)) throw err(ln, "p_enter + p_leave must be below 1");
+    }
+
+    private static void restartLine(CorrelatePack pk, String[] tok, int ln) throws LoadError {
+        // correlate.md, Pack: exactly gate, above 0; valid with either method.
+        Map<String, String> kv = params(tok, 1, ln);
+        if (!kv.keySet().equals(new HashSet<>(RESTART))) throw err(ln, "restart takes " + RESTART);
+        pk.restart = true;
+        pk.restartGate = positive(dec(kv.get("gate"), ln), "restart gate", ln);
+    }
+
+    private static void timeDefaultLine(CorrelatePack pk, String[] tok, int ln) throws LoadError {
+        // correlate.md, Pack: the source id (a first token without '='), then error_ms,
+        // state or both, each at most once; at most one line per source.
+        if (tok.length < 2 || tok[1].indexOf('=') >= 0)
+            throw err(ln, "time_default <source_id> error_ms=<ms> state=<state>");
+        String source = tok[1];
+        if (pk.timeDefault.containsKey(source)) throw err(ln, "repeated time_default " + source);
+        Map<String, String> kv = params(tok, 2, ln);
+        if (kv.isEmpty()) throw err(ln, "time_default needs error_ms, state or both");
+        Map<String, Object> given = new LinkedHashMap<>();
+        for (Map.Entry<String, String> p : kv.entrySet()) {
+            if (p.getKey().equals("error_ms")) {
+                given.put("error_ms", nonNegative(dec(p.getValue(), ln), "error_ms", ln));
+            } else if (p.getKey().equals("state")) {
+                if (!TIME_STATES.contains(p.getValue()))
+                    throw err(ln, "state is coherent, drifting or free-running");
+                given.put("state", p.getValue());
+            } else throw err(ln, "time_default takes error_ms and state");
+        }
+        pk.timeDefault.put(source, given);
+    }
+
+    // ---- values, for every directive ----
+
+    public static String one(String[] tok, int ln) throws LoadError {
         if (tok.length != 2) throw err(ln, tok[0] + " takes one value");
         return tok[1];
     }
 
-    private static Map<String, String> params(String[] tok, int from, int ln) throws LoadError {
+    public static Map<String, String> params(String[] tok, int from, int ln) throws LoadError {
         Map<String, String> kv = new LinkedHashMap<>();
         for (int k = from; k < tok.length; k++) {
             int eq = tok[k].indexOf('=');
@@ -297,15 +242,17 @@ public final class CorrelatePack {
         return kv;
     }
 
-    private static Test test(String[] tok, int ln) throws LoadError {
+    /** A test line ({@code gate}, {@code confirm}, {@code hold}): a registered test and exactly its parameters. */
+    public static Test test(CorrelatePack pk, String[] tok, int ln) throws LoadError {
         if (tok.length < 2) throw err(ln, tok[0] + " needs a test");
-        List<String> want = TESTS.get(tok[1]);
-        if (want == null) throw err(ln, "unknown test " + tok[1]);
+        TestKind kind = pk.registry.test(tok[1]);
+        if (kind == null) throw err(ln, "unknown test " + tok[1]);
+        List<String> want = kind.params;
         Map<String, String> kv = params(tok, 2, ln);
         if (!kv.keySet().equals(new HashSet<>(want))) throw err(ln, tok[1] + " takes " + want);
-        Test t = new Test(tok[1]);
+        Test t = new Test(kind);
         for (String p : want) {
-            if (p.equals("key")) {
+            if (kind.textParams.contains(p)) {
                 if (kv.get(p).isEmpty()) throw err(ln, "empty key");
                 t.key = kv.get(p);
             } else t.num.put(p, dec(kv.get(p), ln));
@@ -313,27 +260,27 @@ public final class CorrelatePack {
         return t;
     }
 
-    private static double dec(String v, int ln) throws LoadError {
+    public static double dec(String v, int ln) throws LoadError {
         if (!DECIMAL.matcher(v).matches()) throw err(ln, "not a number: " + v);
         return Double.parseDouble(v);
     }
 
-    private static double positive(double v, String name, int ln) throws LoadError {
+    public static double positive(double v, String name, int ln) throws LoadError {
         if (!(v > 0)) throw err(ln, name + " must be above 0");
         return v;
     }
 
-    private static double nonNegative(double v, String name, int ln) throws LoadError {
+    public static double nonNegative(double v, String name, int ln) throws LoadError {
         if (!(v >= 0)) throw err(ln, name + " must be 0 or above");
         return v;
     }
 
-    private static long atLeastOne(long v, String name, int ln) throws LoadError {
+    public static long atLeastOne(long v, String name, int ln) throws LoadError {
         if (v < 1) throw err(ln, name + " must be 1 or above");
         return v;
     }
 
-    private static long integer(String v, int ln) throws LoadError {
+    public static long integer(String v, int ln) throws LoadError {
         if (!INTEGER.matcher(v).matches()) throw err(ln, "not an integer: " + v);
         try {
             return Long.parseLong(v.startsWith("+") ? v.substring(1) : v);

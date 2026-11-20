@@ -6,6 +6,7 @@ import goat.io.PackFile;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -115,21 +116,23 @@ public final class FilterPack {
     // ---- when lines ----
 
     /** Parameter sets, exactly (table "Parameter sets"). */
-    private static final Map<String, List<Set<String>>> PARAMETER_SETS = new LinkedHashMap<>();
+    private static final Map<String, List<Set<String>>> PARAMETER_SETS = parameterSets();
 
-    static {
-        PARAMETER_SETS.put("circle", List.of(Set.of("lat", "lon", "radius_m")));
-        PARAMETER_SETS.put("polygon", List.of(Set.of("vertices")));
-        PARAMETER_SETS.put("near", List.of(Set.of("reference", "radius_m", "max_age_ms")));
+    private static Map<String, List<Set<String>>> parameterSets() {
+        Map<String, List<Set<String>>> sets = new LinkedHashMap<>();
+        sets.put("circle", List.of(Set.of("lat", "lon", "radius_m")));
+        sets.put("polygon", List.of(Set.of("vertices")));
+        sets.put("near", List.of(Set.of("reference", "radius_m", "max_age_ms")));
         for (String c : new String[] {"env", "affiliation", "source", "uid"})
-            PARAMETER_SETS.put(c, List.of(Set.of("in")));
-        PARAMETER_SETS.put("key", List.of(Set.of("name", "eq"), Set.of("name", "in"),
+            sets.put(c, List.of(Set.of("in")));
+        sets.put("key", List.of(Set.of("name", "eq"), Set.of("name", "in"),
                 Set.of("name", "min"), Set.of("name", "max"), Set.of("name", "min", "max")));
-        PARAMETER_SETS.put("has", List.of(Set.of("name")));
+        sets.put("has", List.of(Set.of("name")));
         for (String c : new String[] {"speed", "altitude"})
-            PARAMETER_SETS.put(c, List.of(Set.of("min"), Set.of("max"), Set.of("min", "max")));
-        PARAMETER_SETS.put("interval", List.of(Set.of("min_ms")));
-        PARAMETER_SETS.put("order", List.of(Set.of()));
+            sets.put(c, List.of(Set.of("min"), Set.of("max"), Set.of("min", "max")));
+        sets.put("interval", List.of(Set.of("min_ms")));
+        sets.put("order", List.of(Set.of()));
+        return Collections.unmodifiableMap(sets);
     }
 
     /** `when [not] <condition> <param>=<value> ...`; tok[0] is `when`. */

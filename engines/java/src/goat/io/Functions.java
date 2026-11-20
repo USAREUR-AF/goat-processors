@@ -21,12 +21,15 @@ public final class Functions {
         Processor fromText(String packDef) throws LoadError;
     }
 
-    private static final Map<String, Loader> TABLE = new LinkedHashMap<>();
-    static {
-        TABLE.put("correlate", Correlator::fromText);
-        TABLE.put("filter", FilterProcessor::fromText);
-        TABLE.put("fuse", Fuse::fromText);
-        TABLE.put("quality", Quality::fromText);
+    private static final Map<String, Loader> TABLE = table();
+
+    private static Map<String, Loader> table() {
+        Map<String, Loader> t = new LinkedHashMap<>();
+        t.put("correlate", Correlator::fromText);
+        t.put("filter", FilterProcessor::fromText);
+        t.put("fuse", Fuse::fromText);
+        t.put("quality", Quality::fromText);
+        return Collections.unmodifiableMap(t);
     }
 
     public static Set<String> names() {

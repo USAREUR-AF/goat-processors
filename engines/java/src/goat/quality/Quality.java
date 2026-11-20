@@ -322,7 +322,7 @@ public final class Quality implements Processor {
         // 5. Entities, key order.
         TreeMap<String, Map<String, Object>> entityMeasures = new TreeMap<>(KEY_ORDER);
         for (Entity ent : entities.values()) {
-            Map<String, Object> ms = Measures.entityMeasures(ent.window, ent.last, now, pack.minSamples);
+            Map<String, Object> ms = pack.measures.entity(new Measures.Window(ent.window, ent.last, now, pack.minSamples));
             entityMeasures.put(ent.key, ms);
             res.events.add(ev("quality", "scope", "entity", "subject", ent.key, "measures", ms));
             evaluate("entity", ent.key, ms, res);
@@ -331,7 +331,7 @@ public final class Quality implements Processor {
         for (String src : sourcesNow) {
             List<Map<String, Object>> members = new ArrayList<>();
             for (Entity ent : entities.values()) if (ent.source.equals(src)) members.add(entityMeasures.get(ent.key));
-            Map<String, Object> ms = Measures.sourceMeasures(members);
+            Map<String, Object> ms = pack.measures.source(members);
             res.events.add(ev("quality", "scope", "source", "subject", src, "measures", ms));
             evaluate("source", src, ms, res);
         }

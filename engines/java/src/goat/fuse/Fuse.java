@@ -4,7 +4,6 @@ import goat.io.LoadError;
 import goat.io.Processor;
 import goat.model.Axis;
 import goat.model.Frame;
-import goat.model.InverseVariance;
 import goat.model.KeyOrder;
 import goat.model.Report;
 import goat.model.TrackEstimate;
@@ -234,15 +233,9 @@ public final class Fuse implements Processor {
         }
 
         // 2.2 Combine by the pack's kinematics method.
-        Axis[] fused;
-        Member from = null;
-        switch (pack.kinematics) {
-            case "inverse_variance": fused = inverseVariance(members); break;
-            case "covariance_intersection": fused = covarianceIntersection(g, members, res); break;
-            default:
-                from = pick(members);
-                fused = new Axis[] {from.east, from.north};
-        }
+        Kinematics.Estimate est = Kinematics.TABLE.get(pack.kinematics).combine(g, members, this::rankOrder, res);
+        Axis[] fused = est.fused;
+        Member from = est.from;
         res.trace.add(kinematicsRecord(g, members, from));
 
         // 2.3 Decide every attribute, in pack order.
@@ -265,50 +258,6 @@ public final class Fuse implements Processor {
     private long rankOrder(Entity e) {
         Long r = rank(e);
         return r == null ? pack.sources.size() : r;
-    }
-
-    /** `inverse_variance`: correlate-assign.md's fused estimate, members in key order. */
-    private static Axis[] inverseVariance(List<Member> members) {
-        List<Axis[]> predicted = new ArrayList<>();
-        for (Member m : members) predicted.add(new Axis[] {m.east, m.north});
-        return InverseVariance.combine(predicted);
-    }
-
-
-    /** `covariance_intersection`: fold the members in key order; one trace record per fold. */
-    private static Axis[] covarianceIntersection(Group g, List<Member> members, Result res) {
-        Member first = members.get(0);
-        Axis xe = first.east, xn = first.north;
-        for (Member y : members.subList(1, members.size())) {
-            double w = Kinematics.intersectionWeight(xe.pp, xn.pp, y.east.pp, y.north.pp);
-            res.trace.add(rec("stage", "intersect", "group", g.name, "member", y.e.key, "value", w));
-            if (w == 1) continue; // X unchanged
-            if (w == 0) {         // Y unchanged
-                xe = y.east;
-                xn = y.north;
-                continue;
-            }
-            xe = Kinematics.fold(w, xe, y.east);
-            xn = Kinematics.fold(w, xn, y.north);
-        }
-        return new Axis[] {xe, xn};
-    }
-
-    /** `best`, `priority`, `latest`: the one member whose filter is the estimate; ties to key order. */
-    private Member pick(List<Member> members) {
-        Member win = null;
-        for (Member m : members) {
-            if (win == null) { win = m; continue; }
-            boolean better;
-            switch (pack.kinematics) {
-                case "best": better = m.var() < win.var(); break;
-                case "priority": better = rankOrder(m.e) < rankOrder(win.e); break;
-                case "latest": better = m.e.lastTime > win.e.lastTime; break;
-                default: throw new IllegalStateException(pack.kinematics);
-            }
-            if (better) win = m;
-        }
-        return win;
     }
 
     /** Trace 2, the kinematics record. */

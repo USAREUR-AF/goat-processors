@@ -50,12 +50,12 @@ The four classes `correlator.VectorTest`, `filter.VectorTest`, `fuse.FuseVectorT
 | Track estimate | `model/TrackEstimate.java` (one axis: `model/Axis.java`; measurement variance: `correlate/Correlator.java`) |
 | Two-model filter | `model/TrackEstimate.java` |
 | Restart | `correlate/Correlator.java` |
-| Tests | `correlate/Tests.java` |
+| Tests | `correlate/Tests.java` (the registry: `correlate/Registry.java`, `correlate/TestKind.java`) |
 | Association | `correlate/Confirm.java` |
 | Events | `correlate/Confirm.java` |
 | Trace | `correlate/Tests.java` |
 | Snapshot | `correlate/Confirm.java` |
-| Pack | `correlate/CorrelatePack.java` |
+| Pack | `correlate/CorrelatePack.java` (directives: `correlate/Directive.java`; method directives: `Confirm.KIND`, `Assign.KIND`) |
 | Floats | `model/Axis.java` |
 
 ### correlate-assign.md
@@ -98,7 +98,7 @@ The four classes `correlator.VectorTest`, `filter.VectorTest`, `fuse.FuseVectorT
 | Reports | `fuse/Fuse.java` |
 | Groups | `fuse/Fuse.java` |
 | On each tick, Fused event | `fuse/Fuse.java` |
-| Kinematics | `fuse/Fuse.java` (`covariance_intersection` weight and fold: `fuse/Kinematics.java`) |
+| Kinematics | `fuse/Kinematics.java` |
 | Attributes | `fuse/Fuse.java` |
 | Events, Trace, Snapshot | `fuse/Fuse.java` |
 | Pack | `fuse/FusePack.java` |
@@ -121,6 +121,29 @@ The four classes `correlator.VectorTest`, `filter.VectorTest`, `fuse.FuseVectorT
 | Section | File |
 |---|---|
 | Scenario vectors, What the engine checks, Load vectors | `io/Vectors.java` |
+
+## Registration points
+
+Each extension kind is added in one place: one table entry, or one registration from outside.
+
+| Kind | Where | Add one by |
+|---|---|---|
+| correlate test | `correlate/Tests.java`, `Tests.STANDARD` (a `TestKind`: name, parameters, formula) | one entry, or `Registry.STANDARD.withTest(kind)` |
+| correlate method | `correlate/Registry.java` (a `MethodKind`: name, factory, its own directives, required directives, end checks) | one `withMethod(kind)`; `Confirm.KIND` and `Assign.KIND` are the two |
+| quality measure | `quality/Measures.java`, `Measures.STANDARD` (name, value over the window, source aggregate) | one entry, or `Measures.STANDARD.with(measure)` |
+| fuse kinematics method | `fuse/Kinematics.java`, `Kinematics.TABLE` | one entry |
+| function | `io/Functions.java` | one entry |
+
+The pack parsers read against a registry (`CorrelatePack.parse(text, registry)`,
+`QualityPack.parse(text, measures)`), so a test can add an entry without any global state: the
+registries are immutable values and `with...` returns a new one.
+
+The proof is `test/goat/correlate/NoopTestKindTest.java`: it registers a test kind `noop` (no
+parameter, always passes, one trace record) in test code only, against the test-only fixture pack
+`test/fixtures/correlate-noop/pack.def` (`correlate-assign` plus `gate noop`). The standard
+registry refuses that pack (unknown test), so no existing vector can see it; with the noop
+registered, every `correlate-assign` vector gives the same events and snapshot and the same trace
+less the noop records; and the fixture's own vector, `test/fixtures/correlate-noop/vectors/01-noop-gate.json`, passes.
 
 ## Pure functions and state
 
@@ -148,7 +171,7 @@ Floats: Java evaluates every `double` operation as one correctly rounded binary6
 ## Build, test, run
 
 ```
-engines/java/build.sh          # compile, then every conformance vector
+engines/java/build.sh          # compile src/ and test/, the tests (goat.TestMain), then every conformance vector
 engines/java/runner/build      # the perf runner (tools/perf/README.md, Runner contract)
 engines/java/runner/run --function correlate --pack packs/correlate-gnn --steps <file> [--events <file>] [--trace]
 ```

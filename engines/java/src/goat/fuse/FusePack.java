@@ -26,8 +26,8 @@ public final class FusePack {
         }
     }
 
-    public static final List<String> METHODS =
-            List.of("inverse_variance", "covariance_intersection", "best", "priority", "latest");
+    /** The kinematics methods, in the order of fuse.md (the table of {@link Kinematics}). */
+    public static final List<String> METHODS = List.copyOf(Kinematics.TABLE.keySet());
     public static final List<String> RULES = List.of("priority", "latest", "majority", "max", "min");
 
     public String name, version;
