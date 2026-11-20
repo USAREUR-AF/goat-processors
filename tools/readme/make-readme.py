@@ -104,8 +104,8 @@ PACKS = {
                       "a multi-frame window"),
     "assign-bias": ("assign-imm", "as assign-imm, estimating a position offset for each pair of sensors",
                     "sensor bias estimation, so a sensor off by a few hundred meters still joins"),
-    "assign-full": ("assign-bias", "as assign-bias, with filter restart, the two-tick window with a margin, and a stale "
-                    "time from each source's update interval", "every option of assign 0.5 together"),
+    "assign-full": ("assign-bias", "as assign-bias, with filter restart, the two-tick window with a margin, and a 20 s "
+                    "stale time", "every option of assign 0.5 together"),
     "assign-time": ("assign-full", "as assign-full, also fitting a clock offset for each pair of sources",
                     "clock offset: a lag along the track that grows with speed is read as a clock error, not a position bias"),
 }
