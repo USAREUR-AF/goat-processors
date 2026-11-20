@@ -3,4 +3,6 @@
 -module(correlator_vectors).
 -export([main/1]).
 
-main([Root]) -> halt(io_vectors:main(<<"correlate">>, Root)).
+main([Root]) ->
+    io_engine:preload(<<"correlate">>),
+    halt(io_vectors:main(<<"correlate">>, Root)).

@@ -10,8 +10,13 @@
 
 main() -> halt(main(init:get_plain_arguments())).
 
-%% The exit status of one run with the given arguments.
+%% The exit status of one run with the given arguments. The function's
+%% modules are loaded first (io_engine:preload/1), before any clock starts.
 main(Argv) ->
+    case lists:dropwhile(fun(A) -> A =/= "--function" end, Argv) of
+        [_, F | _] -> io_engine:preload(list_to_binary(F));
+        _ -> ok
+    end,
     try run(Argv)
     catch throw:{usage, Msg} -> err(Msg), 2
     end.

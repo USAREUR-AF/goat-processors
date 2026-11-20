@@ -80,32 +80,54 @@ load(Parse, File) ->
     report(<<"load/", (maps:get(<<"name">>, V))/binary>>,
            compare(Got, maps:get(<<"expect_error">>, V), "expect_error")).
 
-%% Structural equality, numbers within 1e-6 * max(1, abs(want)).
-compare(G, W, Path) when is_number(G), is_number(W) ->
+%% Structural equality, numbers within 1e-6 * max(1, abs(want)): ok, or
+%% {mismatch, Path, Got, Want} at the first difference (maps by sorted key,
+%% lists by index), Path extending the given one as ".key", "[i]", and
+%% " (keys)" or " (length)" for a map's keys or a list's length. The path is
+%% built only for a mismatch.
+compare(G, W, Path) ->
+    case diff(G, W) of
+        ok -> ok;
+        {Where, Got, Want} -> {mismatch, Path ++ render(Where), Got, Want}
+    end.
+
+%% ok | {Where, Got, Want}, Where a list of [{key, K} | {index, I}] ending
+%% in keys | length | here.
+diff(G, W) when is_number(G), is_number(W) ->
     case abs(G - W) =< 1.0e-6 * max(1, abs(W)) of
         true -> ok;
-        false -> {mismatch, Path, G, W}
+        false -> {[here], G, W}
     end;
-compare(G, W, Path) when is_map(G), is_map(W) ->
+diff(G, W) when is_map(G), is_map(W) ->
     GK = lists:sort(maps:keys(G)),
-    WK = lists:sort(maps:keys(W)),
-    case GK =:= WK of
-        false -> {mismatch, Path ++ " (keys)", GK, WK};
-        true -> first([fun() -> compare(maps:get(K, G), maps:get(K, W), Path ++ "." ++ binary_to_list(K)) end
-                       || K <- WK])
+    case lists:sort(maps:keys(W)) of
+        GK -> diff_keys(GK, G, W);
+        WK -> {[keys], GK, WK}
     end;
-compare(G, W, Path) when is_list(G), is_list(W) ->
+diff(G, W) when is_list(G), is_list(W) ->
     case length(G) =:= length(W) of
-        false -> {mismatch, Path ++ " (length)", G, W};
-        true -> first([fun() -> compare(X, Y, Path ++ io_lib:format("[~b]", [I])) end
-                       || {I, X, Y} <- lists:zip3(lists:seq(0, length(G) - 1), G, W)])
+        false -> {[length], G, W};
+        true -> diff_items(G, W, 0)
     end;
-compare(G, W, _Path) when G =:= W -> ok;
-compare(G, W, Path) -> {mismatch, Path, G, W}.
+diff(G, W) when G =:= W -> ok;
+diff(G, W) -> {[here], G, W}.
 
-first([]) -> ok;
-first([F | Fs]) ->
-    case F() of
-        ok -> first(Fs);
-        M -> M
+diff_keys([], _G, _W) -> ok;
+diff_keys([K | Ks], G, W) ->
+    case diff(maps:get(K, G), maps:get(K, W)) of
+        ok -> diff_keys(Ks, G, W);
+        {Where, Got, Want} -> {[{key, K} | Where], Got, Want}
     end.
+
+diff_items([], [], _I) -> ok;
+diff_items([X | Xs], [Y | Ys], I) ->
+    case diff(X, Y) of
+        ok -> diff_items(Xs, Ys, I + 1);
+        {Where, Got, Want} -> {[{index, I} | Where], Got, Want}
+    end.
+
+render([here]) -> "";
+render([keys]) -> " (keys)";
+render([length]) -> " (length)";
+render([{key, K} | Rest]) -> "." ++ binary_to_list(K) ++ render(Rest);
+render([{index, I} | Rest]) -> "[" ++ integer_to_list(I) ++ "]" ++ render(Rest).

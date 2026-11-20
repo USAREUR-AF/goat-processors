@@ -3,6 +3,39 @@
 -module(assign_unit_tests).
 -include_lib("eunit/include/eunit.hrl").
 
+%% The ranking is the first K of every assignment ordered by total then
+%% choice vector: random rows, seeded, against the definition.
+ranked_is_first_k_of_every_test_() ->
+    {timeout, 120, fun() ->
+        lists:foldl(fun(_, S0) ->
+                            {Rows, NCols, K, S1} = rows(S0),
+                            ?assertEqual(assign_rank:every(Rows, NCols, K),
+                                         assign_rank:ranked(Rows, NCols, K)),
+                            S1
+                    end, test_support:rand_state(42), lists:seq(1, 3000))
+    end}.
+
+rows(S0) ->
+    {NRows, S1} = test_support:uniform(6, S0),
+    {NCols0, S2} = test_support:uniform(6, S1),
+    NCols = NCols0 - 1,
+    {K, S3} = test_support:uniform(4, S2),
+    {Rows, S4} = lists:foldl(fun(_, {Acc, Si}) ->
+                                     {Row, Sj} = row(NCols, Si),
+                                     {[Row | Acc], Sj}
+                             end, {[], S3}, lists:seq(1, NRows)),
+    {Rows, NCols, K, S4}.
+
+%% Costs drawn from a small set so that equal totals happen.
+row(NCols, S0) ->
+    Pool = [forbidden, forbidden, 0.0, 1.0, 2.0, 2.5, -1.0, 9.21, 7.21, 0.1, 0.2, 0.30000000000000004],
+    {Costs, S1} = lists:foldl(fun(_, {Acc, Si}) ->
+                                      {C, Sj} = test_support:pick(Pool, Si),
+                                      {[C | Acc], Sj}
+                              end, {[], S0}, lists:seq(1, NCols)),
+    {Alone, S2} = test_support:pick([9.21, 7.21, 2.0], S1),
+    {{Costs, Alone}, S2}.
+
 ranked_ties_by_vector_test() ->
     Rows = [{[1.0, 1.0], 1.0}],
     ?assertEqual([{1.0, [0], [1.0]}, {1.0, [1], [1.0]}, {1.0, [2], [1.0]}],

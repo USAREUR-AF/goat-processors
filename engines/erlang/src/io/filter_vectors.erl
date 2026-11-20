@@ -3,4 +3,6 @@
 -module(filter_vectors).
 -export([main/1]).
 
-main([Root]) -> halt(io_vectors:main(<<"filter">>, Root)).
+main([Root]) ->
+    io_engine:preload(<<"filter">>),
+    halt(io_vectors:main(<<"filter">>, Root)).

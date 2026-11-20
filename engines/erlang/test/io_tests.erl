@@ -40,6 +40,8 @@ compare_test() ->
     ?assertMatch({mismatch, "x (keys)", _, _}, io_vectors:compare(#{a => 1}, #{b => 1}, "x")),
     ?assertMatch({mismatch, "x (length)", _, _}, io_vectors:compare([1], [1, 2], "x")),
     ?assertMatch({mismatch, "x[1]", 2, 3}, io_vectors:compare([1, 2], [1, 3], "x")),
+    ?assertMatch({mismatch, "x.a[0].b", 1, 2},
+                 io_vectors:compare(#{<<"a">> => [#{<<"b">> => 1}]}, #{<<"a">> => [#{<<"b">> => 2}]}, "x")),
     ?assertMatch({mismatch, "x", null, false}, io_vectors:compare(null, false, "x")),
     ?assertEqual(ok, io_vectors:compare(#{<<"k">> => [null, <<"s">>]},
                                         #{<<"k">> => [null, <<"s">>]}, "x")).
@@ -121,3 +123,8 @@ failing_vector_test() ->
     ?assertEqual([fail, fail], io_vectors:results(<<"fuse">>, Root)),
     ?assertEqual(1, io_vectors:main(<<"fuse">>, Root)),
     file:del_dir_r(Root).
+
+preload_test() ->
+    ?assertEqual(ok, io_engine:preload(<<"fuse">>)),
+    ?assertEqual(ok, io_engine:preload(<<"other">>)),
+    ?assert(erlang:module_loaded(fuse_kinematics)).

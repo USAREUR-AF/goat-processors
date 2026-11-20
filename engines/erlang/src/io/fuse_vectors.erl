@@ -3,4 +3,6 @@
 -module(fuse_vectors).
 -export([main/1]).
 
-main([Root]) -> halt(io_vectors:main(<<"fuse">>, Root)).
+main([Root]) ->
+    io_engine:preload(<<"fuse">>),
+    halt(io_vectors:main(<<"fuse">>, Root)).

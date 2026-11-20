@@ -2,8 +2,11 @@
 %% "Source measures"): the table of measures, the registration point of a
 %% measure. A measure is {Name, Entity, Source}:
 %%   Entity  fun((Ctx) -> Value) of an entity's window, Ctx being
-%%           #{window => [Record], now, last, min_samples}, or none for a
-%%           source-only measure;
+%%           #{window => [Record], now, last, min_samples, values, counts}
+%%           (values: each sample's non-null values in window order;
+%%           counts: the records of each order and each absent flag, both
+%%           read from the window in one pass), or none for a source-only
+%%           measure;
 %%   Source  how a source aggregates its entities' values: sum, mean, max,
 %%           min, min_all (every entity has one), or entities.
 %% A pack loaded with quality:load_pack(Dir, #{measures => [Measure]}) also
@@ -25,20 +28,19 @@ builtin() ->
      {<<"lateness_min">>, stat(<<"lateness">>, fun lists:min/1), min},
      {<<"nis_mean">>, stat(<<"nis">>, fun mean/1), mean},
      {<<"speed_err_mean">>, stat(<<"speed_err">>, fun mean/1), mean},
-     {<<"out_of_order">>, order_count(<<"out-of-order">>), sum},
-     {<<"duplicate">>, order_count(<<"duplicate">>), sum},
-     {<<"source_out_of_order">>,
-      fun(#{window := W}) -> length([R || R = #{<<"source_out_of_order">> := true} <- W]) end, sum},
-     {<<"missing_ce">>, missing(<<"ce">>, false), mean},
-     {<<"missing_vel">>, missing(<<"vel">>, false), mean},
-     {<<"missing_hae">>, missing(<<"hae">>, false), mean},
+     {<<"out_of_order">>, count(out_of_order), sum},
+     {<<"duplicate">>, count(duplicate), sum},
+     {<<"source_out_of_order">>, count(source_out_of_order), sum},
+     {<<"missing_ce">>, missing(ce), mean},
+     {<<"missing_vel">>, missing(vel), mean},
+     {<<"missing_hae">>, missing(hae), mean},
      {<<"time_error_mean">>, stat(<<"time_error">>, fun mean/1), mean},
      {<<"time_error_max">>, stat(<<"time_error">>, fun lists:max/1), max},
      {<<"time_state_last">>,
       stat(<<"time_state">>, fun(Ss) -> state_code(lists:last(Ss)) end), max},
      {<<"time_state_worst">>,
       stat(<<"time_state">>, fun(Ss) -> lists:max([state_code(S) || S <- Ss]) end), max},
-     {<<"missing_time">>, missing(<<"time_state">>, null), mean},
+     {<<"missing_time">>, missing(time), mean},
      {<<"entities">>, none, entities}].
 
 table(Extra) -> builtin() ++ Extra.
@@ -49,26 +51,58 @@ source_names(Table) -> [N || {N, _, _} <- Table].
 %% A statistic of a sample's values in the window: null with fewer than
 %% min_samples values.
 stat(Sample, Fun) ->
-    fun(#{window := W, min_samples := K}) ->
-            case [V || #{Sample := V} <- W, V =/= null] of
+    fun(#{values := Values, min_samples := K}) ->
+            case maps:get(Sample, Values) of
                 Vs when length(Vs) >= K -> Fun(Vs);
                 _ -> null
             end
     end.
 
-order_count(Order) ->
-    fun(#{window := W}) -> length([R || R = #{<<"order">> := O} <- W, O =:= Order]) end.
+count(What) -> fun(#{counts := Counts}) -> maps:get(What, Counts) end.
 
-%% The share of the window's records whose Flag is Absent; null with fewer
-%% than min_samples records.
-missing(Flag, Absent) ->
-    fun(#{window := W, min_samples := K}) ->
+%% The share of the window's records whose flag is absent (ce, vel, hae
+%% false; time state null); null with fewer than min_samples records.
+missing(What) ->
+    fun(#{window := W, min_samples := K, counts := Counts}) ->
             Reports = length(W),
             case Reports < K of
                 true -> null;
-                false -> length([R || R = #{Flag := F} <- W, F =:= Absent]) / Reports
+                false -> maps:get(What, Counts) / Reports
             end
     end.
+
+-define(SAMPLES, [<<"interval">>, <<"latency">>, <<"lateness">>, <<"nis">>, <<"speed_err">>,
+                  <<"time_error">>, <<"time_state">>]).
+
+%% One pass over the window: each sample's non-null values in window order,
+%% and the counts. Pure.
+read_window(W) ->
+    {I, La, Lt, N, Se, Te, Ts, Ooo, Dup, Sooo, Ce, Vel, Hae, Time} =
+        scan(W, {[], [], [], [], [], [], [], 0, 0, 0, 0, 0, 0, 0}),
+    {#{<<"interval">> => lists:reverse(I), <<"latency">> => lists:reverse(La),
+       <<"lateness">> => lists:reverse(Lt), <<"nis">> => lists:reverse(N),
+       <<"speed_err">> => lists:reverse(Se), <<"time_error">> => lists:reverse(Te),
+       <<"time_state">> => lists:reverse(Ts)},
+     #{out_of_order => Ooo, duplicate => Dup, source_out_of_order => Sooo, ce => Ce, vel => Vel,
+       hae => Hae, time => Time}}.
+
+scan([], Acc) -> Acc;
+scan([#{<<"interval">> := I, <<"latency">> := La, <<"lateness">> := Lt, <<"nis">> := N,
+        <<"speed_err">> := Se, <<"time_error">> := Te, <<"time_state">> := Ts,
+        <<"order">> := Order, <<"source_out_of_order">> := Sooo, <<"ce">> := Ce,
+        <<"vel">> := Vel, <<"hae">> := Hae} | Rest],
+     {AI, ALa, ALt, AN, ASe, ATe, ATs, AOoo, ADup, ASooo, ACe, AVel, AHae, ATime}) ->
+    scan(Rest, {cons(I, AI), cons(La, ALa), cons(Lt, ALt), cons(N, AN), cons(Se, ASe),
+                cons(Te, ATe), cons(Ts, ATs),
+                AOoo + is(Order, <<"out-of-order">>), ADup + is(Order, <<"duplicate">>),
+                ASooo + is(Sooo, true), ACe + is(Ce, false), AVel + is(Vel, false),
+                AHae + is(Hae, false), ATime + is(Ts, null)}).
+
+cons(null, L) -> L;
+cons(V, L) -> [V | L].
+
+is(X, X) -> 1;
+is(_, _) -> 0.
 
 %% Time quality: the code of a time state; higher is worse.
 state_code(<<"coherent">>) -> 0;
@@ -80,7 +114,9 @@ mean(Vs) -> lists:foldl(fun(V, S) -> S + V end, 0.0, Vs) / length(Vs).
 
 %% An entity's measures over its window W at Now with min_samples K.
 entity(Table, #{window := W, last := Last}, Now, K) ->
-    Ctx = #{window => W, now => Now, last => Last, min_samples => K},
+    {Values, Counts} = read_window(W),
+    Ctx = #{window => W, now => Now, last => Last, min_samples => K, values => Values,
+            counts => Counts},
     maps:from_list([{N, E(Ctx)} || {N, E, _} <- Table, E =/= none]).
 
 %% A source's measures: its entities' measures aggregated, taken in key order.

@@ -206,10 +206,14 @@ forget_entity(Key, Now, St) ->
 forget_source(Src, St) ->
     emit(trace_quality:forget_source(Src), quality_rules:forget_subject(source, Src, St)).
 
-%% Step 4, window: drop the records with wt <= now - window_ms.
+%% Step 4, window: drop the records with wt <= now - window_ms. An entity's
+%% wt never decreases in arrival order (wt is the entity's last time after
+%% the record: a first or advancing report's time, else the last time it
+%% already had), so those records are a prefix of its window.
 drop_old(Edge, St = #{entities := Es}) ->
     St#{entities := maps:map(fun(_, E = #{window := W}) ->
-                                     E#{window := [R || R = #{<<"wt">> := Wt} <- W, Wt > Edge]}
+                                     E#{window := lists:dropwhile(
+                                                    fun(#{<<"wt">> := Wt}) -> Wt =< Edge end, W)}
                              end, Es)}.
 
 %% Step 5, entities in key order: measures, quality event, entity rules.

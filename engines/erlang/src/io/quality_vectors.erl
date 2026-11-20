@@ -3,4 +3,6 @@
 -module(quality_vectors).
 -export([main/1]).
 
-main([Root]) -> halt(io_vectors:main(<<"quality">>, Root)).
+main([Root]) ->
+    io_engine:preload(<<"quality">>),
+    halt(io_vectors:main(<<"quality">>, Root)).
