@@ -1,48 +1,127 @@
 # goat-processors, C++ engine
 
-Four functions: correlate, filter, fuse and quality.
+Four functions: correlate, filter, fuse and quality. C++17, standard library
+only, with its own small JSON reader. Written from the specifications and the
+vectors:
 
-## Correlate and filter
-
-A C++17 implementation of `spec/filter.md` (version 0.1), of `spec/correlate.md`
-(version 0.8, method `confirm`, with the two-model filter, the filter
-restart and time quality) and of `spec/correlate-assign.md` (version 0.6,
-method `assign`, with the multi-frame window, its margin, sensor bias and the
-clock offset), written from the specifications and the vectors. The pack's `method`
-line selects which correlate method runs. It uses only the standard library and has its
-own small JSON reader.
-
-| File | Spec section |
+| Function | Specification |
 |---|---|
-| `src/track.cpp` | correlate.md Frame, Track estimate (steps 1 to 3, each update returning its likelihood term for the two-model filter); shared with fuse and quality |
-| `src/pack.cpp` | Pack (`parse_pack`, `load_pack`), with `time_default` (`parse_time_default`, shared with quality) and `time_offset` |
-| `src/engine.cpp` | correlate.md: Reports "Time quality" (in `ingest`), Track estimate Measurement variance (`measurement_variance`, the `time` record, `predict_for_comparison` for the timing variance), Two-model filter (`filter_first`, `filter_update`, `predict`), Restart (`restart_test`, and its use in `ingest`), Tests, Association, Events, Trace, Snapshot |
-| `src/assign.cpp` | correlate-assign.md: Memberships, Ranking (`rank_assignments`, brute force over every assignment), Assignment of one source (`rank_source`, `apply_assignment`), Sensor bias (`bias_state`, `predict_into_frame`, `bias_update`, and Time offset in `fit_time_offset`), Window (`tick_assign`, steps 1 to 6, with `margin`), Snapshot |
-| `src/common.hpp` | helpers engine.cpp and assign.cpp both use |
-| `src/report.cpp` | correlate.md "Reports": required keys, optional-key rules, `type` elements, the time quality keys (`time_error_at`, `time_state_at`) and steps 1 and 2 of their resolution (`time_quality`); shared by all four functions |
-| `src/filter_pack.cpp` | filter.md "Pack": directives, rules, `when` lines, parameter sets, values |
-| `src/filter.cpp` | filter.md Geometry (distance, polygon, reference prediction), Conditions, Rules, Tick, Events, Trace, Snapshot |
-| `src/json.cpp` | JSON values for reports, events, trace and snapshot |
-| `test/run_vectors.cpp` | runs the correlate vectors |
-| `test/run_filter_vectors.cpp` | the same comparison for `packs/filter-*` and `spec/filter-load-vectors/` |
-| `test/vector_support.hpp` | the comparison in `spec/vector-format.md`, shared by the correlate, filter, fuse and quality runners |
+| correlate | `spec/correlate.md` 0.8 (method `confirm`, the two-model filter, the filter restart, time quality) and `spec/correlate-assign.md` 0.6 (method `assign`: window, margin, sensor bias, time offset) |
+| filter | `spec/filter.md` 0.1 |
+| fuse | `spec/fuse.md` 0.2 |
+| quality | `spec/quality.md` 0.2 (with time quality per source) |
 
-API, in `src/engine.hpp` and `src/pack.hpp`:
+Where a specification leaves room for more than one reading, the reading this
+engine takes is in `DISAGREEMENTS.md`.
+
+## Layout
+
+One directory per module, the same module names in every engine: `model`,
+`filter`, `correlate`, `assign`, `fuse`, `quality`, `trace`, `snapshot`, `io`.
+
+| Module | Holds |
+|---|---|
+| `src/model/` | what every function reads: the JSON value, reports, the frame, the track estimate, the pack.def text helpers, `Output` |
+| `src/filter/` | the filter function |
+| `src/correlate/` | the correlate function: its pack, the shared engine and method `confirm` |
+| `src/assign/` | correlate's method `assign` |
+| `src/fuse/` | the fuse function |
+| `src/quality/` | the quality function |
+| `src/trace/` | the builders of events and trace records |
+| `src/snapshot/` | the snapshot parts more than one function writes |
+| `src/io/` | the one entry point (`io::Function`), file reading, the runner |
+| `test/` | the vector runners and the unit, property and fuzz tests |
+| `runner/` | `build` and `run`, the runner contract of `tools/perf/README.md` |
+
+### Entry point
+
+Every function has the same shape: load the pack, then ingest one report at a
+time and tick, each returning its events and trace records (`corr::Output`),
+and snapshot.
 
 ```cpp
-corr::Pack pack = corr::load_pack("packs/correlate-gnn");   // throws corr::PackError
-corr::Engine engine(pack);
-corr::Output out = engine.ingest(report);          // out.events, out.trace
-out = engine.tick(now_ms);
-corr::Json state = engine.snapshot();
-
-// The filter (spec/filter.md 0.1), in src/filter.hpp and src/filter_pack.hpp:
-corr::filter::Pack fpack = corr::filter::load_pack("packs/filter-area");  // throws corr::PackError
-corr::filter::Engine filter(fpack);
-corr::Output fout = filter.ingest(report);          // fout.events, fout.trace
-fout = filter.tick(now_ms);
-corr::Json fstate = filter.snapshot();
+#include "io/function.hpp"
+auto fn = corr::io::load("correlate", "packs/correlate-gnn");   // throws corr::PackError
+corr::Output out = fn->ingest(report);                         // out.events, out.trace
+out = fn->tick(now_ms);
+corr::Json state = fn->snapshot();
 ```
+
+Each module also offers the same calls on its own types: `<fn>::load_pack(dir)`,
+`<fn>::parse_pack(text)`, `<fn>::Engine e(pack)`, `e.ingest`, `e.tick`,
+`e.snapshot`, with `<fn>` one of `correlate`, `filter`, `fuse`, `quality`.
+
+## Where each section of the specifications lives
+
+### spec/correlate.md
+
+| Section | File |
+|---|---|
+| What the correlator does | `src/correlate/engine.cpp` (ingest, tick, snapshot) |
+| Reports (with Time quality) | `src/model/report.cpp`; its use in `src/correlate/engine.cpp` (`ingest`) |
+| Frame | `src/model/frame.cpp` |
+| Track estimate | `src/model/estimate.cpp` (steps 1 to 3); `src/correlate/measurement.cpp` (Measurement variance, prediction for comparison) |
+| Two-model filter | `src/correlate/two_model.cpp` |
+| Restart | `src/correlate/restart.cpp` |
+| Tests | `src/correlate/tests.cpp` |
+| Association | `src/correlate/confirm.cpp` |
+| Events, Trace | `src/trace/trace.hpp` (builders); each record where its step is |
+| Snapshot | `src/correlate/confirm.cpp` (`snapshot_confirm`), `src/correlate/engine.cpp` (`filter_json`), `src/snapshot/snapshot.cpp` |
+| Pack | `src/correlate/pack.cpp`; `time_default` in `src/model/pack_text.cpp` |
+| Floats | `CMakeLists.txt` (`GOAT_FLOAT_FLAGS`) |
+
+### spec/correlate-assign.md
+
+| Section | File |
+|---|---|
+| Memberships | `src/assign/membership.cpp` |
+| Assignment of one source | `src/assign/assign.cpp` (`rank_source`, `apply_assignment`, `fuse`) |
+| Sensor bias (with Time offset) | `src/assign/bias.cpp` |
+| Ranking | `src/assign/ranking.cpp` |
+| Window | `src/assign/assign.cpp` (`tick_assign`) |
+| Events, Trace | `src/assign/assign.cpp`, `src/assign/membership.cpp` |
+| Snapshot | `src/assign/assign.cpp` (`snapshot_assign`) |
+| Pack | `src/correlate/pack.cpp` |
+
+### spec/filter.md
+
+| Section | File |
+|---|---|
+| What the filter does | `src/filter/engine.cpp` |
+| Reports | `src/model/report.cpp` |
+| Geometry | `src/filter/geometry.cpp` |
+| Conditions | `src/filter/conditions.cpp` |
+| Rules, Tick, Events, Trace, Snapshot | `src/filter/engine.cpp` |
+| Pack | `src/filter/pack.cpp` |
+
+### spec/fuse.md
+
+| Section | File |
+|---|---|
+| What fuse does, Reports, Groups, On each tick, Fused event | `src/fuse/engine.cpp` |
+| Shared with correlate.md | `src/model/frame.cpp`, `src/model/estimate.cpp`, `src/model/report.cpp` |
+| Kinematics (the five methods) | `src/fuse/kinematics.cpp` |
+| Attributes (the five rules) | `src/fuse/attributes.cpp` |
+| Events, Trace, Snapshot | `src/fuse/engine.cpp`, `src/fuse/kinematics.cpp`, `src/fuse/attributes.cpp` |
+| Pack | `src/fuse/pack.cpp` |
+
+### spec/quality.md
+
+| Section | File |
+|---|---|
+| What quality does, Reports, Order, Samples, Window, Tick, Ingest, Snapshot | `src/quality/engine.cpp` |
+| Reports, Time quality | `src/model/report.cpp` (steps 1 and 2); step 3 in `src/quality/engine.cpp` |
+| Frame and filter | `src/model/frame.cpp`, `src/model/estimate.cpp` |
+| Input clock | `src/quality/input_clock.cpp` |
+| Entity measures, Source measures | `src/quality/measures.cpp` |
+| Rules, Forwarding | `src/quality/rules.cpp` |
+| Pack | `src/quality/pack.cpp` |
+
+### spec/vector-format.md
+
+| Section | File |
+|---|---|
+| What the engine checks | `test/vector_support.hpp`, `test/run_vectors.cpp` |
 
 ## Build and run the vectors
 
@@ -52,77 +131,23 @@ From the repository root:
 cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir build/cpp --output-on-failure
 ```
 
-The ctest test `vectors` runs `run_vectors <repo root>`. It runs every
-scenario vector under `packs/correlate-*/vectors/` and checks each step's events and
-trace, then the final snapshot. It also runs every load vector under
-`spec/correlate-load-vectors/`. The ctest test `filter_vectors` runs `run_filter_vectors <repo root>`: every
-scenario vector under `packs/filter-*/vectors/` and every load vector under
-`spec/filter-load-vectors/`. `run_vectors` prints `PASS` or `FAIL` for each vector, and for a
-failure the path of the first mismatch, for example
-`steps[1].trace[0].value: number differs (...)`. You can also run it by hand:
+The ctest tests `vectors`, `filter_vectors`, `fuse_vectors` and
+`quality_vectors` run `run_vectors`, `run_filter_vectors`,
+`run_fuse_vectors` and `run_quality_vectors` with the repository root: every
+scenario vector under `packs/<function>-*/vectors/` (each step's events and
+trace, then the final snapshot) and every load vector under
+`spec/<function>-load-vectors/`. Each prints `PASS` or `FAIL` per vector, and
+for a failure the path of the first mismatch, for example
+`steps[1].trace[0].value: number differs (...)`.
+
+## Runner
+
+`runner/build` builds `build/cpp-runner/goat_runner` (Release);
+`runner/run` executes it with the arguments of `tools/perf/README.md`
+"Runner contract":
 
 ```sh
-build/cpp/run_vectors .
-build/cpp/run_quality_vectors .
+engines/cpp/runner/build
+engines/cpp/runner/run --function correlate --pack packs/correlate-gnn \
+    --steps packs/correlate-gnn/vectors/01-two-sources-one-object.json --events out.jsonl --trace
 ```
-
-The build passes `-ffp-contract=off` (and `-msse2 -mfpmath=sse` on x86) to
-the correlator and quality libraries, which holds the shared frame and filter, so no
-`a*b + c` becomes a fused multiply-add and no intermediate is kept in
-extended precision (correlate.md "Floats").
-
-## Fuse
-
-A C++17 implementation of `spec/fuse.md` (version 0.2), in its own module
-(`corr::fuse`). It reuses the correlate engine's filter and frame from
-`src/track.cpp` and its report reading from `src/report.cpp`, as fuse.md
-"Shared with correlate.md" cites.
-
-| File | Spec section |
-|---|---|
-| `src/fuse_pack.cpp` | Pack (`corr::fuse::parse_pack`, `corr::fuse::load_pack`) |
-| `src/fuse.cpp` | Reports (normalized report, `stale-report`), Groups (`new`, `move`, output order), On each tick, Kinematics (all five methods), Attributes (all five rules), Fused event, Height, Trace, Snapshot |
-| `test/run_fuse_vectors.cpp` | runs every vector under `packs/fuse-*/vectors/` and `spec/fuse-load-vectors/` |
-
-```cpp
-corr::fuse::Pack pack = corr::fuse::load_pack("packs/fuse-shared");  // throws corr::PackError
-corr::fuse::Engine engine(pack);
-corr::Output out = engine.ingest(report);   // out.events, out.trace
-out = engine.tick(now_ms);
-corr::Json state = engine.snapshot();
-```
-
-The ctest test `fuse_vectors` runs `run_fuse_vectors <repo root>`, which
-prints `PASS`/`FAIL` per vector and, for a failure, the first mismatch path.
-
-## Quality
-
-A C++17 implementation of `spec/quality.md` (version 0.2, with time quality
-per source), in its own module (`corr::quality`). It reuses the correlate
-frame and filter from `src/track.cpp`, and the time quality of correlate.md
-0.8 where quality.md says the rules are the same: the `time_error_ms` and
-`time_state` readers and steps 1 and 2 of their resolution
-(`report::time_quality` in `src/report.cpp`), and the `time_default` line
-grammar (`parse_time_default` in `src/pack.cpp`, given quality's own number
-grammar). Step 3 is quality's own: an unstated value takes no sample.
-
-| File | Spec section |
-|---|---|
-| `src/quality_pack.cpp` | quality.md Pack (line ends, control characters and separators in `pack_lines`; `time_default`) and Rules (`quality::parse_pack`, `quality::load_pack`) |
-| `src/quality.cpp` | quality.md Reports (with Time quality), Order, Frame and filter, Input clock (`input_clock`, `source_latest`), Samples, Window, Entity measures, Source measures, Rules, Forwarding (with the overflow clamp), Tick, Ingest, Events, Trace, Snapshot |
-| `test/run_quality_vectors.cpp` | runs every vector under `packs/quality-*/vectors/` and `spec/quality-load-vectors/` |
-
-```cpp
-corr::quality::Pack qp = corr::quality::load_pack("packs/quality-feed");   // throws corr::PackError
-corr::quality::Engine quality(qp);
-corr::quality::Output qout = quality.ingest(report);   // qout.events, qout.trace
-qout = quality.tick(now_ms);
-corr::Json qstate = quality.snapshot();
-```
-
-The ctest test `quality_vectors` runs `run_quality_vectors <repo root>`, the
-same checks for every vector under `packs/quality-*/vectors/` and
-`spec/quality-load-vectors/`.
-
-Where the specification leaves room for more than one reading, the reading
-this engine takes is in `DISAGREEMENTS.md`.
