@@ -72,7 +72,11 @@ accept(Key, Report, St0) ->
     %% Track estimate, Measurement variance: R = {r_east, r_north} and the
     %% timing variance, with its "time" filter record before any other.
     {Te, TimeState} = correlate_track:time_quality(Report, Pack),
-    {R, Timing, StT} = correlate_track:measurement_variance(Key, Found, T, Vel, Ce, Te, St1),
+    {R, Timing, TimeRecord} = correlate_track:measurement_variance(Found, T, Vel, Ce, Te, Pack),
+    StT = case TimeRecord of
+              none -> St1;
+              {VarE, VarN} -> trace_log:record(trace_correlate:time(Key, Te, VarE, VarN), St1)
+          end,
     {Ent, St2} =
         case Found of
             error ->
@@ -80,7 +84,7 @@ accept(Key, Report, St0) ->
                                 model_imm:init(Z, Vel, R, Pack)),
                 {E0, trace_log:emit(trace_correlate:new(Key), StT)};
             {ok, E0 = #{time := Last}} ->
-                case correlate_track:restart_test(Key, E0, T, Z, R, StT) of
+                case restart(Key, E0, T, Z, R, Pack, StT) of
                     {true, StR} ->
                         Dt = (T - Last) / 1000,
                         {Est, Records} = model_imm:update(E0, Dt, Z, Vel, R, Pack),
@@ -104,6 +108,15 @@ accept(Key, Report, St0) ->
                 time_state => TimeState, timing => Timing},
     Method:reported(Key, put_entity(Key, Ent1, St2)).
 
+%% Restart (correlate.md "Restart"): {Updates, St}, with the restart
+%% record when the pack has the line.
+restart(Key, Ent, T, Z, R, Pack, St) ->
+    case correlate_track:restart(Ent, T, Z, R, Pack) of
+        none -> {true, St};
+        {D2, Gate, Pass} ->
+            {Pass, trace_log:record(trace_correlate:restart(Key, D2, Gate, Pass), St)}
+    end.
+
 entity(Key, St) -> maps:get(Key, maps:get(entities, St)).
 put_entity(Key, E, St = #{entities := Es}) -> St#{entities := Es#{Key => E}}.
 
@@ -112,9 +125,10 @@ value(<<"@env">>, Ent) ->
     model_report:type_element(env, maps:get(<<"type">>, maps:get(report, Ent), null));
 value(K, Ent) -> maps:get(K, maps:get(report, Ent), null).
 
-%% Prediction of an entity to time T (ms): a copy of its estimate.
-predict(Ent, T, St) ->
-    model_imm:predict(Ent, (T - maps:get(time, Ent)) / 1000, maps:get(pack, St)).
+%% Prediction of an entity to time T (ms) with the pack's filter: a copy of
+%% its estimate. Pure.
+predict(Ent, T, Pack) ->
+    model_imm:predict(Ent, (T - maps:get(time, Ent)) / 1000, Pack).
 
 %% A prediction Pred of entity Ent compared with another entity: Ent's timing
 %% variance added to pp on each axis.
@@ -124,10 +138,10 @@ add_timing(Pred, Ent) -> correlate_track:add_timing(Pred, maps:get(timing, Ent))
 %% timing variance added to the predicted pp on each axis (Track estimate,
 %% Measurement variance); then moved into A's frame by the method
 %% (correlate-assign.md "Sensor bias"; the confirm method does not move).
-pair_view(A, B, St = #{pack := #{method := Method}}) ->
+pair_view(A, B, St = #{pack := Pack = #{method := Method}}) ->
     EA = entity(A, St),
     EB = entity(B, St),
-    PredB = add_timing(predict(EB, maps:get(time, EA), St), EB),
+    PredB = add_timing(predict(EB, maps:get(time, EA), Pack), EB),
     {EA, EB, Method:move(PredB, maps:get(source, EA), maps:get(source, EB), St)}.
 
 %% Staleness, shared by both methods' tick.

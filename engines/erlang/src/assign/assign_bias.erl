@@ -2,53 +2,60 @@
 %% ("Time offset"). The state per pair of sources is
 %%   #{{S, T} => #{oe, we, on, wn, var, n, tau, sums}}
 %% (pair key "S|T", S < T; tau in seconds and sums {S1..S8} are used only
-%% with the pack line time_offset).
+%% with the pack line time_offset). The math is pure: move/4 and observe/5
+%% take the pack's lines and a pair's state, never the engine state.
 -module(assign_bias).
--export([state/2, move/4, update/3]).
+-export([context/1, move/4, update/3, observe/5, initial/1, time_offset_fit/7]).
 
 -import(correlate, [entity/2]).
 
-%% A pair's state, or the state of a pair with none stored:
-%% o = 0, w = 0, var = s², n = 0; with time_offset also tau = 0 and S1..S8 = 0.
-state(Pair, St) ->
-    #{<<"sigma_m">> := Sigma} = maps:get(bias, maps:get(pack, St)),
-    maps:get(Pair, maps:get(bias, St),
-             #{oe => 0.0, we => 0.0, on => 0.0, wn => 0.0, var => Sigma * Sigma, n => 0,
-               tau => 0.0, sums => {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}}).
+%% What moving needs from the engine state: none without the pack line
+%% bias, else {Pairs, Sigma, TimeOffset}.
+context(#{pack := Pack, bias := Pairs}) ->
+    case Pack of
+        #{bias := #{<<"sigma_m">> := Sigma}} -> {Pairs, Sigma, maps:is_key(time_offset, Pack)};
+        _ -> none
+    end.
 
-time_offset(St) -> maps:is_key(time_offset, maps:get(pack, St)).
+%% A pair's state with none stored: o = 0, w = 0, var = s², n = 0; with
+%% time_offset also tau = 0 and S1..S8 = 0.
+initial(Sigma) ->
+    #{oe => 0.0, we => 0.0, on => 0.0, wn => 0.0, var => Sigma * Sigma, n => 0,
+      tau => 0.0, sums => {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}}.
+
+state(Pair, Pairs, Sigma) ->
+    case Pairs of
+        #{Pair := State} -> State;
+        _ -> initial(Sigma)
+    end.
 
 %% Moving B into A's frame: B's prediction Pred (source BSrc) as seen by
 %% source ASrc. p + o from pair "BSrc|ASrc" when BSrc is first, p - o from
 %% pair "ASrc|BSrc" when ASrc is first; pp + var either way. With
 %% time_offset, o - v*tau takes the place of o, v B's predicted velocity on
-%% that axis. Never moved without the pack line bias, or between two
-%% entities of one source.
-move(Pred, ASrc, BSrc, St) ->
-    case maps:is_key(bias, maps:get(pack, St)) of
-        false -> Pred;
-        true when ASrc =:= BSrc -> Pred;
-        true ->
-            {Pair, Sign} = case BSrc < ASrc of
-                               true -> {{BSrc, ASrc}, 1};
-                               false -> {{ASrc, BSrc}, -1}
-                           end,
-            #{oe := OE, on := ON, var := Var, tau := Tau} = state(Pair, St),
-            TimeOffset = time_offset(St),
-            Shift = fun({P, V, PP, PV, VV}, O0) ->
-                            O = case TimeOffset of
-                                    true -> O0 - V * Tau;
-                                    false -> O0
-                                end,
-                            Moved = case Sign of
-                                        1 -> P + O;
-                                        -1 -> P - O
-                                    end,
-                            {Moved, V, PP + Var, PV, VV}
-                    end,
-            Pred#{east := Shift(maps:get(east, Pred), OE),
-                  north := Shift(maps:get(north, Pred), ON)}
-    end.
+%% that axis. Never moved without the pack line bias (context none), or
+%% between two entities of one source. Pure.
+move(Pred, _ASrc, _BSrc, none) -> Pred;
+move(Pred, Src, Src, _Context) -> Pred;
+move(Pred, ASrc, BSrc, {Pairs, Sigma, TimeOffset}) ->
+    {Pair, Sign} = case BSrc < ASrc of
+                       true -> {{BSrc, ASrc}, 1};
+                       false -> {{ASrc, BSrc}, -1}
+                   end,
+    #{oe := OE, on := ON, var := Var, tau := Tau} = state(Pair, Pairs, Sigma),
+    Shift = fun({P, V, PP, PV, VV}, O0) ->
+                    O = case TimeOffset of
+                            true -> O0 - V * Tau;
+                            false -> O0
+                        end,
+                    Moved = case Sign of
+                                1 -> P + O;
+                                -1 -> P - O
+                            end,
+                    {Moved, V, PP + Var, PV, VV}
+            end,
+    Pred#{east := Shift(maps:get(east, Pred), OE),
+          north := Shift(maps:get(north, Pred), ON)}.
 
 %% Window step 5, Sensor bias "Update": per committed system track in creation
 %% order, its members that are not retiring in key order, each pair X < Y of
@@ -56,29 +63,45 @@ move(Pred, ASrc, BSrc, St) ->
 update(Now, Rows, St0) ->
     case maps:find(bias, maps:get(pack, St0)) of
         error -> St0;
-        {ok, Params} ->
+        {ok, _} ->
             #{systems := Systems} = maps:get(committed, St0),
             Retiring = maps:get(retiring, St0),
+            Source = fun(K) -> maps:get(source, entity(K, St0)) end,
             Pairs = [{X, Y}
                      || S <- lists:sort(maps:keys(Systems)),
                         Ms <- [[M || M <- maps:get(S, Systems), not maps:is_key(M, Retiring)]],
                         X <- Ms, Y <- Ms, X < Y,
-                        maps:get(source, entity(X, St0)) =/= maps:get(source, entity(Y, St0)),
+                        Source(X) =/= Source(Y),
                         lists:member(X, Rows) orelse lists:member(Y, Rows)],
-            lists:foldl(fun({X, Y}, S) -> pair(X, Y, Now, Params, S) end, St0, Pairs)
+            lists:foldl(fun({X, Y}, S) -> pair(X, Y, Now, S) end, St0, Pairs)
     end.
 
-pair(X, Y, Now, #{<<"sigma_m">> := Sigma, <<"floor_m">> := Floor, <<"gate">> := Gate}, St0) ->
-    TimeOffset = time_offset(St0),
-    %% 1. ES is the entity whose source is first in key order, ET the other;
-    %% both predicted to now (not moved).
+%% One pair of entities: step 1, ES the entity whose source is first in key
+%% order, ET the other, both predicted to now (not moved); steps 2 and 3 by
+%% observe/5; step 4, the trace record with the state after step 3.
+pair(X, Y, Now, St0 = #{pack := Pack, bias := Pairs}) ->
+    #{bias := Params = #{<<"sigma_m">> := Sigma, <<"gate">> := Gate}} = Pack,
+    TimeOffset = maps:get(time_offset, Pack, none),
     [ES, ET] = lists:sort(fun(P, Q) -> maps:get(source, entity(P, St0))
                                            =< maps:get(source, entity(Q, St0)) end, [X, Y]),
     Pair = {maps:get(source, entity(ES, St0)), maps:get(source, entity(ET, St0))},
-    PredS = correlate:predict(entity(ES, St0), Now, St0),
-    PredT = correlate:predict(entity(ET, St0), Now, St0),
-    %% Per axis y = p_ET - p_ES, r = pp_ES + pp_ET; with time_offset also
-    %% v = (v_ES + v_ET) / 2.
+    PredS = correlate:predict(entity(ES, St0), Now, Pack),
+    PredT = correlate:predict(entity(ET, St0), Now, Pack),
+    {D2, Accepted, State} = observe(state(Pair, Pairs, Sigma), PredS, PredT, Params, TimeOffset),
+    St1 = case Accepted of
+              true -> St0#{bias := Pairs#{Pair => State}};
+              false -> St0
+          end,
+    trace_log:record(trace_assign:bias(X, Y, D2, Gate, Accepted, State, TimeOffset =/= none), St1).
+
+%% Steps 2 and 3 for one pair's state and the two predictions: per axis
+%% y = p_ET - p_ES, r = pp_ES + pp_ET (with time_offset also
+%% v = (v_ES + v_ET) / 2); d² with the pair's state, the expected offset on
+%% each axis being o - v*tau in place of o with time_offset; accepted when
+%% d² < gate, and then the state updated. Returns {D2, Accepted, State}.
+%% TimeOffset is the time_offset line's parameters, or none. Pure.
+observe(State0, PredS, PredT, #{<<"sigma_m">> := Sigma, <<"floor_m">> := Floor,
+                                <<"gate">> := Gate}, TimeOffset) ->
     Axis = fun(Ax) ->
                    {PS, VS, PPS, _, _} = maps:get(Ax, PredS),
                    {PT, VT, PPT, _, _} = maps:get(Ax, PredT),
@@ -86,54 +109,39 @@ pair(X, Y, Now, #{<<"sigma_m">> := Sigma, <<"floor_m">> := Floor, <<"gate">> := 
            end,
     {YE, RE, VE} = Axis(east),
     {YN, RN, VN} = Axis(north),
-    State0 = #{oe := OE, we := WE, on := ON, wn := WN, var := Var, n := N, tau := Tau} =
-        state(Pair, St0),
-    %% 2. d² with the pair's state; with time_offset the expected offset on
-    %% each axis is o - v*tau in place of o.
+    #{oe := OE, we := WE, on := ON, wn := WN, var := Var, n := N, tau := Tau} = State0,
     {XE, XN} = case TimeOffset of
-                   true -> {OE - VE * Tau, ON - VN * Tau};
-                   false -> {OE, ON}
+                   none -> {OE, ON};
+                   _ -> {OE - VE * Tau, ON - VN * Tau}
                end,
     D2 = (YE - XE) * (YE - XE) / (Var + RE) + (YN - XN) * (YN - XN) / (Var + RN),
-    %% 3. Accepted when d² < gate: the state is updated and stored.
     Accepted = D2 < Gate,
-    {State, St1} =
-        case Accepted of
-            false -> {State0, St0};
-            true ->
-                N1 = N + 1,
-                Var1 = max(Sigma * Sigma / (N1 + 1), Floor * Floor),
-                New = case TimeOffset of
-                          false ->
-                              WE1 = WE + 1 / RE,
-                              WN1 = WN + 1 / RN,
-                              State0#{oe := OE + ((1 / RE) / WE1) * (YE - OE), we := WE1,
-                                      on := ON + ((1 / RN) / WN1) * (YN - ON), wn := WN1,
-                                      var := Var1, n := N1};
-                          true ->
-                              Fit = time_offset_fit(maps:get(sums, State0), 1 / RE, 1 / RN,
-                                                    VE, VN, YE, YN, Sigma, St0),
-                              maps:merge(State0#{var := Var1, n := N1}, Fit)
-                      end,
-                {New, St0#{bias := (maps:get(bias, St0))#{Pair => New}}}
-        end,
-    %% 4. Trace, with the state after step 3.
-    Rec = #{<<"stage">> => <<"bias">>, <<"a">> => X, <<"b">> => Y, <<"test">> => <<"offset">>,
-            <<"value">> => D2, <<"limit">> => Gate, <<"pass">> => Accepted,
-            <<"east">> => maps:get(oe, State), <<"north">> => maps:get(on, State),
-            <<"var">> => maps:get(var, State), <<"pairs">> => maps:get(n, State)},
-    trace_log:record(case TimeOffset of
-                         true -> Rec#{<<"time_offset_ms">> => maps:get(tau, State) * 1000};
-                         false -> Rec
-                     end, St1).
+    State = case Accepted of
+                false -> State0;
+                true ->
+                    N1 = N + 1,
+                    Var1 = max(Sigma * Sigma / (N1 + 1), Floor * Floor),
+                    case TimeOffset of
+                        none ->
+                            WE1 = WE + 1 / RE,
+                            WN1 = WN + 1 / RN,
+                            State0#{oe := OE + ((1 / RE) / WE1) * (YE - OE), we := WE1,
+                                    on := ON + ((1 / RN) / WN1) * (YN - ON), wn := WN1,
+                                    var := Var1, n := N1};
+                        #{<<"sigma_ms">> := T} ->
+                            Fit = time_offset_fit(maps:get(sums, State0), 1 / RE, 1 / RN,
+                                                  {VE, VN}, {YE, YN}, Sigma, T),
+                            maps:merge(State0#{var := Var1, n := N1}, Fit)
+                    end
+            end,
+    {D2, Accepted, State}.
 
 %% Sensor bias, "Time offset", an accepted pair: add this pair's terms to the
 %% sums S1..S8 (each += one addition of the whole right-hand side), then fit
 %% y = o - v*tau by weighted least squares with priors po = 1/s² on o and
 %% pt = 1/(t/1000)² on tau, in closed form. Returns the new oe, on, tau, sums
-%% and the weight sums we = S1, wn = S2.
-time_offset_fit({S1, S2, S3, S4, S5, S6, S7, S8}, We, Wn, Ve, Vn, Ye, Yn, Sigma, St) ->
-    #{<<"sigma_ms">> := T} = maps:get(time_offset, maps:get(pack, St)),
+%% and the weight sums we = S1, wn = S2. Pure.
+time_offset_fit({S1, S2, S3, S4, S5, S6, S7, S8}, We, Wn, {Ve, Vn}, {Ye, Yn}, Sigma, T) ->
     NS1 = S1 + We,
     NS2 = S2 + Wn,
     NS3 = S3 + We * Ve,

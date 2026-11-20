@@ -1,8 +1,9 @@
 %% The input clock and the samples of a report (quality.md "Input clock",
 %% "Samples", "Time quality"). The sample functions record their trace
-%% record in the state; the measures of the math are pure.
+%% record in the state; the input clock and nis_value/5 are pure.
 -module(quality_samples).
--export([input_clock/2, source_latest/2, median/1, sample/5, take/5, time_sample/5, nis/7]).
+-export([input_clock/2, source_latest/2, median/1, sample/5, take/5, time_sample/5, nis/7,
+         nis_value/5]).
 
 %% Input clock: for each source other than the report's, its latest time is
 %% the greatest last among the entities whose source it is; the clock is the
@@ -47,15 +48,19 @@ time_sample(_Key, _Name, null, null, St) -> {null, St};
 time_sample(Key, Name, null, Default, St) -> take(Key, Name, Default, [null, Default], St);
 time_sample(Key, Name, Own, Default, St) -> take(Key, Name, Own, [Own, Default], St).
 
+%% Samples, nis: the sample and its trace record.
+nis(Key, Filter, Dt, Z, Ce, F, St) ->
+    {Nis, Inputs} = nis_value(Filter, Dt, Z, Ce, maps:get(<<"accel_var">>, F)),
+    take(Key, <<"nis">>, Nis, Inputs, St).
+
 %% Samples, nis: predict to t, compare with the report's position against
-%% the predicted plus the reported variance, east then north.
-nis(Key, Filter, Dt, {E, N}, Ce, F, St) ->
-    #{east := {PE, _, PPE, _, _}, north := {PN, _, PPN, _, _}} =
-        model_kalman:predict(Filter, Dt, maps:get(<<"accel_var">>, F)),
+%% the predicted plus the reported variance, east then north. Returns
+%% {Nis, [De, Dn, Se, Sn]}. Pure.
+nis_value(Filter, Dt, {E, N}, Ce, Q) ->
+    #{east := {PE, _, PPE, _, _}, north := {PN, _, PPN, _, _}} = model_kalman:predict(Filter, Dt, Q),
     R = Ce * Ce,
     De = E - PE,
     Dn = N - PN,
     Se = PPE + R,
     Sn = PPN + R,
-    Nis = De * De / Se + Dn * Dn / Sn,
-    take(Key, <<"nis">>, Nis, [De, Dn, Se, Sn], St).
+    {De * De / Se + Dn * Dn / Sn, [De, Dn, Se, Sn]}.

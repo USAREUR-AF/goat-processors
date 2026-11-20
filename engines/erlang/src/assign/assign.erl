@@ -90,7 +90,7 @@ restarted(Key, St) -> St#{restarted := (maps:get(restarted, St))#{Key => true}}.
 %% A report gives only new; the tick decides.
 reported(Key, St) -> St#{reported := (maps:get(reported, St))#{Key => true}}.
 
-move(Pred, ASrc, BSrc, St) -> assign_bias:move(Pred, ASrc, BSrc, St).
+move(Pred, ASrc, BSrc, St) -> assign_bias:move(Pred, ASrc, BSrc, assign_bias:context(St)).
 
 snapshot(St) -> snapshot_assign:snapshot(St).
 
@@ -248,7 +248,9 @@ output(Now, St0) ->
 %% Event system: fused estimate of all members at Now, hae from the member with
 %% the greatest last_time_ms whose last report has one (ties to key order).
 system_event(S, Ms, Now, St) ->
-    #{east := {PE, VE, _, _}, north := {PN, VN, _, _}} = assign_cost:fused(Ms, Now, none, St),
+    #{east := {PE, VE, _, _}, north := {PN, VN, _, _}} =
+        assign_cost:fused([correlate:predict(correlate:entity(M, St), Now, maps:get(pack, St))
+                           || M <- Ms]),
     {Lat, Lon} = model_frame:from_plane(maps:get(ref, St), PE, PN),
     Ev = #{<<"ev">> => <<"system">>, <<"system">> => trace_assign:system_name(S),
            <<"members">> => Ms,

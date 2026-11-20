@@ -1,8 +1,9 @@
 %% Assignment of one source (correlate-assign.md "Assignment of one source"),
 %% steps 1 and 2: the columns and the entries, with their gate and cost
-%% records; the fused estimate of a system track's members.
+%% records; the cost and the fused estimate of a system track's members,
+%% pure functions of the predictions.
 -module(assign_cost).
--export([entries/4, fused/4]).
+-export([entries/4, cost/3, fused/1]).
 
 -import(correlate, [entity/2]).
 
@@ -44,7 +45,7 @@ row(A, Columns, Mem = #{systems := Systems}, Pack, St0) ->
                   {Pass, S1} = gate(maps:get(gate, Pack), A, Others, S0),
                   Cost = case Pass of
                              false -> forbidden;
-                             true -> cost(A, Others, S1)
+                             true -> member_cost(A, Others, S1)
                                          - case lists:member(A, Ms) of
                                                true -> KeepBonus;
                                                false -> 0
@@ -74,29 +75,28 @@ gate(Tests, A, [B | Bs], St0) ->
 %% member's prediction with its timing variance added, then moved into A's
 %% frame (Sensor bias), before the fused estimate; pp_a is A's filter pp plus
 %% A's timing variance (correlate.md "Track estimate", Measurement variance).
-cost(A, Ms, St) ->
+member_cost(A, Ms, St = #{pack := Pack}) ->
     EA = entity(A, St),
-    Fused = fused(Ms, maps:get(time, EA), maps:get(source, EA), St),
-    {VarAE, VarAN} = maps:get(timing, EA),
-    Axis = fun(Ax, VarA) ->
-                   {PA, _, PPA0, _, _} = maps:get(Ax, maps:get(filter, EA)),
+    T = maps:get(time, EA),
+    Bias = assign_bias:context(St),
+    Src = maps:get(source, EA),
+    Preds = [assign_bias:move(correlate:add_timing(correlate:predict(E, T, Pack), E), Src,
+                              maps:get(source, E), Bias)
+             || M <- Ms, E <- [entity(M, St)]],
+    cost(maps:get(filter, EA), maps:get(timing, EA), fused(Preds)).
+
+%% d² of a filter with its timing variance against a fused estimate. Pure.
+cost(#{east := {PAE, _, PPAE0, _, _}, north := {PAN, _, PPAN0, _, _}}, {VarAE, VarAN},
+     #{east := {PE, _, PPE, _}, north := {PN, _, PPN, _}}) ->
+    Axis = fun(PA, PPA0, VarA, P, PP) ->
                    PPA = PPA0 + VarA,
-                   {P, _, PP, _} = maps:get(Ax, Fused),
                    (PA - P) * (PA - P) / (PPA + PP)
            end,
-    Axis(east, VarAE) + Axis(north, VarAN).
+    Axis(PAE, PPAE0, VarAE, PE, PPE) + Axis(PAN, PPAN0, VarAN, PN, PPN).
 
-%% Fused estimate of Ms at time T, per axis {P, V, PP, VV}; sums over members
-%% in key order. With FrameSrc a source (a comparison, Cost), each member's
-%% prediction first gets its timing variance and is then moved into that
-%% source's frame (Sensor bias); with none (output) neither applies.
-fused(Ms, T, FrameSrc, St) ->
-    Preds = [case FrameSrc of
-                 none -> Pred;
-                 _ -> assign_bias:move(correlate:add_timing(Pred, E), FrameSrc,
-                                       maps:get(source, E), St)
-             end
-             || M <- Ms, E <- [entity(M, St)], Pred <- [correlate:predict(E, T, St)]],
+%% Fused estimate of predictions, per axis {P, V, PP, VV}: inverse-variance
+%% sums over the predictions in order (the members in key order). Pure.
+fused(Preds) ->
     Sum = fun(L) -> lists:foldl(fun(X, Acc) -> Acc + X end, 0, L) end,
     Axis = fun(Ax) ->
                    As = [maps:get(Ax, P) || P <- Preds],

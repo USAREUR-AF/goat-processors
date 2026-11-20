@@ -2,7 +2,7 @@
 %% rule for a subject, its state {count, active}, its action events, ending
 %% a subject's rules when it is forgotten, and the pass event.
 -module(quality_rules).
--export([new/1, evaluate/4, forget_subject/3, pass/5]).
+-export([new/1, evaluate/4, step/4, forget_subject/3, pass/5]).
 
 -import(trace_log, [emit/2, record/2]).
 
@@ -21,35 +21,39 @@ evaluate(Scope, Subject, Ms, St0) ->
     lists:foldl(fun(R, St) -> evaluate_rule(R, Subject, maps:get(maps:get(measure, R), Ms), St)
                 end, St0, Rules).
 
-%% Rules, evaluation. State {count, active}, created {0, false}.
-evaluate_rule(Rule, Subject, V, St0) ->
-    #{name := Name, op := Op, limit := Limit, clear := Clear, for := For} = Rule,
+%% Rules, evaluation, for one subject: the rule's state for it, the step,
+%% the event if any and the trace record.
+evaluate_rule(Rule = #{name := Name}, Subject, V, St0) ->
     #{rules := RS} = St0,
-    #{count := Count0, active := Active0} =
-        maps:get(Subject, maps:get(Name, RS), #{count => 0, active => false}),
-    {TraceLimit, Pass, State, Event} =
-        case Active0 of
-            false ->
-                Met = V =/= null andalso holds(Op, V, Limit),
-                Count = case Met of true -> Count0 + 1; false -> 0 end,
-                case Count >= For of
-                    true -> {Limit, Met, #{count => 0, active => true},
-                             trace_quality:action_start(Rule, Subject, V)};
-                    false -> {Limit, Met, #{count => Count, active => false}, none}
-                end;
-            true ->
-                Cleared = V =/= null andalso clears(Op, V, Clear),
-                case Cleared of
-                    true -> {Clear, true, #{count => 0, active => false},
-                             trace_quality:action_end(Rule, Subject, <<"clear">>, V)};
-                    false -> {Clear, false, #{count => Count0, active => true}, none}
-                end
-        end,
+    State0 = maps:get(Subject, maps:get(Name, RS), #{count => 0, active => false}),
+    {TraceLimit, Pass, State, Event} = step(Rule, Subject, State0, V),
     St1 = St0#{rules := RS#{Name := (maps:get(Name, RS))#{Subject => State}}},
     St2 = case Event of none -> St1; _ -> emit(Event, St1) end,
     record(trace_quality:rule(Name, Subject, maps:get(measure, Rule), V, TraceLimit, Pass,
                               State),
            St2).
+
+%% One rule's step for a measure value V from its state {count, active}
+%% (created {0, false}): {TraceLimit, Pass, State, Event | none}. Pure.
+step(Rule, Subject, #{count := Count0, active := Active0}, V) ->
+    #{op := Op, limit := Limit, clear := Clear, for := For} = Rule,
+    case Active0 of
+        false ->
+            Met = V =/= null andalso holds(Op, V, Limit),
+            Count = case Met of true -> Count0 + 1; false -> 0 end,
+            case Count >= For of
+                true -> {Limit, Met, #{count => 0, active => true},
+                         trace_quality:action_start(Rule, Subject, V)};
+                false -> {Limit, Met, #{count => Count, active => false}, none}
+            end;
+        true ->
+            Cleared = V =/= null andalso clears(Op, V, Clear),
+            case Cleared of
+                true -> {Clear, true, #{count => 0, active => false},
+                         trace_quality:action_end(Rule, Subject, <<"clear">>, V)};
+                false -> {Clear, false, #{count => Count0, active => true}, none}
+            end
+    end.
 
 %% Erlang compares an integer with a float by value, so an integer measure
 %% equal to the limit is compared exactly.

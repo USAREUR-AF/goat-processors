@@ -2,7 +2,7 @@
 %% "Trace"). Pure constructors.
 -module(trace_assign).
 -export([system_name/1, leave/3, end_system/1, join/2, start/2, drop/1, provisional/2,
-         assign/5, history/5, choice_name/1]).
+         assign/5, history/5, choice_name/1, bias/7]).
 
 system_name(S) -> <<"s", (integer_to_binary(S))/binary>>.
 
@@ -31,3 +31,14 @@ assign(A, B, Test, Cost, Pass) ->
 history(A, B, Test, Value, Pass) ->
     #{<<"stage">> => <<"history">>, <<"a">> => A, <<"b">> => B, <<"test">> => Test,
       <<"value">> => Value, <<"limit">> => null, <<"pass">> => Pass}.
+
+%% Stage bias: one pair's offset test, with the pair's state after it.
+bias(X, Y, D2, Gate, Accepted, State, TimeOffset) ->
+    Rec = #{<<"stage">> => <<"bias">>, <<"a">> => X, <<"b">> => Y, <<"test">> => <<"offset">>,
+            <<"value">> => D2, <<"limit">> => Gate, <<"pass">> => Accepted,
+            <<"east">> => maps:get(oe, State), <<"north">> => maps:get(on, State),
+            <<"var">> => maps:get(var, State), <<"pairs">> => maps:get(n, State)},
+    case TimeOffset of
+        true -> Rec#{<<"time_offset_ms">> => maps:get(tau, State) * 1000};
+        false -> Rec
+    end.

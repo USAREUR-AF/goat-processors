@@ -213,7 +213,7 @@ fused(G, Now, St) ->
     Ms = members(G, St),
     Primary = primary(maps:get(output, Pack), Ms, Pack, St),
     Ent = entity(Primary, St),
-    #{east := {PE, VE, _, _, _}, north := {PN, VN, _, _, _}} = predict(Ent, Now, St),
+    #{east := {PE, VE, _, _, _}, north := {PN, VN, _, _, _}} = predict(Ent, Now, Pack),
     {Lat, Lon} = model_frame:from_plane(maps:get(ref, St), PE, PN),
     Ev0 = #{<<"ev">> => <<"fused">>, <<"group">> => trace_correlate:group_name(G),
             <<"primary">> => Primary, <<"members">> => Ms,
