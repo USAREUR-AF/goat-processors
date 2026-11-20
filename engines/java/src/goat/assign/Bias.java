@@ -1,4 +1,4 @@
-package correlator;
+package goat.assign;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -7,13 +7,18 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import correlator.Engine.Entity;
+import goat.correlate.CorrelatePack;
+import goat.correlate.Entity;
+import goat.correlate.FrameMove;
+import goat.correlate.Predicted;
+import goat.model.Axis;
+import goat.model.KeyOrder;
 
 /**
  * correlate-assign.md, Sensor bias: one position offset per unordered pair of sources, the
  * move of a predicted entity into another source's frame, and the update at each tick.
  */
-final class Bias {
+final class Bias implements FrameMove {
 
     /**
      * State of one pair {@code "<S>|<T>"}: per axis the offset o and weight sum w, one var, the
@@ -33,11 +38,11 @@ final class Bias {
         }
     }
 
-    private final Pack pack;
+    private final CorrelatePack pack;
     /** The stored pairs, by pair key in key order. */
-    private final TreeMap<String, PairState> pairs = new TreeMap<>(Engine.KEY_ORDER);
+    private final TreeMap<String, PairState> pairs = new TreeMap<>(KeyOrder.KEY_ORDER);
 
-    Bias(Pack pack) {
+    Bias(CorrelatePack pack) {
         this.pack = pack;
     }
 
@@ -53,8 +58,9 @@ final class Bias {
      * a_src is first; pp + var either way. With {@code time_offset}, o - v*tau is used in place of
      * o, v B's predicted velocity on that axis. Two entities of one source are never moved.
      */
-    void moveInto(String aSource, String bSource, Filter.Axis[] predictedB) {
-        int c = Engine.KEY_ORDER.compare(bSource, aSource);
+    @Override
+    public void moveInto(String aSource, String bSource, Axis[] predictedB) {
+        int c = KeyOrder.KEY_ORDER.compare(bSource, aSource);
         if (c == 0) return;
         PairState st = c < 0 ? read(bSource, aSource) : read(aSource, bSource);
         double sign = c < 0 ? 1 : -1;
@@ -92,10 +98,10 @@ final class Bias {
     private void updatePair(Entity x, Entity y, long now, List<Map<String, Object>> trace) {
         // 1. ES is the entity whose source is first in key order, ET the other; both predicted to
         //    now, not moved. Per axis y = p_ET - p_ES and r = pp_ES + pp_ET.
-        boolean xFirst = Engine.KEY_ORDER.compare(x.source, y.source) < 0;
+        boolean xFirst = KeyOrder.KEY_ORDER.compare(x.source, y.source) < 0;
         Entity es = xFirst ? x : y, et = xFirst ? y : x;
-        Engine.Predicted ps = new Engine.Predicted(es, now), pt = new Engine.Predicted(et, now);
-        Filter.Axis[] axS = {ps.east, ps.north}, axT = {pt.east, pt.north};
+        Predicted ps = new Predicted(es, now), pt = new Predicted(et, now);
+        Axis[] axS = {ps.east, ps.north}, axT = {pt.east, pt.north};
         String key = es.source + "|" + et.source;
         PairState st = read(es.source, et.source);
         double[] yy = new double[2], r = new double[2], v = new double[2];

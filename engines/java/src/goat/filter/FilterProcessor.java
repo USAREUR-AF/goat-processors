@@ -1,7 +1,11 @@
-package filter;
+package goat.filter;
 
-import correlator.Engine.Result;
-import correlator.Reports;
+import goat.io.LoadError;
+import goat.io.Processor;
+import goat.model.KeyOrder;
+import goat.model.Report;
+import goat.trace.Records;
+import goat.trace.Result;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -11,7 +15,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /** The filter (spec filter.md): load_pack, ingest, tick, snapshot. */
-public final class Filter {
+public final class FilterProcessor implements Processor {
 
     /** Spec: Snapshot, the stored state of one entity. */
     static final class State {
@@ -22,35 +26,40 @@ public final class Filter {
         Long keptMs;
     }
 
-    private final Pack pack;
+    private final FilterPack pack;
     /** Entity key to state, in key order. */
-    private final TreeMap<String, State> entities = new TreeMap<>(Reports.KEY_ORDER);
+    private final TreeMap<String, State> entities = new TreeMap<>(KeyOrder.KEY_ORDER);
 
-    public Filter(Pack pack) {
+    public FilterProcessor(FilterPack pack) {
         this.pack = pack;
     }
 
-    public static Pack loadPack(java.nio.file.Path dir) throws Pack.LoadError {
-        return Pack.load(dir);
+    public static FilterProcessor load(java.nio.file.Path dir) throws LoadError {
+        return new FilterProcessor(FilterPack.load(dir));
+    }
+
+    public static FilterProcessor fromText(String packDef) throws LoadError {
+        return new FilterProcessor(FilterPack.parse(packDef));
     }
 
     // ---- ingest (spec: Reports, Rules) ----
 
+    @Override
     public Result ingest(Map<String, Object> report) {
         Result res = new Result();
         // Reports: the required keys, checked in order; a rejected report gives no
         // trace and changes no state. The filter never rejects as out of order.
-        String missing = Reports.missingKey(report);
+        String missing = Report.missingKey(report);
         if (missing != null) {
-            res.events.add(event("reject", "reason", "missing:" + missing));
+            res.events.add(Records.ev("reject", "reason", "missing:" + missing));
             return res;
         }
-        String key = Reports.entityKey(report);
-        Map<String, Object> r = Reports.present(report);   // optional-key rules applied
+        String key = Report.entityKey(report);
+        Map<String, Object> r = Report.present(report);   // optional-key rules applied
 
         // Rules 1 and 2: the first rule whose conditions all pass decides.
         String action = pack.defaultAction, ruleName = "default";
-        for (Pack.Rule rule : pack.rules) {
+        for (FilterPack.Rule rule : pack.rules) {
             boolean matches = true;
             for (Condition c : rule.conditions) {
                 Outcome o = evaluate(c, r, key);
@@ -70,7 +79,7 @@ public final class Filter {
         }
 
         // Rule 3: one event.
-        res.events.add(event(action, "entity", key, "rule", ruleName));
+        res.events.add(Records.ev(action, "entity", key, "rule", ruleName));
 
         // Rule 4: state, after the decision.
         long time = (Long) r.get("time_ms");
@@ -193,7 +202,7 @@ public final class Filter {
     /** `key` equality between the report's value v and a pack text t. */
     private static boolean keyEquals(Object v, String t) {
         if (v instanceof String) return v.equals(t);
-        if (v instanceof Number) return Pack.isNumber(t) && Double.parseDouble(t) == num(v);
+        if (v instanceof Number) return FilterPack.isNumber(t) && Double.parseDouble(t) == num(v);
         if (v instanceof Boolean) return t.equals((Boolean) v ? "true" : "false");
         return false;   // an array or an object is never equal
     }
@@ -214,6 +223,7 @@ public final class Filter {
 
     // ---- tick (spec: Tick) ----
 
+    @Override
     public Result tick(long nowMs) {
         Result res = new Result();
         Iterator<Map.Entry<String, State>> it = entities.entrySet().iterator();   // key order
@@ -231,7 +241,7 @@ public final class Filter {
             res.trace.add(rec);
             if (forget) {
                 it.remove();
-                res.events.add(event("forget", "entity", e.getKey()));
+                res.events.add(Records.ev("forget", "entity", e.getKey()));
             }
         }
         return res;
@@ -239,6 +249,7 @@ public final class Filter {
 
     // ---- snapshot (spec: Snapshot) ----
 
+    @Override
     public Map<String, Object> snapshot() {
         Map<String, Object> ents = new LinkedHashMap<>();
         for (Map.Entry<String, State> e : entities.entrySet()) {
@@ -259,13 +270,6 @@ public final class Filter {
     }
 
     // ---- events and trace (spec: Events, Trace) ----
-
-    private static Map<String, Object> event(String name, Object... kv) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("ev", name);
-        for (int k = 0; k < kv.length; k += 2) m.put((String) kv[k], kv[k + 1]);
-        return m;
-    }
 
     private static Map<String, Object> ruleRecord(String rule, String key, Condition c, Outcome o, boolean pass) {
         Map<String, Object> m = new LinkedHashMap<>();

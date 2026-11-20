@@ -1,6 +1,11 @@
-package quality;
+package goat.quality;
 
-import correlator.Filter.Axis;
+import goat.io.LoadError;
+import goat.io.Processor;
+import goat.model.Axis;
+import goat.model.Frame;
+import goat.model.Report;
+import goat.trace.Result;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -11,21 +16,15 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import static correlator.Engine.KEY_ORDER;
+import static goat.model.KeyOrder.KEY_ORDER;
 
 /**
  * The quality function: load_pack, ingest, tick, snapshot (spec/quality.md, version 0.2).
- * The frame and the per-entity filter are the correlate engine's own
- * (correlator.Engine.toPlane and correlator.Filter.Axis), as quality.md cites them, and so is
- * the reading of a report's time keys (correlator.Reports, correlate.md 0.8, Time quality).
+ * The frame and the per-entity filter are the shared model's ({@link Frame}, {@link Axis}), as
+ * quality.md cites correlate.md for them, and so is the reading of a report's required and time
+ * keys ({@link Report}, correlate.md 0.8, Reports and Time quality).
  */
-public final class Engine {
-
-    /** Events and trace returned by ingest and tick. */
-    public static final class Result {
-        public final List<Map<String, Object>> events = new ArrayList<>();
-        public final List<Map<String, Object>> trace = new ArrayList<>();
-    }
+public final class Quality implements Processor {
 
     // ---- state ----
 
@@ -83,42 +82,40 @@ public final class Engine {
         boolean active;
     }
 
-    private final Pack pack;
+    private final QualityPack pack;
     private Double lat0, lon0;
     private Long lastTick;
     private final TreeMap<String, Entity> entities = new TreeMap<>(KEY_ORDER);
     /** Rule name (pack order) -> subject (key order) -> state. */
     private final LinkedHashMap<String, TreeMap<String, RuleState>> ruleStates = new LinkedHashMap<>();
 
-    public Engine(Pack pack) {
+    public Quality(QualityPack pack) {
         this.pack = pack;
-        for (Pack.Rule r : pack.rules) ruleStates.put(r.name, new TreeMap<>(KEY_ORDER));
+        for (QualityPack.Rule r : pack.rules) ruleStates.put(r.name, new TreeMap<>(KEY_ORDER));
     }
 
-    public static Pack loadPack(java.nio.file.Path dir) throws Pack.LoadError {
-        return Pack.load(dir);
+    public static Quality load(java.nio.file.Path dir) throws LoadError {
+        return new Quality(QualityPack.load(dir));
+    }
+
+    public static Quality fromText(String packDef) throws LoadError {
+        return new Quality(QualityPack.parse(packDef));
     }
 
     // ---- ingest (spec: Reports, Order, Frame and filter, Samples, Ingest, Forwarding) ----
 
-    private static final String[] REQUIRED = {"track.source_id", "uid", "time_ms", "lat", "lon"};
-
+    @Override
     public Result ingest(Map<String, Object> report) {
         Result res = new Result();
 
         // Reports: required keys, in table order (as correlate.md, section Reports).
-        for (String k : REQUIRED) {
-            Object o = report.get(k);
-            boolean ok = k.equals("time_ms") ? o instanceof Long
-                    : k.equals("lat") || k.equals("lon") ? o instanceof Number
-                    : o instanceof String;
-            if (!ok) {
-                res.events.add(ev("reject", "reason", "missing:" + k));
-                return res;
-            }
+        String missing = Report.missingKey(report);
+        if (missing != null) {
+            res.events.add(ev("reject", "reason", "missing:" + missing));
+            return res;
         }
         String source = (String) report.get("track.source_id");
-        String key = source + "/" + report.get("uid");
+        String key = Report.entityKey(report);
         long t = (Long) report.get("time_ms");
         double lat = ((Number) report.get("lat")).doubleValue();
         double lon = ((Number) report.get("lon")).doubleValue();
@@ -135,7 +132,7 @@ public final class Engine {
             lat0 = lat;
             lon0 = lon;
         }
-        double[] en = correlator.Engine.toPlane(lat0, lon0, lat, lon);
+        double[] en = Frame.toPlane(lat0, lon0, lat, lon);
         double e = en[0], n = en[1];
 
         // Order.
@@ -173,11 +170,11 @@ public final class Engine {
         }
         // Reports, Time quality: per key, the report's valid value, else the pack's
         // time_default for the report's own source, else unstated (no sample).
-        Double ownError = correlator.Reports.reportTimeError(report);
+        Double ownError = Report.reportTimeError(report);
         Double defaultError = pack.defaultErrorMs.get(source);
         rec.timeError = ownError != null ? ownError : defaultError;
         if (rec.timeError != null) res.trace.add(sample(key, "time_error", rec.timeError, ownError, defaultError));
-        String ownState = correlator.Reports.reportTimeState(report);
+        String ownState = Report.reportTimeState(report);
         String defaultState = pack.defaultState.get(source);
         rec.timeState = ownState != null ? ownState : defaultState;
         if (rec.timeState != null) res.trace.add(sample(key, "time_state", rec.timeState, ownState, defaultState));
@@ -206,7 +203,7 @@ public final class Engine {
         // Create the entity, or update its filter, last and last_pos as the order says.
         double ve = 0, vn = 0;
         if (hasVel) {
-            double c = correlator.Engine.rad(course);
+            double c = Frame.rad(course);
             ve = speed * Math.sin(c);
             vn = speed * Math.cos(c);
         }
@@ -273,8 +270,8 @@ public final class Engine {
     /** Spec: Forwarding, the `pass` event for an accepted report of entity a. */
     private Map<String, Object> pass(Entity a, Map<String, Object> report, Double validCe) {
         // Actions in force other than alert, in pack order.
-        List<Pack.Rule> inForce = new ArrayList<>();
-        for (Pack.Rule rule : pack.rules) {
+        List<QualityPack.Rule> inForce = new ArrayList<>();
+        for (QualityPack.Rule rule : pack.rules) {
             if (rule.action.equals("alert")) continue;
             String subject = rule.scope.equals("entity") ? a.key : a.source;
             RuleState st = ruleStates.get(rule.name).get(subject);
@@ -282,7 +279,7 @@ public final class Engine {
         }
         List<Object> names = new ArrayList<>();
         boolean drop = false, downgrade = false, mark = false;
-        for (Pack.Rule rule : inForce) {
+        for (QualityPack.Rule rule : inForce) {
             names.add(rule.name);
             drop |= rule.action.equals("drop");
             downgrade |= rule.action.equals("downgrade");
@@ -297,7 +294,7 @@ public final class Engine {
         Map<String, Object> out = new LinkedHashMap<>(report);
         if (downgrade) {
             double x = validCe != null ? validCe : pack.defaultCe;
-            for (Pack.Rule rule : inForce) if (rule.action.equals("downgrade")) x = x * rule.factor;
+            for (QualityPack.Rule rule : inForce) if (rule.action.equals("downgrade")) x = x * rule.factor;
             // An x that overflowed to infinity is forwarded as the largest finite binary64.
             out.put("ce", Double.isInfinite(x) ? Double.MAX_VALUE : x);
         }
@@ -306,7 +303,7 @@ public final class Engine {
             Object got = report.get("quality.marks");
             if (got instanceof List && ((List<?>) got).stream().allMatch(o -> o instanceof String))
                 marks.addAll((List<?>) got);
-            for (Pack.Rule rule : inForce)
+            for (QualityPack.Rule rule : inForce)
                 if (rule.action.equals("mark") && !marks.contains(rule.name)) marks.add(rule.name);
             out.put("quality.marks", marks);
         }
@@ -316,6 +313,7 @@ public final class Engine {
 
     // ---- tick (spec: Tick, Window, Entity measures, Source measures, Rules) ----
 
+    @Override
     public Result tick(long now) {
         Result res = new Result();
 
@@ -375,7 +373,7 @@ public final class Engine {
 
     /** Tick steps 2 and 3: end each active rule of the scope for the subject, drop its states. */
     private void forgetSubject(String scope, String subject, Result res) {
-        for (Pack.Rule rule : pack.rules) {
+        for (QualityPack.Rule rule : pack.rules) {
             if (!rule.scope.equals(scope)) continue;
             RuleState st = ruleStates.get(rule.name).remove(subject);
             if (st != null && st.active)
@@ -443,7 +441,7 @@ public final class Engine {
     /** Spec: Source measures, aggregating its entities' measures (given in key order). */
     private static Map<String, Object> sourceMeasures(List<Map<String, Object>> members) {
         Map<String, Object> m = new LinkedHashMap<>();
-        for (String name : Pack.ENTITY_MEASURES) {
+        for (String name : QualityPack.ENTITY_MEASURES) {
             List<Number> present = new ArrayList<>();
             for (Map<String, Object> em : members) if (em.get(name) != null) present.add((Number) em.get(name));
             switch (name) {
@@ -514,7 +512,7 @@ public final class Engine {
 
     /** Spec: Rules, Evaluation; one trace record per rule (spec: Trace). */
     private void evaluate(String scope, String subject, Map<String, Object> measures, Result res) {
-        for (Pack.Rule rule : pack.rules) {
+        for (QualityPack.Rule rule : pack.rules) {
             if (!rule.scope.equals(scope)) continue;
             RuleState st = ruleStates.get(rule.name).computeIfAbsent(subject, s -> new RuleState());
             Object v = measures.get(rule.measure);
@@ -553,9 +551,10 @@ public final class Engine {
 
     // ---- snapshot (spec: Snapshot) ----
 
+    @Override
     public Map<String, Object> snapshot() {
         Map<String, Object> s = new LinkedHashMap<>();
-        s.put("ref", lat0 == null ? null : List.of(lat0, lon0));
+        s.put("ref", goat.snapshot.Snapshots.ref(lat0, lon0));
         s.put("last_tick", lastTick);
         Map<String, Object> ents = new LinkedHashMap<>();
         for (Entity ent : entities.values()) {

@@ -1,8 +1,9 @@
-package filter;
+package goat.filter;
+
+import goat.io.LoadError;
+import goat.io.PackFile;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -13,16 +14,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /** Spec filter.md, section Pack: `load_pack` and the `pack.def` parser. */
-public final class Pack {
-
-    /** Any failure to load a pack. */
-    public static final class LoadError extends Exception {
-        private static final long serialVersionUID = 1L;
-
-        LoadError(int line, String message) {
-            super((line > 0 ? "line " + line + ": " : "") + message);
-        }
-    }
+public final class FilterPack {
 
     /** A rule: a name, an action (`keep` or `drop`) and its conditions in pack order. */
     public static final class Rule {
@@ -43,18 +35,22 @@ public final class Pack {
     public long forgetMs;
     public final List<Rule> rules = new ArrayList<>();
 
+    private static LoadError err(int line, String message) {
+        return new LoadError((line > 0 ? "line " + line + ": " : "") + message);
+    }
+
     /** load_pack(dir): reads `dir/pack.def`. */
-    public static Pack load(Path dir) throws LoadError {
+    public static FilterPack load(Path dir) throws LoadError {
         try {
-            return parse(new String(Files.readAllBytes(dir.resolve("pack.def")), StandardCharsets.UTF_8));
+            return parse(PackFile.read(dir));
         } catch (IOException e) {
-            throw new LoadError(0, "cannot read pack.def: " + e.getMessage());
+            throw err(0, "cannot read pack.def: " + e.getMessage());
         }
     }
 
     /** Parses the text of a `pack.def`. */
-    public static Pack parse(String text) throws LoadError {
-        Pack p = new Pack();
+    public static FilterPack parse(String text) throws LoadError {
+        FilterPack p = new FilterPack();
         Set<String> seen = new HashSet<>();
         Set<String> ruleNames = new HashSet<>();
         Rule current = null;
@@ -75,8 +71,8 @@ public final class Pack {
                 case "version":
                 case "default":
                 case "forget_ms": {
-                    if (!seen.add(directive)) throw new LoadError(lineNo, "repeated " + directive);
-                    if (nargs != 1) throw new LoadError(lineNo, directive + " takes one argument");
+                    if (!seen.add(directive)) throw err(lineNo, "repeated " + directive);
+                    if (nargs != 1) throw err(lineNo, directive + " takes one argument");
                     String arg = tok[1];
                     if (directive.equals("pack")) p.name = arg;
                     else if (directive.equals("version")) p.version = arg;
@@ -85,35 +81,35 @@ public final class Pack {
                     break;
                 }
                 case "rule": {
-                    if (nargs != 2) throw new LoadError(lineNo, "rule takes a name and an action");
+                    if (nargs != 2) throw err(lineNo, "rule takes a name and an action");
                     String name = tok[1];
-                    if (name.equals("default")) throw new LoadError(lineNo, "a rule cannot be named default");
-                    if (!ruleNames.add(name)) throw new LoadError(lineNo, "repeated rule " + name);
+                    if (name.equals("default")) throw err(lineNo, "a rule cannot be named default");
+                    if (!ruleNames.add(name)) throw err(lineNo, "repeated rule " + name);
                     if (current != null && current.conditions.isEmpty())
-                        throw new LoadError(lineNo, "rule " + current.name + " has no when line");
+                        throw err(lineNo, "rule " + current.name + " has no when line");
                     current = new Rule(name, action(lineNo, tok[2]));
                     p.rules.add(current);
                     break;
                 }
                 case "when": {
-                    if (current == null) throw new LoadError(lineNo, "when before the first rule");
+                    if (current == null) throw err(lineNo, "when before the first rule");
                     current.conditions.add(when(lineNo, tok));
                     break;
                 }
                 default:
-                    throw new LoadError(lineNo, "unknown directive " + directive);
+                    throw err(lineNo, "unknown directive " + directive);
             }
         }
         if (current != null && current.conditions.isEmpty())
-            throw new LoadError(0, "rule " + current.name + " has no when line");
+            throw err(0, "rule " + current.name + " has no when line");
         for (String d : new String[] {"pack", "version", "default", "forget_ms"})
-            if (!seen.contains(d)) throw new LoadError(0, "missing " + d);
+            if (!seen.contains(d)) throw err(0, "missing " + d);
         return p;
     }
 
     private static String action(int lineNo, String a) throws LoadError {
         if (a.equals("keep") || a.equals("drop")) return a;
-        throw new LoadError(lineNo, "action must be keep or drop: " + a);
+        throw err(lineNo, "action must be keep or drop: " + a);
     }
 
     // ---- when lines ----
@@ -144,22 +140,22 @@ public final class Pack {
             negated = true;
             i++;
         }
-        if (i >= tok.length) throw new LoadError(lineNo, "when without a condition");
+        if (i >= tok.length) throw err(lineNo, "when without a condition");
         String test = tok[i++];
         List<Set<String>> sets = PARAMETER_SETS.get(test);
-        if (sets == null) throw new LoadError(lineNo, "unknown condition " + test);
+        if (sets == null) throw err(lineNo, "unknown condition " + test);
 
         // The name is the text before the first `=` and the value is the rest.
         Map<String, String> params = new LinkedHashMap<>();
         for (; i < tok.length; i++) {
             int eq = tok[i].indexOf('=');
-            if (eq < 0) throw new LoadError(lineNo, "parameter without '=': " + tok[i]);
+            if (eq < 0) throw err(lineNo, "parameter without '=': " + tok[i]);
             String name = tok[i].substring(0, eq);
             if (params.put(name, tok[i].substring(eq + 1)) != null)
-                throw new LoadError(lineNo, "parameter given twice: " + name);
+                throw err(lineNo, "parameter given twice: " + name);
         }
         if (!sets.contains(params.keySet()))
-            throw new LoadError(lineNo, test + " does not take parameters " + params.keySet());
+            throw err(lineNo, test + " does not take parameters " + params.keySet());
 
         Condition c = new Condition(test, negated);
         for (Map.Entry<String, String> e : params.entrySet()) {
@@ -169,7 +165,7 @@ public final class Pack {
                 case "lon": c.lon = longitude(lineNo, v); break;
                 case "radius_m":
                     c.radiusM = number(lineNo, "radius_m", v);
-                    if (c.radiusM < 0) throw new LoadError(lineNo, "radius_m below 0");
+                    if (c.radiusM < 0) throw err(lineNo, "radius_m below 0");
                     break;
                 case "min": c.min = number(lineNo, "min", v); break;
                 case "max": c.max = number(lineNo, "max", v); break;
@@ -184,7 +180,7 @@ public final class Pack {
             }
         }
         if (c.min != null && c.max != null && c.min > c.max)
-            throw new LoadError(lineNo, "min above max");
+            throw err(lineNo, "min above max");
         return c;
     }
 
@@ -200,47 +196,47 @@ public final class Pack {
 
     /** A number, read as the nearest binary64. */
     private static double number(int lineNo, String what, String t) throws LoadError {
-        if (!isNumber(t)) throw new LoadError(lineNo, what + " is not a number: " + t);
+        if (!isNumber(t)) throw err(lineNo, what + " is not a number: " + t);
         return Double.parseDouble(t);
     }
 
     private static double latitude(int lineNo, String t) throws LoadError {
         double v = number(lineNo, "lat", t);
-        if (v < -90 || v > 90) throw new LoadError(lineNo, "lat out of range: " + t);
+        if (v < -90 || v > 90) throw err(lineNo, "lat out of range: " + t);
         return v;
     }
 
     private static double longitude(int lineNo, String t) throws LoadError {
         double v = number(lineNo, "lon", t);
-        if (v < -180 || v > 180) throw new LoadError(lineNo, "lon out of range: " + t);
+        if (v < -180 || v > 180) throw err(lineNo, "lon out of range: " + t);
         return v;
     }
 
     /** An integer `[0-9]+`, at most 9223372036854775807. */
     private static long integer(int lineNo, String what, String t) throws LoadError {
-        if (!INTEGER.matcher(t).matches()) throw new LoadError(lineNo, what + " is not an integer: " + t);
+        if (!INTEGER.matcher(t).matches()) throw err(lineNo, what + " is not an integer: " + t);
         try {
             return Long.parseLong(t);
         } catch (NumberFormatException e) {
-            throw new LoadError(lineNo, what + " above 9223372036854775807");
+            throw err(lineNo, what + " above 9223372036854775807");
         }
     }
 
     private static long integerAbove0(int lineNo, String what, String t) throws LoadError {
         long v = integer(lineNo, what, t);
-        if (v <= 0) throw new LoadError(lineNo, what + " must be above 0");
+        if (v <= 0) throw err(lineNo, what + " must be above 0");
         return v;
     }
 
     /** `<lat>,<lon>;<lat>,<lon>;...` with at least three pairs. */
     private static void vertices(int lineNo, String t, Condition c) throws LoadError {
         String[] pairs = t.split(";", -1);
-        if (pairs.length < 3) throw new LoadError(lineNo, "a polygon needs at least three vertices");
+        if (pairs.length < 3) throw err(lineNo, "a polygon needs at least three vertices");
         c.vertexLat = new double[pairs.length];
         c.vertexLon = new double[pairs.length];
         for (int k = 0; k < pairs.length; k++) {
             String[] ll = pairs[k].split(",", -1);
-            if (ll.length != 2) throw new LoadError(lineNo, "bad vertex: " + pairs[k]);
+            if (ll.length != 2) throw err(lineNo, "bad vertex: " + pairs[k]);
             c.vertexLat[k] = latitude(lineNo, ll[0]);
             c.vertexLon[k] = longitude(lineNo, ll[1]);
         }
@@ -249,13 +245,13 @@ public final class Pack {
     /** One or more non-empty items separated by `,`. */
     private static List<String> list(int lineNo, String t) throws LoadError {
         List<String> items = List.of(t.split(",", -1));
-        for (String s : items) if (s.isEmpty()) throw new LoadError(lineNo, "empty list item in: " + t);
+        for (String s : items) if (s.isEmpty()) throw err(lineNo, "empty list item in: " + t);
         return items;
     }
 
     /** A non-empty token. */
     private static String token(int lineNo, String what, String t) throws LoadError {
-        if (t.isEmpty()) throw new LoadError(lineNo, what + " is empty");
+        if (t.isEmpty()) throw err(lineNo, what + " is empty");
         return t;
     }
 }

@@ -1,4 +1,4 @@
-package filter;
+package goat.filter;
 
 import java.util.List;
 

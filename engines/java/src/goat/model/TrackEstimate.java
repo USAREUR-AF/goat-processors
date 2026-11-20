@@ -1,4 +1,4 @@
-package correlator;
+package goat.model;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -9,72 +9,10 @@ import java.util.Map;
  * An entity's estimate: correlate.md, Track estimate (one constant-velocity filter) and
  * Two-model filter (two such filters with shared mode probabilities).
  */
-public final class Filter {
+public final class TrackEstimate {
 
-    /** Track estimate: one axis of the constant-velocity filter, {@code [p, v, pp, pv, vv]}. */
-    public static final class Axis {
-        public double p, v, pp, pv, vv;
-
-        public Axis(double p, double v, double pp, double pv, double vv) {
-            this.p = p; this.v = v; this.pp = pp; this.pv = pv; this.vv = vv;
-        }
-
-        public Axis copy() {
-            return new Axis(p, v, pp, pv, vv);
-        }
-
-        /** Step 1, predict over dt seconds with acceleration variance q. */
-        public void predict(double dt, double q) {
-            double p0 = p, v0 = v, pp0 = pp, pv0 = pv, vv0 = vv;
-            p = p0 + v0 * dt;
-            pp = pp0 + 2 * dt * pv0 + dt * dt * vv0 + q * dt * dt * dt * dt / 4;
-            pv = pv0 + dt * vv0 + q * dt * dt * dt / 2;
-            vv = vv0 + q * dt * dt;
-        }
-
-        /** Step 2, position update; returns the likelihood term {@code y*y/s + ln(s)} (Two-model filter step 3). */
-        public double updatePosition(double z, double r) {
-            double p0 = p, v0 = v, pp0 = pp, pv0 = pv, vv0 = vv;
-            double s = pp0 + r, k1 = pp0 / s, k2 = pv0 / s, y = z - p0;
-            p = p0 + k1 * y;
-            v = v0 + k2 * y;
-            pp = (1 - k1) * pp0;
-            pv = (1 - k1) * pv0;
-            vv = vv0 - k2 * pv0;
-            return y * y / s + Math.log(s);
-        }
-
-        /** Step 3, velocity update; returns the likelihood term {@code y*y/s + ln(s)}. */
-        public double updateVelocity(double z, double r) {
-            double p0 = p, v0 = v, pp0 = pp, pv0 = pv, vv0 = vv;
-            double s = vv0 + r, k1 = pv0 / s, k2 = vv0 / s, y = z - v0;
-            p = p0 + k1 * y;
-            v = v0 + k2 * y;
-            pp = pp0 - k1 * pv0;
-            pv = (1 - k2) * pv0;
-            vv = (1 - k2) * vv0;
-            return y * y / s + Math.log(s);
-        }
-
-        public List<Object> toList() {
-            return List.of(p, v, pp, pv, vv);
-        }
-    }
-
-    /** The measurements of one report, in the plane. */
-    static final class Measurement {
-        final double[] z;      // east, north position
-        final double[] r;      // east, north measurement variance (Track estimate, Measurement variance)
-        final boolean hasVel;
-        final double[] zv;     // east, north velocity
-
-        Measurement(double[] z, double[] r, boolean hasVel, double ve, double vn) {
-            this.z = z;
-            this.r = r;
-            this.hasVel = hasVel;
-            this.zv = new double[] {ve, vn};
-        }
-    }
+    /** Model names of Two-model filter, index 0 is model 1. */
+    public static final String[] MODEL = {"quiet", "maneuver"};
 
     /** Two-model filter, step 1: {@code blend(w1, w2)} of two states of one axis. */
     static Axis blend(double w1, Axis m1, double w2, Axis m2) {
@@ -87,10 +25,7 @@ public final class Filter {
         return new Axis(p, v, pp, pv, vv);
     }
 
-    /** Model names of Two-model filter, index 0 is model 1. */
-    static final String[] MODEL = {"quiet", "maneuver"};
-
-    private final Pack pack;
+    private final FilterParams fp;
     /** The entity's filter: the only one, or the combination of the two models. */
     Axis[] axes;
     /** With {@code maneuver}: models[j] is model j+1's {east, north}; mu[j] its mode probability. */
@@ -98,42 +33,42 @@ public final class Filter {
     double[] mu;
 
     /** Track estimate, first report (and Two-model filter, first report): pp is that axis's r. */
-    Filter(Pack pack, Measurement m) {
-        this.pack = pack;
-        double vv = m.hasVel ? pack.velSigma * pack.velSigma : pack.unknownVel * pack.unknownVel;
+    public TrackEstimate(FilterParams fp, Measurement m) {
+        this.fp = fp;
+        double vv = m.hasVel ? fp.velSigma * fp.velSigma : fp.unknownVel * fp.unknownVel;
         axes = new Axis[2];
         for (int k = 0; k < 2; k++) axes[k] = new Axis(m.z[k], m.hasVel ? m.zv[k] : 0, m.r[k], 0, vv);
-        if (pack.maneuver) {
+        if (fp.maneuver) {
             models = new Axis[][] {{axes[0].copy(), axes[1].copy()}, {axes[0].copy(), axes[1].copy()}};
-            double s = pack.pEnter + pack.pLeave;
-            mu = new double[] {pack.pLeave / s, pack.pEnter / s};
+            double s = fp.pEnter + fp.pLeave;
+            mu = new double[] {fp.pLeave / s, fp.pEnter / s};
         }
     }
 
-    Axis east() {
+    public Axis east() {
         return axes[0];
     }
 
-    Axis north() {
+    public Axis north() {
         return axes[1];
     }
 
     /** Model j's acceleration variance (index 0 is {@code quiet}). */
     private double q(int j) {
-        return j == 0 ? pack.accelVar : pack.maneuverAccelVar;
+        return j == 0 ? fp.accelVar : fp.maneuverAccelVar;
     }
 
     /**
      * A later report dt seconds after the last. Returns the Two-model filter trace values
      * {@code [lambda1, lambda2, mu1, mu2]}, or null with one filter.
      */
-    double[] update(double dt, Measurement m) {
-        if (!pack.maneuver) {
-            for (int k = 0; k < 2; k++) predictAndUpdate(axes[k], k, dt, pack.accelVar, m);
+    public double[] update(double dt, Measurement m) {
+        if (!fp.maneuver) {
+            for (int k = 0; k < 2; k++) predictAndUpdate(axes[k], k, dt, fp.accelVar, m);
             return null;
         }
         // Switching over dt seconds: t[i][j] is the probability of model j given model i.
-        double a = pack.pEnter, b = pack.pLeave;
+        double a = fp.pEnter, b = fp.pLeave;
         double s = a + b;
         double l = Math.pow(1 - s, dt);
         double t12 = a / s * (1 - l);
@@ -163,7 +98,7 @@ public final class Filter {
             double g = 0;
             for (int k = 0; k < 2; k++) g += ax[k].updatePosition(m.z[k], m.r[k]);
             if (m.hasVel)
-                for (int k = 0; k < 2; k++) g += ax[k].updateVelocity(m.zv[k], pack.velSigma * pack.velSigma);
+                for (int k = 0; k < 2; k++) g += ax[k].updateVelocity(m.zv[k], fp.velSigma * fp.velSigma);
             lambda[j] = -0.5 * g;
             models[j] = ax;
         }
@@ -177,7 +112,7 @@ public final class Filter {
         mu = new double[] {e[0] / sum, e[1] / sum};
 
         // 5. Combination.
-        combine();
+        for (int k = 0; k < 2; k++) axes[k] = blend(mu[0], models[0][k], mu[1], models[1][k]);
         return new double[] {lambda[0], lambda[1], mu[0], mu[1]};
     }
 
@@ -185,23 +120,19 @@ public final class Filter {
     private void predictAndUpdate(Axis ax, int k, double dt, double q, Measurement m) {
         ax.predict(dt, q);
         ax.updatePosition(m.z[k], m.r[k]);
-        if (m.hasVel) ax.updateVelocity(m.zv[k], pack.velSigma * pack.velSigma);
-    }
-
-    private void combine() {
-        for (int k = 0; k < 2; k++) axes[k] = blend(mu[0], models[0][k], mu[1], models[1][k]);
+        if (m.hasVel) ax.updateVelocity(m.zv[k], fp.velSigma * fp.velSigma);
     }
 
     /**
      * Prediction to dt seconds after the last report, on copies: the filter predicted, or with two
      * models each model predicted with its own q and combined by the current mode probabilities.
      */
-    Axis[] predicted(double dt) {
+    public Axis[] predicted(double dt) {
         Axis[] out = new Axis[2];
         for (int k = 0; k < 2; k++) {
-            if (!pack.maneuver) {
+            if (!fp.maneuver) {
                 out[k] = axes[k].copy();
-                out[k].predict(dt, pack.accelVar);
+                out[k].predict(dt, fp.accelVar);
             } else {
                 Axis m1 = models[0][k].copy(), m2 = models[1][k].copy();
                 m1.predict(dt, q(0));
@@ -213,16 +144,17 @@ public final class Filter {
     }
 
     /** Snapshot: {@code filter}, and with two models {@code models} and {@code mode}. */
-    void putSnapshot(Map<String, Object> entity) {
+    public void putSnapshot(Map<String, Object> entity) {
         entity.put("filter", axesMap(axes));
-        if (!pack.maneuver) return;
+        if (!fp.maneuver) return;
         Map<String, Object> ms = new LinkedHashMap<>();
         for (int j = 0; j < 2; j++) ms.put(MODEL[j], axesMap(models[j]));
         entity.put("models", ms);
         entity.put("mode", new ArrayList<Object>(List.of(mu[0], mu[1])));
     }
 
-    private static Map<String, Object> axesMap(Axis[] ax) {
+    /** Snapshot: {@code {"east": [...], "north": [...]}}. */
+    public static Map<String, Object> axesMap(Axis[] ax) {
         Map<String, Object> f = new LinkedHashMap<>();
         f.put("east", ax[0].toList());
         f.put("north", ax[1].toList());

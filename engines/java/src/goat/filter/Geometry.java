@@ -1,4 +1,4 @@
-package filter;
+package goat.filter;
 
 /** Spec filter.md, section Geometry. Every formula is evaluated in the order written there. */
 final class Geometry {
@@ -66,7 +66,7 @@ final class Geometry {
     }
 
     /** Reference prediction: {lat_p, lon_p} of the stored state predicted to time t. */
-    static double[] predict(Filter.State ref, long t) {
+    static double[] predict(FilterProcessor.State ref, long t) {
         // 1.
         double dt = (t - ref.timeMs) / 1000.0;
         // 2.

@@ -1,24 +1,21 @@
-package correlator;
+package goat.model;
 
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Spec correlate.md, section Reports: the required keys, the optional-key rules
- * and the entity key. The correlator and the filter (filter.md, Reports) both
- * read reports this way.
+ * correlate.md, Reports: the required keys, the optional-key rules, the entity key, and Time
+ * quality. Every function reads reports this way (filter.md, fuse.md and quality.md cite it).
  */
-public final class Reports {
-    private Reports() {}
+public final class Report {
+    private Report() {}
 
     /** The required keys, in the order they are checked. */
     public static final String[] REQUIRED = {"track.source_id", "uid", "time_ms", "lat", "lon"};
 
-    /** "Key order" is ascending byte order; UTF-8 byte order equals code point order. */
-    public static final Comparator<String> KEY_ORDER = (x, y) -> Arrays.compare(
-            x.codePoints().toArray(), y.codePoints().toArray());
+    /** correlate.md, Reports, "Time quality": the three clock states. */
+    public static final Set<String> TIME_STATES = Set.of("coherent", "drifting", "free-running");
 
     /**
      * The first required key that is missing (absent, null or of the wrong type),
@@ -60,10 +57,9 @@ public final class Reports {
     }
 
     /**
-     * Time quality (correlate.md, Reports, "Time quality"): the report's {@code time_error_ms}
-     * when present, a number, finite and 0 or above; otherwise the pack's {@code time_default}
-     * {@code error_ms} for the report's source; otherwise 0, the exact time of every version
-     * before 0.8. A value of the wrong type, negative or not finite is absent, never a reject.
+     * Time quality: the report's {@code time_error_ms} when present, a number, finite and 0 or
+     * above; otherwise the pack's {@code time_default} {@code error_ms} for the report's source;
+     * otherwise 0. A value of the wrong type, negative or not finite is absent, never a reject.
      */
     public static double timeError(Map<String, Object> report, Map<String, Map<String, Object>> defaults) {
         Double own = reportTimeError(report);
@@ -75,9 +71,8 @@ public final class Reports {
 
     /**
      * The report's time state, found per key as {@link #timeError}: its {@code time_state} when it
-     * is one of {@code coherent}, {@code drifting}, {@code free-running} (byte for byte), else the
-     * pack's {@code time_default} state for its source, else {@code coherent}. Correlate parses
-     * and validates it but does not use it in this version.
+     * is one of the three states (byte for byte), else the pack's {@code time_default} state for
+     * its source, else {@code coherent}. Correlate parses and validates it but does not use it.
      */
     public static String timeState(Map<String, Object> report, Map<String, Map<String, Object>> defaults) {
         String own = reportTimeState(report);
@@ -87,11 +82,7 @@ public final class Reports {
         return "coherent";
     }
 
-    /**
-     * Time quality, step 1: the report's own {@code time_error_ms} when it is valid (a number,
-     * finite and 0 or above), else null. Quality (quality.md, Reports, "Time quality") reads the
-     * key the same way.
-     */
+    /** Time quality, step 1: the report's own valid {@code time_error_ms}, else null. Quality reuses it. */
     public static Double reportTimeError(Map<String, Object> report) {
         Object o = report.get("time_error_ms");
         if (!(o instanceof Number)) return null;
@@ -99,12 +90,15 @@ public final class Reports {
         return Double.isFinite(te) && te >= 0 ? te : null;
     }
 
-    /**
-     * Time quality, step 1: the report's own {@code time_state} when it is one of the three
-     * states (byte for byte), else null. Quality reads the key the same way.
-     */
+    /** Time quality, step 1: the report's own valid {@code time_state}, else null. Quality reuses it. */
     public static String reportTimeState(Map<String, Object> report) {
         Object o = report.get("time_state");
-        return o instanceof String && Pack.TIME_STATES.contains(o) ? (String) o : null;
+        return o instanceof String && TIME_STATES.contains(o) ? (String) o : null;
+    }
+
+    /** A number-valued key of a report, or null; a boolean is never a number. */
+    public static Double number(Map<String, Object> report, String k) {
+        Object o = report.get(k);
+        return o instanceof Number ? ((Number) o).doubleValue() : null;
     }
 }

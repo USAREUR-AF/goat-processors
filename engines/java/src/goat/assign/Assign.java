@@ -1,4 +1,4 @@
-package correlator;
+package goat.assign;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,126 +10,59 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import correlator.Engine.Entity;
-import correlator.Engine.Result;
+import goat.correlate.CorrelatePack;
+import goat.correlate.Correlator;
+import goat.correlate.Entity;
+import goat.correlate.FrameMove;
+import goat.correlate.Method;
+import goat.correlate.Predicted;
+import goat.model.Axis;
+import goat.model.Frame;
+import goat.model.InverseVariance;
+import goat.model.KeyOrder;
+import goat.trace.Records;
+import goat.trace.Result;
 
 /**
  * Method assign: correlate-assign.md. The entities, their filters and the tests are the
  * engine's; this class holds the memberships, the histories and the tick.
  */
-final class Assign {
+public final class Assign implements Method {
 
-    // ---- Memberships ----
-
-    /** One picture of the system tracks: members per track in creation order, and the counter. */
-    static final class Membership {
-        final LinkedHashMap<String, TreeSet<String>> systems = new LinkedHashMap<>();
-        long nextSystem = 1;
-
-        Membership copy() {
-            Membership m = new Membership();
-            for (Map.Entry<String, TreeSet<String>> s : systems.entrySet())
-                m.systems.put(s.getKey(), new TreeSet<>(s.getValue()));
-            m.nextSystem = nextSystem;
-            return m;
-        }
-
-        /** The system track holding the entity, or null. */
-        String systemOf(String key) {
-            for (Map.Entry<String, TreeSet<String>> s : systems.entrySet())
-                if (s.getValue().contains(key)) return s.getKey();
-            return null;
-        }
-
-        /** The entity is the only member of its system track. */
-        boolean isAlone(String key) {
-            String s = systemOf(key);
-            return s != null && systems.get(s).size() == 1;
-        }
-
-        /** The entity leaves its system track (event leave); a track left empty ends (event end). */
-        void leave(String key, String reason, List<Map<String, Object>> events) {
-            String s = systemOf(key);
-            TreeSet<String> members = systems.get(s);
-            members.remove(key);
-            events.add(Engine.ev("leave", "system", s, "entity", key, "reason", reason));
-            if (members.isEmpty()) {
-                systems.remove(s);
-                events.add(Engine.ev("end", "system", s));
-            }
-        }
-
-        Map<String, Object> systemsMap() {
-            Map<String, Object> ss = new LinkedHashMap<>();
-            for (Map.Entry<String, TreeSet<String>> s : systems.entrySet())
-                ss.put(s.getKey(), new ArrayList<Object>(s.getValue()));
-            return ss;
-        }
-    }
-
-    /** One pending tick of a history. Never changed once a later record or a copy exists. */
-    static final class Record {
-        double cost;
-        final List<List<Object>> choices = new ArrayList<>();
-        final List<Map<String, Object>> events = new ArrayList<>();
-        Membership membership;
-
-        Record(Membership membership) {
-            this.membership = membership;
-        }
-
-        Record copy() {
-            Record r = new Record(membership.copy());
-            r.cost = cost;
-            r.choices.addAll(choices);
-            r.events.addAll(events);
-            return r;
-        }
-    }
-
-    /** A list of pending ticks, oldest first. */
-    static final class History {
-        final List<Record> records;
-
-        History(List<Record> records) {
-            this.records = records;
-        }
-
-        /** Memberships: the sum, left to right from 0, of the records' cost, oldest first. */
-        double total() {
-            double t = 0;
-            for (Record r : records) t += r.cost;
-            return t;
-        }
-
-        Record newest() {
-            return records.get(records.size() - 1);
-        }
-    }
-
-    private final Engine engine;
-    private final Pack pack;
+    private final Correlator engine;
+    private final CorrelatePack pack;
+    /** correlate-assign.md, Sensor bias, or null without the {@code bias} line. */
+    private final Bias bias;
     private final boolean windowed;
     private Membership committed = new Membership();
     /** In rank order; at the start one history with no records. */
     private List<History> histories = new ArrayList<>(List.of(new History(new ArrayList<>())));
     /** The entities with an accepted report since the previous tick. */
-    private final TreeSet<String> reported = new TreeSet<>(Engine.KEY_ORDER);
+    private final TreeSet<String> reported = new TreeSet<>(KeyOrder.KEY_ORDER);
     /** correlate.md, Restart: the entities whose filter started again since the previous tick. */
-    private final TreeSet<String> restarted = new TreeSet<>(Engine.KEY_ORDER);
+    private final TreeSet<String> restarted = new TreeSet<>(KeyOrder.KEY_ORDER);
 
-    Assign(Engine engine, Pack pack) {
+    public Assign(Correlator engine, CorrelatePack pack) {
         this.engine = engine;
         this.pack = pack;
+        this.bias = pack.bias ? new Bias(pack) : null;
         this.windowed = pack.window > 1;
     }
 
-    void reported(String key) {
-        reported.add(key);
+    /** A report gives only {@code new} or {@code reject}; the tick decides. */
+    @Override
+    public void reported(Entity a, Result res) {
+        reported.add(a.key);
     }
 
-    void restarted(String key) {
+    @Override
+    public void restarted(String key) {
         restarted.add(key);
+    }
+
+    @Override
+    public FrameMove frameMove() {
+        return bias;
     }
 
     /** A history's latest membership: its newest record's, or the committed one. */
@@ -139,22 +72,23 @@ final class Assign {
 
     // ---- Window: on each tick ----
 
-    Result tick(long now) {
+    @Override
+    public Result tick(long now) {
         Result res = new Result();
 
         // 1. Staleness, among entities that are not retiring, in key order.
         List<Entity> stale = new ArrayList<>();
-        for (Entity e : engine.entities.values())
+        for (Entity e : engine.entities().values())
             if (!e.retiring && engine.isStale(e, now)) stale.add(e);
         for (History h : histories) {
             Record r = new Record(latest(h).copy());
             for (Entity e : stale) {
                 if (r.membership.systemOf(e.key) != null) r.membership.leave(e.key, "stale", r.events);
-                r.events.add(Engine.ev("drop", "entity", e.key));
+                r.events.add(Records.ev("drop", "entity", e.key));
             }
             // Then each restarted entity that is not stale leaves its system track.
             for (String k : restarted) {
-                if (stale.contains(engine.entities.get(k))) continue;
+                if (stale.contains(engine.entities().get(k))) continue;
                 if (r.membership.systemOf(k) != null) r.membership.leave(k, "restart", r.events);
             }
             h.records.add(r);
@@ -163,10 +97,10 @@ final class Assign {
         for (Entity e : stale) e.retiring = true;
 
         // 2. Rows: reported since the previous tick, not stale, grouped by source.
-        TreeMap<String, List<Entity>> bySource = new TreeMap<>(Engine.KEY_ORDER);
-        TreeSet<String> rows = new TreeSet<>(Engine.KEY_ORDER);
+        TreeMap<String, List<Entity>> bySource = new TreeMap<>(KeyOrder.KEY_ORDER);
+        TreeSet<String> rows = new TreeSet<>(KeyOrder.KEY_ORDER);
         for (String k : reported) {
-            Entity e = engine.entities.get(k);
+            Entity e = engine.entities().get(k);
             if (e.retiring) continue;
             rows.add(k);
             bySource.computeIfAbsent(e.source, s -> new ArrayList<>()).add(e);
@@ -181,7 +115,7 @@ final class Assign {
         if (histories.get(0).records.size() == pack.window) commit(res);
 
         // 5. Bias: the update of Sensor bias, from the committed membership (also with margin).
-        if (engine.bias != null) engine.bias.update(committed.systems, engine.entities, rows, now, res.trace);
+        if (bias != null) bias.update(committed.systems, engine.entities(), rows, now, res.trace);
 
         // 6. Output: per committed system track, or with margin per track of the best history's
         //    latest membership; then the provisional tracks.
@@ -190,7 +124,7 @@ final class Assign {
             res.events.add(systemEvent(st.getKey(), st.getValue(), now));
         if (windowed)
             for (Map.Entry<String, TreeSet<String>> st : latest(histories.get(0)).systems.entrySet())
-                res.events.add(Engine.ev("provisional", "system", st.getKey(),
+                res.events.add(Records.ev("provisional", "system", st.getKey(),
                         "members", new ArrayList<Object>(st.getValue())));
         return res;
     }
@@ -208,8 +142,8 @@ final class Assign {
         res.events.addAll(oldest.events);
         committed = oldest.membership;
         for (Map<String, Object> ev : oldest.events)
-            if (ev.get("ev").equals("drop")) engine.entities.remove((String) ev.get("entity"));
-        for (Entity e : engine.entities.values()) e.system = committed.systemOf(e.key);
+            if (ev.get("ev").equals("drop")) engine.entities().remove((String) ev.get("entity"));
+        for (Entity e : engine.entities().values()) e.system = committed.systemOf(e.key);
         for (History h : kept) h.records.remove(0);
         histories = kept;
     }
@@ -217,12 +151,12 @@ final class Assign {
     /** Window step 6: one event {@code system}, the fused estimate of all members at now. */
     private Map<String, Object> systemEvent(String name, TreeSet<String> keys, long now) {
         List<Entity> members = new ArrayList<>();
-        for (String k : keys) members.add(engine.entities.get(k));
-        Filter.Axis[] f = fusedEstimate(members, now, null);
+        for (String k : keys) members.add(engine.entities().get(k));
+        Axis[] f = fusedEstimate(members, now, null);
         double[] ll = engine.toDegrees(f[0].p, f[1].p);
         double ve = f[0].v, vn = f[1].v;
-        Map<String, Object> o = Engine.ev("system", "system", name, "members", new ArrayList<Object>(keys),
-                "lat", ll[0], "lon", ll[1], "course", Engine.course(ve, vn), "speed_ms", Math.hypot(ve, vn));
+        Map<String, Object> o = Records.ev("system", "system", name, "members", new ArrayList<Object>(keys),
+                "lat", ll[0], "lon", ll[1], "course", Frame.course(ve, vn), "speed_ms", Math.hypot(ve, vn));
         // hae from the member with the greatest last_time_ms that has one; members are in key order.
         Entity haeFrom = null;
         for (Entity m : members)
@@ -331,7 +265,7 @@ final class Assign {
             boolean holdsSource = false;
             for (String key : st.getValue()) {
                 if (rKeys.contains(key)) continue;
-                Entity o = engine.entities.get(key);
+                Entity o = engine.entities().get(key);
                 if (o.source.equals(source)) holdsSource = true;
                 others.add(o);
             }
@@ -378,21 +312,21 @@ final class Assign {
      * its timing variance (correlate.md, Track estimate) and then, with bias, the member is moved
      * into that entity's frame (Sensor bias); the estimate for output does neither.
      */
-    private Filter.Axis[] fusedEstimate(List<Entity> members, long t, Entity frameOf) {
-        List<Filter.Axis[]> predicted = new ArrayList<>();
+    private Axis[] fusedEstimate(List<Entity> members, long t, Entity frameOf) {
+        List<Axis[]> predicted = new ArrayList<>();
         for (Entity m : members) {
-            Engine.Predicted pr = frameOf != null ? Engine.Predicted.forComparison(m, t) : new Engine.Predicted(m, t);
-            Filter.Axis[] ax = {pr.east, pr.north};
-            if (frameOf != null && engine.bias != null) engine.bias.moveInto(frameOf.source, m.source, ax);
+            Predicted pr = frameOf != null ? Predicted.forComparison(m, t) : new Predicted(m, t);
+            Axis[] ax = {pr.east, pr.north};
+            if (frameOf != null && bias != null) bias.moveInto(frameOf.source, m.source, ax);
             predicted.add(ax);
         }
-        return Engine.inverseVariance(predicted);
+        return InverseVariance.combine(predicted);
     }
 
     /** Cost: d² of A against the fused estimate of M at A's last_time_ms; pp_a is A's pp plus A's timing variance. */
     private double cost(Entity a, List<Entity> m) {
-        Filter.Axis[] f = fusedEstimate(m, a.lastTime, a);
-        Filter.Axis[] own = {a.filter.east(), a.filter.north()};
+        Axis[] f = fusedEstimate(m, a.lastTime, a);
+        Axis[] own = {a.filter.east(), a.filter.north()};
         double d2 = 0;
         for (int k = 0; k < 2; k++) {
             double d = own[k].p - f[k].p;
@@ -467,13 +401,13 @@ final class Assign {
             if (own != null) mem.leave(a, "assign", rec.events);
             if (toColumn) {
                 mem.systems.get(name).add(a);
-                rec.events.add(Engine.ev("join", "system", name, "entity", a));
+                rec.events.add(Records.ev("join", "system", name, "entity", a));
             } else {
                 String s = "s" + mem.nextSystem++;
-                TreeSet<String> members = new TreeSet<>(Engine.KEY_ORDER);
+                TreeSet<String> members = new TreeSet<>(KeyOrder.KEY_ORDER);
                 members.add(a);
                 mem.systems.put(s, members);
-                rec.events.add(Engine.ev("start", "system", s, "entity", a));
+                rec.events.add(Records.ev("start", "system", s, "entity", a));
             }
         }
     }
@@ -505,12 +439,13 @@ final class Assign {
         return m;
     }
 
-    Map<String, Object> snapshot() {
+    @Override
+    public Map<String, Object> snapshot() {
         Map<String, Object> s = new LinkedHashMap<>();
-        s.put("ref", engine.lat0 == null ? null : List.of(engine.lat0, engine.lon0));
+        s.put("ref", engine.ref());
         Map<String, Object> ents = new LinkedHashMap<>();
         List<Object> retiring = new ArrayList<>();
-        for (Entity e : engine.entities.values()) {
+        for (Entity e : engine.entities().values()) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("last_time_ms", e.lastTime);
             m.put("system", e.system);
@@ -524,7 +459,7 @@ final class Assign {
         s.put("next_system", committed.nextSystem);
         s.put("reported", new ArrayList<Object>(reported));
         if (pack.restart) s.put("restarted", new ArrayList<Object>(restarted));
-        if (engine.bias != null) s.put("bias", engine.bias.snapshot());
+        if (bias != null) s.put("bias", bias.snapshot());
         if (!windowed) return s;
         s.put("retiring", retiring);
         List<Object> hs = new ArrayList<>();

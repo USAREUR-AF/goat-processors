@@ -1,4 +1,4 @@
-package correlator;
+package goat.io;
 
 import java.util.ArrayList;
 import java.util.Iterator;

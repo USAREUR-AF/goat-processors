@@ -1,105 +1,141 @@
 # goat-processors: java engine
 
-Implementations, in Java 17 with only the standard library, of
+Java 17, standard library only. Implements
 
-- the correlator: `spec/correlate.md` (version 0.8) and `spec/correlate-assign.md` (version 0.6), package `correlator`;
-- the filter: `spec/filter.md` (version 0.1), package `filter`;
-- the fuser: `spec/fuse.md` (version 0.2), package `fuse`;
-- quality: `spec/quality.md` (version 0.2), package `quality`.
+- correlate: `spec/correlate.md` (0.8) and `spec/correlate-assign.md` (0.6);
+- filter: `spec/filter.md` (0.1);
+- fuse: `spec/fuse.md` (0.2);
+- quality: `spec/quality.md` (0.2).
 
 All were written from the specifications and the vectors, without reading any other engine.
 
-## Correlator (`src/correlator/`)
+## Layout
 
-| File | Spec section |
+One package per module, the same modules as every engine: `src/goat/<module>/`.
+
+| Module | Holds |
 |---|---|
-| `Pack.java` | Pack (`load_pack`, the `pack.def` parser, `method`, `maneuver`, `restart`, `time_default`, `bias`, `time_offset`, `window`, `hypotheses`, `margin` and the directives each method allows) |
-| `Filter.java` | Track estimate (first report with `pp = r`, predict, position update with the per-axis measurement variance, velocity update, prediction; fuse and quality reuse its `Axis`) and Two-model filter (switching, mixing, per-model update, likelihood, mode probabilities, combination) |
-| `Engine.java` | Reports, Frame, Tests, Association, Events, Trace, Snapshot for method `confirm` (`ingest`, `tick`, `snapshot`); the two-model filter trace records; Track estimate, Measurement variance (the per-axis `r`, the timing variance, the `time` trace record, the timing variance of B added to every comparison and the `time` snapshot entry); Restart (the `restart` test and the filter started again); the `retiring` reject; the Sensor bias move in the `distance`, `window` and `mahalanobis` tests |
-| `Assign.java` | correlate-assign.md: Memberships, Assignment of one source (columns, entries, fused estimate, cost with both timing variances, apply), Ranking, Window (staleness and retiring, the `restart` leave, rows, sources over histories with `margin`, commit, bias update, output), its trace and snapshot; the inverse-variance combination is `Engine.inverseVariance`, which fuse reuses |
-| `Bias.java` | correlate-assign.md, Sensor bias: the per-pair-of-sources state, moving B into A's frame, the update at each tick and its `bias` trace record, the `bias` snapshot; Time offset (the clock offset `tau`, the sums `S1` to `S8` and the closed-form fit) |
-| `Json.java` | the JSON reader and writer the vector test uses |
-| `Reports.java` | Reports: required keys and their check order, the optional-key rules, the entity key and key order, Time quality (time error and time state per key: the report, the pack's `time_default`, else 0 and `coherent`; `reportTimeError` and `reportTimeState` give step 1, the report's own valid value, which quality reuses). The filter uses it too, as filter.md Reports cites that section |
-| `VectorTest.java` | `spec/vector-format.md` for the correlator: `spec/correlate-load-vectors/` and `packs/correlate-*` only; also holds the structural comparison the other tests use |
+| `model` | what every function shares about a report and a track: the report rules, the frame, the constant-velocity filter, the two-model filter, the inverse-variance estimate, key order |
+| `filter` | the filter function (filter.md) |
+| `correlate` | the correlate function (correlate.md): the shared report path, the tests, the method table, and method `confirm` |
+| `assign` | correlate method `assign` (correlate-assign.md) |
+| `fuse` | the fuse function (fuse.md) |
+| `quality` | the quality function (quality.md) |
+| `trace` | the result of a call (events, then trace) and the record builders |
+| `snapshot` | the pieces every snapshot shares |
+| `io` | the JSON reader and writer, pack files, the entry-point shape (`Processor`), the function table (`Functions`), the runner and the vector runner |
 
-The pack's `method` line selects which method the engine runs: `confirm` (or no
-line) runs `correlate.md`, `assign` runs `correlate-assign.md`.
+"Filter" names two things in the specifications: the filter *function* (filter.md) is the module
+`filter`; the track *filter* (correlate.md, Track estimate) is part of `model`.
 
-## Filter (`src/filter/`)
+**Entry point.** Every function has the one shape of `goat.io.Processor`: `load_pack` makes a
+processor (`Functions.load(function, dir)`, or `Correlator.load`, `FilterProcessor.load`,
+`Fuse.load`, `Quality.load`), then `ingest(report)` and `tick(now_ms)` each return a `Result`
+(its `events`, then its `trace` records), and `snapshot()` gives the state. The runner and the
+vector runner call nothing else.
 
-| File | Spec section |
+The four classes `correlator.VectorTest`, `filter.VectorTest`, `fuse.FuseVectorTest` and
+`quality.VectorTest` only call `goat.io.Vectors`: they keep the names the perf harness runs.
+
+## Where each spec section lives
+
+### correlate.md
+
+| Section | File |
 |---|---|
-| `Pack.java` | Pack: directives, `rule` and `when` lines, Parameter sets, Values |
-| `Condition.java` | one `when` line and its parsed parameters |
-| `Geometry.java` | Geometry: `wrap`, haversine distance, polygon (boundary, then crossings), reference prediction |
-| `Filter.java` | Reports (environment, affiliation; report checks via `correlator.Reports`), Conditions, Rules, Tick, Events, Trace, Snapshot |
-| `VectorTest.java` | `spec/vector-format.md` for the filter: `spec/filter-load-vectors/` and `packs/filter-*` |
+| What the correlator does | `correlate/Correlator.java` |
+| Reports | `model/Report.java` |
+| Reports, Time quality | `model/Report.java` |
+| Frame | `model/Frame.java` |
+| Track estimate | `model/TrackEstimate.java` (one axis: `model/Axis.java`; measurement variance: `correlate/Correlator.java`) |
+| Two-model filter | `model/TrackEstimate.java` |
+| Restart | `correlate/Correlator.java` |
+| Tests | `correlate/Tests.java` |
+| Association | `correlate/Confirm.java` |
+| Events | `correlate/Confirm.java` |
+| Trace | `correlate/Tests.java` |
+| Snapshot | `correlate/Confirm.java` |
+| Pack | `correlate/CorrelatePack.java` |
+| Floats | `model/Axis.java` |
 
-No filter vector contradicts `spec/filter.md`. On its two open points the
-engine does this: a report integer outside the signed 64-bit range is read as
-a float (so it is not an integer), and integers above 2^53 compare as their
-nearest binary64; near a pole the reference prediction divides by
+### correlate-assign.md
+
+| Section | File |
+|---|---|
+| What this method does | `assign/Assign.java` |
+| Shared with `correlate.md` | `correlate/Correlator.java` |
+| Memberships | `assign/Membership.java` |
+| Assignment of one source | `assign/Assign.java` |
+| Sensor bias | `assign/Bias.java` |
+| Ranking | `assign/Assign.java` |
+| Window | `assign/History.java` (records: `assign/Record.java`; the tick: `assign/Assign.java`) |
+| Events | `assign/Membership.java` |
+| Trace | `assign/Assign.java` |
+| Snapshot | `assign/Assign.java` |
+| Pack | `correlate/CorrelatePack.java` |
+
+### filter.md
+
+| Section | File |
+|---|---|
+| What the filter does | `filter/FilterProcessor.java` |
+| Reports | `model/Report.java` |
+| Geometry | `filter/Geometry.java` |
+| Conditions | `filter/Condition.java` (evaluation: `filter/FilterProcessor.java`) |
+| Rules | `filter/FilterProcessor.java` |
+| Tick | `filter/FilterProcessor.java` |
+| Events | `filter/FilterProcessor.java` |
+| Trace | `filter/FilterProcessor.java` |
+| Snapshot | `filter/FilterProcessor.java` |
+| Pack | `filter/FilterPack.java` |
+
+### fuse.md
+
+| Section | File |
+|---|---|
+| What fuse does | `fuse/Fuse.java` |
+| Shared with `correlate.md` | `model/` |
+| Reports | `fuse/Fuse.java` |
+| Groups | `fuse/Fuse.java` |
+| On each tick, Fused event | `fuse/Fuse.java` |
+| Kinematics | `fuse/Fuse.java` |
+| Attributes | `fuse/Fuse.java` |
+| Events, Trace, Snapshot | `fuse/Fuse.java` |
+| Pack | `fuse/FusePack.java` |
+
+### quality.md
+
+| Section | File |
+|---|---|
+| What quality does | `quality/Quality.java` |
+| Reports, Time quality | `model/Report.java` |
+| Order, Frame and filter, Input clock, Samples, Ingest, Forwarding | `quality/Quality.java` |
+| Window, Entity measures, Source measures, Rules, Tick | `quality/Quality.java` |
+| Events, Trace, Snapshot | `quality/Quality.java` |
+| Pack | `quality/QualityPack.java` |
+
+### vector-format.md
+
+| Section | File |
+|---|---|
+| Scenario vectors, What the engine checks, Load vectors | `io/Vectors.java` |
+
+## Open points
+
+No vector contradicts any specification, so there is no `DISAGREEMENTS.md`. On the open points:
+a report integer outside the signed 64-bit range is read as a binary64 (so it is not an
+integer); integers above 2^53 compare as their nearest binary64, except that fuse compares two
+integer attribute values exactly; near a pole the filter's reference prediction divides by
 `cos(rad(lat))` as written.
 
-## Fuse (`src/fuse/`)
+Floats: Java evaluates every `double` operation as one correctly rounded binary64 operation
+(strict semantics since Java 17) and never contracts into a fused multiply-add; the code calls no
+`Math.fma`.
 
-| File | Spec section |
-|---|---|
-| `FusePack.java` | fuse.md, Pack (`load_pack`, the `pack.def` parser) |
-| `Fuse.java` | fuse.md, Reports, Groups, On each tick, Fused event, Kinematics, Attributes, Events, Trace, Snapshot; it reuses the correlate engine's `Axis` filter, Frame conversions and inverse-variance estimate, which fuse.md cites |
-| `FuseVectorTest.java` | `spec/vector-format.md` for the fuser: `spec/fuse-load-vectors/` and `packs/fuse-*`, with the comparison of `correlator.VectorTest` |
-
-No fuse vector contradicts `spec/fuse.md`. On its two open points this engine
-compares two integer attribute values exactly and any other pair of numbers as
-binary64, and an integer literal outside the signed 64-bit range is read as a
-binary64 number.
-
-## Quality (`src/quality/`)
-
-`src/quality/` implements `spec/quality.md` (version 0.2) as its own package,
-written from that specification, the sections of `correlate.md` it cites and the
-vectors. It reuses this engine's correlate code for those sections: the frame
-(`correlator.Engine.toPlane`), the constant-velocity filter
-(`correlator.Filter.Axis`), the valid values of `time_error_ms` and `time_state`
-(`correlator.Reports.reportTimeError` and `reportTimeState`, correlate.md 0.8,
-Time quality, step 1) and the three time states (`correlator.Pack.TIME_STATES`).
-Step 3 is quality's own: with neither the report nor `time_default` giving a
-value, the key is unstated, takes no sample and counts in `missing_time`. The
-`time_default` line is parsed by quality's own `Pack`, so its `error_ms` follows
-quality's number grammar.
-
-| File | Spec section |
-|---|---|
-| `Pack.java` | Pack (line ends, control characters, comments and tokens; every load error of its table; `time_default`), Values (numbers whose binary64 is infinite are load errors), Rules (`op` and `clear` tests) |
-| `Engine.java` | Reports (with Time quality and colliding keys), Order, Frame and filter, Input clock, Samples, Ingest, Forwarding with the overflowed `ce` clamped (`ingest`); Tick, Window, Entity measures, Source measures, Rules, Events, Trace (`tick`); Snapshot |
-| `VectorTest.java` | `spec/vector-format.md` for quality: `spec/quality-load-vectors/` and `packs/quality-*` |
-
-No quality vector contradicts `spec/quality.md` 0.2, so there is no quality
-entry in a `DISAGREEMENTS.md`. Its one open point (a report integer outside the
-signed 64-bit range) is decided by no vector; this engine's JSON reader gives
-such a literal as a binary64, so it is not an integer.
-
-## Build and run the vectors
+## Build, test, run
 
 ```
-engines/java/build.sh
+engines/java/build.sh          # compile, then every conformance vector
+engines/java/runner/build      # the perf runner (tools/perf/README.md, Runner contract)
+engines/java/runner/run --function correlate --pack packs/correlate-gnn --steps <file> [--events <file>] [--trace]
 ```
-
-The script compiles with `javac --release 17 -Xlint:all -Werror` into
-`engines/java/build/`, then runs the correlator vectors, the filter vectors, the fuse vectors and the
-quality vectors, each with one summary line.
-For a scenario vector it checks each step's events and trace, then the final
-snapshot. A failing vector prints the path of its first mismatch, for example
-`steps[1].trace[0].value: got 0.2777765689606809, want 0.2778`. The script
-exits non-zero when any vector fails.
-
-Floats: Java evaluates every `double` operation as one correctly rounded
-binary64 operation (strict semantics since Java 17) and never contracts into a
-fused multiply-add; the code calls no `Math.fma`.
-
-Ranked assignments are found by enumerating every assignment of the source's
-rows (column or *alone*, each column at most once, no forbidden entry) in
-ascending choice-vector order, then a stable sort by total, which is the
-Ranking order exactly. This is brute force, which is fine at vector sizes.
-
-No vector contradicts `correlate.md` 0.8 or `correlate-assign.md` 0.6, so there is no `DISAGREEMENTS.md`.

@@ -1,8 +1,10 @@
-package quality;
+package goat.quality;
+
+import goat.io.LoadError;
+import goat.io.PackFile;
+import goat.model.Report;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,20 +17,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /** A loaded quality pack (spec/quality.md version 0.2, section Pack). */
-public final class Pack {
-
-    /** A pack that does not load. */
-    public static final class LoadError extends Exception {
-        private static final long serialVersionUID = 1L;
-
-        LoadError(int line, String m) {
-            super("pack.def line " + line + ": " + m);
-        }
-
-        LoadError(String m) {
-            super(m);
-        }
-    }
+public final class QualityPack {
 
     /** One `rule` line (spec: Rules). */
     public static final class Rule {
@@ -106,18 +95,26 @@ public final class Pack {
     private static final Pattern INTEGER = Pattern.compile("[0-9]+");
     private static final Pattern RULE_NAME = Pattern.compile("[A-Za-z0-9._-]+");
 
+    private static LoadError err(int line, String m) {
+        return new LoadError("pack.def line " + line + ": " + m);
+    }
+
+    private static LoadError err(String m) {
+        return new LoadError(m);
+    }
+
     /** load_pack(dir): reads dir/pack.def. */
-    public static Pack load(Path dir) throws LoadError {
+    public static QualityPack load(Path dir) throws LoadError {
         try {
-            return parse(new String(Files.readAllBytes(dir.resolve("pack.def")), StandardCharsets.UTF_8));
+            return parse(PackFile.read(dir));
         } catch (IOException e) {
-            throw new LoadError("cannot read " + dir + ": " + e.getMessage());
+            throw err("cannot read " + dir + ": " + e.getMessage());
         }
     }
 
     /** Parses the text of a pack.def; every error of the spec's table is a LoadError. */
-    public static Pack parse(String text) throws LoadError {
-        Pack pk = new Pack();
+    public static QualityPack parse(String text) throws LoadError {
+        QualityPack pk = new QualityPack();
         Set<String> seen = new HashSet<>();
         Set<String> ruleNames = new HashSet<>();
         // Step 1: lines end at LF; a final LF does not start another line (an empty last
@@ -132,7 +129,7 @@ public final class Pack {
             for (int c = 0; c < line.length(); c++) {
                 char ch = line.charAt(c);
                 if ((ch <= 0x1F && ch != '\t') || ch == 0x7F)
-                    throw new LoadError(ln, String.format("control character U+%04X", (int) ch));
+                    throw err(ln, String.format("control character U+%04X", (int) ch));
             }
             // Step 3: '#' starts a comment.
             int hash = line.indexOf('#');
@@ -142,8 +139,8 @@ public final class Pack {
             if (tok.isEmpty()) continue;
             String dir = tok.get(0);
             List<String> vals = tok.subList(1, tok.size());
-            if (!REPEATING.contains(dir) && !SINGLE.contains(dir)) throw new LoadError(ln, "unknown directive " + dir);
-            if (SINGLE.contains(dir) && !seen.add(dir)) throw new LoadError(ln, "repeated directive " + dir);
+            if (!REPEATING.contains(dir) && !SINGLE.contains(dir)) throw err(ln, "unknown directive " + dir);
+            if (SINGLE.contains(dir) && !seen.add(dir)) throw err(ln, "repeated directive " + dir);
             switch (dir) {
                 case "pack":
                     pk.name = single(ln, dir, vals);
@@ -158,9 +155,9 @@ public final class Pack {
                     pk.defaultCe = number(ln, kv, "default_ce_m");
                     pk.velSigma = number(ln, kv, "vel_sigma_ms");
                     pk.unknownVel = number(ln, kv, "unknown_vel_ms");
-                    if (pk.accelVar < 0) throw new LoadError(ln, "accel_var below 0");
+                    if (pk.accelVar < 0) throw err(ln, "accel_var below 0");
                     if (pk.defaultCe <= 0 || pk.velSigma <= 0 || pk.unknownVel <= 0)
-                        throw new LoadError(ln, "default_ce_m, vel_sigma_ms and unknown_vel_ms must be above 0");
+                        throw err(ln, "default_ce_m, vel_sigma_ms and unknown_vel_ms must be above 0");
                     break;
                 }
                 case "window": {
@@ -170,7 +167,7 @@ public final class Pack {
                     pk.minSamples = integer(ln, kv, "min_samples");
                     pk.forgetMs = integer(ln, kv, "forget_ms");
                     if (pk.windowMs < 1 || pk.minSamples < 1 || pk.forgetMs < 1)
-                        throw new LoadError(ln, "window values must be 1 or above");
+                        throw err(ln, "window values must be 1 or above");
                     break;
                 }
                 case "time_default":
@@ -181,42 +178,42 @@ public final class Pack {
             }
         }
         for (String d : List.of("pack", "version", "filter", "window"))
-            if (!seen.contains(d)) throw new LoadError("missing directive " + d);
+            if (!seen.contains(d)) throw err("missing directive " + d);
         return pk;
     }
 
     private static Rule rule(int ln, List<String> vals, Set<String> ruleNames) throws LoadError {
-        if (vals.isEmpty()) throw new LoadError(ln, "rule without a name");
+        if (vals.isEmpty()) throw err(ln, "rule without a name");
         String name = vals.get(0);
-        if (!RULE_NAME.matcher(name).matches()) throw new LoadError(ln, "bad rule name " + name);
-        if (!ruleNames.add(name)) throw new LoadError(ln, "rule name used twice: " + name);
+        if (!RULE_NAME.matcher(name).matches()) throw err(ln, "bad rule name " + name);
+        if (!ruleNames.add(name)) throw err(ln, "rule name used twice: " + name);
         Map<String, String> kv = params(ln, vals.subList(1, vals.size()), RULE_ALLOWED);
         requireAll(ln, kv, RULE_REQUIRED);
 
         String scope = kv.get("scope");
-        if (!scope.equals("entity") && !scope.equals("source")) throw new LoadError(ln, "bad scope " + scope);
+        if (!scope.equals("entity") && !scope.equals("source")) throw err(ln, "bad scope " + scope);
         String measure = kv.get("measure");
         List<String> measures = scope.equals("entity") ? ENTITY_MEASURES : SOURCE_MEASURES;
-        if (!measures.contains(measure)) throw new LoadError(ln, "measure " + measure + " not in scope " + scope);
+        if (!measures.contains(measure)) throw err(ln, "measure " + measure + " not in scope " + scope);
         String op = kv.get("op");
-        if (!List.of("<", "<=", ">", ">=").contains(op)) throw new LoadError(ln, "bad op " + op);
+        if (!List.of("<", "<=", ">", ">=").contains(op)) throw err(ln, "bad op " + op);
         String action = kv.get("action");
-        if (!List.of("mark", "downgrade", "drop", "alert").contains(action)) throw new LoadError(ln, "bad action " + action);
+        if (!List.of("mark", "downgrade", "drop", "alert").contains(action)) throw err(ln, "bad action " + action);
 
         double limit = number(ln, kv, "limit");
         double clear = number(ln, kv, "clear");
         long forN = integer(ln, kv, "for");
-        if (forN < 1) throw new LoadError(ln, "for below 1");
-        if (op.startsWith(">") && clear > limit) throw new LoadError(ln, "clear above limit for op " + op);
-        if (op.startsWith("<") && clear < limit) throw new LoadError(ln, "clear below limit for op " + op);
+        if (forN < 1) throw err(ln, "for below 1");
+        if (op.startsWith(">") && clear > limit) throw err(ln, "clear above limit for op " + op);
+        if (op.startsWith("<") && clear < limit) throw err(ln, "clear below limit for op " + op);
 
         double factor = 1;
         if (action.equals("downgrade")) {
-            if (!kv.containsKey("factor")) throw new LoadError(ln, "downgrade without factor");
+            if (!kv.containsKey("factor")) throw err(ln, "downgrade without factor");
             factor = number(ln, kv, "factor");
-            if (factor < 1) throw new LoadError(ln, "factor below 1");
+            if (factor < 1) throw err(ln, "factor below 1");
         } else if (kv.containsKey("factor")) {
-            throw new LoadError(ln, "factor with action " + action);
+            throw err(ln, "factor with action " + action);
         }
         return new Rule(name, scope, measure, op, limit, forN, clear, action, factor);
     }
@@ -227,22 +224,22 @@ public final class Pack {
      * {@code error_ms}, {@code state} or both), with {@code error_ms} a number of this pack's
      * grammar (Values), 0 or above.
      */
-    private static void timeDefault(Pack pk, int ln, List<String> vals) throws LoadError {
-        if (vals.isEmpty() || vals.get(0).indexOf('=') >= 0) throw new LoadError(ln, "time_default without a source id");
+    private static void timeDefault(QualityPack pk, int ln, List<String> vals) throws LoadError {
+        if (vals.isEmpty() || vals.get(0).indexOf('=') >= 0) throw err(ln, "time_default without a source id");
         String source = vals.get(0);
         if (pk.defaultErrorMs.containsKey(source) || pk.defaultState.containsKey(source))
-            throw new LoadError(ln, "time_default given twice for " + source);
+            throw err(ln, "time_default given twice for " + source);
         Map<String, String> kv = params(ln, vals.subList(1, vals.size()), Set.of("error_ms", "state"));
-        if (kv.isEmpty()) throw new LoadError(ln, "time_default needs error_ms, state or both");
+        if (kv.isEmpty()) throw err(ln, "time_default needs error_ms, state or both");
         if (kv.containsKey("error_ms")) {
             double errorMs = number(ln, kv, "error_ms");
-            if (errorMs < 0) throw new LoadError(ln, "error_ms below 0");
+            if (errorMs < 0) throw err(ln, "error_ms below 0");
             pk.defaultErrorMs.put(source, errorMs);
         }
         if (kv.containsKey("state")) {
             String state = kv.get("state");
-            if (!correlator.Pack.TIME_STATES.contains(state))
-                throw new LoadError(ln, "state is coherent, drifting or free-running: " + state);
+            if (!Report.TIME_STATES.contains(state))
+                throw err(ln, "state is coherent, drifting or free-running: " + state);
             pk.defaultState.put(source, state);
         }
     }
@@ -255,7 +252,7 @@ public final class Pack {
     }
 
     private static String single(int ln, String dir, List<String> vals) throws LoadError {
-        if (vals.size() != 1) throw new LoadError(ln, dir + " takes exactly one value");
+        if (vals.size() != 1) throw err(ln, dir + " takes exactly one value");
         return vals.get(0);
     }
 
@@ -264,34 +261,34 @@ public final class Pack {
         Map<String, String> kv = new LinkedHashMap<>();
         for (String t : vals) {
             int eq = t.indexOf('=');
-            if (eq < 0) throw new LoadError(ln, "parameter without '=': " + t);
+            if (eq < 0) throw err(ln, "parameter without '=': " + t);
             String k = t.substring(0, eq);
-            if (!allowed.contains(k)) throw new LoadError(ln, "unknown parameter " + k);
-            if (kv.put(k, t.substring(eq + 1)) != null) throw new LoadError(ln, "repeated parameter " + k);
+            if (!allowed.contains(k)) throw err(ln, "unknown parameter " + k);
+            if (kv.put(k, t.substring(eq + 1)) != null) throw err(ln, "repeated parameter " + k);
         }
         return kv;
     }
 
     private static void requireAll(int ln, Map<String, String> kv, List<String> names) throws LoadError {
-        for (String k : names) if (!kv.containsKey(k)) throw new LoadError(ln, "missing parameter " + k);
+        for (String k : names) if (!kv.containsKey(k)) throw err(ln, "missing parameter " + k);
     }
 
     private static double number(int ln, Map<String, String> kv, String k) throws LoadError {
         String v = kv.get(k);
-        if (!NUMBER.matcher(v).matches()) throw new LoadError(ln, k + " is not a number: " + v);
+        if (!NUMBER.matcher(v).matches()) throw err(ln, k + " is not a number: " + v);
         // Values: read as the nearest binary64; one that is infinite is a load error.
         double x = Double.parseDouble(v);
-        if (Double.isInfinite(x)) throw new LoadError(ln, k + " is not finite: " + v);
+        if (Double.isInfinite(x)) throw err(ln, k + " is not finite: " + v);
         return x;
     }
 
     private static long integer(int ln, Map<String, String> kv, String k) throws LoadError {
         String v = kv.get(k);
-        if (!INTEGER.matcher(v).matches()) throw new LoadError(ln, k + " is not an integer: " + v);
+        if (!INTEGER.matcher(v).matches()) throw err(ln, k + " is not an integer: " + v);
         try {
             return Long.parseLong(v);
         } catch (NumberFormatException e) {
-            throw new LoadError(ln, k + " out of range: " + v);
+            throw err(ln, k + " out of range: " + v);
         }
     }
 }

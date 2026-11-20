@@ -1,7 +1,14 @@
-package fuse;
+package goat.fuse;
 
-import correlator.Engine;
-import correlator.Filter.Axis;
+import goat.io.LoadError;
+import goat.io.Processor;
+import goat.model.Axis;
+import goat.model.Frame;
+import goat.model.InverseVariance;
+import goat.model.KeyOrder;
+import goat.model.Report;
+import goat.snapshot.Snapshots;
+import goat.trace.Result;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -15,13 +22,7 @@ import java.util.TreeMap;
  * the inverse-variance estimate are the correlate engine's own (correlate.md, Frame and Track
  * estimate; correlate-assign.md, fused estimate), which fuse.md cites unchanged.
  */
-public final class Fuse {
-
-    /** Events and trace returned by ingest and tick. */
-    public static final class Result {
-        public final List<Map<String, Object>> events = new ArrayList<>();
-        public final List<Map<String, Object>> trace = new ArrayList<>();
-    }
+public final class Fuse implements Processor {
 
     /** One entity: its filter and its last normalized report. */
     static final class Entity {
@@ -72,37 +73,34 @@ public final class Fuse {
 
     private final FusePack pack;
     private Double lat0, lon0;
-    private final TreeMap<String, Entity> entities = new TreeMap<>(Engine.KEY_ORDER);
+    private final TreeMap<String, Entity> entities = new TreeMap<>(KeyOrder.KEY_ORDER);
 
     public Fuse(FusePack pack) {
         this.pack = pack;
     }
 
-    public static FusePack loadPack(java.nio.file.Path dir) throws FusePack.LoadError {
-        return FusePack.load(dir);
+    public static Fuse load(java.nio.file.Path dir) throws LoadError {
+        return new Fuse(FusePack.load(dir));
+    }
+
+    public static Fuse fromText(String packDef) throws LoadError {
+        return new Fuse(FusePack.parse(packDef));
     }
 
     // ================================================================ ingest
 
-    /** Reports: the required keys, checked in the order of correlate.md's table. */
-    private static final String[] REQUIRED = {"track.source_id", "uid", "time_ms", "lat", "lon"};
-
+    @Override
     public Result ingest(Map<String, Object> report) {
         Result res = new Result();
 
         // Reports: a missing required key rejects the report.
-        for (String k : REQUIRED) {
-            Object o = report.get(k);
-            boolean ok = k.equals("time_ms") ? o instanceof Long
-                    : k.equals("lat") || k.equals("lon") ? o instanceof Number
-                    : o instanceof String;
-            if (!ok) {
-                res.events.add(ev("reject", "reason", "missing:" + k));
-                return res;
-            }
+        String missing = Report.missingKey(report);
+        if (missing != null) {
+            res.events.add(ev("reject", "reason", "missing:" + missing));
+            return res;
         }
         String source = (String) report.get("track.source_id");
-        String key = source + "/" + report.get("uid");
+        String key = Report.entityKey(report);
         long time = (Long) report.get("time_ms");
 
         // Reports: a report earlier than its entity's last accepted report is ignored.
@@ -121,7 +119,7 @@ public final class Fuse {
             lat0 = lat;
             lon0 = lon;
         }
-        double[] en = Engine.toPlane(lat0, lon0, lat, lon);
+        double[] en = Frame.toPlane(lat0, lon0, lat, lon);
 
         // correlate.md, Track estimate: measurements from the normalized report.
         double ce = norm.containsKey("ce") ? ((Number) norm.get("ce")).doubleValue() : pack.defaultCe;
@@ -129,7 +127,7 @@ public final class Fuse {
         double ve = 0, vn = 0;
         if (hasVel) {
             double sp = ((Number) norm.get("speed_ms")).doubleValue();
-            double c = Engine.rad(((Number) norm.get("course")).doubleValue());
+            double c = Frame.rad(((Number) norm.get("course")).doubleValue());
             ve = sp * Math.sin(c);
             vn = sp * Math.cos(c);
         }
@@ -175,13 +173,7 @@ public final class Fuse {
      * unusable `fuse.group` (not a string, or the empty string).
      */
     static Map<String, Object> normalize(Map<String, Object> report) {
-        Map<String, Object> n = new LinkedHashMap<>(report);
-        n.values().removeIf(Objects::isNull);
-        for (String k : new String[] {"hae", "ce", "course", "speed_ms"})
-            if (n.containsKey(k) && !(n.get(k) instanceof Number)) n.remove(k);
-        if (n.containsKey("ce") && !(((Number) n.get("ce")).doubleValue() > 0)) n.remove("ce");
-        if (n.containsKey("type") && !(n.get("type") instanceof String)) n.remove("type");
-        if (n.containsKey("stale_ms") && !(n.get("stale_ms") instanceof Long)) n.remove("stale_ms");
+        Map<String, Object> n = Report.present(report);
         Object g = n.get("fuse.group");
         if (g != null && !(g instanceof String && !((String) g).isEmpty())) n.remove("fuse.group");
         return n;
@@ -189,6 +181,7 @@ public final class Fuse {
 
     // ================================================================ tick
 
+    @Override
     public Result tick(long now) {
         Result res = new Result();
 
@@ -213,7 +206,7 @@ public final class Fuse {
      * (one member each) in key order of that member. Members are in key order.
      */
     private List<Group> groupsInOutputOrder() {
-        TreeMap<String, Group> named = new TreeMap<>(Engine.KEY_ORDER);
+        TreeMap<String, Group> named = new TreeMap<>(KeyOrder.KEY_ORDER);
         List<Group> unnamed = new ArrayList<>();
         for (Entity e : entities.values()) {
             if (e.group == null) {
@@ -279,7 +272,7 @@ public final class Fuse {
     private static Axis[] inverseVariance(List<Member> members) {
         List<Axis[]> predicted = new ArrayList<>();
         for (Member m : members) predicted.add(new Axis[] {m.east, m.north});
-        return Engine.inverseVariance(predicted);
+        return InverseVariance.combine(predicted);
     }
 
     /** `covariance_intersection`: fold the members in key order; one trace record per fold. */
@@ -433,8 +426,8 @@ public final class Fuse {
 
     /** Fused event, with Height. */
     private Map<String, Object> fusedEvent(Group g, Axis[] f, Member from, Map<String, Object> attributes) {
-        double[] ll = Engine.toDegrees(lat0, lon0, f[0].p, f[1].p);
-        double course = Engine.deg(Math.atan2(f[0].v, f[1].v));
+        double[] ll = Frame.toDegrees(lat0, lon0, f[0].p, f[1].p);
+        double course = Frame.deg(Math.atan2(f[0].v, f[1].v));
         if (course < 0) course += 360;
         if (course >= 360) course -= 360;
         List<Object> keys = new ArrayList<>();
@@ -469,6 +462,7 @@ public final class Fuse {
 
     // ================================================================ snapshot
 
+    @Override
     public Map<String, Object> snapshot() {
         Map<String, Object> ents = new LinkedHashMap<>();
         for (Entity e : entities.values()) {
@@ -476,7 +470,7 @@ public final class Fuse {
             ents.put(e.key, rec("last_time_ms", e.lastTime, "group", e.group, "filter", filter,
                     "report", new LinkedHashMap<>(e.report)));
         }
-        return rec("ref", lat0 == null ? null : List.of(lat0, lon0), "entities", ents);
+        return rec("ref", Snapshots.ref(lat0, lon0), "entities", ents);
     }
 
     // ================================================================ helpers
