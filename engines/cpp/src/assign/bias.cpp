@@ -1,47 +1,24 @@
 // correlate-assign.md "Sensor bias", with "Time offset".
-#include "correlate/engine.hpp"
+#include "assign/bias.hpp"
+
+#include <string>
+#include <vector>
 
 #include "correlate/common.hpp"
+#include "correlate/engine.hpp"
 
 namespace corr::correlate {
 
 using namespace detail;
 
-// "State": a pair with no stored state reads as o = 0, w = 0, var = s², n = 0.
-BiasState Engine::bias_state(const std::string& pair) const {
-    auto it = bias_.find(pair);
-    if (it != bias_.end()) return it->second;
-    BiasState st;
-    st.var = pack_.bias->sigma_m * pack_.bias->sigma_m;
-    return st;
-}
-
-// "Moving B into A's frame": B predicted to t for comparison with A (its
-// timing variance added first, correlate.md "Track estimate"), then, when the
-// pack has `bias` and the two sources differ, p + o (b_src first in key
-// order) or p - o (a_src first) on each axis, with pp + var. With
-// `time_offset` ("Time offset") the offset on each axis is o - v*tau, v B's
-// predicted velocity on that axis. Without `bias` this is B's prediction for
-// comparison.
-Filter Engine::predict_into_frame(const Entity& a, const Entity& b, std::int64_t t) const {
-    Filter f = predict_for_comparison(b, t);
-    if (!pack_.bias || a.source == b.source) return f;
-    const bool b_first = b.source < a.source;
-    const BiasState st = bias_state(b_first ? b.source + "|" + a.source : a.source + "|" + b.source);
-    Axis* ax[2] = {&f.east, &f.north};
-    for (int i = 0; i < 2; ++i) {
-        const double offset = pack_.time_offset_sigma_ms ? st.o[i] - ax[i]->v * st.tau : st.o[i];
-        ax[i]->p = b_first ? ax[i]->p + offset : ax[i]->p - offset;
-        ax[i]->pp = ax[i]->pp + st.var;
-    }
-    return f;
-}
+namespace {
 
 // "Time offset", an accepted pair: add the pair to the sums S1 to S8, then
 // the closed-form weighted least-squares fit of y = o - v*tau with priors of
 // 0 for o (standard deviation s) and tau (standard deviation t ms). r, v, y
 // are the pair's east and north values of Update step 1.
-void Engine::fit_time_offset(BiasState& st, const double r[2], const double v[2], const double y[2]) const {
+BiasState fit_time_offset(BiasState st, const double r[2], const double v[2], const double y[2], double s,
+                          double t) {
     const double we = 1 / r[0], wn = 1 / r[1];
     const double ve = v[0], vn = v[1], ye = y[0], yn = y[1];
     double* S = st.S;
@@ -54,7 +31,6 @@ void Engine::fit_time_offset(BiasState& st, const double r[2], const double v[2]
     S[6] = S[6] + wn * yn;                           // S7
     S[7] = S[7] + (we * ve * ye + wn * vn * yn);     // S8
 
-    const double s = pack_.bias->sigma_m, t = *pack_.time_offset_sigma_ms;
     const double po = 1 / (s * s);
     const double t_s = t / 1000;
     const double pt = 1 / (t_s * t_s);
@@ -67,6 +43,84 @@ void Engine::fit_time_offset(BiasState& st, const double r[2], const double v[2]
     st.o[1] = (b2 - a23 * st.tau) / a22;
     st.w[0] = S[0];   // the weight sum of each axis is S1 and S2
     st.w[1] = S[1];
+    return st;
+}
+
+} // namespace
+
+BiasState initial_bias(const BiasParams& b) {
+    BiasState st;
+    st.var = b.sigma_m * b.sigma_m;
+    return st;
+}
+
+Filter move_into_frame(Filter f, const BiasState& st, bool b_first, bool timed) {
+    Axis* ax[2] = {&f.east, &f.north};
+    for (int i = 0; i < 2; ++i) {
+        const double offset = timed ? st.o[i] - ax[i]->v * st.tau : st.o[i];
+        ax[i]->p = b_first ? ax[i]->p + offset : ax[i]->p - offset;
+        ax[i]->pp = ax[i]->pp + st.var;
+    }
+    return f;
+}
+
+PairUpdate update_pair(const BiasState& st0, const Filter& fs, const Filter& ft, const BiasParams& bp,
+                       const std::optional<double>& time_offset_sigma_ms) {
+    // 1. The pair's offset, variance and (Time offset) velocity per axis.
+    const Axis* as[2] = {&fs.east, &fs.north};
+    const Axis* at[2] = {&ft.east, &ft.north};
+    const bool timed = time_offset_sigma_ms.has_value();
+    double yv[2], r[2], v[2];
+    for (int i = 0; i < 2; ++i) {
+        yv[i] = at[i]->p - as[i]->p;
+        r[i] = as[i]->pp + at[i]->pp;
+        v[i] = (as[i]->v + at[i]->v) / 2;
+    }
+
+    // 2. d² with the pair's state; with `time_offset` the expected offset is o - v*tau.
+    PairUpdate u;
+    u.state = st0;
+    for (int i = 0; i < 2; ++i) {
+        double dev = timed ? yv[i] - (st0.o[i] - v[i] * st0.tau) : yv[i] - st0.o[i];
+        u.d2 = u.d2 + dev * dev / (st0.var + r[i]);
+    }
+
+    // 3. Accepted when d² < g.
+    u.accepted = u.d2 < bp.gate;
+    if (!u.accepted) return u;
+    BiasState& st = u.state;
+    st.n = st.n + 1;
+    st.var = bp.sigma_m * bp.sigma_m / static_cast<double>(st.n + 1);
+    const double floor2 = bp.floor_m * bp.floor_m;
+    if (st.var < floor2) st.var = floor2;
+    if (timed) {
+        st = fit_time_offset(st, r, v, yv, bp.sigma_m, *time_offset_sigma_ms);
+    } else {
+        for (int i = 0; i < 2; ++i) {
+            st.w[i] = st.w[i] + 1 / r[i];
+            st.o[i] = st.o[i] + ((1 / r[i]) / st.w[i]) * (yv[i] - st.o[i]);
+        }
+    }
+    return u;
+}
+
+// ---- The engine's use of the pair states ----------------------------------------
+
+BiasState Engine::bias_state(const std::string& pair) const {
+    auto it = bias_.find(pair);
+    return it != bias_.end() ? it->second : initial_bias(*pack_.bias);
+}
+
+// B predicted to t for comparison with A (its timing variance added first,
+// correlate.md "Track estimate"), then, when the pack has `bias` and the two
+// sources differ, moved into A's frame. Without `bias` this is B's
+// prediction for comparison.
+Filter Engine::predict_into_frame(const Entity& a, const Entity& b, std::int64_t t) const {
+    Filter f = predict_for_comparison(b, t);
+    if (!pack_.bias || a.source == b.source) return f;
+    const bool b_first = b.source < a.source;
+    return move_into_frame(f, bias_state(b_first ? b.source + "|" + a.source : a.source + "|" + b.source), b_first,
+                           pack_.time_offset_sigma_ms.has_value());
 }
 
 // "Update", after the commit: committed system tracks in creation order,
@@ -74,6 +128,7 @@ void Engine::fit_time_offset(BiasState& st, const double r[2], const double v[2]
 // sources with at least one of them among the tick's rows.
 void Engine::bias_update(std::int64_t now_ms, const std::set<std::string>& rows, Output& out) {
     const BiasParams& bp = *pack_.bias;
+    const bool timed = pack_.time_offset_sigma_ms.has_value();
     for (const auto& kv : committed_.systems) {
         std::vector<std::string> members;
         for (const std::string& key : kv.second)
@@ -90,53 +145,20 @@ void Engine::bias_update(std::int64_t now_ms, const std::set<std::string>& rows,
                 const Entity& es = x_first ? ex : ey;
                 const Entity& et = x_first ? ey : ex;
                 const std::string pair = es.source + "|" + et.source;
-                Filter fs = predict(es, now_ms), ft = predict(et, now_ms);
-                const Axis* as[2] = {&fs.east, &fs.north};
-                const Axis* at[2] = {&ft.east, &ft.north};
-                const bool timed = pack_.time_offset_sigma_ms.has_value();
-                double yv[2], r[2], v[2];
-                for (int i = 0; i < 2; ++i) {
-                    yv[i] = at[i]->p - as[i]->p;
-                    r[i] = as[i]->pp + at[i]->pp;
-                    v[i] = (as[i]->v + at[i]->v) / 2;   // "Time offset": the pair's velocity
-                }
-
-                // 2. d² with the pair's state; with `time_offset` the expected
-                //    offset is o - v*tau.
-                BiasState st = bias_state(pair);
-                double d2 = 0;
-                for (int i = 0; i < 2; ++i) {
-                    double dev = timed ? yv[i] - (st.o[i] - v[i] * st.tau) : yv[i] - st.o[i];
-                    d2 = d2 + dev * dev / (st.var + r[i]);
-                }
-
-                // 3. Accepted when d² < g.
-                const bool accepted = d2 < bp.gate;
-                if (accepted) {
-                    st.n = st.n + 1;
-                    st.var = bp.sigma_m * bp.sigma_m / static_cast<double>(st.n + 1);
-                    const double floor2 = bp.floor_m * bp.floor_m;
-                    if (st.var < floor2) st.var = floor2;
-                    if (timed) {
-                        fit_time_offset(st, r, v, yv);
-                    } else {
-                        for (int i = 0; i < 2; ++i) {
-                            st.w[i] = st.w[i] + 1 / r[i];
-                            st.o[i] = st.o[i] + ((1 / r[i]) / st.w[i]) * (yv[i] - st.o[i]);
-                        }
-                    }
-                    bias_[pair] = st;
-                }
+                const PairUpdate u = update_pair(bias_state(pair), predict(es, now_ms), predict(et, now_ms), bp,
+                                                 pack_.time_offset_sigma_ms);
+                if (u.accepted) bias_[pair] = u.state;
 
                 // 4. Trace, with the state after step 3.
+                const BiasState& st = u.state;
                 Json rec = Json::make_object();
                 rec["stage"] = "bias";
                 rec["a"] = ex.key;
                 rec["b"] = ey.key;
                 rec["test"] = "offset";
-                rec["value"] = d2;
+                rec["value"] = u.d2;
                 rec["limit"] = bp.gate;
-                rec["pass"] = accepted;
+                rec["pass"] = u.accepted;
                 rec["east"] = st.o[0];
                 rec["north"] = st.o[1];
                 rec["var"] = st.var;

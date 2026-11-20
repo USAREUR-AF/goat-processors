@@ -1,4 +1,6 @@
 // correlate.md "Tests".
+#include "correlate/tests.hpp"
+
 #include "correlate/engine.hpp"
 
 #include <algorithm>
@@ -33,20 +35,11 @@ std::optional<Json> same_value(const Json& r, const std::string& key) {
 
 // ---- Tests -----------------------------------------------------------------
 
-double Engine::ce_of(const Entity& e) const {
-    return ce_at(e.last).value_or(pack_.filter.default_ce_m);
-}
-
-// Spec "Tests": d² = sum over east, north of (pa - pb)² / (pp_b + r_a), with
-// `b` B's prediction for comparison (its timing variance added) and r_a A's
-// measurement variance on that axis (ce_a² when A's time error is 0).
-double Engine::d2(const Entity& a, const Filter& b) const {
-    double de = a.filter.east.p - b.east.p, dn = a.filter.north.p - b.north.p;
-    return de * de / (b.east.pp + a.r.east) + dn * dn / (b.north.pp + a.r.north);
-}
-
-Engine::TestResult Engine::run_test(const TestSpec& t, const Entity& a, const Entity& b,
-                                    const Filter& bp) const {
+TestResult run_test(const TestSpec& t, const TestInput& in) {
+    const Entity& a = in.a;
+    const Entity& b = in.b;
+    const Filter& bp = in.bp;
+    auto ce_of = [&](const Entity& e) { return ce_at(e.last).value_or(in.default_ce_m); };
     auto param = [&](const char* name) { return t.num.at(name); };
     auto skipped = [] { return TestResult{Json(), Json(), true, true}; };
     double de = a.filter.east.p - bp.east.p, dn = a.filter.north.p - bp.north.p;
@@ -63,6 +56,8 @@ Engine::TestResult Engine::run_test(const TestSpec& t, const Entity& a, const En
         return {dist, limit, dist < limit, false};
     }
     if (t.name == "mahalanobis") {
+        // d² of A against B's prediction for comparison, r A's measurement
+        // variance on each axis (ce_a² when A's time error is 0).
         double v = d2(a, bp), gate = param("gate");
         return {v, gate, v < gate, false};
     }
@@ -99,7 +94,7 @@ Engine::TestResult Engine::run_test(const TestSpec& t, const Entity& a, const En
 bool Engine::run_stage(const char* stage, const std::vector<TestSpec>& tests, const Entity& a,
                        const Entity& b, const Filter& bp, Output& out, const Json* extra) const {
     for (const TestSpec& t : tests) {
-        TestResult r = run_test(t, a, b, bp);
+        TestResult r = run_test(t, {a, b, bp, pack_.filter.default_ce_m});
         Json rec = Json::make_object();
         rec["stage"] = stage;
         rec["a"] = a.key;

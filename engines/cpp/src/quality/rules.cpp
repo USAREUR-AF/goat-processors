@@ -1,4 +1,6 @@
 // quality.md "Rules" and "Forwarding".
+#include "quality/rules.hpp"
+
 #include "quality/engine.hpp"
 
 #include <algorithm>
@@ -13,57 +15,70 @@ using namespace detail;
 
 // ---- Rules (spec "Rules", Evaluation; "Trace" for tick) --------------------
 
+RuleStep evaluate_rule(const Rule& rule, const RuleState& before, const std::string& subject,
+                       const Json& measures) {
+    RuleStep step;
+    RuleState& st = step.state;
+    st = before;
+    const char* scope = scope_name(rule.scope);
+
+    const Json v = *measures.find(rule.measure);
+    const bool present = v.is_number();
+    const bool was_active = st.active;
+    bool pass;
+    if (!was_active) {
+        pass = present && condition_met(rule.op, v.number, rule.limit);
+        st.count = pass ? st.count + 1 : 0;
+        if (st.count >= rule.for_count) {
+            st.active = true;
+            st.count = 0;
+            Json ev = event("action-start");
+            ev["rule"] = rule.name;
+            ev["scope"] = scope;
+            ev["subject"] = subject;
+            ev["action"] = action_name(rule.action);
+            ev["value"] = v;
+            step.event = ev;
+        }
+    } else {
+        // An absent v never clears a rule.
+        pass = present && clears(rule.op, v.number, rule.clear);
+        if (pass) {
+            st.active = false;
+            Json ev = event("action-end");
+            ev["rule"] = rule.name;
+            ev["scope"] = scope;
+            ev["subject"] = subject;
+            ev["action"] = action_name(rule.action);
+            ev["reason"] = "clear";
+            ev["value"] = v;
+            step.event = ev;
+        }
+    }
+
+    Json t = Json::make_object();
+    t["stage"] = "rule";
+    t["rule"] = rule.name;
+    t["subject"] = subject;
+    t["measure"] = rule.measure;
+    t["value"] = v;
+    t["limit"] = was_active ? rule.clear : rule.limit;
+    t["pass"] = pass;
+    t["count"] = static_cast<long long>(st.count);
+    t["active"] = st.active;
+    step.trace = t;
+    return step;
+}
+
 void Engine::evaluate_rules(Scope scope, const std::string& subject, const Json& measures, Output& out) {
     for (size_t i = 0; i < pack_.rules.size(); ++i) {
         const Rule& rule = pack_.rules[i];
         if (rule.scope != scope) continue;
         RuleState& st = rule_states_[i][subject];    // created {0, false} on first evaluation
-
-        const Json v = *measures.find(rule.measure);
-        const bool present = v.is_number();
-        const bool was_active = st.active;
-        bool pass;
-        if (!was_active) {
-            pass = present && condition_met(rule.op, v.number, rule.limit);
-            st.count = pass ? st.count + 1 : 0;
-            if (st.count >= rule.for_count) {
-                st.active = true;
-                st.count = 0;
-                Json ev = event("action-start");
-                ev["rule"] = rule.name;
-                ev["scope"] = scope_name(scope);
-                ev["subject"] = subject;
-                ev["action"] = action_name(rule.action);
-                ev["value"] = v;
-                out.events.push(ev);
-            }
-        } else {
-            // An absent v never clears a rule.
-            pass = present && clears(rule.op, v.number, rule.clear);
-            if (pass) {
-                st.active = false;
-                Json ev = event("action-end");
-                ev["rule"] = rule.name;
-                ev["scope"] = scope_name(scope);
-                ev["subject"] = subject;
-                ev["action"] = action_name(rule.action);
-                ev["reason"] = "clear";
-                ev["value"] = v;
-                out.events.push(ev);
-            }
-        }
-
-        Json t = Json::make_object();
-        t["stage"] = "rule";
-        t["rule"] = rule.name;
-        t["subject"] = subject;
-        t["measure"] = rule.measure;
-        t["value"] = v;
-        t["limit"] = was_active ? rule.clear : rule.limit;
-        t["pass"] = pass;
-        t["count"] = static_cast<long long>(st.count);
-        t["active"] = st.active;
-        out.trace.push(t);
+        RuleStep step = evaluate_rule(rule, st, subject, measures);
+        st = step.state;
+        if (step.event) out.events.push(std::move(*step.event));
+        out.trace.push(std::move(step.trace));
     }
 }
 
@@ -105,6 +120,11 @@ Json Engine::pass_event(const Json& report, const std::string& key, const std::s
     std::vector<const Rule*> acting;
     for (size_t i = 0; i < pack_.rules.size(); ++i)
         if (pack_.rules[i].action != Action::Alert && in_force(i, key, source)) acting.push_back(&pack_.rules[i]);
+    return forward(acting, report, key, pack_.filter.default_ce_m);
+}
+
+Json forward(const std::vector<const Rule*>& acting, const Json& report, const std::string& key,
+             double default_ce_m) {
 
     Json ev = event("pass");
     ev["entity"] = key;
@@ -125,7 +145,7 @@ Json Engine::pass_event(const Json& report, const std::string& key, const std::s
 
     Json fwd = report;    // exactly as received, then the changes below
     if (downgrade) {
-        double x = ce_at(report).value_or(pack_.filter.default_ce_m);
+        double x = ce_at(report).value_or(default_ce_m);
         for (const Rule* rule : acting)
             if (rule->action == Action::Downgrade) x = x * rule->factor;
         // A product that overflowed to infinity is forwarded as the largest finite binary64.

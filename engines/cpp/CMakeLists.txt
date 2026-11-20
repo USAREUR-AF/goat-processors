@@ -32,8 +32,8 @@ add_library(goat_engine
   src/snapshot/snapshot.cpp
   src/filter/pack.cpp src/filter/geometry.cpp src/filter/conditions.cpp src/filter/engine.cpp
   src/correlate/pack.cpp src/correlate/engine.cpp src/correlate/measurement.cpp src/correlate/two_model.cpp
-  src/correlate/restart.cpp src/correlate/tests.cpp src/correlate/confirm.cpp
-  src/assign/membership.cpp src/assign/ranking.cpp src/assign/bias.cpp src/assign/assign.cpp
+  src/correlate/tests.cpp src/correlate/confirm.cpp
+  src/assign/membership.cpp src/assign/ranking.cpp src/assign/bias.cpp src/assign/cost.cpp src/assign/assign.cpp
   src/fuse/pack.cpp src/fuse/kinematics.cpp src/fuse/attributes.cpp src/fuse/engine.cpp
   src/quality/pack.cpp src/quality/input_clock.cpp src/quality/measures.cpp src/quality/rules.cpp
   src/quality/engine.cpp

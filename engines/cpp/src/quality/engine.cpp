@@ -10,6 +10,8 @@
 
 #include "model/report.hpp"
 #include "quality/common.hpp"
+#include "quality/input_clock.hpp"
+#include "quality/measures.hpp"
 #include "snapshot/snapshot.hpp"
 
 namespace corr::quality {
@@ -78,8 +80,8 @@ Output Engine::ingest(const Json& r) {
                                       exists ? Json(static_cast<long long>(last)) : Json()})));
 
     // "Input clock", built from the entities as they are before this report.
-    const std::optional<Json> clock = input_clock(source);
-    const std::optional<std::int64_t> latest = source_latest(source);
+    const std::optional<Json> clock = input_clock(entities_, source);
+    const std::optional<std::int64_t> latest = source_latest(entities_, source);
 
     // "Samples", in the order interval, latency, lateness, time_error,
     // time_state, source_order, nis, speed_err.
@@ -147,8 +149,7 @@ Output Engine::ingest(const Json& r) {
         out.events.push(ev);
     } else if (advance) {
         // The filter is updated from the prediction that gave nis.
-        it->second.filter = predicted;
-        filter_correct(it->second.filter, pack_.filter, z, vel, ce);
+        it->second.filter = filter_correct(predicted, pack_.filter, z, vel, ce);
         it->second.last = t;
         it->second.last_pos = z;
     }
@@ -201,7 +202,7 @@ Output Engine::tick(std::int64_t now_ms) {
     // 5. Entities, key order: measures, quality event, entity rules.
     std::map<std::string, Json> measures;
     for (const auto& [key, e] : entities_) {
-        Json m = entity_measures(e, now_ms);
+        Json m = entity_measures(e, now_ms, pack_.min_samples);
         Json ev = event("quality");
         ev["scope"] = "entity";
         ev["subject"] = key;

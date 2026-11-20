@@ -15,6 +15,7 @@
 #include "assign/membership.hpp"
 #include "assign/ranking.hpp"
 #include "correlate/entity.hpp"
+#include "correlate/motion.hpp"
 #include "correlate/pack.hpp"
 #include "model/estimate.hpp"
 #include "model/json.hpp"
@@ -31,26 +32,17 @@ public:
     Json snapshot() const;
 
 private:
-    struct TestResult { Json value, limit; bool pass; bool skipped; };
-
     // Frame
     Point to_plane(double lat, double lon) const;
     std::pair<double, double> to_degrees(double east, double north) const;
 
-    // Track estimate and Two-model filter
-    MeasurementVariance measurement_variance(const Entity* e, std::int64_t time_ms,
-                                             const std::optional<Point>& vel, double ce, double te) const;
-    void filter_first(Entity& e, const Point& z, const std::optional<Point>& vel, const Point& r) const;
-    void filter_update(Entity& e, const Point& z, const std::optional<Point>& vel, const Point& r, double dt,
-                       Output& out) const;
+    // Track estimate, Two-model filter and Restart: the pure functions of
+    // correlate/motion.hpp applied to a stored entity.
     Filter predict(const Entity& e, std::int64_t t) const;
     Filter predict_for_comparison(const Entity& b, std::int64_t t) const;
     bool restart_test(const Entity& e, std::int64_t time_ms, const Point& z, const Point& r, Output& out) const;
 
     // Tests
-    double ce_of(const Entity& e) const;
-    double d2(const Entity& a, const Filter& b_pred) const;
-    TestResult run_test(const TestSpec& t, const Entity& a, const Entity& b, const Filter& b_pred) const;
     bool run_stage(const char* stage, const std::vector<TestSpec>& tests, const Entity& a, const Entity& b,
                    const Filter& b_pred, Output& out, const Json* extra = nullptr) const;
 
@@ -71,7 +63,6 @@ private:
     BiasState bias_state(const std::string& pair) const;
     Filter predict_into_frame(const Entity& a, const Entity& b, std::int64_t t) const;
     void bias_update(std::int64_t now_ms, const std::set<std::string>& rows, Output& out);
-    void fit_time_offset(BiasState& st, const double r[2], const double v[2], const double y[2]) const;
     std::vector<RankedAssignment> rank_source(const std::vector<std::string>& rows, const Membership& m,
                                               int h, std::vector<int>& columns,
                                               std::vector<std::vector<double>>& entries, Output& out) const;
@@ -87,6 +78,7 @@ private:
     void filter_json(const Entity& e, Json& into) const;   // snapshot `filter`, `models`, `mode`
 
     Pack pack_;
+    Motion motion_;                                          // of pack_
     std::optional<std::pair<double, double>> ref_;          // lat0, lon0
     std::map<std::string, Entity> entities_;                // key order
     std::map<int, std::set<std::string>> groups_;           // creation order, members in key order

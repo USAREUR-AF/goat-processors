@@ -1,5 +1,5 @@
 // quality.md "Entity measures" and "Source measures".
-#include "quality/engine.hpp"
+#include "quality/measures.hpp"
 
 #include <algorithm>
 
@@ -11,8 +11,8 @@ using namespace detail;
 
 // ---- Entity measures (spec "Entity measures") -----------------------------
 
-Json Engine::entity_measures(const Entity& e, std::int64_t now_ms) const {
-    const auto k = static_cast<size_t>(pack_.min_samples);
+Json entity_measures(const Entity& e, std::int64_t now_ms, std::int64_t min_samples) {
+    const auto k = static_cast<size_t>(min_samples);
     const std::vector<Record>& w = e.window;
 
     // The samples of each kind, in window order, as numbers (integer or binary64).
@@ -85,7 +85,7 @@ Json Engine::entity_measures(const Entity& e, std::int64_t now_ms) const {
 
 // ---- Source measures (spec "Source measures") -----------------------------
 
-Json Engine::source_measures(const std::vector<const Json*>& ems) const {
+Json source_measures(const std::vector<const Json*>& ems) {
     // "Present" values of one measure across the entities, in entity key order.
     auto present = [&](const char* name) {
         std::vector<const Json*> vs;

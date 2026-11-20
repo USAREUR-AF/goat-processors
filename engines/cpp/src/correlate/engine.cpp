@@ -23,7 +23,42 @@ using report::number_at;
 
 } // namespace
 
-Engine::Engine(Pack pack) : pack_(std::move(pack)) {}
+Engine::Engine(Pack pack) : pack_(std::move(pack)), motion_(motion_of(pack_)) {}
+
+// ---- Track estimate, Two-model filter, Restart -------------------------------
+
+Filter Engine::predict(const Entity& e, std::int64_t t) const {
+    return correlate::predict(e, motion_, static_cast<double>(t - e.last_time_ms) / 1000);
+}
+
+// correlate.md "Track estimate": B predicted to t to be compared with another
+// entity, with B's timing variance added to the predicted pp on each axis
+// before any other change to the prediction (Tests, rank, and
+// correlate-assign.md Cost). Restart, the bias update and output use
+// `predict`, without it.
+Filter Engine::predict_for_comparison(const Entity& b, std::int64_t t) const {
+    return for_comparison(predict(b, t), b.timing);
+}
+
+// correlate.md "Restart": for a later report, before the filter update.
+// Returns true when the report updates the filter (no `restart` directive, or
+// d² < g); writes the `restart` record first of the report's records.
+bool Engine::restart_test(const Entity& e, std::int64_t time_ms, const Point& z, const Point& r,
+                          Output& out) const {
+    if (!pack_.restart_gate) return true;
+    const double g = *pack_.restart_gate;
+    const double v = d2(z, r, predict(e, time_ms));
+    Json rec = Json::make_object();
+    rec["stage"] = "filter";
+    rec["a"] = e.key;
+    rec["b"] = Json();
+    rec["test"] = "restart";
+    rec["value"] = v;
+    rec["limit"] = g;
+    rec["pass"] = v < g;
+    out.trace.push(rec);
+    return v < g;
+}
 
 // ---- Frame -----------------------------------------------------------------
 
@@ -110,7 +145,18 @@ Output Engine::ingest(const Json& r) {
     // correlate.md "Track estimate", Measurement variance, and its `time`
     // record before any other record of this report.
     const bool first = it == entities_.end();
-    const MeasurementVariance mv = measurement_variance(first ? nullptr : &it->second, time_ms, vel, ce, te);
+    // The velocity is the entity's prediction to time_ms for a later report,
+    // the measured velocity (or 0) for a first; only read when te is above 0.
+    Point v = {0, 0};
+    if (te != 0) {
+        if (!first) {
+            Filter p = predict(it->second, time_ms);
+            v = {p.east.v, p.north.v};
+        } else if (vel) {
+            v = *vel;
+        }
+    }
+    const MeasurementVariance mv = measurement_variance(ce, te, v);
     if (te > 0) {
         Json rec = filter_record(key, "time", nullptr, te);
         rec["var_east"] = mv.timing.east;
@@ -122,21 +168,29 @@ Output Engine::ingest(const Json& r) {
         Entity e;
         e.key = key;
         e.source = source;
-        filter_first(e, z, vel, mv.r);
+        static_cast<Track&>(e) = first_track(motion_, z, vel, mv.r);
         it = entities_.emplace(key, std::move(e)).first;
         Json ev = event("new");
         ev["entity"] = key;
         out.events.push(ev);
     } else if (restart_test(it->second, time_ms, z, mv.r, out)) {
         double dt = static_cast<double>(time_ms - it->second.last_time_ms) / 1000;
-        filter_update(it->second, z, vel, mv.r, dt, out);
+        const TrackUpdate u = update_track(it->second, motion_, z, vel, mv.r, dt);
+        static_cast<Track&>(it->second) = u.track;
+        if (motion_.maneuver) {
+            // correlate.md "Two-model filter", Trace: likelihoods, then modes.
+            out.trace.push(filter_record(key, "likelihood", "quiet", u.lambda[0]));
+            out.trace.push(filter_record(key, "likelihood", "maneuver", u.lambda[1]));
+            out.trace.push(filter_record(key, "mode", "quiet", u.track.mu[0]));
+            out.trace.push(filter_record(key, "mode", "maneuver", u.track.mu[1]));
+        }
     } else {
         // correlate.md "Restart": the filter starts again from this report as
         // a first report, with pp this report's measurement variance (found
         // above from the prediction's velocity); the entity keeps its key,
         // group, pair counts and hold failure count. With method assign it is
         // restarted until the next tick.
-        filter_first(it->second, z, vel, mv.r);
+        static_cast<Track&>(it->second) = first_track(motion_, z, vel, mv.r);
         if (pack_.method_assign) restarted_.insert(key);
     }
     Entity& a = it->second;

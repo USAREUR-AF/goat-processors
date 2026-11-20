@@ -1,5 +1,5 @@
 // quality.md "Input clock".
-#include "quality/engine.hpp"
+#include "quality/input_clock.hpp"
 
 #include <algorithm>
 #include <map>
@@ -12,10 +12,10 @@ using namespace detail;
 
 // ---- Input clock (spec "Input clock") ------------------------------------
 
-std::optional<Json> Engine::input_clock(const std::string& source) const {
+std::optional<Json> input_clock(const std::map<std::string, Entity>& entities, const std::string& source) {
     // 1. Each other source's latest time: the greatest `last` among its entities.
     std::map<std::string, std::int64_t> latest_of;
-    for (const auto& [key, e] : entities_) {
+    for (const auto& [key, e] : entities) {
         if (e.source == source) continue;
         auto [it, inserted] = latest_of.emplace(e.source, e.last);
         if (!inserted) it->second = std::max(it->second, e.last);
@@ -32,11 +32,11 @@ std::optional<Json> Engine::input_clock(const std::string& source) const {
     return Json((a + b) / 2);
 }
 
-std::optional<std::int64_t> Engine::source_latest(const std::string& source) const {
+std::optional<std::int64_t> source_latest(const std::map<std::string, Entity>& entities, const std::string& source) {
     // The greatest `last` among the entities whose source is `source` (the
     // report's own entity among them when it is that source's).
     std::optional<std::int64_t> latest;
-    for (const auto& [key, e] : entities_)
+    for (const auto& [key, e] : entities)
         if (e.source == source && (!latest || e.last > *latest)) latest = e.last;
     return latest;
 }

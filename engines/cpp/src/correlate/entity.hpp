@@ -10,13 +10,17 @@
 
 namespace corr::correlate {
 
-struct Entity {
-    std::string key;
-    std::string source;
-    std::int64_t last_time_ms = 0;
+// The filter state of one entity (correlate.md "Track estimate", "Two-model filter").
+struct Track {
     Filter filter;             // with `maneuver`, the combination of the two models
     Filter models[2];          // with `maneuver`: quiet (index 0), maneuver (index 1)
     double mu[2] = {0, 0};     // with `maneuver`: mu1, mu2
+};
+
+struct Entity : Track {
+    std::string key;
+    std::string source;
+    std::int64_t last_time_ms = 0;
     Json last;                 // the last accepted report
     // correlate.md "Track estimate", Measurement variance, of the last report:
     double time_error_ms = 0;  // its time error te (Reports, "Time quality")

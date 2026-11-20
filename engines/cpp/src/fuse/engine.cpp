@@ -113,7 +113,7 @@ Output Engine::ingest(const Json& r) {
     // correlate.md "Track estimate", later reports.
     Entity& e = it->second;
     double dt = static_cast<double>(time_ms - e.last_time_ms) / 1000;
-    filter_update(e.filter, pack_.filter, z, vel, ce, dt);
+    e.filter = filter_update(e.filter, pack_.filter, z, vel, ce, dt);
     e.last_time_ms = time_ms;
     e.report = std::move(report);
 

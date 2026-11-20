@@ -6,6 +6,7 @@
 #include <functional>
 #include <limits>
 
+#include "assign/cost.hpp"
 #include "correlate/common.hpp"
 #include "correlate/engine.hpp"
 
@@ -40,28 +41,13 @@ Json trace_record(const char* stage, Json a, Json b, const char* test, Json valu
 // then, with `bias`, moved into that entity's frame. The estimate for output
 // passes no frame and gets neither.
 Filter Engine::fuse(const std::set<std::string>& members, std::int64_t t, const Entity* frame) const {
-    double sp[2] = {0, 0}, spp[2] = {0, 0}, sv[2] = {0, 0}, svv[2] = {0, 0};
+    std::vector<Filter> predictions;
+    predictions.reserve(members.size());
     for (const std::string& k : members) {
         const Entity& member = entities_.at(k);
-        Filter f = frame ? predict_into_frame(*frame, member, t) : predict(member, t);
-        const Axis* ax[2] = {&f.east, &f.north};
-        for (int i = 0; i < 2; ++i) {
-            spp[i] = spp[i] + 1 / ax[i]->pp;
-            sp[i] = sp[i] + ax[i]->p / ax[i]->pp;
-            svv[i] = svv[i] + 1 / ax[i]->vv;
-            sv[i] = sv[i] + ax[i]->v / ax[i]->vv;
-        }
+        predictions.push_back(frame ? predict_into_frame(*frame, member, t) : predict(member, t));
     }
-    Filter out;
-    Axis* ax[2] = {&out.east, &out.north};
-    for (int i = 0; i < 2; ++i) {
-        ax[i]->pp = 1 / spp[i];
-        ax[i]->p = ax[i]->pp * sp[i];
-        ax[i]->vv = 1 / svv[i];
-        ax[i]->v = ax[i]->vv * sv[i];
-        ax[i]->pv = 0;
-    }
-    return out;
+    return fused_estimate(predictions);
 }
 
 // Steps 1 to 3 for source S with rows R (key order) against membership m:
@@ -117,12 +103,7 @@ std::vector<RankedAssignment> Engine::rank_source(const std::vector<std::string>
             // "Cost": d² of A against the fused estimate of the others, each
             // with its timing variance added and then moved into A's frame
             // (Sensor bias); pp_a is A's filter pp plus A's timing variance.
-            Filter f = fuse(others[j], a.last_time_ms, &a);
-            double pp_ae = a.filter.east.pp + a.timing.east, pp_an = a.filter.north.pp + a.timing.north;
-            double de = a.filter.east.p - f.east.p, dn = a.filter.north.p - f.north.p;
-            double d2 = de * de / (pp_ae + f.east.pp) + dn * dn / (pp_an + f.north.pp);
-            if (a_system == columns[j]) d2 = d2 - pack_.keep_bonus;
-            entries[i][j] = d2;
+            entries[i][j] = entry_cost(a, fuse(others[j], a.last_time_ms, &a), a_system == columns[j], pack_.keep_bonus);
         }
         double alone = pack_.new_cost;
         if (a_system && m.systems.at(a_system).size() == 1) alone = alone - pack_.keep_bonus;
