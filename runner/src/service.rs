@@ -124,11 +124,11 @@ fn track_events(out: &Output) -> Vec<(String, Json)> {
 
 fn line_obj(stage: &str, now: Option<i64>, list: Json, key: &str) -> Json {
     let mut m = BTreeMap::new();
-    m.insert("stage".to_string(), Json::Str(stage.into()));
+    m.insert("stage".into(), Json::Str(stage.into()));
     if let Some(t) = now {
         m.insert("now_ms".into(), Json::Int(t));
     }
-    m.insert(key.into(), list);
+    m.insert(key.to_string().into(), list);
     Json::Obj(m)
 }
 
@@ -184,7 +184,7 @@ fn spawn_file(path: &std::path::Path, speed: f64, tx: Sender<Input>) -> Result<(
 fn status(c: &Config, p: &Pipeline, started_ms: i64, sinks: &Sinks, unreadable: u64, fabric_routers: Option<usize>) -> Json {
     let mut m = BTreeMap::new();
     let s = |v: &str| Json::Str(v.into());
-    m.insert("name".to_string(), s(&c.name));
+    m.insert("name".into(), s(&c.name));
     m.insert("site".into(), s(&c.site));
     m.insert("version".into(), s(env!("CARGO_PKG_VERSION")));
     m.insert("state".into(), s("running"));
@@ -201,7 +201,7 @@ fn status(c: &Config, p: &Pipeline, started_ms: i64, sinks: &Sinks, unreadable: 
                 .iter()
                 .map(|st| {
                     let mut o = BTreeMap::new();
-                    o.insert("function".to_string(), s(&st.function));
+                    o.insert("function".into(), s(&st.function));
                     o.insert("pack".into(), s(&st.pack));
                     Json::Obj(o)
                 })
@@ -210,14 +210,14 @@ fn status(c: &Config, p: &Pipeline, started_ms: i64, sinks: &Sinks, unreadable: 
     );
     let k = &p.counters;
     let mut cnt = BTreeMap::new();
-    cnt.insert("reports_in".to_string(), Json::Int(k.reports_in as i64));
+    cnt.insert("reports_in".into(), Json::Int(k.reports_in as i64));
     cnt.insert("reports_out".into(), Json::Int(k.reports_out as i64));
     cnt.insert("ticks".into(), Json::Int(k.ticks as i64));
     cnt.insert("unreadable".into(), Json::Int(unreadable as i64));
     cnt.insert("published".into(), Json::Int(sinks.published as i64));
     cnt.insert("output_errors".into(), Json::Int(sinks.errors as i64));
-    cnt.insert("stopped".into(), Json::Obj(k.stopped.iter().map(|(a, b)| (a.clone(), Json::Int(*b as i64))).collect()));
-    cnt.insert("per_source".into(), Json::Obj(k.per_source.iter().map(|(a, b)| (a.clone(), Json::Int(*b as i64))).collect()));
+    cnt.insert("stopped".into(), Json::Obj(k.stopped.iter().map(|(a, b)| (a.clone().into(), Json::Int(*b as i64))).collect()));
+    cnt.insert("per_source".into(), Json::Obj(k.per_source.iter().map(|(a, b)| (a.clone().into(), Json::Int(*b as i64))).collect()));
     m.insert("counters".into(), Json::Obj(cnt));
     m.insert("output_prefix".into(), s(&sinks.prefix));
     m.insert("fabric_routers".into(), fabric_routers.map(|n| Json::Int(n as i64)).unwrap_or(Json::Null));
@@ -360,7 +360,7 @@ impl Runner {
                 .iter()
                 .map(|st| {
                     let mut o = BTreeMap::new();
-                    o.insert("function".to_string(), Json::Str(st.function.clone()));
+                    o.insert("function".into(), Json::Str(st.function.clone()));
                     o.insert("pack".into(), Json::Str(st.pack.clone()));
                     let conf = configured.iter().find(|(f, _)| *f == st.function).map(|(_, p)| p.clone()).unwrap_or_default();
                     o.insert("configured_pack".into(), Json::Str(conf.clone()));
@@ -375,7 +375,7 @@ impl Runner {
         let mut m = BTreeMap::new();
         let now_sec = wall_ms().div_euclid(1000);
         let last10: u64 = self.rate.iter().filter(|(s, _)| *s >= now_sec - 10 && *s < now_sec).map(|(_, n)| n).sum();
-        m.insert("reports_per_second".to_string(), Json::Num(last10 as f64 / 10.0));
+        m.insert("reports_per_second".into(), Json::Num(last10 as f64 / 10.0));
         m.insert("rate_window_s".into(), Json::Int(10));
         m.insert("processing_us".into(), quantiles(&self.latency_us.iter().map(|x| *x as i64).collect::<Vec<_>>()));
         m.insert("report_age_ms".into(), quantiles(&self.age_ms.iter().copied().collect::<Vec<_>>()));
@@ -383,15 +383,15 @@ impl Runner {
         m.insert("reports_in".into(), Json::Int(k.reports_in as i64));
         m.insert("reports_out".into(), Json::Int(k.reports_out as i64));
         m.insert("ticks".into(), Json::Int(k.ticks as i64));
-        m.insert("per_source".into(), Json::Obj(k.per_source.iter().map(|(a, b)| (a.clone(), Json::Int(*b as i64))).collect()));
-        m.insert("stopped".into(), Json::Obj(k.stopped.iter().map(|(a, b)| (a.clone(), Json::Int(*b as i64))).collect()));
+        m.insert("per_source".into(), Json::Obj(k.per_source.iter().map(|(a, b)| (a.clone().into(), Json::Int(*b as i64))).collect()));
+        m.insert("stopped".into(), Json::Obj(k.stopped.iter().map(|(a, b)| (a.clone().into(), Json::Int(*b as i64))).collect()));
         m.insert("tracks".into(), Json::Int(self.tracks.len() as i64));
         Json::Obj(m)
     }
 
     fn tracks_json(&self) -> Json {
         let mut m = BTreeMap::new();
-        m.insert("now_ms".to_string(), self.tracks_now_ms.map(Json::Int).unwrap_or(Json::Null));
+        m.insert("now_ms".into(), self.tracks_now_ms.map(Json::Int).unwrap_or(Json::Null));
         m.insert("tracks".into(), Json::Arr(self.tracks.values().cloned().collect()));
         Json::Obj(m)
     }
@@ -430,7 +430,7 @@ impl Runner {
         let (events, ev_more) = cut(events);
         let (trace, tr_more) = cut(trace);
         let mut m = BTreeMap::new();
-        m.insert("track".to_string(), track);
+        m.insert("track".into(), track);
         m.insert("names".into(), Json::Arr(names.into_iter().map(Json::Str).collect()));
         m.insert("from_step".into(), self.recent.front().map(|r| Json::Int(r.step as i64)).unwrap_or(Json::Null));
         m.insert("events".into(), Json::Arr(events));
@@ -448,7 +448,7 @@ impl Runner {
             Ask::Health => {
                 let (good, why) = self.healthy();
                 let mut m = BTreeMap::new();
-                m.insert("healthy".to_string(), Json::Bool(good));
+                m.insert("healthy".into(), Json::Bool(good));
                 m.insert("detail".into(), Json::Str(why));
                 Response::json(if good { 200 } else { 503 }, Json::Obj(m).to_string())
             }
@@ -487,10 +487,10 @@ impl Runner {
 
 fn cite(r: &Recent, stage: &str, v: &Json, key: &str) -> Json {
     let mut m = BTreeMap::new();
-    m.insert("step".to_string(), Json::Int(r.step as i64));
+    m.insert("step".into(), Json::Int(r.step as i64));
     m.insert("now_ms".into(), r.now_ms.map(Json::Int).unwrap_or(Json::Null));
     m.insert("stage".into(), Json::Str(stage.into()));
-    m.insert(key.into(), v.clone());
+    m.insert(key.to_string().into(), v.clone());
     Json::Obj(m)
 }
 
@@ -504,13 +504,13 @@ fn push_capped<T>(q: &mut VecDeque<T>, v: T, cap: usize) {
 fn quantiles(v: &[i64]) -> Json {
     let mut m = BTreeMap::new();
     if v.is_empty() {
-        m.insert("samples".to_string(), Json::Int(0));
+        m.insert("samples".into(), Json::Int(0));
         return Json::Obj(m);
     }
     let mut s = v.to_vec();
     s.sort_unstable();
     let q = |f: f64| s[((s.len() - 1) as f64 * f).round() as usize];
-    m.insert("samples".to_string(), Json::Int(s.len() as i64));
+    m.insert("samples".into(), Json::Int(s.len() as i64));
     m.insert("p50".into(), Json::Int(q(0.5)));
     m.insert("p99".into(), Json::Int(q(0.99)));
     m.insert("max".into(), Json::Int(*s.last().unwrap()));

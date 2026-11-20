@@ -1,0 +1,14 @@
+#!/bin/sh
+# Line coverage of the engine (src/, every module) with OTP's own cover
+# module, while the four vector runners and the tests (test/) run.
+#   engines/erlang/coverage [FLOOR]
+# Prints the percentage per module and in total; exits non-zero when the
+# total is below FLOOR percent (default 0) or a vector or test fails.
+set -e
+here="$(cd "$(dirname "$0")" && pwd)"
+root="$here/../.."
+"$here/build.sh"
+"$here/test/build_tests.sh"
+cd "$here"
+GOAT_ROOT="$root" GOAT_FUZZ_ITERATIONS="${GOAT_FUZZ_ITERATIONS:-300}" \
+  erl -noshell -pa "$here/ebin" -pa "$here/test/ebin" -run test_support coverage "${1:-0}"
