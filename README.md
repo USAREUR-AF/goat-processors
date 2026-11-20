@@ -212,8 +212,8 @@ False merges, missed merges, identity swaps and GOSPA are for the 50 random scen
 | [`spec/`](spec/) | one specification per function, the shared [vector format](spec/vector-format.md), load vectors |
 | [`packs/`](packs/) | 24 rule packs, each with its `pack.def` and its scenario vectors (121 in all) |
 | [`engines/`](engines/) | one independent engine per language, each with its test runner |
-| [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), the performance harness (`perf/`), this README's generator (`readme/`) |
-| [`docs/`](docs/) | the benchmark results, the [performance](docs/performance.md) baseline and the figures, each written by a script |
+| [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), the performance harness (`perf/`), the research prototypes (`research/`), this README's generator (`readme/`) |
+| [`docs/`](docs/) | the benchmark results, the [performance](docs/performance.md) baseline and the figures, each written by a script; the [methods survey](docs/research/correlation-and-fusion-methods.md) |
 
 ## Contributing
 
