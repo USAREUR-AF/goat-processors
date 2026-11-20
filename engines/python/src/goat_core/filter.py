@@ -31,7 +31,10 @@ def _number(v, what):
 def _integer(v, what, minimum):
     if not INTEGER.match(v):
         raise PackError("%s: not an integer: %r" % (what, v))
-    x = int(v, 10)
+    digits = v.lstrip("0") or "0"
+    if len(digits) > len(str(INT_MAX)):
+        raise PackError("%s: out of range: %r" % (what, v))
+    x = int(digits, 10)
     if x > INT_MAX or x < minimum:
         raise PackError("%s: out of range: %r" % (what, v))
     return x
@@ -501,3 +504,8 @@ class Engine:
 
 def make_engine(pack):
     return Engine(pack)
+
+
+def restore(pack, snap):
+    """An engine of `pack` in the state `snap` (a snapshot() of one)."""
+    return _snapshot.restore_filter(Engine(pack), snap)

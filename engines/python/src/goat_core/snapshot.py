@@ -93,3 +93,50 @@ def quality(eng):
         "rules": {name: {s: dict(st) for s, st in sorted(states.items())}
                   for name, states in eng.rules.items()},
     }
+
+
+# --- restore -----------------------------------------------------------------
+# An engine rebuilt from its snapshot() continues exactly as the original.
+# Filter, fuse and quality hold their whole state in the snapshot. Correlate
+# (either method) does not: its snapshot omits each entity's last report
+# (read by the tests, staleness and output) and measurement variance, so it
+# has no restore.
+
+def restore_filter(eng, snap):
+    """spec/filter.md, Snapshot: into a new filter engine `eng`."""
+    eng.entities = {k: dict(s) for k, s in snap["entities"].items()}
+    return eng
+
+
+def restore_fuse(eng, snap, entity_class):
+    """spec/fuse.md, Snapshot: into a new fuse engine `eng`."""
+    eng.ref = tuple(snap["ref"]) if snap["ref"] is not None else None
+    eng.entities = {}
+    for k, s in snap["entities"].items():
+        report = dict(s["report"])
+        e = entity_class(k, report["track.source_id"])
+        e.report = report
+        e.last_time_ms = s["last_time_ms"]
+        e.group = s["group"]
+        e.east = list(s["filter"]["east"])
+        e.north = list(s["filter"]["north"])
+        eng.entities[k] = e
+    return eng
+
+
+def restore_quality(eng, snap, entity_class):
+    """spec/quality.md, Snapshot: into a new quality engine `eng`."""
+    eng.ref = tuple(snap["ref"]) if snap["ref"] is not None else None
+    eng.last_tick = snap["last_tick"]
+    eng.entities = {}
+    for k, s in snap["entities"].items():
+        e = entity_class(k, s["source"])
+        e.last_time_ms = s["last_time_ms"]
+        e.last_pos = list(s["last_pos"])
+        e.east = list(s["filter"]["east"])
+        e.north = list(s["filter"]["north"])
+        e.window = [dict(x) for x in s["window"]]
+        eng.entities[k] = e
+    eng.rules = {name: {subj: dict(st) for subj, st in states.items()}
+                 for name, states in snap["rules"].items()}
+    return eng

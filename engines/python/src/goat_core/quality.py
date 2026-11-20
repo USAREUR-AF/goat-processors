@@ -12,7 +12,7 @@ from . import snapshot as _snapshot
 from . import trace as _trace
 from .io import read_pack_def
 from .model import REQUIRED, TIME_STATES, is_kind as _is, to_plane
-from .packdef import PackError
+from .packdef import PackError, decimal_int
 
 FILTER_PARAMS = ("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms")
 WINDOW_PARAMS = ("window_ms", "min_samples", "forget_ms")
@@ -61,7 +61,7 @@ def _num(v, line_no):
 def _int(v, line_no):
     if not INT_RE.match(v):
         raise PackError("line %d: not an integer: %s" % (line_no, v))
-    return int(v, 10)
+    return decimal_int(v, "line %d" % line_no)
 
 
 def _params(args, line_no, allowed, required):
@@ -617,3 +617,8 @@ class Engine:
 
 def make_engine(pack):
     return Engine(pack)
+
+
+def restore(pack, snap):
+    """An engine of `pack` in the state `snap` (a snapshot() of one)."""
+    return _snapshot.restore_quality(Engine(pack), snap, _Entity)

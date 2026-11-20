@@ -14,7 +14,7 @@ from . import trace as _trace
 from . import trace as _trace
 from .io import read_pack_def
 from .model import course_deg, missing_key, normalize, to_deg, to_plane, velocity
-from .packdef import PackError
+from .packdef import PackError, decimal_int
 
 FILTER_PARAMS = ("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms")
 ONCE = ("pack", "version", "filter", "kinematics", "stale_ms")
@@ -78,7 +78,7 @@ def parse_pack(text):
         elif d == "stale_ms":
             if len(args) != 1 or not INTEGER.match(args[0]):
                 raise PackError("line %d: stale_ms takes one integer, 0 or above" % i)
-            p.stale_ms = int(args[0])
+            p.stale_ms = decimal_int(args[0], "line %d: stale_ms" % i)
         elif d == "attribute":
             if len(args) != 2:
                 raise PackError("line %d: attribute takes a key and rule=<rule>" % i)
@@ -445,3 +445,8 @@ class Engine:
 
 def make_engine(pack):
     return Engine(pack)
+
+
+def restore(pack, snap):
+    """An engine of `pack` in the state `snap` (a snapshot() of one)."""
+    return _snapshot.restore_fuse(Engine(pack), snap, _Entity)

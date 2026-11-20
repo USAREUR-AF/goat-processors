@@ -12,13 +12,15 @@ from .packdef import PackError
 
 class Function:
     """One function's entry point: parse_pack(text), load_pack(directory),
-    make_engine(pack), and open(directory) = make_engine(load_pack(directory))."""
+    make_engine(pack), open(directory) = make_engine(load_pack(directory)),
+    and restore(pack, snapshot), or None when the function has no restore."""
 
-    def __init__(self, name, parse_pack, load_pack, make_engine):
+    def __init__(self, name, parse_pack, load_pack, make_engine, restore=None):
         self.name = name
         self.parse_pack = parse_pack
         self.load_pack = load_pack
         self.make_engine = make_engine
+        self.restore = restore
 
     def open(self, directory):
         return self.make_engine(self.load_pack(directory))
@@ -26,9 +28,10 @@ class Function:
 
 FUNCTIONS = {
     "correlate": Function("correlate", correlate.parse_pack, correlate.load_pack, correlate.make_engine),
-    "filter": Function("filter", filter.parse_pack, filter.load_pack, filter.make_engine),
-    "fuse": Function("fuse", fuse.parse_pack, fuse.load_pack, fuse.make_engine),
-    "quality": Function("quality", quality.parse_pack, quality.load_pack, quality.make_engine),
+    "filter": Function("filter", filter.parse_pack, filter.load_pack, filter.make_engine, filter.restore),
+    "fuse": Function("fuse", fuse.parse_pack, fuse.load_pack, fuse.make_engine, fuse.restore),
+    "quality": Function("quality", quality.parse_pack, quality.load_pack, quality.make_engine,
+                        quality.restore),
 }
 
 __all__ = ["FUNCTIONS", "Function", "PackError"]

@@ -181,3 +181,31 @@ vector, that the engine's own table refuses it, and runs its own vector
 | Scenario vectors, What the engine checks | `tests/test_vectors.py` and the other `tests/test_*_vectors.py` |
 | Load vectors | the same |
 | Steps files (tools/perf runner contract) | `io.py`, `runner/` |
+
+## Tests
+
+`PYTHONPATH=src python3 -m unittest discover -s tests` runs all of them
+(about 6 s); `PYTHONPATH=src python3 tests/coverage_check.py --floor 98.6`
+runs the same suite with line coverage, as CI does.
+
+| File | What |
+|---|---|
+| `test_vectors.py`, `test_filter_vectors.py`, `test_fuse_vectors.py`, `test_quality_vectors.py` | every scenario vector and load vector of the function |
+| `test_model.py`, `test_estimate.py`, `test_gate.py`, `test_ranking.py`, `test_bias.py`, `test_assign.py`, `test_correlate_pack.py`, `test_filter_unit.py`, `test_fuse_unit.py`, `test_quality_unit.py`, `test_trace_snapshot.py`, `test_io.py` | unit tests, one file per module (`test_assign.py` also covers `tracks.py` and `confirm.py`'s pair key) |
+| `test_properties.py` | determinism; order independence where the spec allows it (pack lines, the interleaving of reports between ticks for assign, fuse and filter without `near`); snapshot, restore, continue |
+| `test_fuzz.py` | the pack.def parsers, the steps JSON reader and the engines' report intake, from a seeded generator; bounded by `GOAT_FUZZ_CASES` (1500) and `GOAT_FUZZ_SECONDS` (4 s per parser); `GOAT_FUZZ_SEED` changes the seed |
+| `test_registration.py`, `registration.py`, `fixtures/correlate-noop/` | the registration point (above) |
+| `test_compat.py` | the old packages still export every old name |
+| `coverage_check.py` | line coverage with the standard library only: `sys.monitoring` (Python 3.12 and later), `sys.settrace` before |
+
+
+**Restore.** Filter, fuse and quality restore from a snapshot
+(`FUNCTIONS[f].restore(pack, snapshot)`). Correlate does not: its snapshot,
+as the spec defines it, omits each entity's last report and measurement
+variance, which its tests, staleness and output read.
+
+**Coverage.** Baseline (the engine and its four vector test files before
+this refactor, commit 407a295): 98.6 % of 2421 lines. Floor: 98.6 %
+(the higher of the baseline and 80 %), enforced by the `python` job of
+`.github/workflows/conformance.yml`. The same numbers on Python 3.11, 3.12
+and 3.14. Measured after this refactor: 99.8 % of 2850 lines.

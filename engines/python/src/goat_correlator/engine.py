@@ -14,3 +14,6 @@ from goat_core.gate import TESTS  # noqa: F401
 from goat_core.model import (OPTIONAL, REQUIRED, TIME_STATES, R, environment as _env,  # noqa: F401
                              is_kind as _is, normalize as _normalize, wrap180 as _wrap180)
 from goat_core.snapshot import track_estimate as _filter_snap  # noqa: F401
+from goat_core.assign import _History, _Members, _Record  # noqa: F401,E402
+from goat_core.correlate_pack import _int, _num, _params  # noqa: F401,E402
+from goat_core.ranking import _choice_vector, _constrained, _first_assignment, _order_key  # noqa: F401,E402
