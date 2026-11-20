@@ -148,7 +148,7 @@ final class Confirm implements Method {
                 Entity e = engine.entities.get(m);
                 if (primary == null || better(e, primary)) primary = e;
             }
-            Predicted p = new Predicted(primary, now);
+            Predicted p = Predicted.of(primary, now);
             double[] ll = engine.toDegrees(p.east.p, p.north.p);
             double ve = p.east.v, vn = p.north.v;
             double course = Frame.course(ve, vn);

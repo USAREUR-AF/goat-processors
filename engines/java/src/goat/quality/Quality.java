@@ -28,38 +28,6 @@ public final class Quality implements Processor {
 
     // ---- state ----
 
-    /** Spec: Samples, one report's record. Samples are null when not taken. */
-    static final class Record {
-        long wt, timeMs;
-        String order;
-        Long interval, latency;
-        /** A Long when the input clock is an integer, a Double when it is a mean of two. */
-        Number lateness;
-        Double nis, speedErr, timeError;
-        String timeState;
-        boolean sourceOutOfOrder;
-        boolean ce, vel, hae;
-
-        Map<String, Object> toMap() {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("wt", wt);
-            m.put("time_ms", timeMs);
-            m.put("order", order);
-            m.put("interval", interval);
-            m.put("latency", latency);
-            m.put("lateness", lateness);
-            m.put("source_out_of_order", sourceOutOfOrder);
-            m.put("time_error", timeError);
-            m.put("time_state", timeState);
-            m.put("nis", nis);
-            m.put("speed_err", speedErr);
-            m.put("ce", ce);
-            m.put("vel", vel);
-            m.put("hae", hae);
-            return m;
-        }
-    }
-
     static final class Entity {
         final String key, source;
         /** `last`: the entity's latest accepted time (only first/advance move it). */
@@ -186,8 +154,8 @@ public final class Quality implements Processor {
             // nis: predict the filter to t (correlate.md, Track estimate, step 1); the
             // update below then starts from this same prediction.
             double dt = (t - last) / 1000.0;
-            a.east.predict(dt, pack.accelVar);
-            a.north.predict(dt, pack.accelVar);
+            a.east = a.east.predict(dt, pack.accelVar);
+            a.north = a.north.predict(dt, pack.accelVar);
             double de = e - a.east.p, dn = n - a.north.p;
             double se = a.east.pp + r, sn = a.north.pp + r;
             rec.nis = de * de / se + dn * dn / sn;
@@ -218,11 +186,11 @@ public final class Quality implements Processor {
         } else if (order.equals("advance")) {
             // correlate.md, Track estimate, Later reports, steps 2 and 3 (step 1 done above).
             double rv = pack.velSigma * pack.velSigma;
-            a.east.updatePosition(e, r);
-            a.north.updatePosition(n, r);
+            a.east = a.east.updatePosition(e, r);
+            a.north = a.north.updatePosition(n, r);
             if (hasVel) {
-                a.east.updateVelocity(ve, rv);
-                a.north.updateVelocity(vn, rv);
+                a.east = a.east.updateVelocity(ve, rv);
+                a.north = a.north.updateVelocity(vn, rv);
             }
         }
         if (moves) {
@@ -246,12 +214,17 @@ public final class Quality implements Processor {
         TreeMap<String, Long> latest = new TreeMap<>(KEY_ORDER);
         for (Entity ent : entities.values())
             if (!ent.source.equals(reportSource)) latest.merge(ent.source, ent.last, Math::max);
-        if (latest.isEmpty()) return null;
-        List<Long> times = new ArrayList<>(latest.values());
-        Collections.sort(times);
-        int c = times.size();
-        if (c % 2 == 1) return times.get(c / 2);
-        double a = times.get(c / 2 - 1), b = times.get(c / 2);
+        return median(new ArrayList<>(latest.values()));
+    }
+
+    /** Input clock, pure: the median of the times, as {@link #inputClock}; null for none. */
+    static Number median(List<Long> times) {
+        if (times.isEmpty()) return null;
+        List<Long> sorted = new ArrayList<>(times);
+        Collections.sort(sorted);
+        int c = sorted.size();
+        if (c % 2 == 1) return sorted.get(c / 2);
+        double a = sorted.get(c / 2 - 1), b = sorted.get(c / 2);
         return (a + b) / 2;
     }
 
@@ -349,7 +322,7 @@ public final class Quality implements Processor {
         // 5. Entities, key order.
         TreeMap<String, Map<String, Object>> entityMeasures = new TreeMap<>(KEY_ORDER);
         for (Entity ent : entities.values()) {
-            Map<String, Object> ms = entityMeasures(ent, now);
+            Map<String, Object> ms = Measures.entityMeasures(ent.window, ent.last, now, pack.minSamples);
             entityMeasures.put(ent.key, ms);
             res.events.add(ev("quality", "scope", "entity", "subject", ent.key, "measures", ms));
             evaluate("entity", ent.key, ms, res);
@@ -358,7 +331,7 @@ public final class Quality implements Processor {
         for (String src : sourcesNow) {
             List<Map<String, Object>> members = new ArrayList<>();
             for (Entity ent : entities.values()) if (ent.source.equals(src)) members.add(entityMeasures.get(ent.key));
-            Map<String, Object> ms = sourceMeasures(members);
+            Map<String, Object> ms = Measures.sourceMeasures(members);
             res.events.add(ev("quality", "scope", "source", "subject", src, "measures", ms));
             evaluate("source", src, ms, res);
         }
@@ -379,134 +352,6 @@ public final class Quality implements Processor {
             if (st != null && st.active)
                 res.events.add(ev("action-end", "rule", rule.name, "scope", scope, "subject", subject,
                         "action", rule.action, "reason", "forget", "value", null));
-        }
-    }
-
-    /** Spec: Entity measures, over the entity's window W at this tick. */
-    private Map<String, Object> entityMeasures(Entity ent, long now) {
-        List<Record> w = ent.window;
-        long k = pack.minSamples;
-        List<Long> intervals = new ArrayList<>(), latencies = new ArrayList<>(), stateCodes = new ArrayList<>();
-        List<Number> lateness = new ArrayList<>();
-        List<Double> nis = new ArrayList<>(), speedErr = new ArrayList<>(), timeErrors = new ArrayList<>();
-        long outOfOrder = 0, duplicate = 0, sourceOutOfOrder = 0, noCe = 0, noVel = 0, noHae = 0, noTime = 0;
-        for (Record rec : w) {
-            if (rec.interval != null) intervals.add(rec.interval);
-            if (rec.latency != null) latencies.add(rec.latency);
-            if (rec.lateness != null) lateness.add(rec.lateness);
-            if (rec.nis != null) nis.add(rec.nis);
-            if (rec.speedErr != null) speedErr.add(rec.speedErr);
-            if (rec.timeError != null) timeErrors.add(rec.timeError);
-            if (rec.timeState != null) stateCodes.add(stateCode(rec.timeState));
-            else noTime++;
-            if (rec.order.equals("out-of-order")) outOfOrder++;
-            if (rec.order.equals("duplicate")) duplicate++;
-            if (rec.sourceOutOfOrder) sourceOutOfOrder++;
-            if (!rec.ce) noCe++;
-            if (!rec.vel) noVel++;
-            if (!rec.hae) noHae++;
-        }
-        long reports = w.size();
-        boolean enoughIntervals = intervals.size() >= k, enoughLatencies = latencies.size() >= k;
-        boolean enoughLateness = lateness.size() >= k, enoughErrors = timeErrors.size() >= k;
-        boolean enoughStates = stateCodes.size() >= k, enoughReports = reports >= k;
-
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("reports", reports);
-        m.put("interval_last", enoughIntervals ? intervals.get(intervals.size() - 1) : null);
-        m.put("interval_mean", enoughIntervals ? mean(intervals) : null);
-        m.put("interval_max", enoughIntervals ? max(intervals) : null);
-        m.put("age", now - ent.last);
-        m.put("latency_mean", enoughLatencies ? mean(latencies) : null);
-        m.put("latency_max", enoughLatencies ? max(latencies) : null);
-        m.put("lateness_mean", enoughLateness ? mean(lateness) : null);
-        m.put("lateness_max", enoughLateness ? max(lateness) : null);
-        m.put("lateness_min", enoughLateness ? min(lateness) : null);
-        m.put("nis_mean", nis.size() >= k ? mean(nis) : null);
-        m.put("speed_err_mean", speedErr.size() >= k ? mean(speedErr) : null);
-        m.put("out_of_order", outOfOrder);
-        m.put("duplicate", duplicate);
-        m.put("source_out_of_order", sourceOutOfOrder);
-        m.put("missing_ce", enoughReports ? (double) noCe / reports : null);
-        m.put("missing_vel", enoughReports ? (double) noVel / reports : null);
-        m.put("missing_hae", enoughReports ? (double) noHae / reports : null);
-        m.put("time_error_mean", enoughErrors ? mean(timeErrors) : null);
-        m.put("time_error_max", enoughErrors ? max(timeErrors) : null);
-        m.put("time_state_last", enoughStates ? stateCodes.get(stateCodes.size() - 1) : null);
-        m.put("time_state_worst", enoughStates ? max(stateCodes) : null);
-        m.put("missing_time", enoughReports ? (double) noTime / reports : null);
-        return m;
-    }
-
-    /** Spec: Source measures, aggregating its entities' measures (given in key order). */
-    private static Map<String, Object> sourceMeasures(List<Map<String, Object>> members) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        for (String name : QualityPack.ENTITY_MEASURES) {
-            List<Number> present = new ArrayList<>();
-            for (Map<String, Object> em : members) if (em.get(name) != null) present.add((Number) em.get(name));
-            switch (name) {
-                case "reports": case "out_of_order": case "duplicate": case "source_out_of_order": {
-                    long s = 0;
-                    for (Number x : present) s += x.longValue();
-                    m.put(name, s);
-                    break;
-                }
-                case "interval_max": case "latency_max": case "lateness_max": case "time_error_max":
-                case "time_state_last": case "time_state_worst":
-                    m.put(name, present.isEmpty() ? null : max(present));
-                    break;
-                case "lateness_min":
-                    m.put(name, present.isEmpty() ? null : min(present));
-                    break;
-                case "age": {
-                    long min = Long.MAX_VALUE;
-                    for (Number x : present) min = Math.min(min, x.longValue());
-                    m.put(name, min);
-                    break;
-                }
-                default:
-                    m.put(name, present.isEmpty() ? null : mean(present));
-            }
-        }
-        m.put("entities", (long) members.size());
-        return m;
-    }
-
-    /** Spec: Entity measures, a mean is s / n with s summed from 0.0 in order, in binary64. */
-    private static double mean(List<? extends Number> xs) {
-        double s = 0.0;
-        for (Number x : xs) s += x.doubleValue();
-        return s / xs.size();
-    }
-
-    /**
-     * The largest of a non-empty list, kept as given (an integer sample stays an integer).
-     * Two integers compare exactly; any other pair compares as binary64.
-     */
-    private static Number max(List<? extends Number> xs) {
-        Number best = xs.get(0);
-        for (Number x : xs) if (compare(x, best) > 0) best = x;
-        return best;
-    }
-
-    /** The smallest of a non-empty list, as {@link #max}. */
-    private static Number min(List<? extends Number> xs) {
-        Number best = xs.get(0);
-        for (Number x : xs) if (compare(x, best) < 0) best = x;
-        return best;
-    }
-
-    private static int compare(Number x, Number y) {
-        if (x instanceof Long && y instanceof Long) return Long.compare((Long) x, (Long) y);
-        return Double.compare(x.doubleValue(), y.doubleValue());
-    }
-
-    /** Spec: Reports, Time quality: the code of a time state (higher is worse). */
-    private static long stateCode(String state) {
-        switch (state) {
-            case "coherent": return 0;
-            case "drifting": return 1;
-            default: return 2; // free-running
         }
     }
 

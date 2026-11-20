@@ -2,49 +2,58 @@ package goat.model;
 
 import java.util.List;
 
-/** correlate.md, Track estimate: one axis of the constant-velocity filter, {@code [p, v, pp, pv, vv]}. */
+/**
+ * correlate.md, Track estimate: one axis of the constant-velocity filter, {@code [p, v, pp, pv, vv]}.
+ * A value: every step returns a new axis and leaves this one as it was.
+ */
 public final class Axis {
-    public double p, v, pp, pv, vv;
+    public final double p, v, pp, pv, vv;
 
     public Axis(double p, double v, double pp, double pv, double vv) {
         this.p = p; this.v = v; this.pp = pp; this.pv = pv; this.vv = vv;
     }
 
-    public Axis copy() {
-        return new Axis(p, v, pp, pv, vv);
-    }
-
     /** Step 1, predict over dt seconds with acceleration variance q. */
-    public void predict(double dt, double q) {
-        double p0 = p, v0 = v, pp0 = pp, pv0 = pv, vv0 = vv;
-        p = p0 + v0 * dt;
-        pp = pp0 + 2 * dt * pv0 + dt * dt * vv0 + q * dt * dt * dt * dt / 4;
-        pv = pv0 + dt * vv0 + q * dt * dt * dt / 2;
-        vv = vv0 + q * dt * dt;
+    public Axis predict(double dt, double q) {
+        return new Axis(p + v * dt,
+                v,
+                pp + 2 * dt * pv + dt * dt * vv + q * dt * dt * dt * dt / 4,
+                pv + dt * vv + q * dt * dt * dt / 2,
+                vv + q * dt * dt);
     }
 
-    /** Step 2, position update; returns the likelihood term {@code y*y/s + ln(s)} (Two-model filter step 3). */
-    public double updatePosition(double z, double r) {
-        double p0 = p, v0 = v, pp0 = pp, pv0 = pv, vv0 = vv;
-        double s = pp0 + r, k1 = pp0 / s, k2 = pv0 / s, y = z - p0;
-        p = p0 + k1 * y;
-        v = v0 + k2 * y;
-        pp = (1 - k1) * pp0;
-        pv = (1 - k1) * pv0;
-        vv = vv0 - k2 * pv0;
+    /** Step 2, position update with measurement z and variance r. */
+    public Axis updatePosition(double z, double r) {
+        double s = pp + r, k1 = pp / s, k2 = pv / s, y = z - p;
+        return new Axis(p + k1 * y, v + k2 * y, (1 - k1) * pp, (1 - k1) * pv, vv - k2 * pv);
+    }
+
+    /** Step 3, velocity update with measurement z and variance r. */
+    public Axis updateVelocity(double z, double r) {
+        double s = vv + r, k1 = pv / s, k2 = vv / s, y = z - v;
+        return new Axis(p + k1 * y, v + k2 * y, pp - k1 * pv, (1 - k2) * pv, (1 - k2) * vv);
+    }
+
+    /** Two-model filter, step 3: the position update's likelihood term {@code y*y/s + ln(s)}. */
+    public double positionTerm(double z, double r) {
+        double s = pp + r, y = z - p;
         return y * y / s + Math.log(s);
     }
 
-    /** Step 3, velocity update; returns the likelihood term {@code y*y/s + ln(s)}. */
-    public double updateVelocity(double z, double r) {
-        double p0 = p, v0 = v, pp0 = pp, pv0 = pv, vv0 = vv;
-        double s = vv0 + r, k1 = pv0 / s, k2 = vv0 / s, y = z - v0;
-        p = p0 + k1 * y;
-        v = v0 + k2 * y;
-        pp = pp0 - k1 * pv0;
-        pv = (1 - k2) * pv0;
-        vv = (1 - k2) * vv0;
+    /** Two-model filter, step 3: the velocity update's likelihood term {@code y*y/s + ln(s)}. */
+    public double velocityTerm(double z, double r) {
+        double s = vv + r, y = z - v;
         return y * y / s + Math.log(s);
+    }
+
+    /** This axis with pp increased by x. */
+    public Axis plusPp(double x) {
+        return new Axis(p, v, pp + x, pv, vv);
+    }
+
+    /** This axis with p and pp replaced. */
+    public Axis withP(double newP, double newPp) {
+        return new Axis(newP, v, newPp, pv, vv);
     }
 
     /** Snapshot form {@code [p, v, pp, pv, vv]}. */

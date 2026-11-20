@@ -7,6 +7,7 @@ import goat.model.Frame;
 import goat.model.InverseVariance;
 import goat.model.KeyOrder;
 import goat.model.Report;
+import goat.model.TrackEstimate;
 import goat.snapshot.Snapshots;
 import goat.trace.Result;
 
@@ -151,11 +152,11 @@ public final class Fuse implements Processor {
         double dt = (time - a.lastTime) / 1000.0;
         Axis[] axes = {a.east, a.north};
         double[] zv = {ve, vn};
-        for (int k = 0; k < 2; k++) {
-            axes[k].predict(dt, pack.accelVar);
-            axes[k].updatePosition(en[k], ce * ce);
-            if (hasVel) axes[k].updateVelocity(zv[k], pack.velSigma * pack.velSigma);
-        }
+        for (int k = 0; k < 2; k++)
+            axes[k] = TrackEstimate.predictAndUpdate(axes[k], dt, pack.accelVar, en[k], ce * ce, hasVel, zv[k],
+                    pack.velSigma * pack.velSigma);
+        a.east = axes[0];
+        a.north = axes[1];
         a.lastTime = time;
         a.report = norm;
 
@@ -228,9 +229,7 @@ public final class Fuse implements Processor {
         List<Member> members = new ArrayList<>();
         for (Entity e : g.members) {
             double dt = (now - e.lastTime) / 1000.0;
-            Axis east = e.east.copy(), north = e.north.copy();
-            east.predict(dt, pack.accelVar);
-            north.predict(dt, pack.accelVar);
+            Axis east = e.east.predict(dt, pack.accelVar), north = e.north.predict(dt, pack.accelVar);
             members.add(new Member(e, east, north));
         }
 
@@ -275,53 +274,24 @@ public final class Fuse implements Processor {
         return InverseVariance.combine(predicted);
     }
 
+
     /** `covariance_intersection`: fold the members in key order; one trace record per fold. */
     private static Axis[] covarianceIntersection(Group g, List<Member> members, Result res) {
         Member first = members.get(0);
-        Axis xe = first.east.copy(), xn = first.north.copy();
+        Axis xe = first.east, xn = first.north;
         for (Member y : members.subList(1, members.size())) {
-            double w = intersectionWeight(xe.pp, xn.pp, y.east.pp, y.north.pp);
+            double w = Kinematics.intersectionWeight(xe.pp, xn.pp, y.east.pp, y.north.pp);
             res.trace.add(rec("stage", "intersect", "group", g.name, "member", y.e.key, "value", w));
             if (w == 1) continue; // X unchanged
             if (w == 0) {         // Y unchanged
-                xe = y.east.copy();
-                xn = y.north.copy();
+                xe = y.east;
+                xn = y.north;
                 continue;
             }
-            xe = fold(w, xe, y.east);
-            xn = fold(w, xn, y.north);
+            xe = Kinematics.fold(w, xe, y.east);
+            xn = Kinematics.fold(w, xn, y.north);
         }
         return new Axis[] {xe, xn};
-    }
-
-    /** Covariance intersection, Weight: the closed form, steps 1 to 5 in order. */
-    static double intersectionWeight(double xppe, double xppn, double yppe, double yppn) {
-        double ae = 1 / yppe, an = 1 / yppn;            // 1
-        double de = 1 / xppe - ae, dn = 1 / xppn - an;  // 2
-        double c2 = de * dn;                            // 3
-        double c1 = ae * dn + an * de;                  // 4
-        double w;                                       // 5
-        if (c2 < 0) {
-            w = -c1 / (2 * c2);
-            if (w < 0) w = 0;
-            if (w > 1) w = 1;
-        } else if (c1 + c2 > 0) {
-            w = 1;
-        } else if (c1 + c2 < 0) {
-            w = 0;
-        } else {
-            w = 0.5;
-        }
-        return w;
-    }
-
-    /** Covariance intersection, Fold, one axis; pv of the result is unused and 0. */
-    private static Axis fold(double w, Axis x, Axis y) {
-        double a = w / x.pp, b = (1 - w) / y.pp, pp = 1 / (a + b);
-        double p = pp * (a * x.p + b * y.p);
-        double c = w / x.vv, d = (1 - w) / y.vv, vv = 1 / (c + d);
-        double v = vv * (c * x.v + d * y.v);
-        return new Axis(p, v, pp, 0, vv);
     }
 
     /** `best`, `priority`, `latest`: the one member whose filter is the estimate; ties to key order. */

@@ -1,7 +1,6 @@
 package goat.assign;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -189,9 +188,9 @@ public final class Assign implements Method {
             int from = res.trace.size();
             Problem prob = entries(source, rows, newest.membership, res);
             tag(res.trace, from, h, null);
-            List<Ranked> ranked = rank(prob, k);
+            List<Ranking.Ranked> ranked = Ranking.rank(prob.entry, prob.alone, prob.columns(), k);
             for (int r = 0; r < ranked.size(); r++) {
-                Ranked asg = ranked.get(r);
+                Ranking.Ranked asg = ranked.get(r);
                 from = res.trace.size();
                 for (int i = 0; i < rows.size(); i++)
                     res.trace.add(assignRec(rows.get(i), prob.name(asg.choice[i]), "choice", prob.entry(i, asg.choice[i]), true));
@@ -315,80 +314,36 @@ public final class Assign implements Method {
     private Axis[] fusedEstimate(List<Entity> members, long t, Entity frameOf) {
         List<Axis[]> predicted = new ArrayList<>();
         for (Entity m : members) {
-            Predicted pr = frameOf != null ? Predicted.forComparison(m, t) : new Predicted(m, t);
-            Axis[] ax = {pr.east, pr.north};
-            if (frameOf != null && bias != null) bias.moveInto(frameOf.source, m.source, ax);
+            Predicted pr = frameOf != null ? Predicted.forComparison(m, t) : Predicted.of(m, t);
+            Axis[] ax = pr.axes();
+            if (frameOf != null && bias != null) ax = bias.moveInto(frameOf.source, m.source, ax);
             predicted.add(ax);
         }
         return InverseVariance.combine(predicted);
     }
 
-    /** Cost: d² of A against the fused estimate of M at A's last_time_ms; pp_a is A's pp plus A's timing variance. */
+    /** Cost: d² of A against the fused estimate of M at A's last_time_ms. */
     private double cost(Entity a, List<Entity> m) {
-        Axis[] f = fusedEstimate(m, a.lastTime, a);
-        Axis[] own = {a.filter.east(), a.filter.north()};
+        return cost(new Axis[] {a.filter.east(), a.filter.north()}, a.timingVar, fusedEstimate(m, a.lastTime, a));
+    }
+
+    /**
+     * Cost, pure: sum over east, north of (p_a - p_f)² / (pp_a + pp_f), with pp_a A's pp plus A's
+     * timing variance on that axis.
+     */
+    static double cost(Axis[] own, double[] timingVar, Axis[] fused) {
         double d2 = 0;
         for (int k = 0; k < 2; k++) {
-            double d = own[k].p - f[k].p;
-            double ppA = own[k].pp + a.timingVar[k];
-            d2 += d * d / (ppA + f[k].pp);
+            double d = own[k].p - fused[k].p;
+            double ppA = own[k].pp + timingVar[k];
+            d2 += d * d / (ppA + fused[k].pp);
         }
         return d2;
     }
 
-    // ---- Assignment step 3 and Ranking ----
-
-    /** One assignment: its choice vector (column index, or columns() for alone) and its total. */
-    private static final class Ranked {
-        final int[] choice;
-        final double total;
-
-        Ranked(int[] choice, double total) {
-            this.choice = choice;
-            this.total = total;
-        }
-    }
-
-    /**
-     * The first k assignments in the Ranking order, by enumerating every assignment. The
-     * enumeration visits choice vectors in ascending order, so a stable sort by total gives the
-     * order "total, then choice vector".
-     */
-    private static List<Ranked> rank(Problem prob, int k) {
-        List<Ranked> all = new ArrayList<>();
-        enumerate(prob, 0, new int[prob.rows.size()], new boolean[prob.columns()], all);
-        all.sort((x, y) -> x.total < y.total ? -1 : x.total > y.total ? 1 : 0);
-        return all.subList(0, Math.min(k, all.size()));
-    }
-
-    private static void enumerate(Problem prob, int i, int[] choice, boolean[] used, List<Ranked> out) {
-        int n = prob.rows.size(), cols = prob.columns();
-        if (i == n) {
-            out.add(new Ranked(choice.clone(), total(prob, choice)));
-            return;
-        }
-        for (int j = 0; j <= cols; j++) {
-            if (j < cols && (used[j] || prob.entry[i][j] == null)) continue;
-            choice[i] = j;
-            if (j < cols) used[j] = true;
-            enumerate(prob, i + 1, choice, used, out);
-            if (j < cols) used[j] = false;
-        }
-    }
-
-    /** Ranking: the chosen entries taken in ascending order of value, added left to right from 0. */
-    private static double total(Problem prob, int[] choice) {
-        double[] v = new double[choice.length];
-        for (int i = 0; i < choice.length; i++) v[i] = prob.entry(i, choice[i]);
-        Arrays.sort(v);
-        double t = 0;
-        for (double x : v) t += x;
-        return t;
-    }
-
     // ---- Assignment step 4: apply ----
 
-    private static void apply(Problem prob, Ranked asg, Record rec) {
+    private static void apply(Problem prob, Ranking.Ranked asg, Record rec) {
         Membership mem = rec.membership;
         for (int i = 0; i < prob.rows.size(); i++) {
             String a = prob.rows.get(i).key;

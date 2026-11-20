@@ -103,7 +103,7 @@ public final class Correlator implements Processor {
             double[] vel;
             if (a == null) vel = new double[] {ve, vn};
             else {
-                Predicted pr = new Predicted(a, time);
+                Predicted pr = Predicted.of(a, time);
                 vel = new double[] {pr.east.v, pr.north.v};
             }
             double ts = te / 1000;
@@ -119,17 +119,19 @@ public final class Correlator implements Processor {
         if (a == null) {
             // Track estimate (and Two-model filter), first report: no trace record.
             a = new Entity(key, source);
-            a.filter = new TrackEstimate(pack.filter, meas);
+            a.filter = TrackEstimate.first(pack.filter, meas);
             entities.put(key, a);
             res.events.add(Records.ev("new", "entity", key));
         } else if (pack.restart && !restartPasses(a, time, meas, res)) {
             // Restart: the filter starts again from this report as a first report. No `new` event;
             // the entity keeps its key, group, pair counts and hold failure count.
-            a.filter = new TrackEstimate(pack.filter, meas);
+            a.filter = TrackEstimate.first(pack.filter, meas);
             method.restarted(key);
         } else {
             // Later reports; with two models, the four filter records come before any association record.
-            double[] f = a.filter.update((time - a.lastTime) / 1000.0, meas);
+            TrackEstimate.Updated u = a.filter.update((time - a.lastTime) / 1000.0, meas);
+            a.filter = u.estimate;
+            double[] f = u.trace;
             if (f != null) {
                 res.trace.add(filterRec(a, TrackEstimate.MODEL[0], "likelihood", f[0]));
                 res.trace.add(filterRec(a, TrackEstimate.MODEL[1], "likelihood", f[1]));
@@ -157,7 +159,7 @@ public final class Correlator implements Processor {
      */
     private boolean restartPasses(Entity a, long time, Measurement meas, Result res) {
         // Not a comparison with another entity: no timing variance on the prediction.
-        Predicted pr = new Predicted(a, time);
+        Predicted pr = Predicted.of(a, time);
         double de = meas.z[0] - pr.east.p, dn = meas.z[1] - pr.north.p;
         double d2 = de * de / (pr.east.pp + meas.r[0]) + dn * dn / (pr.north.pp + meas.r[1]);
         boolean pass = d2 < pack.restartGate;

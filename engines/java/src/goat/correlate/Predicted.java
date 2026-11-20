@@ -2,14 +2,19 @@ package goat.correlate;
 
 import goat.model.Axis;
 
-/** B's filter predicted to time t (correlate.md, Track estimate, Prediction). */
+/** B's filter predicted to time t (correlate.md, Track estimate, Prediction). A value. */
 public final class Predicted {
     public final Axis east, north;
 
-    public Predicted(Entity b, long t) {
+    public Predicted(Axis east, Axis north) {
+        this.east = east;
+        this.north = north;
+    }
+
+    /** B predicted to t. */
+    public static Predicted of(Entity b, long t) {
         Axis[] ax = b.filter.predicted((t - b.lastTime) / 1000.0);
-        east = ax[0];
-        north = ax[1];
+        return new Predicted(ax[0], ax[1]);
     }
 
     /**
@@ -18,9 +23,11 @@ public final class Predicted {
      * change to the prediction.
      */
     public static Predicted forComparison(Entity b, long t) {
-        Predicted pr = new Predicted(b, t);
-        pr.east.pp = pr.east.pp + b.timingVar[0];
-        pr.north.pp = pr.north.pp + b.timingVar[1];
-        return pr;
+        Predicted pr = of(b, t);
+        return new Predicted(pr.east.plusPp(b.timingVar[0]), pr.north.plusPp(b.timingVar[1]));
+    }
+
+    public Axis[] axes() {
+        return new Axis[] {east, north};
     }
 }

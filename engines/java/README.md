@@ -67,7 +67,7 @@ The four classes `correlator.VectorTest`, `filter.VectorTest`, `fuse.FuseVectorT
 | Memberships | `assign/Membership.java` |
 | Assignment of one source | `assign/Assign.java` |
 | Sensor bias | `assign/Bias.java` |
-| Ranking | `assign/Assign.java` |
+| Ranking | `assign/Ranking.java` |
 | Window | `assign/History.java` (records: `assign/Record.java`; the tick: `assign/Assign.java`) |
 | Events | `assign/Membership.java` |
 | Trace | `assign/Assign.java` |
@@ -98,7 +98,7 @@ The four classes `correlator.VectorTest`, `filter.VectorTest`, `fuse.FuseVectorT
 | Reports | `fuse/Fuse.java` |
 | Groups | `fuse/Fuse.java` |
 | On each tick, Fused event | `fuse/Fuse.java` |
-| Kinematics | `fuse/Fuse.java` |
+| Kinematics | `fuse/Fuse.java` (`covariance_intersection` weight and fold: `fuse/Kinematics.java`) |
 | Attributes | `fuse/Fuse.java` |
 | Events, Trace, Snapshot | `fuse/Fuse.java` |
 | Pack | `fuse/FusePack.java` |
@@ -110,7 +110,9 @@ The four classes `correlator.VectorTest`, `filter.VectorTest`, `fuse.FuseVectorT
 | What quality does | `quality/Quality.java` |
 | Reports, Time quality | `model/Report.java` |
 | Order, Frame and filter, Input clock, Samples, Ingest, Forwarding | `quality/Quality.java` |
-| Window, Entity measures, Source measures, Rules, Tick | `quality/Quality.java` |
+| Window, Rules, Tick | `quality/Quality.java` |
+| Samples (the record of one report) | `quality/Record.java` |
+| Entity measures, Source measures | `quality/Measures.java` |
 | Events, Trace, Snapshot | `quality/Quality.java` |
 | Pack | `quality/QualityPack.java` |
 
@@ -119,6 +121,17 @@ The four classes `correlator.VectorTest`, `filter.VectorTest`, `fuse.FuseVectorT
 | Section | File |
 |---|---|
 | Scenario vectors, What the engine checks, Load vectors | `io/Vectors.java` |
+
+## Pure functions and state
+
+The math is pure functions of values: `model/Axis` is immutable and every filter step returns a
+new axis; `model/TrackEstimate` returns the next estimate from `update`; gating
+(`correlate/Tests`), the assign cost (`Assign.cost`), ranking (`assign/Ranking`), the sensor bias
+fit (`Bias.d2`, `Bias.accept`, `Bias.fitTimeOffset`), the fuse weight and fold
+(`fuse/Kinematics`), the quality measures (`quality/Measures`) and the input clock
+(`Quality.median`) read their arguments and change nothing. State lives only in each
+processor object (and the method object it holds) and is read out by `snapshot()`. There is no
+mutable static field anywhere in the engine.
 
 ## Open points
 

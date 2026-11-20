@@ -7,5 +7,6 @@ import goat.model.Axis;
  * The method supplies it; without one, no prediction is moved.
  */
 public interface FrameMove {
-    void moveInto(String aSource, String bSource, Axis[] predictedB);
+    /** B's prediction {east, north} moved into A's frame; the argument is left as it was. */
+    Axis[] moveInto(String aSource, String bSource, Axis[] predictedB);
 }

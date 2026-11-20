@@ -23,18 +23,27 @@ final class Bias implements FrameMove {
     /**
      * State of one pair {@code "<S>|<T>"}: per axis the offset o and weight sum w, one var, the
      * count n; with {@code time_offset} also the clock offset tau (seconds) and the sums S1 to S8
-     * ({@code sums[0]} is S1).
+     * ({@code sums[0]} is S1). A value: an accepted pair gives a new state.
      */
     static final class PairState {
-        final double[] o = new double[2];
-        final double[] w = new double[2];
-        double var;
-        long n;
-        double tau;
-        final double[] sums = new double[8];
+        final double[] o, w;
+        final double var;
+        final long n;
+        final double tau;
+        final double[] sums;
 
-        PairState(double sigma) {
-            var = sigma * sigma;
+        PairState(double[] o, double[] w, double var, long n, double tau, double[] sums) {
+            this.o = o;
+            this.w = w;
+            this.var = var;
+            this.n = n;
+            this.tau = tau;
+            this.sums = sums;
+        }
+
+        /** A pair with no stored state: o = 0, w = 0, var = s², n = 0. */
+        static PairState initial(double sigma) {
+            return new PairState(new double[2], new double[2], sigma * sigma, 0, 0, new double[8]);
         }
     }
 
@@ -49,7 +58,7 @@ final class Bias implements FrameMove {
     /** A pair with no stored state reads as o = 0, w = 0, var = s², n = 0. */
     private PairState read(String first, String second) {
         PairState st = pairs.get(first + "|" + second);
-        return st != null ? st : new PairState(pack.biasSigma);
+        return st != null ? st : PairState.initial(pack.biasSigma);
     }
 
     /**
@@ -59,16 +68,17 @@ final class Bias implements FrameMove {
      * o, v B's predicted velocity on that axis. Two entities of one source are never moved.
      */
     @Override
-    public void moveInto(String aSource, String bSource, Axis[] predictedB) {
+    public Axis[] moveInto(String aSource, String bSource, Axis[] predictedB) {
         int c = KeyOrder.KEY_ORDER.compare(bSource, aSource);
-        if (c == 0) return;
+        if (c == 0) return predictedB;
         PairState st = c < 0 ? read(bSource, aSource) : read(aSource, bSource);
         double sign = c < 0 ? 1 : -1;
+        Axis[] out = new Axis[2];
         for (int k = 0; k < 2; k++) {
             double offset = pack.timeOffset ? st.o[k] - predictedB[k].v * st.tau : st.o[k];
-            predictedB[k].p = predictedB[k].p + sign * offset;
-            predictedB[k].pp = predictedB[k].pp + st.var;
+            out[k] = predictedB[k].withP(predictedB[k].p + sign * offset, predictedB[k].pp + st.var);
         }
+        return out;
     }
 
     /**
@@ -100,7 +110,7 @@ final class Bias implements FrameMove {
         //    now, not moved. Per axis y = p_ET - p_ES and r = pp_ES + pp_ET.
         boolean xFirst = KeyOrder.KEY_ORDER.compare(x.source, y.source) < 0;
         Entity es = xFirst ? x : y, et = xFirst ? y : x;
-        Predicted ps = new Predicted(es, now), pt = new Predicted(et, now);
+        Predicted ps = Predicted.of(es, now), pt = Predicted.of(et, now);
         Axis[] axS = {ps.east, ps.north}, axT = {pt.east, pt.north};
         String key = es.source + "|" + et.source;
         PairState st = read(es.source, et.source);
@@ -111,29 +121,11 @@ final class Bias implements FrameMove {
             // Time offset: the object's velocity, v = (v_ES + v_ET) / 2.
             v[k] = (axS[k].v + axT[k].v) / 2;
         }
-        // 2. d² = sum over east, north of (y - o)² / (var + r), with the pair's state; with
-        //    time_offset, (y - (o - v*tau))².
-        double d2 = 0;
-        for (int k = 0; k < 2; k++) {
-            double d = pack.timeOffset ? yy[k] - (st.o[k] - v[k] * st.tau) : yy[k] - st.o[k];
-            d2 += d * d / (st.var + r[k]);
-        }
-        // 3. Accepted when d² < g: n + 1; var = s² / (n + 1), no less than f²; per axis the
-        //    weighted mean with weight 1/r. The state is stored.
+        // 2. d² of the pair's state; 3. accepted when d² < g, and the state is stored.
+        double d2 = d2(st, yy, r, v, pack.timeOffset);
         boolean accepted = d2 < pack.biasGate;
         if (accepted) {
-            st.n = st.n + 1;
-            double s2 = pack.biasSigma * pack.biasSigma, f2 = pack.biasFloor * pack.biasFloor;
-            double var = s2 / (st.n + 1);
-            st.var = var < f2 ? f2 : var;
-            if (pack.timeOffset) fitTimeOffset(st, r, v, yy);
-            else {
-                for (int k = 0; k < 2; k++) {
-                    double wBefore = st.w[k], oBefore = st.o[k];
-                    st.w[k] = wBefore + 1 / r[k];
-                    st.o[k] = oBefore + ((1 / r[k]) / st.w[k]) * (yy[k] - oBefore);
-                }
-            }
+            st = accept(st, r, v, yy, pack.biasSigma, pack.biasFloor, pack.timeOffset, pack.timeOffsetSigmaMs);
             pairs.put(key, st);
         }
         // 4. Trace, with the state after step 3.
@@ -154,13 +146,47 @@ final class Bias implements FrameMove {
     }
 
     /**
+     * Step 2: d² = sum over east, north of (y - o)² / (var + r), with the pair's state; with
+     * time_offset, (y - (o - v*tau))².
+     */
+    static double d2(PairState st, double[] yy, double[] r, double[] v, boolean timeOffset) {
+        double d2 = 0;
+        for (int k = 0; k < 2; k++) {
+            double d = timeOffset ? yy[k] - (st.o[k] - v[k] * st.tau) : yy[k] - st.o[k];
+            d2 += d * d / (st.var + r[k]);
+        }
+        return d2;
+    }
+
+    /**
+     * Step 3, an accepted pair: n + 1; var = s² / (n + 1), no less than f²; per axis the weighted
+     * mean with weight 1/r, or with time_offset the fit of {@link #fitTimeOffset}.
+     */
+    static PairState accept(PairState st, double[] r, double[] v, double[] yy, double sigma, double floor,
+                            boolean timeOffset, double timeOffsetSigmaMs) {
+        long n = st.n + 1;
+        double s2 = sigma * sigma, f2 = floor * floor;
+        double var = s2 / (n + 1);
+        var = var < f2 ? f2 : var;
+        if (timeOffset) return fitTimeOffset(st.sums, n, var, r, v, yy, sigma, timeOffsetSigmaMs);
+        double[] o = new double[2], w = new double[2];
+        for (int k = 0; k < 2; k++) {
+            double wBefore = st.w[k], oBefore = st.o[k];
+            w[k] = wBefore + 1 / r[k];
+            o[k] = oBefore + ((1 / r[k]) / w[k]) * (yy[k] - oBefore);
+        }
+        return new PairState(o, w, var, n, st.tau, st.sums);
+    }
+
+    /**
      * Time offset, an accepted pair: the sums S1 to S8 (each += one addition of the whole
      * right-hand side), then the weighted least-squares fit of y = o - v*tau over every accepted
      * pair, with priors of 0 for o (standard deviation s) and tau (standard deviation t ms), in
      * the closed form as written. The weight sum w of each axis is S1 and S2.
      */
-    private void fitTimeOffset(PairState st, double[] r, double[] v, double[] y) {
-        double[] S = st.sums;
+    static PairState fitTimeOffset(double[] before, long n, double var, double[] r, double[] v, double[] y,
+                                   double s, double t) {
+        double[] S = before.clone();
         double we = 1 / r[0], wn = 1 / r[1];
         double ve = v[0], vn = v[1], ye = y[0], yn = y[1];
         S[0] = S[0] + we;
@@ -171,7 +197,6 @@ final class Bias implements FrameMove {
         S[5] = S[5] + we * ye;
         S[6] = S[6] + wn * yn;
         S[7] = S[7] + (we * ve * ye + wn * vn * yn);
-        double s = pack.biasSigma, t = pack.timeOffsetSigmaMs;
         double po = 1 / (s * s);
         double tSeconds = t / 1000;
         double pt = 1 / (tSeconds * tSeconds);
@@ -179,11 +204,9 @@ final class Bias implements FrameMove {
         double a13 = -S[2], a23 = -S[3];
         double a33 = pt + S[4];
         double b1 = S[5], b2 = S[6], b3 = -S[7];
-        st.tau = (b3 - a13 * b1 / a11 - a23 * b2 / a22) / (a33 - a13 * a13 / a11 - a23 * a23 / a22);
-        st.o[0] = (b1 - a13 * st.tau) / a11;
-        st.o[1] = (b2 - a23 * st.tau) / a22;
-        st.w[0] = S[0];
-        st.w[1] = S[1];
+        double tau = (b3 - a13 * b1 / a11 - a23 * b2 / a22) / (a33 - a13 * a13 / a11 - a23 * a23 / a22);
+        double[] o = {(b1 - a13 * tau) / a11, (b2 - a23 * tau) / a22};
+        return new PairState(o, new double[] {S[0], S[1]}, var, n, tau, S);
     }
 
     /** Snapshot: each stored pair key, in key order, to its state. */

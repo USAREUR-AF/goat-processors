@@ -19,7 +19,10 @@ public final class Tests {
     public static boolean run(List<CorrelatePack.Test> tests, String stage, Entity a, Entity b, FrameMove move,
                               Result res) {
         Predicted pb = Predicted.forComparison(b, a.lastTime);
-        if (move != null) move.moveInto(a.source, b.source, new Axis[] {pb.east, pb.north});
+        if (move != null) {
+            Axis[] moved = move.moveInto(a.source, b.source, pb.axes());
+            pb = new Predicted(moved[0], moved[1]);
+        }
         for (CorrelatePack.Test t : tests) {
             Map<String, Object> r = runTest(t, stage, a, b, pb);
             res.trace.add(r);
