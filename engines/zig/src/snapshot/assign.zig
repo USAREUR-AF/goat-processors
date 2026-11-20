@@ -49,7 +49,7 @@ fn historyValue(eng: *Engine, hist: History) !json.Value {
 
 pub fn snapshot(eng: *Engine) !json.Value {
     const a = eng.alloc();
-    const st = &eng.assign_state;
+    const st = assign.state(eng);
     const ref = try common.refValue(a, eng.ref);
     var entities = json.ObjectMap.init(a);
     for (try eng.sortedKeys()) |key| {
@@ -64,10 +64,10 @@ pub fn snapshot(eng: *Engine) !json.Value {
         .{ "entities", json.Value{ .object = entities } },
         .{ "systems", try systemsValue(eng, st.committed) },
         .{ "next_system", st.committed.next_system },
-        .{ "reported", try sortedList(eng, eng.reported.keys()) },
+        .{ "reported", try sortedList(eng, st.reported.keys()) },
     });
     // With `restart`: the restarted entities. With `bias`: the stored pairs, keys in order.
-    if (eng.pack.restart != null) try out.object.put("restarted", try sortedList(eng, eng.restarted.keys()));
+    if (eng.pack.restart != null) try out.object.put("restarted", try sortedList(eng, st.restarted.keys()));
     if (eng.pack.bias != null) {
         var pairs = json.ObjectMap.init(a);
         const keys = try a.dupe([]const u8, st.bias.pairs.keys());

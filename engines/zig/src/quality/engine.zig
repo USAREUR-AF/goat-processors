@@ -92,7 +92,7 @@ pub const Engine = struct {
         var obj = json.ObjectMap.init(self.alloc());
         inline for (std.meta.fields(qpack.Measure)) |f| {
             const name: qpack.Measure = @enumFromInt(f.value);
-            if (name.inScope(scope)) try obj.put(f.name, toValue(m.get(name)));
+            if (qpack.inScope(name, scope)) try obj.put(f.name, toValue(m.get(name)));
         }
         return .{ .object = obj };
     }

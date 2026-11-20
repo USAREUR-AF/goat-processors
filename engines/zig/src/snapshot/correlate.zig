@@ -5,6 +5,7 @@ const json = std.json;
 const engine_mod = @import("../correlate/engine.zig");
 const Entity = @import("../correlate/entity.zig").Entity;
 const common = @import("common.zig");
+const confirm_method = @import("../correlate/confirm.zig");
 const record = @import("../trace/record.zig");
 const Engine = engine_mod.Engine;
 
@@ -45,10 +46,10 @@ pub fn confirm(eng: *Engine) !json.Value {
     }
 
     var groups = json.ObjectMap.init(eng.alloc());
-    for (eng.confirm_state.groups.items) |g| try groups.put(try eng.groupName(g.id), try eng.stringList(g.members.items));
+    for (confirm_method.state(eng).groups.items) |g| try groups.put(try eng.groupName(g.id), try eng.stringList(g.members.items));
 
     var counts = json.ObjectMap.init(eng.alloc());
-    for (eng.confirm_state.counts.items) |pc| {
+    for (confirm_method.state(eng).counts.items) |pc| {
         try counts.put(try std.fmt.allocPrint(eng.alloc(), "{s}|{s}", .{ pc.a, pc.b }), .{ .integer = pc.count });
     }
 
@@ -57,6 +58,6 @@ pub fn confirm(eng: *Engine) !json.Value {
         .{ "entities", json.Value{ .object = entities } },
         .{ "groups", json.Value{ .object = groups } },
         .{ "counts", json.Value{ .object = counts } },
-        .{ "next_group", eng.confirm_state.next_group },
+        .{ "next_group", confirm_method.state(eng).next_group },
     });
 }

@@ -31,6 +31,16 @@ pub const State = struct {
     }
 };
 
+pub fn initState(a: Allocator) anyerror!*anyopaque {
+    const st = try a.create(State);
+    st.* = State.init(a);
+    return st;
+}
+
+pub fn state(eng: *Engine) *State {
+    return @ptrCast(@alignCast(eng.method_state));
+}
+
 // After an accepted report: hold when A is in a group, otherwise associate.
 pub fn afterIngest(eng: *Engine, res: *Result, a_key: []const u8) !void {
     if (eng.entities.get(a_key).?.group) |gid| {
@@ -42,21 +52,21 @@ pub fn afterIngest(eng: *Engine, res: *Result, a_key: []const u8) !void {
 
 fn pairCount(eng: *Engine, x: []const u8, y: []const u8) *PairCount {
     const a, const b = if (lessKey({}, x, y)) .{ x, y } else .{ y, x };
-    for (eng.confirm_state.counts.items) |*pc| {
+    for (state(eng).counts.items) |*pc| {
         if (std.mem.eql(u8, pc.a, a) and std.mem.eql(u8, pc.b, b)) return pc;
     }
-    eng.confirm_state.counts.append(.{ .a = a, .b = b, .count = 0 }) catch @panic("out of memory");
-    return &eng.confirm_state.counts.items[eng.confirm_state.counts.items.len - 1];
+    state(eng).counts.append(.{ .a = a, .b = b, .count = 0 }) catch @panic("out of memory");
+    return &state(eng).counts.items[state(eng).counts.items.len - 1];
 }
 
 pub fn groupIndex(eng: *Engine, id: u64) usize {
-    for (eng.confirm_state.groups.items, 0..) |g, i| if (g.id == id) return i;
+    for (state(eng).groups.items, 0..) |g, i| if (g.id == id) return i;
     unreachable;
 }
 
 // Spec "Association": A is in a group G, hold.
 fn hold(eng: *Engine, res: *Result, a_key: []const u8, gid: u64) !void {
-    const g = eng.confirm_state.groups.items[groupIndex(eng, gid)];
+    const g = state(eng).groups.items[groupIndex(eng, gid)];
     const others = try eng.alloc().dupe([]const u8, g.members.items);
     var any_pass = false;
     for (others) |m| {
@@ -85,7 +95,7 @@ fn leave(eng: *Engine, res: *Result, key: []const u8, reason: []const u8) !void 
     const gid = e.group.?;
     e.group = null;
     const gi = groupIndex(eng, gid);
-    const g = &eng.confirm_state.groups.items[gi];
+    const g = &state(eng).groups.items[gi];
     for (g.members.items, 0..) |m, i| {
         if (std.mem.eql(u8, m, key)) {
             _ = g.members.orderedRemove(i);
@@ -99,13 +109,13 @@ fn leave(eng: *Engine, res: *Result, key: []const u8, reason: []const u8) !void 
         const rest = eng.entities.getPtr(last).?;
         rest.group = null;
         rest.hold_failures = 0;
-        _ = eng.confirm_state.groups.orderedRemove(gi);
+        _ = state(eng).groups.orderedRemove(gi);
         try res.events.append(try eng.object(.{ .{ "ev", "dissolve" }, .{ "group", name }, .{ "entity", last } }));
     }
 }
 
 fn groupHoldsSource(eng: *Engine, gid: u64, source: []const u8) bool {
-    for (eng.confirm_state.groups.items[groupIndex(eng, gid)].members.items) |m| {
+    for (state(eng).groups.items[groupIndex(eng, gid)].members.items) |m| {
         if (std.mem.eql(u8, eng.entities.get(m).?.source, source)) return true;
     }
     return false;
@@ -165,17 +175,17 @@ fn associate(eng: *Engine, res: *Result, a_key: []const u8) !void {
     const b_key = chosen orelse return;
     const b = eng.entities.getPtr(b_key).?;
     if (b.group) |gid| {
-        const g = &eng.confirm_state.groups.items[groupIndex(eng, gid)];
+        const g = &state(eng).groups.items[groupIndex(eng, gid)];
         try Engine.insertSorted(&g.members, a_key);
         eng.entities.getPtr(a_key).?.group = gid;
         try res.events.append(try eng.object(.{ .{ "ev", "join" }, .{ "group", try eng.groupName(gid) }, .{ "entity", a_key } }));
     } else {
-        const gid = eng.confirm_state.next_group;
-        eng.confirm_state.next_group += 1;
+        const gid = state(eng).next_group;
+        state(eng).next_group += 1;
         var members = std.ArrayList([]const u8).init(eng.alloc());
         try Engine.insertSorted(&members, a_key);
         try Engine.insertSorted(&members, b_key);
-        try eng.confirm_state.groups.append(.{ .id = gid, .members = members });
+        try state(eng).groups.append(.{ .id = gid, .members = members });
         b.group = gid;
         eng.entities.getPtr(a_key).?.group = gid;
         try res.events.append(try eng.object(.{ .{ "ev", "correlate" }, .{ "group", try eng.groupName(gid) }, .{ "members", try eng.stringList(members.items) } }));
@@ -195,17 +205,17 @@ pub fn tick(eng: *Engine, now_ms: i64) !Result {
         if (e.group != null) try leave(eng, &res, key, "stale");
         _ = eng.entities.orderedRemove(key);
         var i: usize = 0;
-        while (i < eng.confirm_state.counts.items.len) {
-            const pc = eng.confirm_state.counts.items[i];
+        while (i < state(eng).counts.items.len) {
+            const pc = state(eng).counts.items[i];
             if (std.mem.eql(u8, pc.a, key) or std.mem.eql(u8, pc.b, key)) {
-                _ = eng.confirm_state.counts.orderedRemove(i);
+                _ = state(eng).counts.orderedRemove(i);
             } else i += 1;
         }
         try res.events.append(try eng.object(.{ .{ "ev", "drop" }, .{ "entity", key } }));
     }
 
     // 2. Fused output, groups in creation order.
-    for (eng.confirm_state.groups.items) |g| {
+    for (state(eng).groups.items) |g| {
         const primary = primaryOf(eng, g);
         const p = eng.entities.get(primary).?;
         const flt = p.predictedTo(now_ms, eng.pack);
@@ -228,7 +238,6 @@ pub fn tick(eng: *Engine, now_ms: i64) !Result {
     }
     return res;
 }
-
 
 // Members are in key order, so a strict comparison keeps ties to key order.
 fn primaryOf(eng: *Engine, g: Group) []const u8 {

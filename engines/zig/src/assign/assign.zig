@@ -24,6 +24,7 @@ const Entries = ranking.Entries;
 const Assignment = ranking.Assignment;
 const ranked = ranking.ranked;
 const Engine = engine_mod.Engine;
+const Entity = @import("../correlate/entity.zig").Entity;
 const Result = engine_mod.Result;
 const lessKey = engine_mod.lessKey;
 
@@ -78,6 +79,11 @@ pub const State = struct {
     retiring: std.StringArrayHashMap(void),
     // "Sensor bias": the stored offsets, used only with `bias`.
     bias: bias_mod.State,
+    // The entities with an accepted report since the previous tick.
+    reported: std.StringArrayHashMap(void),
+    // correlate.md 0.7 "Restart": the entities whose filter started again
+    // since the previous tick.
+    restarted: std.StringArrayHashMap(void),
 
     pub fn init(alloc: Allocator) !State {
         // At the start there is one history with no records.
@@ -88,6 +94,8 @@ pub const State = struct {
             .histories = histories,
             .retiring = std.StringArrayHashMap(void).init(alloc),
             .bias = bias_mod.State.init(alloc),
+            .reported = std.StringArrayHashMap(void).init(alloc),
+            .restarted = std.StringArrayHashMap(void).init(alloc),
         };
     }
 
@@ -97,8 +105,60 @@ pub const State = struct {
     }
 };
 
-pub fn isRetiring(eng: *Engine, key: []const u8) bool {
-    return eng.assign_state.retiring.contains(key);
+pub fn state(eng: *Engine) *State {
+    return @ptrCast(@alignCast(eng.method_state));
+}
+
+pub fn initState(a: Allocator) anyerror!*anyopaque {
+    const st = try a.create(State);
+    st.* = try State.init(a);
+    return st;
+}
+
+// correlate-assign.md "Window": a report of a retiring entity is rejected.
+pub fn rejectRetiring(eng: *Engine, key: []const u8) ?[]const u8 {
+    return if (state(eng).retiring.contains(key)) "retiring" else null;
+}
+
+// correlate.md 0.7 "Restart", method assign: the entity leaves at the next tick.
+pub fn markRestarted(eng: *Engine, key: []const u8) anyerror!void {
+    try state(eng).restarted.put(key, {});
+}
+
+// A report gives only `new` or `reject`; the tick decides.
+pub fn markReported(eng: *Engine, _: *Result, key: []const u8) anyerror!void {
+    try state(eng).reported.put(key, {});
+}
+
+// correlate-assign.md 0.5 "Sensor bias": with `bias`, B is moved into A's
+// frame before the test formula.
+pub fn moveIntoFrame(eng: *Engine, a: Entity, b: Entity, b_pred: kalman.Filter) anyerror!kalman.Filter {
+    const bp = eng.pack.bias orelse return b_pred;
+    return bias_mod.moveInto(eng.alloc(), &state(eng).bias, bp, eng.pack.time_offset, a.source, b.source, b_pred);
+}
+
+// correlate-assign.md "Pack": the ranges, after the required and refused directives.
+pub fn checkPack(pack: pack_mod.Pack) pack_mod.Error!void {
+    // correlate-assign.md 0.2 "Pack": ranges of `new_cost` and `keep_bonus`.
+    if (!(pack.new_cost > 0 and pack.keep_bonus >= 0)) return error.BadValue;
+    // correlate-assign.md 0.4 "Pack": `window` and `hypotheses` 1 or above;
+    // `hypotheses` above 1 needs `window` above 1.
+    if (pack.window < 1 or pack.hypotheses < 1) return error.BadValue;
+    if (pack.hypotheses > 1 and pack.window == 1) return error.BadValue;
+    // correlate-assign.md 0.5 "Pack": `bias` with `sigma_m` and `gate` above 0
+    // and `floor_m` above 0 and at most `sigma_m`.
+    if (pack.bias) |b| {
+        if (!(b.sigma_m > 0 and b.gate > 0 and b.floor_m > 0 and b.floor_m <= b.sigma_m)) return error.BadValue;
+    }
+    // correlate-assign.md 0.6 "Pack": `time_offset`'s `sigma_ms` above 0, and
+    // only with `bias`.
+    if (pack.time_offset) |t| {
+        if (!(t.sigma_ms > 0) or pack.bias == null) return error.BadValue;
+    }
+    // `margin` above 0, and only with `hypotheses` above 1.
+    if (pack.margin) |m| {
+        if (!(m > 0) or pack.hypotheses <= 1) return error.BadValue;
+    }
 }
 
 // ---- Assignment of one source -------------------------------------------------
@@ -136,7 +196,7 @@ fn fused(eng: *Engine, members: []const []const u8, t_ms: i64, frame_of: ?[]cons
         const e = eng.entities.get(m).?;
         var f = if (frame_of != null) e.predictedForComparison(t_ms, eng.pack) else e.predictedTo(t_ms, eng.pack);
         if (eng.pack.bias) |bp| {
-            if (frame_of) |src| f = try bias_mod.moveInto(a, &eng.assign_state.bias, bp, eng.pack.time_offset, src, e.source, f);
+            if (frame_of) |src| f = try bias_mod.moveInto(a, &state(eng).bias, bp, eng.pack.time_offset, src, e.source, f);
         }
         east[i] = f.east;
         north[i] = f.north;
@@ -272,7 +332,7 @@ fn candidateBefore(_: void, x: Candidate, y: Candidate) bool {
 // Step 3, one source S with its rows R (key order), over every history.
 fn assignSource(eng: *Engine, res: *Result, source: []const u8, rows: []const []const u8) !void {
     const a = eng.alloc();
-    const st = &eng.assign_state;
+    const st = state(eng);
     const windowed = eng.pack.window > 1;
     const k: usize = @intCast(eng.pack.hypotheses);
 
@@ -336,12 +396,12 @@ fn isStale(eng: *Engine, key: []const u8, now_ms: i64) bool {
 // "Window", on each tick.
 pub fn tick(eng: *Engine, now_ms: i64) !Result {
     const a = eng.alloc();
-    const st = &eng.assign_state;
+    const st = state(eng);
     const windowed = eng.pack.window > 1;
     var res = Result.init(a);
 
     // 1. Staleness, among entities not retiring, in key order.
-    const restarted = try a.dupe([]const u8, eng.restarted.keys());
+    const restarted = try a.dupe([]const u8, st.restarted.keys());
     std.mem.sort([]const u8, restarted, {}, lessKey);
     var stale = std.ArrayList([]const u8).init(a);
     for (try eng.sortedKeys()) |key| {
@@ -366,16 +426,16 @@ pub fn tick(eng: *Engine, now_ms: i64) !Result {
         try hist.records.append(rec);
     }
     // No entity is restarted after this step.
-    eng.restarted.clearRetainingCapacity();
+    st.restarted.clearRetainingCapacity();
     for (stale.items) |key| {
         try st.retiring.put(key, {});
-        _ = eng.reported.orderedRemove(key);
+        _ = st.reported.orderedRemove(key);
     }
 
     // 2. Rows: the entities reported since the previous tick, grouped by source.
-    const reported = try a.dupe([]const u8, eng.reported.keys());
+    const reported = try a.dupe([]const u8, st.reported.keys());
     std.mem.sort([]const u8, reported, {}, lessKey);
-    eng.reported.clearRetainingCapacity();
+    st.reported.clearRetainingCapacity();
     var sources = std.ArrayList([]const u8).init(a);
     for (reported) |key| {
         const src = eng.entities.get(key).?.source;
@@ -439,7 +499,7 @@ pub fn tick(eng: *Engine, now_ms: i64) !Result {
 // one of them among the tick's rows.
 fn updateBias(eng: *Engine, res: *Result, bp: pack_mod.Bias, rows: []const []const u8, now_ms: i64) !void {
     const a = eng.alloc();
-    const st = &eng.assign_state;
+    const st = state(eng);
     for (st.committed.systems.items) |s| {
         var members = std.ArrayList([]const u8).init(a);
         for (s.members.items) |m| if (!st.retiring.contains(m)) try members.append(m);

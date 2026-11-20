@@ -11,12 +11,6 @@ const record = @import("../trace/record.zig");
 const snapshot_common = @import("../snapshot/common.zig");
 const entity_mod = @import("entity.zig");
 const estimate = @import("estimate.zig");
-const pair_tests = @import("tests.zig");
-const assign = @import("../assign/assign.zig");
-const bias_mod = @import("../assign/bias.zig");
-const confirm = @import("confirm.zig");
-const snapshot_correlate = @import("../snapshot/correlate.zig");
-const snapshot_assign = @import("../snapshot/assign.zig");
 const Entity = entity_mod.Entity;
 pub const Pack = pack_mod.Pack;
 
@@ -35,15 +29,8 @@ pub const Engine = struct {
     pack: Pack,
     ref: ?frame.Frame = null,
     entities: std.StringArrayHashMap(Entity),
-    // Method confirm: the groups and pair counts.
-    confirm_state: confirm.State,
-    // correlate-assign.md: `reported` holds the entities with an accepted report
-    // since the previous tick; `assign_state` the memberships and histories.
-    reported: std.StringArrayHashMap(void),
-    // correlate.md 0.7 "Restart", method assign: the entities whose filter
-    // started again since the previous tick.
-    restarted: std.StringArrayHashMap(void),
-    assign_state: assign.State,
+    // The method's own state (methods.zig `init`).
+    method_state: *anyopaque,
 
     pub fn create(backing: Allocator, pack: Pack) !*Engine {
         const self = try backing.create(Engine);
@@ -51,17 +38,11 @@ pub const Engine = struct {
             .arena = std.heap.ArenaAllocator.init(backing),
             .pack = pack,
             .entities = undefined,
-            .confirm_state = undefined,
-            .reported = undefined,
-            .restarted = undefined,
-            .assign_state = undefined,
+            .method_state = undefined,
         };
         const a = self.arena.allocator();
         self.entities = std.StringArrayHashMap(Entity).init(a);
-        self.confirm_state = confirm.State.init(a);
-        self.reported = std.StringArrayHashMap(void).init(a);
-        self.restarted = std.StringArrayHashMap(void).init(a);
-        self.assign_state = try assign.State.init(a);
+        self.method_state = try pack.method.init(a);
         return self;
     }
 
@@ -88,8 +69,7 @@ pub const Engine = struct {
 
     // A group's (`g<n>`) or system track's (`s<n>`) name.
     pub fn groupName(self: *Engine, id: u64) ![]const u8 {
-        const prefix = if (self.pack.method == .assign) "s" else "g";
-        return std.fmt.allocPrint(self.alloc(), "{s}{d}", .{ prefix, id });
+        return std.fmt.allocPrint(self.alloc(), "{s}{d}", .{ self.pack.method.group_prefix, id });
     }
 
     // ---- state helpers -----------------------------------------------------
@@ -122,9 +102,10 @@ pub const Engine = struct {
         const time_ms = req.time_ms;
 
         const key = try std.fmt.allocPrint(self.alloc(), "{s}/{s}", .{ req.source, req.uid });
-        // correlate-assign.md "Window": after the required keys, before out-of-order.
-        if (self.pack.method == .assign and assign.isRetiring(self, key)) {
-            try res.events.append(try self.object(.{ .{ "ev", "reject" }, .{ "entity", key }, .{ "reason", "retiring" } }));
+        // The method may reject a report after the required keys, before out-of-order
+        // (correlate-assign.md "Window": a retiring entity).
+        if (self.pack.method.reject(self, key)) |reason| {
+            try res.events.append(try self.object(.{ .{ "ev", "reject" }, .{ "entity", key }, .{ "reason", reason } }));
             return res;
         }
         if (self.entities.get(key)) |existing| {
@@ -230,7 +211,7 @@ pub const Engine = struct {
                 // entity keeps its key, group, pair counts and hold failure count.
                 e.filter = first;
                 e.imm = first_imm;
-                if (self.pack.method == .assign) try self.restarted.put(e.key, {});
+                try self.pack.method.restarted(self, e.key);
             } else if (e.imm) |st| {
                 // Spec "Two-model filter", later reports: steps 1 to 5, then the four filter records.
                 const step = imm.update(st, self.pack.maneuver.?, f.accel_var, dt, meas);
@@ -255,12 +236,9 @@ pub const Engine = struct {
         }
 
         const a_key = self.entities.getPtr(key).?.key;
-        // correlate-assign.md: a report gives only `new` or `reject`; the tick decides.
-        if (self.pack.method == .assign) {
-            try self.reported.put(a_key, {});
-            return res;
-        }
-        try confirm.afterIngest(self, &res, a_key);
+        // The method's association (correlate.md "Association"; correlate-assign.md
+        // keeps the entity for the tick).
+        try self.pack.method.accepted(self, &res, a_key);
         return res;
     }
 
@@ -282,15 +260,15 @@ pub const Engine = struct {
         const b = self.entities.get(b_key).?;
         // correlate.md 0.8: B's prediction with its timing variance added, first.
         var b_pred = b.predictedForComparison(a.last_time_ms, self.pack);
-        // correlate-assign.md 0.5 "Sensor bias": B is then moved into A's frame before the test formula.
-        if (self.pack.bias) |bp| b_pred = try bias_mod.moveInto(self.alloc(), &self.assign_state.bias, bp, self.pack.time_offset, a.source, b.source, b_pred);
+        // Then the method may change it (correlate-assign.md 0.5 "Sensor bias": B is moved into A's frame).
+        b_pred = try self.pack.method.compare(self, a, b, b_pred);
         for (tests) |t| {
-            const o = pair_tests.run(t, a, b, b_pred, self.pack.filter);
+            const o = t.run(.{ .a = a, .b = b, .b_pred = b_pred, .filter = self.pack.filter });
             var rec = try self.object(.{
                 .{ "stage", @tagName(stage) },
                 .{ "a", a_key },
                 .{ "b", b_key },
-                .{ "test", @tagName(t) },
+                .{ "test", t.name() },
                 .{ "value", o.value },
                 .{ "limit", o.limit },
                 .{ "pass", o.pass },
@@ -306,19 +284,13 @@ pub const Engine = struct {
 
     // Spec operation `tick(now_ms)`.
     pub fn tick(self: *Engine, now_ms: i64) !Result {
-        return switch (self.pack.method) {
-            .assign => assign.tick(self, now_ms),
-            .confirm => confirm.tick(self, now_ms),
-        };
+        return self.pack.method.tick(self, now_ms);
     }
 
     // ---- snapshot ----------------------------------------------------------
 
-    // Spec operation `snapshot()`: snapshot/correlate.zig and snapshot/assign.zig.
+    // Spec operation `snapshot()`, by the method (methods.zig).
     pub fn snapshot(self: *Engine) !json.Value {
-        return switch (self.pack.method) {
-            .assign => snapshot_assign.snapshot(self),
-            .confirm => snapshot_correlate.confirm(self),
-        };
+        return self.pack.method.snapshot(self);
     }
 };

@@ -3,6 +3,7 @@ const std = @import("std");
 const json_read = @import("../io/json_read.zig");
 const Allocator = std.mem.Allocator;
 const params = @import("../model/params.zig");
+const measures = @import("measures.zig");
 
 // spec/quality.md "Frame and filter": the `filter` line has the parameters of
 // correlate.md "Track estimate", so the correlate type is reused.
@@ -32,38 +33,13 @@ pub const Window = struct {
 
 pub const Scope = enum { entity, source };
 
-// "Entity measures" and "Source measures", in the order of their tables.
-// `entities` is a source measure only.
-pub const Measure = enum {
-    reports,
-    interval_last,
-    interval_mean,
-    interval_max,
-    age,
-    latency_mean,
-    latency_max,
-    lateness_mean,
-    lateness_max,
-    lateness_min,
-    nis_mean,
-    speed_err_mean,
-    out_of_order,
-    duplicate,
-    source_out_of_order,
-    missing_ce,
-    missing_vel,
-    missing_hae,
-    time_error_mean,
-    time_error_max,
-    time_state_last,
-    time_state_worst,
-    missing_time,
-    entities,
+// "Entity measures" and "Source measures": the measure registry (measures.zig).
+pub const Measure = measures.Measure;
 
-    pub fn inScope(m: Measure, scope: Scope) bool {
-        return m != .entities or scope == .source;
-    }
-};
+// A rule's measure must be one of its scope's: `entities` is a source measure only.
+pub fn inScope(m: Measure, scope: Scope) bool {
+    return !measures.entry(m).source_only or scope == .source;
+}
 
 pub const Op = enum {
     lt,
@@ -256,7 +232,7 @@ fn parseRule(tokens: []const []const u8, earlier: []const Rule) Error!Rule {
 
     const scope = std.meta.stringToEnum(Scope, try p.required("scope")) orelse return error.BadValue;
     const measure = std.meta.stringToEnum(Measure, try p.required("measure")) orelse return error.BadValue;
-    if (!measure.inScope(scope)) return error.BadValue;
+    if (!inScope(measure, scope)) return error.BadValue;
     const op = Op.parse(try p.required("op")) orelse return error.BadValue;
     const action = std.meta.stringToEnum(Action, try p.required("action")) orelse return error.BadValue;
     const limit = try parseNumber(try p.required("limit"));

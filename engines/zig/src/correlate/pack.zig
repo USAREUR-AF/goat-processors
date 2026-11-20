@@ -3,18 +3,12 @@ const std = @import("std");
 const json_read = @import("../io/json_read.zig");
 const Allocator = std.mem.Allocator;
 
-// Spec "Tests": each test's parameter names are the payload's field names.
-pub const Test = union(enum) {
-    distance: struct { max_m: f64 },
-    window: struct { multiplier: f64, window_m: f64, err_min_m: f64, err_max_m: f64 },
-    mahalanobis: struct { gate: f64 },
-    course: struct { max_deg: f64, min_speed_ms: f64 },
-    speed: struct { max_pct: f64, min_speed_ms: f64 },
-    altitude: struct { max_m: f64 },
-    same: struct { key: []const u8 },
-};
-
 const params = @import("../model/params.zig");
+const tests = @import("tests.zig");
+const methods = @import("methods.zig");
+
+// Spec "Tests": a test of a `gate`, `confirm` or `hold` line, by the test registry.
+pub const Test = tests.Test;
 
 // Spec "Track estimate": the `filter` line.
 pub const Filter = params.Filter;
@@ -45,15 +39,16 @@ pub const TimeDefault = params.TimeDefault;
 
 pub const Output = enum { priority, latest };
 
-// Spec "Pack": `method confirm` (correlate.md) or `method assign` (correlate-assign.md).
-pub const Method = enum { confirm, assign };
+// Spec "Pack": `method confirm` (correlate.md) or `method assign`
+// (correlate-assign.md), from the method registry (methods.zig).
+pub const Method = methods.Method;
 
 pub const Priority = struct { source: []const u8, n: f64 };
 
 pub const Pack = struct {
     name: []const u8,
     version: []const u8,
-    method: Method,
+    method: *const Method,
     filter: Filter,
     maneuver: ?Maneuver,
     restart: ?Restart,
@@ -108,7 +103,7 @@ pub const Error = error{
     BadValue,
 } || Allocator.Error;
 
-const Directive = enum {
+pub const Directive = enum {
     pack,
     version,
     method,
@@ -163,7 +158,7 @@ fn isDecimal(s: []const u8) bool {
     return i == s.len;
 }
 
-fn parseDecimal(s: []const u8) Error!f64 {
+pub fn parseDecimal(s: []const u8) Error!f64 {
     if (!isDecimal(s)) return error.NotANumber;
     return std.fmt.parseFloat(f64, s) catch error.NotANumber;
 }
@@ -216,16 +211,6 @@ fn parseParams(comptime T: type, alloc: Allocator, tokens: []const []const u8) E
     return out;
 }
 
-fn parseTest(alloc: Allocator, tokens: []const []const u8) Error!Test {
-    if (tokens.len == 0) return error.WrongArgumentCount;
-    inline for (@typeInfo(Test).Union.fields) |f| {
-        if (std.mem.eql(u8, f.name, tokens[0])) {
-            return @unionInit(Test, f.name, try parseParams(f.type, alloc, tokens[1..]));
-        }
-    }
-    return error.UnknownTest;
-}
-
 // correlate.md 0.8 "Pack": `time_default <source_id>` then `error_ms`, `state`
 // or both, at least one, each at most once. `error_ms` is a number 0 or above;
 // `state` one of the three clock states. Anything else is a load error.
@@ -256,6 +241,11 @@ fn one(args: []const []const u8) Error![]const u8 {
 }
 
 pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
+    return parseWith(alloc, text, tests.default_registry);
+}
+
+// Parses a pack.def whose test lines name kinds of `registry`.
+pub fn parseWith(alloc: Allocator, text: []const u8, registry: tests.Registry) Error!Pack {
     var seen = std.EnumSet(Directive).initEmpty();
     var gate = std.ArrayList(Test).init(alloc);
     var confirm = std.ArrayList(Test).init(alloc);
@@ -265,7 +255,7 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
     var pack: Pack = .{
         .name = "",
         .version = "",
-        .method = .confirm,
+        .method = methods.default,
         .filter = undefined,
         .maneuver = null,
         .restart = null,
@@ -308,7 +298,7 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
                 if (!isSemver(v)) return error.BadValue;
                 pack.version = try alloc.dupe(u8, v);
             },
-            .method => pack.method = std.meta.stringToEnum(Method, try one(args)) orelse return error.BadValue,
+            .method => pack.method = methods.find(try one(args)) orelse return error.BadValue,
             .new_cost => pack.new_cost = try parseDecimal(try one(args)),
             .keep_bonus => pack.keep_bonus = try parseDecimal(try one(args)),
             .filter => pack.filter = try parseParams(Filter, alloc, args),
@@ -325,9 +315,9 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
             .margin => pack.margin = try parseDecimal(try one(args)),
             .window => pack.window = try parseCount(try one(args)),
             .hypotheses => pack.hypotheses = try parseCount(try one(args)),
-            .gate => try gate.append(try parseTest(alloc, args)),
-            .confirm => try confirm.append(try parseTest(alloc, args)),
-            .hold => try hold.append(try parseTest(alloc, args)),
+            .gate => try gate.append(try registry.parse(alloc, args)),
+            .confirm => try confirm.append(try registry.parse(alloc, args)),
+            .hold => try hold.append(try registry.parse(alloc, args)),
             .confirm_count => pack.confirm_count = try parseCount(try one(args)),
             .hold_failures => pack.hold_failures = try parseCount(try one(args)),
             .stale_ms => pack.stale_ms = try parseCount(try one(args)),
@@ -364,42 +354,11 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
         if (!(r.gate > 0)) return error.BadValue;
     }
 
-    switch (pack.method) {
-        .confirm => {
-            const required = [_]Directive{ .pack, .version, .filter, .confirm_count, .hold_failures, .stale_ms };
-            for (required) |r| if (!seen.contains(r)) return error.MissingDirective;
-            // correlate-assign.md directives are not directives of correlate.md.
-            const refused = [_]Directive{ .new_cost, .keep_bonus, .window, .hypotheses, .margin, .bias, .time_offset };
-            for (refused) |r| if (seen.contains(r)) return error.DirectiveNotForMethod;
-        },
-        .assign => {
-            // correlate-assign.md "Pack": all but `gate` are required.
-            const required = [_]Directive{ .pack, .version, .filter, .new_cost, .keep_bonus, .stale_ms };
-            for (required) |r| if (!seen.contains(r)) return error.MissingDirective;
-            const refused = [_]Directive{ .confirm, .hold, .confirm_count, .hold_failures, .same_source, .output, .priority };
-            for (refused) |r| if (seen.contains(r)) return error.DirectiveNotForMethod;
-            // correlate-assign.md 0.2 "Pack": ranges of `new_cost` and `keep_bonus`.
-            if (!(pack.new_cost > 0 and pack.keep_bonus >= 0)) return error.BadValue;
-            // correlate-assign.md 0.4 "Pack": `window` and `hypotheses` 1 or above;
-            // `hypotheses` above 1 needs `window` above 1.
-            if (pack.window < 1 or pack.hypotheses < 1) return error.BadValue;
-            if (pack.hypotheses > 1 and pack.window == 1) return error.BadValue;
-            // correlate-assign.md 0.5 "Pack": `bias` with `sigma_m` and `gate` above 0
-            // and `floor_m` above 0 and at most `sigma_m`.
-            if (pack.bias) |b| {
-                if (!(b.sigma_m > 0 and b.gate > 0 and b.floor_m > 0 and b.floor_m <= b.sigma_m)) return error.BadValue;
-            }
-            // correlate-assign.md 0.6 "Pack": `time_offset`'s `sigma_ms` above 0, and
-            // only with `bias`.
-            if (pack.time_offset) |t| {
-                if (!(t.sigma_ms > 0) or pack.bias == null) return error.BadValue;
-            }
-            // `margin` above 0, and only with `hypotheses` above 1.
-            if (pack.margin) |m| {
-                if (!(m > 0) or pack.hypotheses <= 1) return error.BadValue;
-            }
-        },
-    }
+    // The method's directives (methods.zig): required, refused, then its ranges.
+    const m = pack.method;
+    for (m.required) |r| if (!seen.contains(r)) return error.MissingDirective;
+    for (m.refused) |r| if (seen.contains(r)) return error.DirectiveNotForMethod;
+    try m.check(pack);
 
     pack.gate = try gate.toOwnedSlice();
     pack.confirm = try confirm.toOwnedSlice();
@@ -411,5 +370,9 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
 
 // Spec operation `load_pack(dir)`.
 pub fn load(alloc: Allocator, dir: []const u8) !Pack {
-    return parse(alloc, try json_read.readPackDef(alloc, dir));
+    return loadWith(alloc, dir, tests.default_registry);
+}
+
+pub fn loadWith(alloc: Allocator, dir: []const u8, registry: tests.Registry) !Pack {
+    return parseWith(alloc, try json_read.readPackDef(alloc, dir), registry);
 }

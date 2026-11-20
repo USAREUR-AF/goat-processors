@@ -1,4 +1,10 @@
 // Spec "Tests": A is the entity just reported, B is predicted to A's `time_ms`.
+//
+// The registration point of a test kind: `builtin` below. A kind is a name,
+// its parameters (each a number or a text, by name) and a pure `run` from the
+// pair and the parameters to the record's value, limit and pass. A pack's
+// `gate`, `confirm` and `hold` lines are parsed against a Registry (the
+// builtin kinds unless the caller gives another, as the tests' no-op kind does).
 const std = @import("std");
 const json = std.json;
 const pack_mod = @import("pack.zig");
@@ -78,49 +84,167 @@ fn asNumber(v: json.Value) ?f64 {
     };
 }
 
-pub fn run(t: pack_mod.Test, a: Entity, b: Entity, b_pred: kalman.Filter, filter: pack_mod.Filter) Outcome {
-    switch (t) {
-        .distance => |p| {
-            const d = distance(a, b_pred);
-            return .{ .value = num(d), .limit = num(p.max_m), .pass = d < p.max_m };
-        },
-        .window => |p| {
-            const ea = std.math.clamp(a.ce(filter.default_ce_m), p.err_min_m, p.err_max_m);
-            const eb = std.math.clamp(b.ce(filter.default_ce_m), p.err_min_m, p.err_max_m);
-            const limit = p.multiplier * @sqrt(ea * ea + eb * eb) + p.window_m;
-            const d = distance(a, b_pred);
-            return .{ .value = num(d), .limit = num(limit), .pass = d < limit };
-        },
-        .mahalanobis => |p| {
-            const d2 = mahalanobis(a, b_pred);
-            return .{ .value = num(d2), .limit = num(p.gate), .pass = d2 < p.gate };
-        },
-        .course => |p| {
-            const ca = a.number("course") orelse return skipped;
-            const cb = b.number("course") orelse return skipped;
-            _ = speedsUsable(a, b, p.min_speed_ms) orelse return skipped;
-            const diff = @abs(ca - cb);
-            const value = @min(diff, 360.0 - diff);
-            return .{ .value = num(value), .limit = num(p.max_deg), .pass = value <= p.max_deg };
-        },
-        .speed => |p| {
-            const s = speedsUsable(a, b, p.min_speed_ms) orelse return skipped;
-            const slow = @min(s[0], s[1]);
-            const fast = @max(s[0], s[1]);
-            const value = if (fast == 0.0) 0.0 else @abs(1.0 - slow / fast) * 100.0;
-            return .{ .value = num(value), .limit = num(p.max_pct), .pass = value <= p.max_pct };
-        },
-        .altitude => |p| {
-            const ha = a.number("hae") orelse return skipped;
-            const hb = b.number("hae") orelse return skipped;
-            const value = @abs(ha - hb);
-            return .{ .value = num(value), .limit = num(p.max_m), .pass = value <= p.max_m };
-        },
-        .same => |p| {
-            const va = a.sameValue(p.key);
-            const vb = b.sameValue(p.key);
-            const pass = if (va != null and vb != null) valuesEqual(va.?, vb.?) else (va == null and vb == null);
-            return .{ .value = va orelse .null, .limit = vb orelse .null, .pass = pass };
-        },
+// ---- the registry -------------------------------------------------------------
+
+pub const ParamKind = enum { number, text };
+pub const Param = struct { name: []const u8, kind: ParamKind };
+pub const Arg = union(ParamKind) { number: f64, text: []const u8 };
+
+// What a test reads: A, B, B's prediction (to A's time, with B's timing
+// variance and, with `bias`, moved into A's frame) and the pack's `filter`.
+pub const Pair = struct { a: Entity, b: Entity, b_pred: kalman.Filter, filter: pack_mod.Filter };
+
+pub const Kind = struct {
+    name: []const u8,
+    params: []const Param,
+    run: *const fn (pair: Pair, args: []const Arg) Outcome,
+};
+
+// One test of a pack line: its kind and its arguments, in the kind's parameter order.
+pub const Test = struct {
+    kind: *const Kind,
+    args: []const Arg,
+
+    pub fn name(t: Test) []const u8 {
+        return t.kind.name;
     }
+
+    pub fn run(t: Test, pair: Pair) Outcome {
+        return t.kind.run(pair, t.args);
+    }
+};
+
+pub const Registry = struct {
+    kinds: []const Kind,
+
+    pub fn find(r: Registry, name_: []const u8) ?*const Kind {
+        for (r.kinds) |*k| if (std.mem.eql(u8, k.name, name_)) return k;
+        return null;
+    }
+
+    // A test line after its directive: the kind's name, then `name=value`
+    // parameters, exactly the kind's, each once.
+    pub fn parse(r: Registry, alloc: std.mem.Allocator, tokens: []const []const u8) pack_mod.Error!Test {
+        if (tokens.len == 0) return error.WrongArgumentCount;
+        const kind = r.find(tokens[0]) orelse return error.UnknownTest;
+        const args = try alloc.alloc(Arg, kind.params.len);
+        const seen = try alloc.alloc(bool, kind.params.len);
+        @memset(seen, false);
+        for (tokens[1..]) |tok| {
+            const eq = std.mem.indexOfScalar(u8, tok, '=') orelse return error.ParamWithoutValue;
+            const pname = tok[0..eq];
+            const value = tok[eq + 1 ..];
+            const i = for (kind.params, 0..) |p, j| {
+                if (std.mem.eql(u8, p.name, pname)) break j;
+            } else return error.UnknownParam;
+            if (seen[i]) return error.RepeatedParam;
+            seen[i] = true;
+            args[i] = switch (kind.params[i].kind) {
+                .number => .{ .number = try pack_mod.parseDecimal(value) },
+                .text => blk: {
+                    if (value.len == 0) return error.BadValue;
+                    break :blk .{ .text = try alloc.dupe(u8, value) };
+                },
+            };
+        }
+        for (seen) |x| if (!x) return error.MissingParam;
+        return .{ .kind = kind, .args = args };
+    }
+};
+
+// The builtin kinds, spec "Tests". Adding a test is one entry here.
+pub const builtin = [_]Kind{
+    .{ .name = "distance", .params = &.{.{ .name = "max_m", .kind = .number }}, .run = runDistance },
+    .{ .name = "window", .params = &.{ .{ .name = "multiplier", .kind = .number }, .{ .name = "window_m", .kind = .number }, .{ .name = "err_min_m", .kind = .number }, .{ .name = "err_max_m", .kind = .number } }, .run = runWindow },
+    .{ .name = "mahalanobis", .params = &.{.{ .name = "gate", .kind = .number }}, .run = runMahalanobis },
+    .{ .name = "course", .params = &.{ .{ .name = "max_deg", .kind = .number }, .{ .name = "min_speed_ms", .kind = .number } }, .run = runCourse },
+    .{ .name = "speed", .params = &.{ .{ .name = "max_pct", .kind = .number }, .{ .name = "min_speed_ms", .kind = .number } }, .run = runSpeed },
+    .{ .name = "altitude", .params = &.{.{ .name = "max_m", .kind = .number }}, .run = runAltitude },
+    .{ .name = "same", .params = &.{.{ .name = "key", .kind = .text }}, .run = runSame },
+};
+
+pub const default_registry = Registry{ .kinds = &builtin };
+
+// ---- the builtin kinds ------------------------------------------------------------
+
+fn runDistance(pr: Pair, args: []const Arg) Outcome {
+    const max_m = args[0].number;
+    const d = distance(pr.a, pr.b_pred);
+    return .{ .value = num(d), .limit = num(max_m), .pass = d < max_m };
+}
+
+// The `window` test, unchanged (correlate 1.0 replaces it).
+fn runWindow(pr: Pair, args: []const Arg) Outcome {
+    const p = .{ .multiplier = args[0].number, .window_m = args[1].number, .err_min_m = args[2].number, .err_max_m = args[3].number };
+    const a = pr.a;
+    const b = pr.b;
+    const ea = std.math.clamp(a.ce(pr.filter.default_ce_m), p.err_min_m, p.err_max_m);
+    const eb = std.math.clamp(b.ce(pr.filter.default_ce_m), p.err_min_m, p.err_max_m);
+    const limit = p.multiplier * @sqrt(ea * ea + eb * eb) + p.window_m;
+    const d = distance(a, pr.b_pred);
+    return .{ .value = num(d), .limit = num(limit), .pass = d < limit };
+}
+
+fn runMahalanobis(pr: Pair, args: []const Arg) Outcome {
+    const gate = args[0].number;
+    const d2 = mahalanobis(pr.a, pr.b_pred);
+    return .{ .value = num(d2), .limit = num(gate), .pass = d2 < gate };
+}
+
+fn runCourse(pr: Pair, args: []const Arg) Outcome {
+    const max_deg = args[0].number;
+    const min_speed_ms = args[1].number;
+    const ca = pr.a.number("course") orelse return skipped;
+    const cb = pr.b.number("course") orelse return skipped;
+    _ = speedsUsable(pr.a, pr.b, min_speed_ms) orelse return skipped;
+    const diff = @abs(ca - cb);
+    const value = @min(diff, 360.0 - diff);
+    return .{ .value = num(value), .limit = num(max_deg), .pass = value <= max_deg };
+}
+
+fn runSpeed(pr: Pair, args: []const Arg) Outcome {
+    const max_pct = args[0].number;
+    const min_speed_ms = args[1].number;
+    const s = speedsUsable(pr.a, pr.b, min_speed_ms) orelse return skipped;
+    const slow = @min(s[0], s[1]);
+    const fast = @max(s[0], s[1]);
+    const value = if (fast == 0.0) 0.0 else @abs(1.0 - slow / fast) * 100.0;
+    return .{ .value = num(value), .limit = num(max_pct), .pass = value <= max_pct };
+}
+
+fn runAltitude(pr: Pair, args: []const Arg) Outcome {
+    const max_m = args[0].number;
+    const ha = pr.a.number("hae") orelse return skipped;
+    const hb = pr.b.number("hae") orelse return skipped;
+    const value = @abs(ha - hb);
+    return .{ .value = num(value), .limit = num(max_m), .pass = value <= max_m };
+}
+
+// The `same` test, unchanged (correlate 1.0 replaces it).
+fn runSame(pr: Pair, args: []const Arg) Outcome {
+    const key = args[0].text;
+    const va = pr.a.sameValue(key);
+    const vb = pr.b.sameValue(key);
+    const pass = if (va != null and vb != null) valuesEqual(va.?, vb.?) else (va == null and vb == null);
+    return .{ .value = va orelse .null, .limit = vb orelse .null, .pass = pass };
+}
+
+test "the registry parses parameters by name, once each, and refuses unknown kinds" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const r = default_registry;
+    const t = try r.parse(a, &.{ "course", "min_speed_ms=2", "max_deg=30" });
+    try std.testing.expectEqualStrings("course", t.name());
+    try std.testing.expectEqual(@as(f64, 30), t.args[0].number);
+    try std.testing.expectEqual(@as(f64, 2), t.args[1].number);
+    try std.testing.expectError(error.UnknownTest, r.parse(a, &.{"noop"}));
+    try std.testing.expectError(error.RepeatedParam, r.parse(a, &.{ "distance", "max_m=1", "max_m=2" }));
+    try std.testing.expectError(error.MissingParam, r.parse(a, &.{"distance"}));
+    try std.testing.expectError(error.UnknownParam, r.parse(a, &.{ "distance", "max=1" }));
+    try std.testing.expectError(error.ParamWithoutValue, r.parse(a, &.{ "distance", "max_m" }));
+    try std.testing.expectError(error.BadValue, r.parse(a, &.{ "same", "key=" }));
+    try std.testing.expectError(error.WrongArgumentCount, r.parse(a, &.{}));
+    const s = try r.parse(a, &.{ "same", "key=@env" });
+    try std.testing.expectEqualStrings("@env", s.args[0].text);
 }

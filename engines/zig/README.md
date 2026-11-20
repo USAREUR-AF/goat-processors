@@ -19,11 +19,11 @@ fuse, quality, trace, snapshot, IO. Each is a directory of `src/`.
 | Module | Holds |
 |---|---|
 | `src/model/` | what more than one function shares: the Frame, the track estimate (one filter and the two-model filter), the report key readers, the shared pack parameter types |
-| `src/correlate/` | the function correlate: its pack, its entity, the tests, the engine (`ingest`, `tick`, `snapshot`) and method `confirm` |
+| `src/correlate/` | the function correlate: its pack, its entity, the test registry, the engine (`ingest`, `tick`, `snapshot`), the method registry and method `confirm` |
 | `src/assign/` | correlate's method `assign` (`correlate-assign.md`): ranking, window and sensor bias |
 | `src/filter/` | the function filter (`filter.md`) |
 | `src/fuse/` | the function fuse (`fuse.md`) |
-| `src/quality/` | the function quality (`quality.md`), with its measures and rules |
+| `src/quality/` | the function quality (`quality.md`), with the measure registry |
 | `src/trace/` | the `Result` of an operation (events, then trace records) and the record builders |
 | `src/snapshot/` | every function's `snapshot()` |
 | `src/io/` | reading and writing JSON, steps files, the runner, the vector tests' reader and comparison |
@@ -48,6 +48,14 @@ engine.destroy()
 records. The state lives only in the engine object; `snapshot()` writes it.
 There are no globals.
 
+### Extending
+
+| To add | Change one place |
+|---|---|
+| a correlate method | one entry in `table` of `src/correlate/methods.zig` |
+| a correlate test | one entry in `builtin` of `src/correlate/tests.zig` (a name, its parameters and a pure `run`); a test-only kind is registered with `tests.Registry` and `pack.parseWith` (see `src/correlate/noop_test.zig`, with its fixture pack and vector in `src/correlate/testdata/noop/`) |
+| a quality measure | one entry in `table` of `src/quality/measures.zig` (name, scope, entity measure, source aggregate) |
+
 ## Where each spec section lives
 
 ### `spec/correlate.md`
@@ -57,9 +65,9 @@ There are no globals.
 | What the correlator does | `src/correlate/engine.zig` |
 | Reports (and Time quality) | `src/model/report.zig` |
 | Frame | `src/model/frame.zig` |
-| Track estimate | `src/model/kalman.zig` (the measurement variance and the timing variance: `src/correlate/engine.zig`) |
+| Track estimate | `src/model/kalman.zig` (the measurement variance and the timing variance: `src/correlate/estimate.zig`) |
 | Two-model filter | `src/model/imm.zig` |
-| Restart | `src/correlate/engine.zig` |
+| Restart | `src/correlate/estimate.zig` |
 | Tests | `src/correlate/tests.zig` |
 | Association | `src/correlate/confirm.zig` |
 | Events | `src/correlate/confirm.zig` (method confirm), `src/assign/assign.zig` (method assign) |
@@ -72,7 +80,7 @@ There are no globals.
 
 | Section | File |
 |---|---|
-| What this method does | `src/assign/assign.zig` |
+| What this method does | `src/correlate/methods.zig` (its registration), `src/assign/assign.zig` |
 | Shared with `correlate.md` | `src/correlate/engine.zig` |
 | Memberships | `src/assign/membership.zig` |
 | Assignment of one source | `src/assign/assign.zig` |
