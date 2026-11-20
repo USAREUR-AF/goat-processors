@@ -211,6 +211,30 @@ pub const Window = struct {
     k: usize,
     now_ms: i64,
     last: i64,
+    // The statistics several measures share, each taken once per window.
+    stats: Stats,
+};
+
+pub const Stats = struct {
+    interval: IntStat,
+    latency: IntStat,
+    lateness: LatenessStat,
+    nis: ?Num,
+    speed_err: ?Num,
+    time_error: TimeErrorStat,
+    time_state: TimeStateStat,
+
+    fn of(buf: []f64, records: []const Record, k: usize) Stats {
+        return .{
+            .interval = intStat(buf, records, k, "interval"),
+            .latency = intStat(buf, records, k, "latency"),
+            .lateness = latenessStat(buf, records, k),
+            .nis = floatMean(buf, records, k, "nis"),
+            .speed_err = floatMean(buf, records, k, "speed_err"),
+            .time_error = timeErrorStat(buf, records, k),
+            .time_state = timeStateStat(records, k),
+        };
+    }
 };
 
 // "Source measures": how a source's value comes from its entities' values.
@@ -290,37 +314,37 @@ fn reports(w: Window) ?Num {
     return .{ .int = @intCast(w.records.len) };
 }
 fn intervalLast(w: Window) ?Num {
-    return intStat(w.buf, w.records, w.k, "interval").last;
+    return w.stats.interval.last;
 }
 fn intervalMean(w: Window) ?Num {
-    return intStat(w.buf, w.records, w.k, "interval").mean;
+    return w.stats.interval.mean;
 }
 fn intervalMax(w: Window) ?Num {
-    return intStat(w.buf, w.records, w.k, "interval").max;
+    return w.stats.interval.max;
 }
 fn age(w: Window) ?Num {
     return .{ .int = w.now_ms - w.last };
 }
 fn latencyMean(w: Window) ?Num {
-    return intStat(w.buf, w.records, w.k, "latency").mean;
+    return w.stats.latency.mean;
 }
 fn latencyMax(w: Window) ?Num {
-    return intStat(w.buf, w.records, w.k, "latency").max;
+    return w.stats.latency.max;
 }
 fn latenessMean(w: Window) ?Num {
-    return latenessStat(w.buf, w.records, w.k).mean;
+    return w.stats.lateness.mean;
 }
 fn latenessMax(w: Window) ?Num {
-    return latenessStat(w.buf, w.records, w.k).max;
+    return w.stats.lateness.max;
 }
 fn latenessMin(w: Window) ?Num {
-    return latenessStat(w.buf, w.records, w.k).min;
+    return w.stats.lateness.min;
 }
 fn nisMean(w: Window) ?Num {
-    return floatMean(w.buf, w.records, w.k, "nis");
+    return w.stats.nis;
 }
 fn speedErrMean(w: Window) ?Num {
-    return floatMean(w.buf, w.records, w.k, "speed_err");
+    return w.stats.speed_err;
 }
 fn countOrder(w: Window, o: Order) ?Num {
     var n: i64 = 0;
@@ -352,16 +376,16 @@ fn missingHae(w: Window) ?Num {
     return missing(w.records, w.k, "hae");
 }
 fn timeErrorMean(w: Window) ?Num {
-    return timeErrorStat(w.buf, w.records, w.k).mean;
+    return w.stats.time_error.mean;
 }
 fn timeErrorMax(w: Window) ?Num {
-    return timeErrorStat(w.buf, w.records, w.k).max;
+    return w.stats.time_error.max;
 }
 fn timeStateLast(w: Window) ?Num {
-    return timeStateStat(w.records, w.k).last;
+    return w.stats.time_state.last;
 }
 fn timeStateWorst(w: Window) ?Num {
-    return timeStateStat(w.records, w.k).worst;
+    return w.stats.time_state.worst;
 }
 fn missingTime(w: Window) ?Num {
     return missingTimeOf(w.records, w.k);
@@ -370,7 +394,8 @@ fn missingTime(w: Window) ?Num {
 // "Entity measures", over the window `W` with `min_samples` `k`, at `now_ms`
 // for an entity whose latest accepted time is `last`. `buf` holds at least `W.len` values.
 pub fn entityMeasures(buf: []f64, window: []const Record, k_i: i64, now_ms: i64, last: i64) Measures {
-    const w = Window{ .buf = buf, .records = window, .k = @intCast(k_i), .now_ms = now_ms, .last = last };
+    const k: usize = @intCast(k_i);
+    const w = Window{ .buf = buf, .records = window, .k = k, .now_ms = now_ms, .last = last, .stats = Stats.of(buf, window, k) };
     var m = Measures.initFill(null);
     inline for (table, 0..) |e, i| {
         if (e.entity) |f| m.set(@enumFromInt(i), f(w));

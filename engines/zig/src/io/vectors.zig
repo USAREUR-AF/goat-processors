@@ -56,13 +56,15 @@ pub fn runScenario(comptime M: type, alloc: Allocator, packs_dir: []const u8, pa
 // Every scenario vector of the packs under `packs_dir` whose names start with `prefix`.
 pub fn scenarioVectors(comptime M: type, alloc: Allocator, packs_dir: []const u8, comptime prefix: []const u8) !Counts {
     var c = Counts{};
+    // One arena for the vectors, emptied after each one (its pages kept), so a
+    // large vector's input is not held while the next runs.
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
     for (try files.sortedPackNames(alloc, packs_dir, prefix)) |pn| {
         const vdir = try std.fs.path.join(alloc, &.{ packs_dir, pn, "vectors" });
         for (try files.sortedJsonFiles(alloc, vdir)) |path| {
             c.run += 1;
-            // Each vector in its own arena, so a large vector's input is freed after it.
-            var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-            defer arena.deinit();
+            defer _ = arena.reset(.retain_capacity);
             if (try runScenario(M, arena.allocator(), packs_dir, path)) |mismatch| {
                 c.failed += 1;
                 std.debug.print("FAIL {s}: first mismatch at {s}\n", .{ path, mismatch });
