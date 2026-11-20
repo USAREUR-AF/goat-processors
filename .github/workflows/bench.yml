@@ -12,11 +12,13 @@ concurrency:
 jobs:
   bench-current:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
-      - name: a short deterministic subset reproduces the committed results; the documents are generated from them
+      - name: the sets, families, intervals and the detection-level scorer
+        run: python3 -I tools/bench/test_dataset.py
+      - name: a short deterministic subset of the tuning set reproduces the committed results; the documents are generated from them
         run: python3 -I tools/bench/bench.py check

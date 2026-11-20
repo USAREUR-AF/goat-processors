@@ -1,332 +1,9 @@
 {
  "name": "10-majority-equality-and-ties",
  "pack": "fuse-shared",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "m",
-    "uid": "1",
-    "time_ms": 1000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "fuse.group": "s1",
-    "ce": 30,
-    "track.class": 1,
-    "type": "A",
-    "callsign": "ONE"
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "m/1",
-     "group": "s1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "m",
-    "uid": "2",
-    "time_ms": 2000,
-    "lat": 1.0,
-    "lon": 1.000044973,
-    "fuse.group": "s1",
-    "ce": 30,
-    "track.class": "1",
-    "type": "B",
-    "callsign": "TWO"
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "m/2",
-     "group": "s1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "m",
-    "uid": "3",
-    "time_ms": 2000,
-    "lat": 1.0,
-    "lon": 1.000089946,
-    "fuse.group": "s1",
-    "ce": 30,
-    "track.class": 1.0,
-    "type": "B",
-    "callsign": "THREE"
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "m/3",
-     "group": "s1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "m",
-    "uid": "4",
-    "time_ms": 1000,
-    "lat": 1.0,
-    "lon": 1.000134919,
-    "fuse.group": "s1",
-    "ce": 30,
-    "track.class": true,
-    "type": "A",
-    "callsign": [
-     "X"
-    ]
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "m/4",
-     "group": "s1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "m",
-    "uid": "5",
-    "time_ms": 1000,
-    "lat": 1.0,
-    "lon": 1.000179891,
-    "fuse.group": "s1",
-    "ce": 30,
-    "track.class": [
-     1
-    ],
-    "type": "C"
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "m/5",
-     "group": "s1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "tick": 2000,
-   "expect": [
-    {
-     "ev": "fused",
-     "group": "s1",
-     "members": [
-      "m/1",
-      "m/2",
-      "m/3",
-      "m/4",
-      "m/5"
-     ],
-     "from": null,
-     "lat": 1.0,
-     "lon": 1.0000674594999999,
-     "course": 0.0,
-     "speed_ms": 0.0,
-     "ce": 30.0,
-     "attributes": {
-      "callsign": {
-       "value": "TWO",
-       "from": "m/2"
-      },
-      "type": {
-       "value": "A",
-       "from": "m/1"
-      },
-      "track.class": {
-       "value": 1,
-       "from": "m/1"
-      }
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "intersect",
-     "group": "s1",
-     "member": "m/2",
-     "value": 0.0
-    },
-    {
-     "stage": "intersect",
-     "group": "s1",
-     "member": "m/3",
-     "value": 0.5
-    },
-    {
-     "stage": "intersect",
-     "group": "s1",
-     "member": "m/4",
-     "value": 1.0
-    },
-    {
-     "stage": "intersect",
-     "group": "s1",
-     "member": "m/5",
-     "value": 1.0
-    },
-    {
-     "stage": "kinematics",
-     "group": "s1",
-     "method": "covariance_intersection",
-     "candidates": [
-      {
-       "member": "m/1",
-       "var": 21800.5,
-       "time_ms": 1000,
-       "rank": null
-      },
-      {
-       "member": "m/2",
-       "var": 1800.0,
-       "time_ms": 2000,
-       "rank": null
-      },
-      {
-       "member": "m/3",
-       "var": 1800.0,
-       "time_ms": 2000,
-       "rank": null
-      },
-      {
-       "member": "m/4",
-       "var": 21800.5,
-       "time_ms": 1000,
-       "rank": null
-      },
-      {
-       "member": "m/5",
-       "var": 21800.5,
-       "time_ms": 1000,
-       "rank": null
-      }
-     ],
-     "winner": null
-    },
-    {
-     "stage": "attribute",
-     "group": "s1",
-     "key": "callsign",
-     "rule": "latest",
-     "candidates": [
-      {
-       "member": "m/1",
-       "value": "ONE",
-       "time_ms": 1000,
-       "rank": null
-      },
-      {
-       "member": "m/2",
-       "value": "TWO",
-       "time_ms": 2000,
-       "rank": null
-      },
-      {
-       "member": "m/3",
-       "value": "THREE",
-       "time_ms": 2000,
-       "rank": null
-      }
-     ],
-     "winner": "m/2",
-     "value": "TWO"
-    },
-    {
-     "stage": "attribute",
-     "group": "s1",
-     "key": "type",
-     "rule": "majority",
-     "candidates": [
-      {
-       "member": "m/1",
-       "value": "A",
-       "time_ms": 1000,
-       "rank": null
-      },
-      {
-       "member": "m/2",
-       "value": "B",
-       "time_ms": 2000,
-       "rank": null
-      },
-      {
-       "member": "m/3",
-       "value": "B",
-       "time_ms": 2000,
-       "rank": null
-      },
-      {
-       "member": "m/4",
-       "value": "A",
-       "time_ms": 1000,
-       "rank": null
-      },
-      {
-       "member": "m/5",
-       "value": "C",
-       "time_ms": 1000,
-       "rank": null
-      }
-     ],
-     "winner": "m/1",
-     "value": "A"
-    },
-    {
-     "stage": "attribute",
-     "group": "s1",
-     "key": "track.class",
-     "rule": "majority",
-     "candidates": [
-      {
-       "member": "m/1",
-       "value": 1,
-       "time_ms": 1000,
-       "rank": null
-      },
-      {
-       "member": "m/2",
-       "value": "1",
-       "time_ms": 2000,
-       "rank": null
-      },
-      {
-       "member": "m/3",
-       "value": 1.0,
-       "time_ms": 2000,
-       "rank": null
-      },
-      {
-       "member": "m/4",
-       "value": true,
-       "time_ms": 1000,
-       "rank": null
-      }
-     ],
-     "winner": "m/1",
-     "value": 1
-    }
-   ]
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
   "entities": {
    "m/1": {
-    "last_time_ms": 1000,
-    "group": "s1",
     "filter": {
      "east": [
       0.0,
@@ -343,6 +20,8 @@
       10000.0
      ]
     },
+    "group": "s1",
+    "last_time_ms": 1000,
     "report": {
      "callsign": "ONE",
      "ce": 30,
@@ -357,8 +36,6 @@
     }
    },
    "m/2": {
-    "last_time_ms": 2000,
-    "group": "s1",
     "filter": {
      "east": [
       5.000014700890364,
@@ -375,6 +52,8 @@
       10000.0
      ]
     },
+    "group": "s1",
+    "last_time_ms": 2000,
     "report": {
      "callsign": "TWO",
      "ce": 30,
@@ -389,8 +68,6 @@
     }
    },
    "m/3": {
-    "last_time_ms": 2000,
-    "group": "s1",
     "filter": {
      "east": [
       10.000029401756041,
@@ -407,6 +84,8 @@
       10000.0
      ]
     },
+    "group": "s1",
+    "last_time_ms": 2000,
     "report": {
      "callsign": "THREE",
      "ce": 30,
@@ -421,11 +100,9 @@
     }
    },
    "m/4": {
-    "last_time_ms": 1000,
-    "group": "s1",
     "filter": {
      "east": [
-      15.000044102646406,
+      15.000044102646402,
       0.0,
       900.0,
       0.0,
@@ -439,6 +116,8 @@
       10000.0
      ]
     },
+    "group": "s1",
+    "last_time_ms": 1000,
     "report": {
      "callsign": [
       "X"
@@ -455,11 +134,9 @@
     }
    },
    "m/5": {
-    "last_time_ms": 1000,
-    "group": "s1",
     "filter": {
      "east": [
-      19.999947625382884,
+      19.99994762538288,
       0.0,
       900.0,
       0.0,
@@ -473,6 +150,8 @@
       10000.0
      ]
     },
+    "group": "s1",
+    "last_time_ms": 1000,
     "report": {
      "ce": 30,
      "fuse.group": "s1",
@@ -487,6 +166,327 @@
      "uid": "5"
     }
    }
+  },
+  "ref": [
+   1.0,
+   1.0
+  ]
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "m/1",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
+   "ingest": {
+    "callsign": "ONE",
+    "ce": 30,
+    "fuse.group": "s1",
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 1000,
+    "track.class": 1,
+    "track.source_id": "m",
+    "type": "A",
+    "uid": "1"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "entity": "m/2",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
+   "ingest": {
+    "callsign": "TWO",
+    "ce": 30,
+    "fuse.group": "s1",
+    "lat": 1.0,
+    "lon": 1.000044973,
+    "time_ms": 2000,
+    "track.class": "1",
+    "track.source_id": "m",
+    "type": "B",
+    "uid": "2"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "entity": "m/3",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
+   "ingest": {
+    "callsign": "THREE",
+    "ce": 30,
+    "fuse.group": "s1",
+    "lat": 1.0,
+    "lon": 1.000089946,
+    "time_ms": 2000,
+    "track.class": 1.0,
+    "track.source_id": "m",
+    "type": "B",
+    "uid": "3"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "entity": "m/4",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
+   "ingest": {
+    "callsign": [
+     "X"
+    ],
+    "ce": 30,
+    "fuse.group": "s1",
+    "lat": 1.0,
+    "lon": 1.000134919,
+    "time_ms": 1000,
+    "track.class": true,
+    "track.source_id": "m",
+    "type": "A",
+    "uid": "4"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "entity": "m/5",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "fuse.group": "s1",
+    "lat": 1.0,
+    "lon": 1.000179891,
+    "time_ms": 1000,
+    "track.class": [
+     1
+    ],
+    "track.source_id": "m",
+    "type": "C",
+    "uid": "5"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "attributes": {
+      "callsign": {
+       "from": "m/2",
+       "value": "TWO"
+      },
+      "track.class": {
+       "from": "m/1",
+       "value": 1
+      },
+      "type": {
+       "from": "m/1",
+       "value": "A"
+      }
+     },
+     "ce": 30.0,
+     "course": 0.0,
+     "ev": "fused",
+     "from": null,
+     "group": "s1",
+     "lat": 1.0,
+     "lon": 1.0000674594999999,
+     "members": [
+      "m/1",
+      "m/2",
+      "m/3",
+      "m/4",
+      "m/5"
+     ],
+     "speed_ms": 0.0
+    }
+   ],
+   "tick": 2000,
+   "trace": [
+    {
+     "group": "s1",
+     "member": "m/2",
+     "stage": "intersect",
+     "value": 0.0
+    },
+    {
+     "group": "s1",
+     "member": "m/3",
+     "stage": "intersect",
+     "value": 0.5
+    },
+    {
+     "group": "s1",
+     "member": "m/4",
+     "stage": "intersect",
+     "value": 1.0
+    },
+    {
+     "group": "s1",
+     "member": "m/5",
+     "stage": "intersect",
+     "value": 1.0
+    },
+    {
+     "candidates": [
+      {
+       "member": "m/1",
+       "rank": null,
+       "time_ms": 1000,
+       "var": 21800.5
+      },
+      {
+       "member": "m/2",
+       "rank": null,
+       "time_ms": 2000,
+       "var": 1800.0
+      },
+      {
+       "member": "m/3",
+       "rank": null,
+       "time_ms": 2000,
+       "var": 1800.0
+      },
+      {
+       "member": "m/4",
+       "rank": null,
+       "time_ms": 1000,
+       "var": 21800.5
+      },
+      {
+       "member": "m/5",
+       "rank": null,
+       "time_ms": 1000,
+       "var": 21800.5
+      }
+     ],
+     "group": "s1",
+     "method": "covariance_intersection",
+     "stage": "kinematics",
+     "winner": null
+    },
+    {
+     "candidates": [
+      {
+       "member": "m/1",
+       "rank": null,
+       "time_ms": 1000,
+       "value": "ONE"
+      },
+      {
+       "member": "m/2",
+       "rank": null,
+       "time_ms": 2000,
+       "value": "TWO"
+      },
+      {
+       "member": "m/3",
+       "rank": null,
+       "time_ms": 2000,
+       "value": "THREE"
+      }
+     ],
+     "group": "s1",
+     "key": "callsign",
+     "rule": "latest",
+     "stage": "attribute",
+     "value": "TWO",
+     "winner": "m/2"
+    },
+    {
+     "candidates": [
+      {
+       "member": "m/1",
+       "rank": null,
+       "time_ms": 1000,
+       "value": "A"
+      },
+      {
+       "member": "m/2",
+       "rank": null,
+       "time_ms": 2000,
+       "value": "B"
+      },
+      {
+       "member": "m/3",
+       "rank": null,
+       "time_ms": 2000,
+       "value": "B"
+      },
+      {
+       "member": "m/4",
+       "rank": null,
+       "time_ms": 1000,
+       "value": "A"
+      },
+      {
+       "member": "m/5",
+       "rank": null,
+       "time_ms": 1000,
+       "value": "C"
+      }
+     ],
+     "group": "s1",
+     "key": "type",
+     "rule": "majority",
+     "stage": "attribute",
+     "value": "A",
+     "winner": "m/1"
+    },
+    {
+     "candidates": [
+      {
+       "member": "m/1",
+       "rank": null,
+       "time_ms": 1000,
+       "value": 1
+      },
+      {
+       "member": "m/2",
+       "rank": null,
+       "time_ms": 2000,
+       "value": "1"
+      },
+      {
+       "member": "m/3",
+       "rank": null,
+       "time_ms": 2000,
+       "value": 1.0
+      },
+      {
+       "member": "m/4",
+       "rank": null,
+       "time_ms": 1000,
+       "value": true
+      }
+     ],
+     "group": "s1",
+     "key": "track.class",
+     "rule": "majority",
+     "stage": "attribute",
+     "value": 1,
+     "winner": "m/1"
+    }
+   ]
   }
- }
+ ]
 }

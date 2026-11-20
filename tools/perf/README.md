@@ -162,4 +162,4 @@ does not parse; the counters line is then not required.
 `run` process and its children); the runner reports none. A `run` script
 should `exec` the runner so that the measured process is the runner itself.
 
-`run_python.py` is the reference implementation of this contract.
+`run_python.py` implements this contract for the Python engine.

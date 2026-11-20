@@ -21,7 +21,7 @@ from goat_correlator import load_pack, make_engine  # noqa: E402
 PACKS = ["correlate-gnn", "correlate-distance", "correlate-assign",
          "correlate-gnn-imm", "correlate-assign-imm", "correlate-assign-window",
          "correlate-assign-bias", "correlate-assign-full", "correlate-gnn-restart",
-         "correlate-assign-time", "correlate-gnn-time"]
+         "correlate-assign-time", "correlate-gnn-time", "correlate-sprt"]
 
 
 def run_pack(pack_name, vector):

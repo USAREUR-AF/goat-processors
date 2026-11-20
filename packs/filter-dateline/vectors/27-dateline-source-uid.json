@@ -1,255 +1,255 @@
 {
  "name": "27-dateline-source-uid",
  "pack": "filter-dateline",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "range",
-    "uid": "TGT1",
-    "time_ms": 0,
-    "lat": 40.0,
-    "lon": 10.0
-   },
-   "expect": [
-    {
-     "ev": "keep",
-     "entity": "range/TGT1",
-     "rule": "range-test"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "zone",
-     "entity": "range/TGT1",
-     "test": "polygon",
-     "negated": false,
-     "value": "outside",
-     "limit": null,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "anchorage",
-     "entity": "range/TGT1",
-     "test": "circle",
-     "negated": false,
-     "value": 13263246.216099795,
-     "limit": 10000.0,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "tasked",
-     "entity": "range/TGT1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": [
-      "alpha",
-      "bravo"
-     ],
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "range-test",
-     "entity": "range/TGT1",
-     "test": "source",
-     "negated": false,
-     "value": "range",
-     "limit": [
-      "range"
-     ],
-     "pass": true
-    },
-    {
-     "stage": "rule",
-     "rule": "range-test",
-     "entity": "range/TGT1",
-     "test": "uid",
-     "negated": false,
-     "value": "TGT1",
-     "limit": [
-      "TGT1",
-      "TGT2"
-     ],
-     "pass": true
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "range",
-    "uid": "TGT3",
-    "time_ms": 0,
-    "lat": 40.0,
-    "lon": 10.0
-   },
-   "expect": [
-    {
-     "ev": "drop",
-     "entity": "range/TGT3",
-     "rule": "default"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "zone",
-     "entity": "range/TGT3",
-     "test": "polygon",
-     "negated": false,
-     "value": "outside",
-     "limit": null,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "anchorage",
-     "entity": "range/TGT3",
-     "test": "circle",
-     "negated": false,
-     "value": 13263246.216099795,
-     "limit": 10000.0,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "tasked",
-     "entity": "range/TGT3",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": [
-      "alpha",
-      "bravo"
-     ],
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "range-test",
-     "entity": "range/TGT3",
-     "test": "source",
-     "negated": false,
-     "value": "range",
-     "limit": [
-      "range"
-     ],
-     "pass": true
-    },
-    {
-     "stage": "rule",
-     "rule": "range-test",
-     "entity": "range/TGT3",
-     "test": "uid",
-     "negated": false,
-     "value": "TGT3",
-     "limit": [
-      "TGT1",
-      "TGT2"
-     ],
-     "pass": false
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "other",
-    "uid": "TGT1",
-    "time_ms": 0,
-    "lat": 40.0,
-    "lon": 10.0
-   },
-   "expect": [
-    {
-     "ev": "drop",
-     "entity": "other/TGT1",
-     "rule": "default"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "zone",
-     "entity": "other/TGT1",
-     "test": "polygon",
-     "negated": false,
-     "value": "outside",
-     "limit": null,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "anchorage",
-     "entity": "other/TGT1",
-     "test": "circle",
-     "negated": false,
-     "value": 13263246.216099795,
-     "limit": 10000.0,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "tasked",
-     "entity": "other/TGT1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": [
-      "alpha",
-      "bravo"
-     ],
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "range-test",
-     "entity": "other/TGT1",
-     "test": "source",
-     "negated": false,
-     "value": "other",
-     "limit": [
-      "range"
-     ],
-     "pass": false
-    }
-   ]
-  }
- ],
  "snapshot": {
   "entities": {
    "other/TGT1": {
-    "time_ms": 0,
+    "course": null,
+    "kept_ms": null,
     "lat": 40.0,
     "lon": 10.0,
-    "course": null,
     "speed_ms": null,
     "stale_ms": null,
-    "kept_ms": null
+    "time_ms": 0
    },
    "range/TGT1": {
-    "time_ms": 0,
+    "course": null,
+    "kept_ms": 0,
     "lat": 40.0,
     "lon": 10.0,
-    "course": null,
     "speed_ms": null,
     "stale_ms": null,
-    "kept_ms": 0
+    "time_ms": 0
    },
    "range/TGT3": {
-    "time_ms": 0,
+    "course": null,
+    "kept_ms": null,
     "lat": 40.0,
     "lon": 10.0,
-    "course": null,
     "speed_ms": null,
     "stale_ms": null,
-    "kept_ms": null
+    "time_ms": 0
    }
   }
- }
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "range/TGT1",
+     "ev": "keep",
+     "rule": "range-test"
+    }
+   ],
+   "ingest": {
+    "lat": 40.0,
+    "lon": 10.0,
+    "time_ms": 0,
+    "track.source_id": "range",
+    "uid": "TGT1"
+   },
+   "trace": [
+    {
+     "entity": "range/TGT1",
+     "limit": null,
+     "negated": false,
+     "pass": false,
+     "rule": "zone",
+     "stage": "rule",
+     "test": "polygon",
+     "value": "outside"
+    },
+    {
+     "entity": "range/TGT1",
+     "limit": 10000.0,
+     "negated": false,
+     "pass": false,
+     "rule": "anchorage",
+     "stage": "rule",
+     "test": "circle",
+     "value": 13263246.216099795
+    },
+    {
+     "entity": "range/TGT1",
+     "limit": [
+      "alpha",
+      "bravo"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "tasked",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "range/TGT1",
+     "limit": [
+      "range"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "range-test",
+     "stage": "rule",
+     "test": "source",
+     "value": "range"
+    },
+    {
+     "entity": "range/TGT1",
+     "limit": [
+      "TGT1",
+      "TGT2"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "range-test",
+     "stage": "rule",
+     "test": "uid",
+     "value": "TGT1"
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "range/TGT3",
+     "ev": "drop",
+     "rule": "default"
+    }
+   ],
+   "ingest": {
+    "lat": 40.0,
+    "lon": 10.0,
+    "time_ms": 0,
+    "track.source_id": "range",
+    "uid": "TGT3"
+   },
+   "trace": [
+    {
+     "entity": "range/TGT3",
+     "limit": null,
+     "negated": false,
+     "pass": false,
+     "rule": "zone",
+     "stage": "rule",
+     "test": "polygon",
+     "value": "outside"
+    },
+    {
+     "entity": "range/TGT3",
+     "limit": 10000.0,
+     "negated": false,
+     "pass": false,
+     "rule": "anchorage",
+     "stage": "rule",
+     "test": "circle",
+     "value": 13263246.216099795
+    },
+    {
+     "entity": "range/TGT3",
+     "limit": [
+      "alpha",
+      "bravo"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "tasked",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "range/TGT3",
+     "limit": [
+      "range"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "range-test",
+     "stage": "rule",
+     "test": "source",
+     "value": "range"
+    },
+    {
+     "entity": "range/TGT3",
+     "limit": [
+      "TGT1",
+      "TGT2"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "range-test",
+     "stage": "rule",
+     "test": "uid",
+     "value": "TGT3"
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "other/TGT1",
+     "ev": "drop",
+     "rule": "default"
+    }
+   ],
+   "ingest": {
+    "lat": 40.0,
+    "lon": 10.0,
+    "time_ms": 0,
+    "track.source_id": "other",
+    "uid": "TGT1"
+   },
+   "trace": [
+    {
+     "entity": "other/TGT1",
+     "limit": null,
+     "negated": false,
+     "pass": false,
+     "rule": "zone",
+     "stage": "rule",
+     "test": "polygon",
+     "value": "outside"
+    },
+    {
+     "entity": "other/TGT1",
+     "limit": 10000.0,
+     "negated": false,
+     "pass": false,
+     "rule": "anchorage",
+     "stage": "rule",
+     "test": "circle",
+     "value": 13263246.216099795
+    },
+    {
+     "entity": "other/TGT1",
+     "limit": [
+      "alpha",
+      "bravo"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "tasked",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "other/TGT1",
+     "limit": [
+      "range"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "range-test",
+     "stage": "rule",
+     "test": "source",
+     "value": "other"
+    }
+   ]
+  }
+ ]
 }

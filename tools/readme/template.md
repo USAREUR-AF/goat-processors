@@ -78,6 +78,16 @@ for each step the input, the events, every trace record and the snapshot.
 [tools/explain/README.md](tools/explain/README.md) lists its options,
 including replaying a benchmark run against its ground truth.
 
+## Run it on a machine
+
+The [runner](runner/README.md) runs the functions as a service. It reads
+shared-model reports from the goat fabric, runs a declared pipeline (filter,
+correlate, fuse, quality) on the Rust engine, and publishes system tracks and
+quality marks. It installs on Ubuntu 24.04 from one `.deb`, is configured by
+one file, and `goat-processors doctor` reports what is wrong.
+[runner/INSTALL.md](runner/INSTALL.md) goes from a fresh machine to a healthy
+runner, step by step; `runner/install.sh` does the same steps in one command.
+
 ## Every decision is observable
 
 A function decides nothing that is not in its trace. Each test is a record of
@@ -96,10 +106,13 @@ entry and every choice:
 
 {{figure:seven-engines}}
 
-The Python engine and `tools/make-*-vectors.py` write the vectors; each
-generator states its scenarios' decisions by hand and refuses to write a
-vector whose events differ from them. The other {{n_others_word}} engines are written from
-the specification and the vectors alone, never from another engine's source.
+The specification and the hand-stated decisions are the reference; every
+vector is computed by the Rust engine and accepted only when all
+{{n_engines}} engines agree. Each generator, `tools/make-*-vectors.py`, states its
+scenarios' decisions by hand, refuses a vector whose events differ from them,
+and writes a vector only when every engine reproduces its events, trace and
+final snapshot. Every engine is written from the specification and the
+vectors alone, never from another engine's source.
 An engine that disagrees with a vector records it in its `DISAGREEMENTS.md`;
 the vector is changed only through the specification.
 
@@ -107,13 +120,19 @@ the vector is changed only through the specification.
 
 ## Benchmark
 
-The correlate packs are scored against ground truth on generated scenarios:
-crossing, formation, splitting and turning objects; sensors with understated
-or absent error, bias, latency, low detection, track number swaps and false
-tracks; and sensors whose clocks are offset, drifting or free-running, or
-whose reports arrive out of order. Every score and its formula is in [docs/benchmark.md](docs/benchmark.md),
-which `tools/bench/bench.py report` writes. Pack names are explained in
-[Methods and packs](#methods-and-packs).
+The correlate packs are scored against ground truth on two separated sets of
+scenarios. The **tuning set** is public and is the only one packs are tuned on.
+The **evaluation set** comes from held-out seeds and gives every number below;
+its seeds are published after each release and then replaced. Each set holds
+500 random scenarios and the same families: formations that split and join,
+shallow crossings and merges, 3 to 9 g turns, climbs and dives, stop-and-go
+surface traffic, sensor dropouts, latency, out-of-order bursts, wrong stated
+error and bias, scale up to 1,000 objects, clutter, mixed air, surface and
+land traffic, track-number reuse and late sensors, and ships on recorded
+public AIS tracks. Every score, its formula and its 95 % interval are in
+[docs/benchmark.md](docs/benchmark.md), which `tools/bench/bench.py report`
+writes; a difference counts only when the intervals separate. Pack names are
+explained in [Methods and packs](#methods-and-packs).
 
 | Measure | Meaning |
 |---|---|
@@ -135,7 +154,7 @@ which `tools/bench/bench.py report` writes. Pack names are explained in
 | Rules are data | A pack (`packs/<function>-<name>/pack.def`) names fixed, specified tests and their parameters. A pack holds no code and no expressions. |
 | Every decision is traced | Every test is a trace record with its inputs, value, limit and result. `snapshot()` returns the whole state, including each track's filter. |
 | Engines check each other | {{n_engines_word}} engines written apart must reproduce every vector: events, trace and final snapshot, numbers within a relative {{tolerance}}. |
-| Standard library only | No engine or tool depends on a third-party package. |
+| Standard library only | No engine or tool depends on a third-party package. The runner, which connects the engines to the fabric, is the one exception and lists its crates in [`runner/THIRD-PARTY.md`](runner/THIRD-PARTY.md). |
 
 ## Layout
 
@@ -144,8 +163,25 @@ which `tools/bench/bench.py report` writes. Pack names are explained in
 | [`spec/`](spec/) | one specification per function, the shared [vector format](spec/vector-format.md), load vectors |
 | [`packs/`](packs/) | {{n_packs}} rule packs, each with its `pack.def` and its scenario vectors ({{n_vectors}} in all) |
 | [`engines/`](engines/) | one independent engine per language, each with its test runner |
-| [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), the performance harness (`perf/`), this README's generator (`readme/`) |
-| [`docs/`](docs/) | the benchmark results, the [performance](docs/performance.md) baseline and the figures, each written by a script |
+| [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), the performance harness (`perf/`), the research prototypes (`research/`), this README's generator (`readme/`) |
+| [`runner/`](runner/) | the runner: a service for Ubuntu 24.04 that runs a pipeline of the functions on the goat fabric, with its `.deb`, [install guide](runner/INSTALL.md) and [deploy contract](runner/DEPLOY-CONTRACT.md) |
+| [`docs/`](docs/) | the benchmark results, the [performance](docs/performance.md) baseline and the figures, each written by a script; the [methods survey](docs/research/correlation-and-fusion-methods.md) |
+
+## Working with AI agents
+
+An AI agent here is a program, usually driven by a language model, that reads
+data and acts through tools. The processors stay fast and exact, with no model
+inside the engines. Agents connect at the edges, through the same doors a
+person uses, and every agent action carries the identity it acts for and is
+written to an audit log.
+
+{{agentic}}
+
+Every agent feature is optional: with all of them enabled and no agent
+connected, the runner's output is the same, byte for byte (tested). Each site
+declares which model its agent features may use, one on its own machines or
+one hosted by a provider, and the highest level of data that may be sent to
+it. {{agentic_design}}
 
 ## Contributing
 

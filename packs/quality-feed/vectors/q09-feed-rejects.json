@@ -1,375 +1,9 @@
 {
  "name": "q09-feed-rejects",
  "pack": "quality-feed",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0
-   },
-   "expect": [
-    {
-     "ev": "reject",
-     "reason": "missing:uid"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 1000.0,
-    "lat": 1.0,
-    "lon": 1.0
-   },
-   "expect": [
-    {
-     "ev": "reject",
-     "reason": "missing:time_ms"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": 1,
-    "time_ms": 1000,
-    "lat": 1.0,
-    "lon": 1.0
-   },
-   "expect": [
-    {
-     "ev": "reject",
-     "reason": "missing:uid"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 1000,
-    "lat": 1.0,
-    "lon": 1.0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-1/T1"
-    },
-    {
-     "ev": "pass",
-     "entity": "radar-1/T1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "radar-1",
-      "uid": "T1",
-      "time_ms": 1000,
-      "lat": 1.0,
-      "lon": 1.0
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "order",
-     "value": "first",
-     "inputs": [
-      1000,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      1000,
-      null
-     ]
-    }
-   ]
-  },
-  {
-   "tick": 1000,
-   "expect": [
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "radar-1/T1",
-     "measures": {
-      "reports": 1,
-      "interval_last": null,
-      "interval_mean": null,
-      "interval_max": null,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": null,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": null,
-      "missing_vel": null,
-      "missing_hae": null,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": null
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "radar-1",
-     "measures": {
-      "reports": 1,
-      "interval_last": null,
-      "interval_mean": null,
-      "interval_max": null,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": null,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": null,
-      "missing_vel": null,
-      "missing_hae": null,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": null,
-      "entities": 1
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "silent",
-     "subject": "radar-1/T1",
-     "measure": "age",
-     "value": 0,
-     "limit": 30000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "slow",
-     "subject": "radar-1/T1",
-     "measure": "interval_mean",
-     "value": null,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "late",
-     "subject": "radar-1/T1",
-     "measure": "latency_max",
-     "value": null,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "disorder",
-     "subject": "radar-1/T1",
-     "measure": "out_of_order",
-     "value": 0,
-     "limit": 1.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "source-latent",
-     "subject": "radar-1",
-     "measure": "latency_mean",
-     "value": null,
-     "limit": 2000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    }
-   ]
-  },
-  {
-   "tick": 999,
-   "expect": [
-    {
-     "ev": "reject",
-     "reason": "tick-out-of-order"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "tick": 1000,
-   "expect": [
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "radar-1/T1",
-     "measures": {
-      "reports": 1,
-      "interval_last": null,
-      "interval_mean": null,
-      "interval_max": null,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": null,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": null,
-      "missing_vel": null,
-      "missing_hae": null,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": null
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "radar-1",
-     "measures": {
-      "reports": 1,
-      "interval_last": null,
-      "interval_mean": null,
-      "interval_max": null,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": null,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": null,
-      "missing_vel": null,
-      "missing_hae": null,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": null,
-      "entities": 1
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "silent",
-     "subject": "radar-1/T1",
-     "measure": "age",
-     "value": 0,
-     "limit": 30000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "slow",
-     "subject": "radar-1/T1",
-     "measure": "interval_mean",
-     "value": null,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "late",
-     "subject": "radar-1/T1",
-     "measure": "latency_max",
-     "value": null,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "disorder",
-     "subject": "radar-1/T1",
-     "measure": "out_of_order",
-     "value": 0,
-     "limit": 1.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "source-latent",
-     "subject": "radar-1",
-     "measure": "latency_mean",
-     "value": null,
-     "limit": 2000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    }
-   ]
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
-  "last_tick": 1000,
   "entities": {
    "radar-1/T1": {
-    "source": "radar-1",
-    "last_time_ms": 1000,
-    "last_pos": [
-     0.0,
-     0.0
-    ],
     "filter": {
      "east": [
       0.0,
@@ -386,57 +20,423 @@
       10000.0
      ]
     },
+    "last_pos": [
+     0.0,
+     0.0
+    ],
+    "last_time_ms": 1000,
+    "source": "radar-1",
     "window": [
      {
-      "wt": 1000,
-      "time_ms": 1000,
-      "order": "first",
+      "ce": false,
+      "hae": false,
       "interval": null,
       "latency": null,
       "lateness": null,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": null,
+      "order": "first",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": false,
+      "time_error": null,
+      "time_ms": 1000,
+      "time_state": null,
       "vel": false,
-      "hae": false
+      "wt": 1000
      }
     ]
    }
   },
+  "last_tick": 1000,
+  "ref": [
+   1.0,
+   1.0
+  ],
   "rules": {
-   "silent": {
+   "disorder": {
     "radar-1/T1": {
-     "count": 0,
-     "active": false
-    }
-   },
-   "slow": {
-    "radar-1/T1": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
     }
    },
    "late": {
     "radar-1/T1": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
+    }
+   },
+   "silent": {
+    "radar-1/T1": {
+     "active": false,
+     "count": 0
+    }
+   },
+   "slow": {
+    "radar-1/T1": {
+     "active": false,
+     "count": 0
     }
    },
    "source-latent": {
     "radar-1": {
-     "count": 0,
-     "active": false
-    }
-   },
-   "disorder": {
-    "radar-1/T1": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
     }
    }
   }
- }
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "ev": "reject",
+     "reason": "missing:uid"
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 0,
+    "track.source_id": "radar-1"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "ev": "reject",
+     "reason": "missing:time_ms"
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 1000.0,
+    "track.source_id": "radar-1",
+    "uid": "T1"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "ev": "reject",
+     "reason": "missing:uid"
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 1000,
+    "track.source_id": "radar-1",
+    "uid": 1
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "new"
+    },
+    {
+     "entity": "radar-1/T1",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_ms": 1000,
+      "track.source_id": "radar-1",
+      "uid": "T1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 1000,
+    "track.source_id": "radar-1",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      1000,
+      null
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "first"
+    },
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      1000,
+      null
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "interval_last": null,
+      "interval_max": null,
+      "interval_mean": null,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": null,
+      "missing_hae": null,
+      "missing_time": null,
+      "missing_vel": null,
+      "nis_mean": null,
+      "out_of_order": 0,
+      "reports": 1,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "radar-1/T1"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "entities": 1,
+      "interval_last": null,
+      "interval_max": null,
+      "interval_mean": null,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": null,
+      "missing_hae": null,
+      "missing_time": null,
+      "missing_vel": null,
+      "nis_mean": null,
+      "out_of_order": 0,
+      "reports": 1,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "source",
+     "subject": "radar-1"
+    }
+   ],
+   "tick": 1000,
+   "trace": [
+    {
+     "active": false,
+     "count": 0,
+     "limit": 30000.0,
+     "measure": "age",
+     "pass": false,
+     "rule": "silent",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "interval_mean",
+     "pass": false,
+     "rule": "slow",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "latency_max",
+     "pass": false,
+     "rule": "late",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 1.0,
+     "measure": "out_of_order",
+     "pass": false,
+     "rule": "disorder",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 2000.0,
+     "measure": "latency_mean",
+     "pass": false,
+     "rule": "source-latent",
+     "stage": "rule",
+     "subject": "radar-1",
+     "value": null
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "reject",
+     "reason": "tick-out-of-order"
+    }
+   ],
+   "tick": 999,
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "interval_last": null,
+      "interval_max": null,
+      "interval_mean": null,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": null,
+      "missing_hae": null,
+      "missing_time": null,
+      "missing_vel": null,
+      "nis_mean": null,
+      "out_of_order": 0,
+      "reports": 1,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "radar-1/T1"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "entities": 1,
+      "interval_last": null,
+      "interval_max": null,
+      "interval_mean": null,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": null,
+      "missing_hae": null,
+      "missing_time": null,
+      "missing_vel": null,
+      "nis_mean": null,
+      "out_of_order": 0,
+      "reports": 1,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "source",
+     "subject": "radar-1"
+    }
+   ],
+   "tick": 1000,
+   "trace": [
+    {
+     "active": false,
+     "count": 0,
+     "limit": 30000.0,
+     "measure": "age",
+     "pass": false,
+     "rule": "silent",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "interval_mean",
+     "pass": false,
+     "rule": "slow",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "latency_max",
+     "pass": false,
+     "rule": "late",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 1.0,
+     "measure": "out_of_order",
+     "pass": false,
+     "rule": "disorder",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 2000.0,
+     "measure": "latency_mean",
+     "pass": false,
+     "rule": "source-latent",
+     "stage": "rule",
+     "subject": "radar-1",
+     "value": null
+    }
+   ]
+  }
+ ]
 }

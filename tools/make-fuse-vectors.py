@@ -5,13 +5,19 @@ Each scenario below states its inputs and, in `decide`, the events each step
 must produce. An event is decided by its name, or by a map whose every key
 must match the event (maps match recursively, on the keys they name). A
 scenario may also state numbers in `claims`: (step, path, value) triples that
-must hold within 1e-6 * max(1, abs(value)). The script runs the Python engine, refuses to write a
-vector that disagrees with the decisions or the claims, and records the full
-events, trace and final snapshot as the vector. The decisions and the claimed
-numbers are stated by hand here; the other numbers come from the engine and
-are checked by the other six engines.
+must hold within 1e-6 * max(1, abs(value)). The script computes each vector
+with the Rust engine (tools/consensus.py), refuses one that disagrees with
+the decisions or the claims, records the full events, trace and final
+snapshot, and writes the vector only when all seven engines agree with it.
+Each load vector states whether its pack text must fail to load; the Rust
+engine must agree, and then every engine's own test command must pass. The
+specification and the decisions and claimed numbers stated by hand here are
+the reference; the other numbers are computed by the Rust engine and
+accepted only when all seven engines agree.
 
-Run: python3 -I tools/make-fuse-vectors.py
+Run: python3 -I tools/make-fuse-vectors.py [--rust-only]
+(--rust-only skips the seven-engine run; CI uses it, as its seven engine jobs
+check every engine on every vector.)
 """
 
 import json
@@ -20,8 +26,8 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, "engines", "python", "src"))
-from goat_fuse import Engine, PackError, load_pack, parse_pack  # noqa: E402
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+import consensus  # noqa: E402
 
 R = 6371008.8
 LAT0, LON0 = 1.0, 1.0  # notional: open ocean near 0 N 0 E
@@ -338,17 +344,6 @@ LOAD = [
 ]
 
 
-def clean(x):
-    """Write negative zero as zero."""
-    if isinstance(x, float):
-        return 0.0 if x == 0 else x
-    if isinstance(x, list):
-        return [clean(v) for v in x]
-    if isinstance(x, dict):
-        return {k: clean(v) for k, v in x.items()}
-    return x
-
-
 def match(got, want):
     if isinstance(want, str) and isinstance(got, dict):
         return got.get("ev") == want
@@ -406,24 +401,22 @@ def close(got, want):
 
 def main():
     ok = True
+    run_all = "--rust-only" not in sys.argv[1:]
     names = set()
+    candidates = {}
     for name, pack_name, steps, decide, claims in SCENARIOS:
-        if name in names:
+        good = name not in names
+        if not good:
             print("%s: repeated name" % name)
-            ok = False
         names.add(name)
-        eng = Engine(load_pack(os.path.join(ROOT, "packs", pack_name)))
-        out_steps, results = [], []
+        results, snapshot = consensus.compute(pack_name, steps)
         if len(decide) != len(steps):
             print("%s: decide has %d entries for %d steps" % (name, len(decide), len(steps)))
-            ok = False
-        for i, ((kind, arg), want) in enumerate(zip(steps, decide)):
-            events, trace = eng.ingest(arg) if kind == "ingest" else eng.tick(arg)
+            good = False
+        for i, ((events, _), want) in enumerate(zip(results, decide)):
             if not match(events, want):
                 print("%s step %d: events %s\n  decided %s" % (name, i, json.dumps(events), want))
-                ok = False
-            results.append((events, trace))
-            out_steps.append({kind: arg, "expect": clean(events), "trace": clean(trace)})
+                good = False
         for step, path, want in claims:
             try:
                 got = lookup(*results[step], path)
@@ -431,29 +424,20 @@ def main():
                 got = "<absent>"
             if not close(got, want):
                 print("%s step %d: %s is %r, claimed %r" % (name, step, path, got, want))
-                ok = False
-        vec = {"name": name, "pack": pack_name, "steps": out_steps, "snapshot": clean(eng.snapshot())}
-        path = os.path.join(ROOT, "packs", pack_name, "vectors", name + ".json")
-        if ok:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(vec, f, indent=1)
-                f.write("\n")
+                good = False
+        ok = ok and good
+        if good:
+            candidates[name] = {"name": name, "pack": pack_name,
+                                "steps": consensus.vector_steps(steps, results), "snapshot": snapshot}
+    agreed = consensus.accept(candidates, run_all)
+    ok = ok and len(agreed) == len(candidates)
+    for name in agreed:
+        consensus.write_vector(os.path.join(ROOT, "packs", candidates[name]["pack"], "vectors", name + ".json"),
+                               candidates[name])
     load_dir = os.path.join(ROOT, "spec", "fuse-load-vectors")
     os.makedirs(load_dir, exist_ok=True)
-    for name, text, want_error in LOAD:
-        try:
-            parse_pack(text)
-            got_error = False
-        except PackError:
-            got_error = True
-        if got_error != want_error:
-            print("load %s: error %s, decided %s" % (name, got_error, want_error))
-            ok = False
-            continue
-        with open(os.path.join(load_dir, name + ".json"), "w", encoding="utf-8") as f:
-            json.dump({"name": name, "pack_def": text, "expect_error": want_error}, f, indent=1)
-            f.write("\n")
-    if not ok:
+    _, loads_ok = consensus.write_load_vectors("fuse", load_dir, LOAD, run_all)
+    if not (ok and loads_ok):
         sys.exit(1)
     print("wrote %d scenario vectors and %d load vectors" % (len(SCENARIOS), len(LOAD)))
 

@@ -1,1939 +1,9 @@
 {
  "name": "q06-feed-source-latency-mean-of-entities",
  "pack": "quality-feed",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "received_ms": 4000
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "adsb/A1"
-    },
-    {
-     "ev": "pass",
-     "entity": "adsb/A1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "adsb",
-      "uid": "A1",
-      "time_ms": 0,
-      "lat": 1.0,
-      "lon": 1.0,
-      "received_ms": 4000
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "order",
-     "value": "first",
-     "inputs": [
-      0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "latency",
-     "value": 4000,
-     "inputs": [
-      4000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      0,
-      null
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A2",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.000899457,
-    "received_ms": 500
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "adsb/A2"
-    },
-    {
-     "ev": "pass",
-     "entity": "adsb/A2",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "adsb",
-      "uid": "A2",
-      "time_ms": 0,
-      "lat": 1.0,
-      "lon": 1.000899457,
-      "received_ms": 500
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "order",
-     "value": "first",
-     "inputs": [
-      0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "latency",
-     "value": 500,
-     "inputs": [
-      500,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      0,
-      0
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.000449729
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-1/T1"
-    },
-    {
-     "ev": "pass",
-     "entity": "radar-1/T1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "radar-1",
-      "uid": "T1",
-      "time_ms": 0,
-      "lat": 1.0,
-      "lon": 1.000449729
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "order",
-     "value": "first",
-     "inputs": [
-      0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "lateness",
-     "value": 0,
-     "inputs": [
-      0,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      0,
-      null
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A2",
-    "time_ms": 2000,
-    "lat": 1.0,
-    "lon": 1.000899457,
-    "received_ms": 2500
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "adsb/A2",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "adsb",
-      "uid": "A2",
-      "time_ms": 2000,
-      "lat": 1.0,
-      "lon": 1.000899457,
-      "received_ms": 2500
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      2000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "interval",
-     "value": 2000,
-     "inputs": [
-      2000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "latency",
-     "value": 500,
-     "inputs": [
-      2500,
-      2000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "lateness",
-     "value": -2000,
-     "inputs": [
-      0,
-      2000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      2000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      45004.0,
-      45004.0
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A2",
-    "time_ms": 4000,
-    "lat": 1.0,
-    "lon": 1.000899457,
-    "received_ms": 4500
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "adsb/A2",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "adsb",
-      "uid": "A2",
-      "time_ms": 4000,
-      "lat": 1.0,
-      "lon": 1.000899457,
-      "received_ms": 4500
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      4000,
-      2000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "interval",
-     "value": 2000,
-     "inputs": [
-      4000,
-      2000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "latency",
-     "value": 500,
-     "inputs": [
-      4500,
-      4000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "lateness",
-     "value": -4000,
-     "inputs": [
-      0,
-      4000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      4000,
-      2000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      13759.443960536839,
-      13759.443960536839
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A1",
-    "time_ms": 5000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "received_ms": 9000
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "adsb/A1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "adsb",
-      "uid": "A1",
-      "time_ms": 5000,
-      "lat": 1.0,
-      "lon": 1.0,
-      "received_ms": 9000
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      5000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "interval",
-     "value": 5000,
-     "inputs": [
-      5000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "latency",
-     "value": 4000,
-     "inputs": [
-      9000,
-      5000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "lateness",
-     "value": -5000,
-     "inputs": [
-      0,
-      5000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      5000,
-      4000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      255156.25,
-      255156.25
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 5000,
-    "lat": 1.0,
-    "lon": 1.000449729
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "radar-1/T1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "radar-1",
-      "uid": "T1",
-      "time_ms": 5000,
-      "lat": 1.0,
-      "lon": 1.000449729
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      5000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "interval",
-     "value": 5000,
-     "inputs": [
-      5000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "lateness",
-     "value": 0,
-     "inputs": [
-      5000,
-      5000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      5000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      255156.25,
-      255156.25
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A2",
-    "time_ms": 6000,
-    "lat": 1.0,
-    "lon": 1.000899457,
-    "received_ms": 6500
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "adsb/A2",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "adsb",
-      "uid": "A2",
-      "time_ms": 6000,
-      "lat": 1.0,
-      "lon": 1.000899457,
-      "received_ms": 6500
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      6000,
-      4000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "interval",
-     "value": 2000,
-     "inputs": [
-      6000,
-      4000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "latency",
-     "value": 500,
-     "inputs": [
-      6500,
-      6000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "lateness",
-     "value": -1000,
-     "inputs": [
-      5000,
-      6000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      6000,
-      5000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      8199.62474180838,
-      8199.62474180838
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A2",
-    "time_ms": 8000,
-    "lat": 1.0,
-    "lon": 1.000899457,
-    "received_ms": 8500
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "adsb/A2",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "adsb",
-      "uid": "A2",
-      "time_ms": 8000,
-      "lat": 1.0,
-      "lon": 1.000899457,
-      "received_ms": 8500
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      8000,
-      6000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "interval",
-     "value": 2000,
-     "inputs": [
-      8000,
-      6000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "latency",
-     "value": 500,
-     "inputs": [
-      8500,
-      8000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "lateness",
-     "value": -3000,
-     "inputs": [
-      5000,
-      8000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      8000,
-      6000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      6242.1084509415105,
-      6242.1084509415105
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A1",
-    "time_ms": 10000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "received_ms": 14000
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "adsb/A1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "adsb",
-      "uid": "A1",
-      "time_ms": 10000,
-      "lat": 1.0,
-      "lon": 1.0,
-      "received_ms": 14000
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      10000,
-      5000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "interval",
-     "value": 5000,
-     "inputs": [
-      10000,
-      5000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "latency",
-     "value": 4000,
-     "inputs": [
-      14000,
-      10000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "lateness",
-     "value": -5000,
-     "inputs": [
-      5000,
-      10000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      10000,
-      8000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      15101.1367115738,
-      15101.1367115738
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A2",
-    "time_ms": 10000,
-    "lat": 1.0,
-    "lon": 1.000899457,
-    "received_ms": 10500
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "adsb/A2",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "adsb",
-      "uid": "A2",
-      "time_ms": 10000,
-      "lat": 1.0,
-      "lon": 1.000899457,
-      "received_ms": 10500
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      10000,
-      8000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "interval",
-     "value": 2000,
-     "inputs": [
-      10000,
-      8000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "latency",
-     "value": 500,
-     "inputs": [
-      10500,
-      10000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "lateness",
-     "value": -5000,
-     "inputs": [
-      5000,
-      10000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      10000,
-      10000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "adsb/A2",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      5284.835406450336,
-      5284.835406450336
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 10000,
-    "lat": 1.0,
-    "lon": 1.000449729
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "radar-1/T1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "radar-1",
-      "uid": "T1",
-      "time_ms": 10000,
-      "lat": 1.0,
-      "lon": 1.000449729
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      10000,
-      5000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "interval",
-     "value": 5000,
-     "inputs": [
-      10000,
-      5000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "lateness",
-     "value": 0,
-     "inputs": [
-      10000,
-      10000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      10000,
-      5000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "radar-1/T1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      15101.1367115738,
-      15101.1367115738
-     ]
-    }
-   ]
-  },
-  {
-   "tick": 10000,
-   "expect": [
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "adsb/A1",
-     "measures": {
-      "reports": 3,
-      "interval_last": null,
-      "interval_mean": null,
-      "interval_max": null,
-      "age": 0,
-      "latency_mean": 4000.0,
-      "latency_max": 4000,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": null,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "adsb/A2",
-     "measures": {
-      "reports": 6,
-      "interval_last": 2000,
-      "interval_mean": 2000.0,
-      "interval_max": 2000,
-      "age": 0,
-      "latency_mean": 500.0,
-      "latency_max": 500,
-      "lateness_mean": -3000.0,
-      "lateness_max": -1000,
-      "lateness_min": -5000,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "radar-1/T1",
-     "measures": {
-      "reports": 3,
-      "interval_last": null,
-      "interval_mean": null,
-      "interval_max": null,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": 0.0,
-      "lateness_max": 0,
-      "lateness_min": 0,
-      "nis_mean": null,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "adsb",
-     "measures": {
-      "reports": 9,
-      "interval_last": 2000.0,
-      "interval_mean": 2000.0,
-      "interval_max": 2000,
-      "age": 0,
-      "latency_mean": 2250.0,
-      "latency_max": 4000,
-      "lateness_mean": -3000.0,
-      "lateness_max": -1000,
-      "lateness_min": -5000,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0,
-      "entities": 2
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "radar-1",
-     "measures": {
-      "reports": 3,
-      "interval_last": null,
-      "interval_mean": null,
-      "interval_max": null,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": 0.0,
-      "lateness_max": 0,
-      "lateness_min": 0,
-      "nis_mean": null,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0,
-      "entities": 1
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "silent",
-     "subject": "adsb/A1",
-     "measure": "age",
-     "value": 0,
-     "limit": 30000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "slow",
-     "subject": "adsb/A1",
-     "measure": "interval_mean",
-     "value": null,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "late",
-     "subject": "adsb/A1",
-     "measure": "latency_max",
-     "value": 4000,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "disorder",
-     "subject": "adsb/A1",
-     "measure": "out_of_order",
-     "value": 0,
-     "limit": 1.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "silent",
-     "subject": "adsb/A2",
-     "measure": "age",
-     "value": 0,
-     "limit": 30000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "slow",
-     "subject": "adsb/A2",
-     "measure": "interval_mean",
-     "value": 2000.0,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "late",
-     "subject": "adsb/A2",
-     "measure": "latency_max",
-     "value": 500,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "disorder",
-     "subject": "adsb/A2",
-     "measure": "out_of_order",
-     "value": 0,
-     "limit": 1.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "silent",
-     "subject": "radar-1/T1",
-     "measure": "age",
-     "value": 0,
-     "limit": 30000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "slow",
-     "subject": "radar-1/T1",
-     "measure": "interval_mean",
-     "value": null,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "late",
-     "subject": "radar-1/T1",
-     "measure": "latency_max",
-     "value": null,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "disorder",
-     "subject": "radar-1/T1",
-     "measure": "out_of_order",
-     "value": 0,
-     "limit": 1.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "source-latent",
-     "subject": "adsb",
-     "measure": "latency_mean",
-     "value": 2250.0,
-     "limit": 2000.0,
-     "pass": true,
-     "count": 1,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "source-latent",
-     "subject": "radar-1",
-     "measure": "latency_mean",
-     "value": null,
-     "limit": 2000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    }
-   ]
-  },
-  {
-   "tick": 11000,
-   "expect": [
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "adsb/A1",
-     "measures": {
-      "reports": 3,
-      "interval_last": null,
-      "interval_mean": null,
-      "interval_max": null,
-      "age": 1000,
-      "latency_mean": 4000.0,
-      "latency_max": 4000,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": null,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "adsb/A2",
-     "measures": {
-      "reports": 6,
-      "interval_last": 2000,
-      "interval_mean": 2000.0,
-      "interval_max": 2000,
-      "age": 1000,
-      "latency_mean": 500.0,
-      "latency_max": 500,
-      "lateness_mean": -3000.0,
-      "lateness_max": -1000,
-      "lateness_min": -5000,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "radar-1/T1",
-     "measures": {
-      "reports": 3,
-      "interval_last": null,
-      "interval_mean": null,
-      "interval_max": null,
-      "age": 1000,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": 0.0,
-      "lateness_max": 0,
-      "lateness_min": 0,
-      "nis_mean": null,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "adsb",
-     "measures": {
-      "reports": 9,
-      "interval_last": 2000.0,
-      "interval_mean": 2000.0,
-      "interval_max": 2000,
-      "age": 1000,
-      "latency_mean": 2250.0,
-      "latency_max": 4000,
-      "lateness_mean": -3000.0,
-      "lateness_max": -1000,
-      "lateness_min": -5000,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0,
-      "entities": 2
-     }
-    },
-    {
-     "ev": "action-start",
-     "rule": "source-latent",
-     "scope": "source",
-     "subject": "adsb",
-     "action": "alert",
-     "value": 2250.0
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "radar-1",
-     "measures": {
-      "reports": 3,
-      "interval_last": null,
-      "interval_mean": null,
-      "interval_max": null,
-      "age": 1000,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": 0.0,
-      "lateness_max": 0,
-      "lateness_min": 0,
-      "nis_mean": null,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0,
-      "entities": 1
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "silent",
-     "subject": "adsb/A1",
-     "measure": "age",
-     "value": 1000,
-     "limit": 30000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "slow",
-     "subject": "adsb/A1",
-     "measure": "interval_mean",
-     "value": null,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "late",
-     "subject": "adsb/A1",
-     "measure": "latency_max",
-     "value": 4000,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "disorder",
-     "subject": "adsb/A1",
-     "measure": "out_of_order",
-     "value": 0,
-     "limit": 1.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "silent",
-     "subject": "adsb/A2",
-     "measure": "age",
-     "value": 1000,
-     "limit": 30000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "slow",
-     "subject": "adsb/A2",
-     "measure": "interval_mean",
-     "value": 2000.0,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "late",
-     "subject": "adsb/A2",
-     "measure": "latency_max",
-     "value": 500,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "disorder",
-     "subject": "adsb/A2",
-     "measure": "out_of_order",
-     "value": 0,
-     "limit": 1.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "silent",
-     "subject": "radar-1/T1",
-     "measure": "age",
-     "value": 1000,
-     "limit": 30000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "slow",
-     "subject": "radar-1/T1",
-     "measure": "interval_mean",
-     "value": null,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "late",
-     "subject": "radar-1/T1",
-     "measure": "latency_max",
-     "value": null,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "disorder",
-     "subject": "radar-1/T1",
-     "measure": "out_of_order",
-     "value": 0,
-     "limit": 1.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "source-latent",
-     "subject": "adsb",
-     "measure": "latency_mean",
-     "value": 2250.0,
-     "limit": 2000.0,
-     "pass": true,
-     "count": 0,
-     "active": true
-    },
-    {
-     "stage": "rule",
-     "rule": "source-latent",
-     "subject": "radar-1",
-     "measure": "latency_mean",
-     "value": null,
-     "limit": 2000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    }
-   ]
-  },
-  {
-   "tick": 12000,
-   "expect": [
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "adsb/A1",
-     "measures": {
-      "reports": 3,
-      "interval_last": null,
-      "interval_mean": null,
-      "interval_max": null,
-      "age": 2000,
-      "latency_mean": 4000.0,
-      "latency_max": 4000,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": null,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "adsb/A2",
-     "measures": {
-      "reports": 6,
-      "interval_last": 2000,
-      "interval_mean": 2000.0,
-      "interval_max": 2000,
-      "age": 2000,
-      "latency_mean": 500.0,
-      "latency_max": 500,
-      "lateness_mean": -3000.0,
-      "lateness_max": -1000,
-      "lateness_min": -5000,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "radar-1/T1",
-     "measures": {
-      "reports": 3,
-      "interval_last": null,
-      "interval_mean": null,
-      "interval_max": null,
-      "age": 2000,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": 0.0,
-      "lateness_max": 0,
-      "lateness_min": 0,
-      "nis_mean": null,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "adsb",
-     "measures": {
-      "reports": 9,
-      "interval_last": 2000.0,
-      "interval_mean": 2000.0,
-      "interval_max": 2000,
-      "age": 2000,
-      "latency_mean": 2250.0,
-      "latency_max": 4000,
-      "lateness_mean": -3000.0,
-      "lateness_max": -1000,
-      "lateness_min": -5000,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0,
-      "entities": 2
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "radar-1",
-     "measures": {
-      "reports": 3,
-      "interval_last": null,
-      "interval_mean": null,
-      "interval_max": null,
-      "age": 2000,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": 0.0,
-      "lateness_max": 0,
-      "lateness_min": 0,
-      "nis_mean": null,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0,
-      "entities": 1
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "silent",
-     "subject": "adsb/A1",
-     "measure": "age",
-     "value": 2000,
-     "limit": 30000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "slow",
-     "subject": "adsb/A1",
-     "measure": "interval_mean",
-     "value": null,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "late",
-     "subject": "adsb/A1",
-     "measure": "latency_max",
-     "value": 4000,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "disorder",
-     "subject": "adsb/A1",
-     "measure": "out_of_order",
-     "value": 0,
-     "limit": 1.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "silent",
-     "subject": "adsb/A2",
-     "measure": "age",
-     "value": 2000,
-     "limit": 30000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "slow",
-     "subject": "adsb/A2",
-     "measure": "interval_mean",
-     "value": 2000.0,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "late",
-     "subject": "adsb/A2",
-     "measure": "latency_max",
-     "value": 500,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "disorder",
-     "subject": "adsb/A2",
-     "measure": "out_of_order",
-     "value": 0,
-     "limit": 1.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "silent",
-     "subject": "radar-1/T1",
-     "measure": "age",
-     "value": 2000,
-     "limit": 30000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "slow",
-     "subject": "radar-1/T1",
-     "measure": "interval_mean",
-     "value": null,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "late",
-     "subject": "radar-1/T1",
-     "measure": "latency_max",
-     "value": null,
-     "limit": 10000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "disorder",
-     "subject": "radar-1/T1",
-     "measure": "out_of_order",
-     "value": 0,
-     "limit": 1.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "source-latent",
-     "subject": "adsb",
-     "measure": "latency_mean",
-     "value": 2250.0,
-     "limit": 1000.0,
-     "pass": false,
-     "count": 0,
-     "active": true
-    },
-    {
-     "stage": "rule",
-     "rule": "source-latent",
-     "subject": "radar-1",
-     "measure": "latency_mean",
-     "value": null,
-     "limit": 2000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    }
-   ]
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
-  "last_tick": 12000,
   "entities": {
    "adsb/A1": {
-    "source": "adsb",
-    "last_time_ms": 10000,
-    "last_pos": [
-     0.0,
-     0.0
-    ],
     "filter": {
      "east": [
       0.0,
@@ -1950,64 +20,64 @@
       65.20386504039297
      ]
     },
+    "last_pos": [
+     0.0,
+     0.0
+    ],
+    "last_time_ms": 10000,
+    "source": "adsb",
     "window": [
      {
-      "wt": 0,
-      "time_ms": 0,
-      "order": "first",
+      "ce": false,
+      "hae": false,
       "interval": null,
       "latency": 4000,
       "lateness": null,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": null,
+      "order": "first",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": false,
+      "time_error": null,
+      "time_ms": 0,
+      "time_state": null,
       "vel": false,
-      "hae": false
+      "wt": 0
      },
      {
-      "wt": 5000,
+      "ce": false,
+      "hae": false,
+      "interval": 5000,
+      "latency": 4000,
+      "lateness": -5000,
+      "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
+      "speed_err": null,
+      "time_error": null,
       "time_ms": 5000,
-      "order": "advance",
-      "interval": 5000,
-      "latency": 4000,
-      "lateness": -5000,
-      "source_out_of_order": false,
-      "time_error": null,
       "time_state": null,
-      "nis": 0.0,
-      "speed_err": null,
-      "ce": false,
       "vel": false,
-      "hae": false
+      "wt": 5000
      },
      {
-      "wt": 10000,
-      "time_ms": 10000,
-      "order": "advance",
+      "ce": false,
+      "hae": false,
       "interval": 5000,
       "latency": 4000,
       "lateness": -5000,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": false,
+      "time_error": null,
+      "time_ms": 10000,
+      "time_state": null,
       "vel": false,
-      "hae": false
+      "wt": 10000
      }
     ]
    },
    "adsb/A2": {
-    "source": "adsb",
-    "last_time_ms": 10000,
-    "last_pos": [
-     99.9999604832469,
-     0.0
-    ],
     "filter": {
      "east": [
       99.9999604832469,
@@ -2024,112 +94,112 @@
       42.487711408826854
      ]
     },
+    "last_pos": [
+     99.9999604832469,
+     0.0
+    ],
+    "last_time_ms": 10000,
+    "source": "adsb",
     "window": [
      {
-      "wt": 0,
-      "time_ms": 0,
-      "order": "first",
+      "ce": false,
+      "hae": false,
       "interval": null,
       "latency": 500,
       "lateness": null,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": null,
+      "order": "first",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": false,
+      "time_error": null,
+      "time_ms": 0,
+      "time_state": null,
       "vel": false,
-      "hae": false
+      "wt": 0
      },
      {
-      "wt": 2000,
-      "time_ms": 2000,
-      "order": "advance",
+      "ce": false,
+      "hae": false,
       "interval": 2000,
       "latency": 500,
       "lateness": -2000,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": false,
+      "time_error": null,
+      "time_ms": 2000,
+      "time_state": null,
       "vel": false,
-      "hae": false
+      "wt": 2000
      },
      {
-      "wt": 4000,
-      "time_ms": 4000,
-      "order": "advance",
+      "ce": false,
+      "hae": false,
       "interval": 2000,
       "latency": 500,
       "lateness": -4000,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": false,
+      "time_error": null,
+      "time_ms": 4000,
+      "time_state": null,
       "vel": false,
-      "hae": false
+      "wt": 4000
      },
      {
-      "wt": 6000,
-      "time_ms": 6000,
-      "order": "advance",
+      "ce": false,
+      "hae": false,
       "interval": 2000,
       "latency": 500,
       "lateness": -1000,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": false,
+      "time_error": null,
+      "time_ms": 6000,
+      "time_state": null,
       "vel": false,
-      "hae": false
+      "wt": 6000
      },
      {
-      "wt": 8000,
-      "time_ms": 8000,
-      "order": "advance",
+      "ce": false,
+      "hae": false,
       "interval": 2000,
       "latency": 500,
       "lateness": -3000,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": false,
+      "time_error": null,
+      "time_ms": 8000,
+      "time_state": null,
       "vel": false,
-      "hae": false
+      "wt": 8000
      },
      {
-      "wt": 10000,
-      "time_ms": 10000,
-      "order": "advance",
+      "ce": false,
+      "hae": false,
       "interval": 2000,
       "latency": 500,
       "lateness": -5000,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": false,
+      "time_error": null,
+      "time_ms": 10000,
+      "time_state": null,
       "vel": false,
-      "hae": false
+      "wt": 10000
      }
     ]
    },
    "radar-1/T1": {
-    "source": "radar-1",
-    "last_time_ms": 10000,
-    "last_pos": [
-     50.00003583070038,
-     0.0
-    ],
     "filter": {
      "east": [
       50.00003583070038,
@@ -2146,125 +216,2055 @@
       65.20386504039297
      ]
     },
+    "last_pos": [
+     50.00003583070038,
+     0.0
+    ],
+    "last_time_ms": 10000,
+    "source": "radar-1",
     "window": [
      {
-      "wt": 0,
-      "time_ms": 0,
-      "order": "first",
+      "ce": false,
+      "hae": false,
       "interval": null,
       "latency": null,
       "lateness": 0,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": null,
+      "order": "first",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": false,
+      "time_error": null,
+      "time_ms": 0,
+      "time_state": null,
       "vel": false,
-      "hae": false
+      "wt": 0
      },
      {
-      "wt": 5000,
+      "ce": false,
+      "hae": false,
+      "interval": 5000,
+      "latency": null,
+      "lateness": 0,
+      "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
+      "speed_err": null,
+      "time_error": null,
       "time_ms": 5000,
-      "order": "advance",
-      "interval": 5000,
-      "latency": null,
-      "lateness": 0,
-      "source_out_of_order": false,
-      "time_error": null,
       "time_state": null,
-      "nis": 0.0,
-      "speed_err": null,
-      "ce": false,
       "vel": false,
-      "hae": false
+      "wt": 5000
      },
      {
-      "wt": 10000,
-      "time_ms": 10000,
-      "order": "advance",
+      "ce": false,
+      "hae": false,
       "interval": 5000,
       "latency": null,
       "lateness": 0,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": false,
+      "time_error": null,
+      "time_ms": 10000,
+      "time_state": null,
       "vel": false,
-      "hae": false
+      "wt": 10000
      }
     ]
    }
   },
+  "last_tick": 12000,
+  "ref": [
+   1.0,
+   1.0
+  ],
   "rules": {
-   "silent": {
+   "disorder": {
     "adsb/A1": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
     },
     "adsb/A2": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
     },
     "radar-1/T1": {
-     "count": 0,
-     "active": false
-    }
-   },
-   "slow": {
-    "adsb/A1": {
-     "count": 0,
-     "active": false
-    },
-    "adsb/A2": {
-     "count": 0,
-     "active": false
-    },
-    "radar-1/T1": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
     }
    },
    "late": {
     "adsb/A1": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
     },
     "adsb/A2": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
     },
     "radar-1/T1": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
+    }
+   },
+   "silent": {
+    "adsb/A1": {
+     "active": false,
+     "count": 0
+    },
+    "adsb/A2": {
+     "active": false,
+     "count": 0
+    },
+    "radar-1/T1": {
+     "active": false,
+     "count": 0
+    }
+   },
+   "slow": {
+    "adsb/A1": {
+     "active": false,
+     "count": 0
+    },
+    "adsb/A2": {
+     "active": false,
+     "count": 0
+    },
+    "radar-1/T1": {
+     "active": false,
+     "count": 0
     }
    },
    "source-latent": {
     "adsb": {
-     "count": 0,
-     "active": true
+     "active": true,
+     "count": 0
     },
     "radar-1": {
-     "count": 0,
-     "active": false
-    }
-   },
-   "disorder": {
-    "adsb/A1": {
-     "count": 0,
-     "active": false
-    },
-    "adsb/A2": {
-     "count": 0,
-     "active": false
-    },
-    "radar-1/T1": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
     }
    }
   }
- }
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "adsb/A1",
+     "ev": "new"
+    },
+    {
+     "entity": "adsb/A1",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.0,
+      "received_ms": 4000,
+      "time_ms": 0,
+      "track.source_id": "adsb",
+      "uid": "A1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.0,
+    "received_ms": 4000,
+    "time_ms": 0,
+    "track.source_id": "adsb",
+    "uid": "A1"
+   },
+   "trace": [
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      0,
+      null
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "first"
+    },
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      4000,
+      0
+     ],
+     "sample": "latency",
+     "stage": "sample",
+     "value": 4000
+    },
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      0,
+      null
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "adsb/A2",
+     "ev": "new"
+    },
+    {
+     "entity": "adsb/A2",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.000899457,
+      "received_ms": 500,
+      "time_ms": 0,
+      "track.source_id": "adsb",
+      "uid": "A2"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.000899457,
+    "received_ms": 500,
+    "time_ms": 0,
+    "track.source_id": "adsb",
+    "uid": "A2"
+   },
+   "trace": [
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      0,
+      null
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "first"
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      500,
+      0
+     ],
+     "sample": "latency",
+     "stage": "sample",
+     "value": 500
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      0,
+      0
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "new"
+    },
+    {
+     "entity": "radar-1/T1",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.000449729,
+      "time_ms": 0,
+      "track.source_id": "radar-1",
+      "uid": "T1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.000449729,
+    "time_ms": 0,
+    "track.source_id": "radar-1",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      0,
+      null
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "first"
+    },
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      0,
+      0
+     ],
+     "sample": "lateness",
+     "stage": "sample",
+     "value": 0
+    },
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      0,
+      null
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "adsb/A2",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.000899457,
+      "received_ms": 2500,
+      "time_ms": 2000,
+      "track.source_id": "adsb",
+      "uid": "A2"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.000899457,
+    "received_ms": 2500,
+    "time_ms": 2000,
+    "track.source_id": "adsb",
+    "uid": "A2"
+   },
+   "trace": [
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      2000,
+      0
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      2000,
+      0
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 2000
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      2500,
+      2000
+     ],
+     "sample": "latency",
+     "stage": "sample",
+     "value": 500
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      0,
+      2000
+     ],
+     "sample": "lateness",
+     "stage": "sample",
+     "value": -2000
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      2000,
+      0
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      0.0,
+      0.0,
+      45004.0,
+      45004.0
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "adsb/A2",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.000899457,
+      "received_ms": 4500,
+      "time_ms": 4000,
+      "track.source_id": "adsb",
+      "uid": "A2"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.000899457,
+    "received_ms": 4500,
+    "time_ms": 4000,
+    "track.source_id": "adsb",
+    "uid": "A2"
+   },
+   "trace": [
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      4000,
+      2000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      4000,
+      2000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 2000
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      4500,
+      4000
+     ],
+     "sample": "latency",
+     "stage": "sample",
+     "value": 500
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      0,
+      4000
+     ],
+     "sample": "lateness",
+     "stage": "sample",
+     "value": -4000
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      4000,
+      2000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      0.0,
+      0.0,
+      13759.443960536839,
+      13759.443960536839
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "adsb/A1",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.0,
+      "received_ms": 9000,
+      "time_ms": 5000,
+      "track.source_id": "adsb",
+      "uid": "A1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.0,
+    "received_ms": 9000,
+    "time_ms": 5000,
+    "track.source_id": "adsb",
+    "uid": "A1"
+   },
+   "trace": [
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      5000,
+      0
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      5000,
+      0
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 5000
+    },
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      9000,
+      5000
+     ],
+     "sample": "latency",
+     "stage": "sample",
+     "value": 4000
+    },
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      0,
+      5000
+     ],
+     "sample": "lateness",
+     "stage": "sample",
+     "value": -5000
+    },
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      5000,
+      4000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      0.0,
+      0.0,
+      255156.25,
+      255156.25
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.000449729,
+      "time_ms": 5000,
+      "track.source_id": "radar-1",
+      "uid": "T1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.000449729,
+    "time_ms": 5000,
+    "track.source_id": "radar-1",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      5000,
+      0
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      5000,
+      0
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 5000
+    },
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      5000,
+      5000
+     ],
+     "sample": "lateness",
+     "stage": "sample",
+     "value": 0
+    },
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      5000,
+      0
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      0.0,
+      0.0,
+      255156.25,
+      255156.25
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "adsb/A2",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.000899457,
+      "received_ms": 6500,
+      "time_ms": 6000,
+      "track.source_id": "adsb",
+      "uid": "A2"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.000899457,
+    "received_ms": 6500,
+    "time_ms": 6000,
+    "track.source_id": "adsb",
+    "uid": "A2"
+   },
+   "trace": [
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      6000,
+      4000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      6000,
+      4000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 2000
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      6500,
+      6000
+     ],
+     "sample": "latency",
+     "stage": "sample",
+     "value": 500
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      5000,
+      6000
+     ],
+     "sample": "lateness",
+     "stage": "sample",
+     "value": -1000
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      6000,
+      5000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      0.0,
+      0.0,
+      8199.62474180838,
+      8199.62474180838
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "adsb/A2",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.000899457,
+      "received_ms": 8500,
+      "time_ms": 8000,
+      "track.source_id": "adsb",
+      "uid": "A2"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.000899457,
+    "received_ms": 8500,
+    "time_ms": 8000,
+    "track.source_id": "adsb",
+    "uid": "A2"
+   },
+   "trace": [
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      8000,
+      6000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      8000,
+      6000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 2000
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      8500,
+      8000
+     ],
+     "sample": "latency",
+     "stage": "sample",
+     "value": 500
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      5000,
+      8000
+     ],
+     "sample": "lateness",
+     "stage": "sample",
+     "value": -3000
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      8000,
+      6000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      0.0,
+      0.0,
+      6242.1084509415105,
+      6242.1084509415105
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "adsb/A1",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.0,
+      "received_ms": 14000,
+      "time_ms": 10000,
+      "track.source_id": "adsb",
+      "uid": "A1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.0,
+    "received_ms": 14000,
+    "time_ms": 10000,
+    "track.source_id": "adsb",
+    "uid": "A1"
+   },
+   "trace": [
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      10000,
+      5000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      10000,
+      5000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 5000
+    },
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      14000,
+      10000
+     ],
+     "sample": "latency",
+     "stage": "sample",
+     "value": 4000
+    },
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      5000,
+      10000
+     ],
+     "sample": "lateness",
+     "stage": "sample",
+     "value": -5000
+    },
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      10000,
+      8000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "adsb/A1",
+     "inputs": [
+      0.0,
+      0.0,
+      15101.1367115738,
+      15101.1367115738
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "adsb/A2",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.000899457,
+      "received_ms": 10500,
+      "time_ms": 10000,
+      "track.source_id": "adsb",
+      "uid": "A2"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.000899457,
+    "received_ms": 10500,
+    "time_ms": 10000,
+    "track.source_id": "adsb",
+    "uid": "A2"
+   },
+   "trace": [
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      10000,
+      8000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      10000,
+      8000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 2000
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      10500,
+      10000
+     ],
+     "sample": "latency",
+     "stage": "sample",
+     "value": 500
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      5000,
+      10000
+     ],
+     "sample": "lateness",
+     "stage": "sample",
+     "value": -5000
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      10000,
+      10000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "adsb/A2",
+     "inputs": [
+      0.0,
+      0.0,
+      5284.835406450336,
+      5284.835406450336
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.000449729,
+      "time_ms": 10000,
+      "track.source_id": "radar-1",
+      "uid": "T1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.000449729,
+    "time_ms": 10000,
+    "track.source_id": "radar-1",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      10000,
+      5000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      10000,
+      5000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 5000
+    },
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      10000,
+      10000
+     ],
+     "sample": "lateness",
+     "stage": "sample",
+     "value": 0
+    },
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      10000,
+      5000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "radar-1/T1",
+     "inputs": [
+      0.0,
+      0.0,
+      15101.1367115738,
+      15101.1367115738
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "interval_last": null,
+      "interval_max": null,
+      "interval_mean": null,
+      "latency_max": 4000,
+      "latency_mean": 4000.0,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": null,
+      "out_of_order": 0,
+      "reports": 3,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "adsb/A1"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "interval_last": 2000,
+      "interval_max": 2000,
+      "interval_mean": 2000.0,
+      "latency_max": 500,
+      "latency_mean": 500.0,
+      "lateness_max": -1000,
+      "lateness_mean": -3000.0,
+      "lateness_min": -5000,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 6,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "adsb/A2"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "interval_last": null,
+      "interval_max": null,
+      "interval_mean": null,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": 0,
+      "lateness_mean": 0.0,
+      "lateness_min": 0,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": null,
+      "out_of_order": 0,
+      "reports": 3,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "radar-1/T1"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "entities": 2,
+      "interval_last": 2000.0,
+      "interval_max": 2000,
+      "interval_mean": 2000.0,
+      "latency_max": 4000,
+      "latency_mean": 2250.0,
+      "lateness_max": -1000,
+      "lateness_mean": -3000.0,
+      "lateness_min": -5000,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 9,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "source",
+     "subject": "adsb"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "entities": 1,
+      "interval_last": null,
+      "interval_max": null,
+      "interval_mean": null,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": 0,
+      "lateness_mean": 0.0,
+      "lateness_min": 0,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": null,
+      "out_of_order": 0,
+      "reports": 3,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "source",
+     "subject": "radar-1"
+    }
+   ],
+   "tick": 10000,
+   "trace": [
+    {
+     "active": false,
+     "count": 0,
+     "limit": 30000.0,
+     "measure": "age",
+     "pass": false,
+     "rule": "silent",
+     "stage": "rule",
+     "subject": "adsb/A1",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "interval_mean",
+     "pass": false,
+     "rule": "slow",
+     "stage": "rule",
+     "subject": "adsb/A1",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "latency_max",
+     "pass": false,
+     "rule": "late",
+     "stage": "rule",
+     "subject": "adsb/A1",
+     "value": 4000
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 1.0,
+     "measure": "out_of_order",
+     "pass": false,
+     "rule": "disorder",
+     "stage": "rule",
+     "subject": "adsb/A1",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 30000.0,
+     "measure": "age",
+     "pass": false,
+     "rule": "silent",
+     "stage": "rule",
+     "subject": "adsb/A2",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "interval_mean",
+     "pass": false,
+     "rule": "slow",
+     "stage": "rule",
+     "subject": "adsb/A2",
+     "value": 2000.0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "latency_max",
+     "pass": false,
+     "rule": "late",
+     "stage": "rule",
+     "subject": "adsb/A2",
+     "value": 500
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 1.0,
+     "measure": "out_of_order",
+     "pass": false,
+     "rule": "disorder",
+     "stage": "rule",
+     "subject": "adsb/A2",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 30000.0,
+     "measure": "age",
+     "pass": false,
+     "rule": "silent",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "interval_mean",
+     "pass": false,
+     "rule": "slow",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "latency_max",
+     "pass": false,
+     "rule": "late",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 1.0,
+     "measure": "out_of_order",
+     "pass": false,
+     "rule": "disorder",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 1,
+     "limit": 2000.0,
+     "measure": "latency_mean",
+     "pass": true,
+     "rule": "source-latent",
+     "stage": "rule",
+     "subject": "adsb",
+     "value": 2250.0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 2000.0,
+     "measure": "latency_mean",
+     "pass": false,
+     "rule": "source-latent",
+     "stage": "rule",
+     "subject": "radar-1",
+     "value": null
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 1000,
+      "duplicate": 0,
+      "interval_last": null,
+      "interval_max": null,
+      "interval_mean": null,
+      "latency_max": 4000,
+      "latency_mean": 4000.0,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": null,
+      "out_of_order": 0,
+      "reports": 3,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "adsb/A1"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 1000,
+      "duplicate": 0,
+      "interval_last": 2000,
+      "interval_max": 2000,
+      "interval_mean": 2000.0,
+      "latency_max": 500,
+      "latency_mean": 500.0,
+      "lateness_max": -1000,
+      "lateness_mean": -3000.0,
+      "lateness_min": -5000,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 6,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "adsb/A2"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 1000,
+      "duplicate": 0,
+      "interval_last": null,
+      "interval_max": null,
+      "interval_mean": null,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": 0,
+      "lateness_mean": 0.0,
+      "lateness_min": 0,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": null,
+      "out_of_order": 0,
+      "reports": 3,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "radar-1/T1"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 1000,
+      "duplicate": 0,
+      "entities": 2,
+      "interval_last": 2000.0,
+      "interval_max": 2000,
+      "interval_mean": 2000.0,
+      "latency_max": 4000,
+      "latency_mean": 2250.0,
+      "lateness_max": -1000,
+      "lateness_mean": -3000.0,
+      "lateness_min": -5000,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 9,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "source",
+     "subject": "adsb"
+    },
+    {
+     "action": "alert",
+     "ev": "action-start",
+     "rule": "source-latent",
+     "scope": "source",
+     "subject": "adsb",
+     "value": 2250.0
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 1000,
+      "duplicate": 0,
+      "entities": 1,
+      "interval_last": null,
+      "interval_max": null,
+      "interval_mean": null,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": 0,
+      "lateness_mean": 0.0,
+      "lateness_min": 0,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": null,
+      "out_of_order": 0,
+      "reports": 3,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "source",
+     "subject": "radar-1"
+    }
+   ],
+   "tick": 11000,
+   "trace": [
+    {
+     "active": false,
+     "count": 0,
+     "limit": 30000.0,
+     "measure": "age",
+     "pass": false,
+     "rule": "silent",
+     "stage": "rule",
+     "subject": "adsb/A1",
+     "value": 1000
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "interval_mean",
+     "pass": false,
+     "rule": "slow",
+     "stage": "rule",
+     "subject": "adsb/A1",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "latency_max",
+     "pass": false,
+     "rule": "late",
+     "stage": "rule",
+     "subject": "adsb/A1",
+     "value": 4000
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 1.0,
+     "measure": "out_of_order",
+     "pass": false,
+     "rule": "disorder",
+     "stage": "rule",
+     "subject": "adsb/A1",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 30000.0,
+     "measure": "age",
+     "pass": false,
+     "rule": "silent",
+     "stage": "rule",
+     "subject": "adsb/A2",
+     "value": 1000
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "interval_mean",
+     "pass": false,
+     "rule": "slow",
+     "stage": "rule",
+     "subject": "adsb/A2",
+     "value": 2000.0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "latency_max",
+     "pass": false,
+     "rule": "late",
+     "stage": "rule",
+     "subject": "adsb/A2",
+     "value": 500
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 1.0,
+     "measure": "out_of_order",
+     "pass": false,
+     "rule": "disorder",
+     "stage": "rule",
+     "subject": "adsb/A2",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 30000.0,
+     "measure": "age",
+     "pass": false,
+     "rule": "silent",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": 1000
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "interval_mean",
+     "pass": false,
+     "rule": "slow",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "latency_max",
+     "pass": false,
+     "rule": "late",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 1.0,
+     "measure": "out_of_order",
+     "pass": false,
+     "rule": "disorder",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": 0
+    },
+    {
+     "active": true,
+     "count": 0,
+     "limit": 2000.0,
+     "measure": "latency_mean",
+     "pass": true,
+     "rule": "source-latent",
+     "stage": "rule",
+     "subject": "adsb",
+     "value": 2250.0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 2000.0,
+     "measure": "latency_mean",
+     "pass": false,
+     "rule": "source-latent",
+     "stage": "rule",
+     "subject": "radar-1",
+     "value": null
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 2000,
+      "duplicate": 0,
+      "interval_last": null,
+      "interval_max": null,
+      "interval_mean": null,
+      "latency_max": 4000,
+      "latency_mean": 4000.0,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": null,
+      "out_of_order": 0,
+      "reports": 3,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "adsb/A1"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 2000,
+      "duplicate": 0,
+      "interval_last": 2000,
+      "interval_max": 2000,
+      "interval_mean": 2000.0,
+      "latency_max": 500,
+      "latency_mean": 500.0,
+      "lateness_max": -1000,
+      "lateness_mean": -3000.0,
+      "lateness_min": -5000,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 6,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "adsb/A2"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 2000,
+      "duplicate": 0,
+      "interval_last": null,
+      "interval_max": null,
+      "interval_mean": null,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": 0,
+      "lateness_mean": 0.0,
+      "lateness_min": 0,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": null,
+      "out_of_order": 0,
+      "reports": 3,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "radar-1/T1"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 2000,
+      "duplicate": 0,
+      "entities": 2,
+      "interval_last": 2000.0,
+      "interval_max": 2000,
+      "interval_mean": 2000.0,
+      "latency_max": 4000,
+      "latency_mean": 2250.0,
+      "lateness_max": -1000,
+      "lateness_mean": -3000.0,
+      "lateness_min": -5000,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 9,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "source",
+     "subject": "adsb"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 2000,
+      "duplicate": 0,
+      "entities": 1,
+      "interval_last": null,
+      "interval_max": null,
+      "interval_mean": null,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": 0,
+      "lateness_mean": 0.0,
+      "lateness_min": 0,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": null,
+      "out_of_order": 0,
+      "reports": 3,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "source",
+     "subject": "radar-1"
+    }
+   ],
+   "tick": 12000,
+   "trace": [
+    {
+     "active": false,
+     "count": 0,
+     "limit": 30000.0,
+     "measure": "age",
+     "pass": false,
+     "rule": "silent",
+     "stage": "rule",
+     "subject": "adsb/A1",
+     "value": 2000
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "interval_mean",
+     "pass": false,
+     "rule": "slow",
+     "stage": "rule",
+     "subject": "adsb/A1",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "latency_max",
+     "pass": false,
+     "rule": "late",
+     "stage": "rule",
+     "subject": "adsb/A1",
+     "value": 4000
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 1.0,
+     "measure": "out_of_order",
+     "pass": false,
+     "rule": "disorder",
+     "stage": "rule",
+     "subject": "adsb/A1",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 30000.0,
+     "measure": "age",
+     "pass": false,
+     "rule": "silent",
+     "stage": "rule",
+     "subject": "adsb/A2",
+     "value": 2000
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "interval_mean",
+     "pass": false,
+     "rule": "slow",
+     "stage": "rule",
+     "subject": "adsb/A2",
+     "value": 2000.0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "latency_max",
+     "pass": false,
+     "rule": "late",
+     "stage": "rule",
+     "subject": "adsb/A2",
+     "value": 500
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 1.0,
+     "measure": "out_of_order",
+     "pass": false,
+     "rule": "disorder",
+     "stage": "rule",
+     "subject": "adsb/A2",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 30000.0,
+     "measure": "age",
+     "pass": false,
+     "rule": "silent",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": 2000
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "interval_mean",
+     "pass": false,
+     "rule": "slow",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 10000.0,
+     "measure": "latency_max",
+     "pass": false,
+     "rule": "late",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 1.0,
+     "measure": "out_of_order",
+     "pass": false,
+     "rule": "disorder",
+     "stage": "rule",
+     "subject": "radar-1/T1",
+     "value": 0
+    },
+    {
+     "active": true,
+     "count": 0,
+     "limit": 1000.0,
+     "measure": "latency_mean",
+     "pass": false,
+     "rule": "source-latent",
+     "stage": "rule",
+     "subject": "adsb",
+     "value": 2250.0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 2000.0,
+     "measure": "latency_mean",
+     "pass": false,
+     "rule": "source-latent",
+     "stage": "rule",
+     "subject": "radar-1",
+     "value": null
+    }
+   ]
+  }
+ ]
 }

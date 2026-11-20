@@ -2,17 +2,25 @@
 """Write the correlate conformance vectors for packs/correlate-*.
 
 Each scenario below states its inputs and, in `decide`, the association
-events it must produce. The script runs the Python engine, refuses to write a
-vector whose events differ from `decide`, and records the full events, trace
-and final snapshot as the vector. It also refuses a vector that places a
+events it must produce. The script computes each vector with the Rust engine
+(tools/consensus.py), refuses one whose events differ from `decide`, records
+the full events, trace and final snapshot, and writes the vector only when
+all seven engines agree with it. It also refuses a vector that places a
 decision within the comparison tolerance (check_margins): a test value that
 close to its limit (gate, confirm, hold, the bias residual, the filter
 restart, a history total against the margin cut, a sequential-test ratio
 near either bound without being on it), or two ranked assignment
-or history totals that close without being equal. The decisions are stated by hand here; the
-numbers come from the engine and are checked by the other six engines.
+or history totals that close without being equal. The specification and the decisions stated
+by hand here are the reference; the numbers are computed by the Rust engine
+and accepted only when all seven engines agree.
 
-Run: python3 -I tools/make-vectors.py
+Run: python3 -I tools/make-vectors.py [--rust-only | --spec-stage]
+(--rust-only skips the seven-engine run; CI uses it, as its seven engine jobs
+check every engine on every vector. --spec-stage is for the first stage of a
+spec round, when only the Python engine implements the new text: it computes
+with the Python engine and skips the seven-engine run. Before such a round
+merges, the vectors are written again without it, by the Rust engine, and
+accepted only when all seven engines agree.)
 """
 
 import json
@@ -21,8 +29,8 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, "engines", "python", "src"))
-from goat_correlator import load_pack, make_engine  # noqa: E402
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+import consensus  # noqa: E402
 
 R = 6371008.8
 LAT0, LON0 = 1.0, 1.0  # notional: open ocean near 0 N 0 E
@@ -818,62 +826,60 @@ def check_margins(name, step_no, trace):
 
 
 def _rank_margin(recs):
-    from goat_correlator.engine import INF, assignment_total, ranked_assignments
-    rows = []
-    cols = []
+    """The four best assignments of one cost block, by enumeration: each row
+    takes a distinct column or its own `alone` column; an assignment using a
+    missing or null entry is not possible. Report two consecutive totals
+    near but not equal."""
+    rows, cols = [], []
     for r in recs:
         if r["a"] not in rows:
             rows.append(r["a"])
         if r["b"] != "alone" and r["b"] not in cols:
             cols.append(r["b"])
-    c = len(cols)
-    m = [[INF] * (c + len(rows)) for _ in rows]
-    for r in recs:
-        i = rows.index(r["a"])
-        j = c + i if r["b"] == "alone" else cols.index(r["b"])
-        m[i][j] = INF if r["value"] is None else r["value"]
-    ranked = ranked_assignments(m, c, 4)
-    tots = [assignment_total(m, x) for x in ranked]
-    return ["assignment totals %r and %r" % (a, b) for a, b in zip(tots, tots[1:]) if near(a, b)]
+    cost = {(r["a"], r["b"]): (math.inf if r["value"] is None else r["value"]) for r in recs}
+    totals = []
 
-
-def clean(x):
-    """Write negative zero as zero."""
-    if isinstance(x, float):
-        return 0.0 if x == 0 else x
-    if isinstance(x, list):
-        return [clean(v) for v in x]
-    if isinstance(x, dict):
-        return {k: clean(v) for k, v in x.items()}
-    return x
+    def walk(i, used, total):
+        if i == len(rows):
+            if total < math.inf:
+                totals.append(total)
+            return
+        for b in cols + ["alone"]:
+            if b == "alone" or b not in used:
+                walk(i + 1, used | {b}, total + cost.get((rows[i], b), math.inf))
+    walk(0, frozenset(), 0.0)
+    best = sorted(totals)[:4]
+    return ["assignment totals %r and %r" % (a, b) for a, b in zip(best, best[1:]) if near(a, b)]
 
 
 def main():
     ok = True
+    candidates = {}
+    spec_stage = "--spec-stage" in sys.argv[1:]
     for name, pack_name, steps, decide in SCENARIOS:
-        pack = load_pack(os.path.join(ROOT, "packs", pack_name))
-        eng = make_engine(pack)
-        out_steps = []
-        for (kind, arg), want in zip(steps, decide):
-            events, trace = eng.ingest(arg) if kind == "ingest" else eng.tick(arg)
-            got = [e["ev"] for e in events]
-            if not check_margins(name, len(out_steps), trace):
-                ok = False
-            if got != want:
-                print("%s step %d: events %s, decided %s" % (name, len(out_steps), got, want))
-                ok = False
-            out_steps.append({kind: arg, "expect": clean(events), "trace": clean(trace)})
-        if len(decide) != len(steps):
+        results, snapshot = consensus.compute(pack_name, steps, "python" if spec_stage else "rust")
+        good = len(decide) == len(steps)
+        if not good:
             print("%s: decide has %d entries for %d steps" % (name, len(decide), len(steps)))
-            ok = False
-        vec = {"name": name, "pack": pack_name, "steps": out_steps, "snapshot": clean(eng.snapshot())}
-        path = os.path.join(ROOT, "packs", pack_name, "vectors", name + ".json")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(vec, f, indent=1)
-            f.write("\n")
+        for i, ((events, trace), want) in enumerate(zip(results, decide)):
+            got = [e["ev"] for e in events]
+            good = check_margins(name, i, trace) and good
+            if got != want:
+                print("%s step %d: events %s, decided %s" % (name, i, got, want))
+                good = False
+        ok = ok and good
+        if good:
+            candidates[name] = {"name": name, "pack": pack_name,
+                                "steps": consensus.vector_steps(steps, results), "snapshot": snapshot}
+    agreed = consensus.accept(candidates, not ({"--rust-only", "--spec-stage"} & set(sys.argv[1:])))
+    ok = ok and len(agreed) == len(candidates)
+    for name, vec in candidates.items():
+        if name not in agreed:
+            continue
+        consensus.write_vector(os.path.join(ROOT, "packs", vec["pack"], "vectors", name + ".json"), vec)
     if not ok:
         sys.exit(1)
-    print("wrote %d vectors" % len(SCENARIOS))
+    print("wrote %d vectors" % len(agreed))
 
 
 if __name__ == "__main__":

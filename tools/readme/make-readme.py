@@ -23,7 +23,7 @@ REPO = "USAREUR-AF/goat-processors"
 ENGINES = [  # language, directory, command that runs every vector, source globs
     ("Python", "python", "cd engines/python && PYTHONPATH=src python3 -m unittest discover -s tests", ["src/**/*.py"]),
     ("Rust", "rust", "cd engines/rust && cargo test", ["src/**/*.rs"]),
-    ("Go", "go", "cd engines/go && go test ./...", ["*.go"]),
+    ("Go", "go", "cd engines/go && go test ./...", ["**/*.go"]),
     ("Java", "java", "engines/java/build.sh", ["src/**/*.java"]),
     ("C++", "cpp", "cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir build/cpp",
      ["src/**/*.cpp", "src/**/*.hpp", "src/**/*.h"]),
@@ -224,7 +224,7 @@ def lines_of(lang_dir, globs):
     seen = set()
     for g in globs:
         for f in glob.glob(rel("engines", lang_dir, g), recursive=True):
-            if f in seen or "/test" in f.replace(rel("engines", lang_dir), ""):
+            if f in seen or "/test" in f.replace(rel("engines", lang_dir), "") or f.endswith("_test.go"):
                 continue
             seen.add(f)
             n += sum(1 for line in open(f, encoding="utf-8", errors="replace") if line.strip())
@@ -248,6 +248,9 @@ def trace_example():
     step = 2
     st = v["steps"][step]
     rec = next(t for t in st["trace"] if t["test"] == "mahalanobis")
+    # The fields in the order spec/correlate.md lists them (vector files sort their keys).
+    order = ["stage", "a", "b", "test", "value", "limit", "pass"]
+    rec = dict(sorted(rec.items(), key=lambda kv: (order.index(kv[0]) if kv[0] in order else len(order), kv[0])))
     ev = st["expect"][0]
     gate = next(line.strip() for line in read("packs", v["pack"], "pack.def").splitlines()
                 if line.split()[:2] == ["gate", rec["test"]])
@@ -264,23 +267,31 @@ def benchmark():
     d = bench_results()
     if d is None:
         return "The benchmark is designed, not built on this tree."
-    fam = [m.get("family") for m in d.get("meta", [])]
-    n_random = sum(1 for f in fam if f == "random")
-    n_time = sum(1 for f in fam if f == "time")
-    n_named = len(fam) - n_random - n_time
-    head = ("| Pack | F1, %d named | F1, %d random | F1, %d time | False merges | Missed merges | Identity swaps | GOSPA, m |\n"
-            "|---|---:|---:|---:|---:|---:|---:|---:|" % (n_named, n_random, n_time))
+    ev = d.get("evaluation")
+    if not ev:
+        return "The evaluation set has not been run on this tree (it needs the private seeds)."
+    g = ev["groups"]
+    packs = d["packs"]
+    fams = sorted(k for k in g[packs[0]] if k.startswith("family: ") and k != "family: scale")
+
+    def ci(summ, key, f):
+        v, c = summ["pooled"][key], summ["ci95"].get(key)
+        return (f % v) + ("<br>(%s to %s)" % (f % c[0], f % c[1]) if c else "")
+
+    head = ("| Pack | F1, %d random | F1 per family, lowest | False merges | Identity swaps | GOSPA, m |\n"
+            "|---|---:|---|---:|---:|---:|" % g[packs[0]]["random"]["n"])
     rows = []
-    for pack in d["packs"]:
-        sc = d["scenarios"][pack]
-        r = sc["random"]
-        t = sc.get("time")
+    for pack in packs:
+        r = g[pack]["random"]
+        low = min(((g[pack][k]["pooled"]["f1"], k[len("family: "):]) for k in fams
+                   if g[pack][k].get("pooled") and g[pack][k]["pooled"]["f1"] is not None), default=None)
         n = pack.replace("correlate-", "")
-        rows.append("| [`%s`](#methods-and-packs) | %.3f | %.3f | %s | %d | %d | %d | %.0f |" % (
-            n, sc["named"]["f1"], r["f1"], "%.3f" % t["f1"] if t else "", r["false_merges"], r["missed_merges"],
-            r["swaps"], r["gospa_m"]))
-    return "%s\n%s\n\nFalse merges, missed merges, identity swaps and GOSPA are for the %d random scenarios." % (
-        head, "\n".join(rows), n_random)
+        rows.append("| [`%s`](#methods-and-packs) | %s | %s | %s | %s | %s |" % (
+            n, ci(r, "f1", "%.3f"), "%.3f (%s)" % low if low else "", ci(r, "false_merges", "%d"),
+            ci(r, "swaps", "%d"), ci(r, "gospa_m", "%.0f")))
+    return ("%s\n%s\n\nAll numbers are from the evaluation set (%d scenarios, held-out seeds); brackets are "
+            "95 %% bootstrap intervals. False merges, identity swaps and GOSPA are over the random scenarios; "
+            "every family is in [docs/benchmark.md](docs/benchmark.md)." % (head, "\n".join(rows), ev["scenarios"]))
 
 
 def picture(name, alt, width=None):
@@ -308,6 +319,56 @@ def tolerance():
     m = re.search(r"abs\(got - want\) <= ([0-9.e-]+)", read("spec", "vector-format.md"))
     return m.group(1)
 
+STATUSES = ("Built", "Written", "Designed")
+
+
+def agentic_data():
+    """The agent interfaces and their status, checked so that nothing is claimed ahead of its code."""
+    d = json.loads(read("tools", "readme", "agentic.json"))
+    for i in d["interfaces"]:
+        where = "tools/readme/agentic.json, %s" % i["id"]
+        if i["status"] not in STATUSES:
+            raise SystemExit("%s: status %r is not one of %s" % (where, i["status"], ", ".join(STATUSES)))
+        if i["status"] == "Built":
+            if not i["tests"]:
+                raise SystemExit("%s: Built needs the tests that prove it" % where)
+            for t in i["tests"]:
+                if not os.path.exists(rel(t)):
+                    raise SystemExit("%s: Built names test %s, which is not in the tree" % (where, t))
+        if i["status"] in ("Built", "Written") and not (i["link"] and os.path.exists(rel(i["link"]))):
+            raise SystemExit("%s: %s needs a link to its code or document in the tree" % (where, i["status"]))
+    return d
+
+
+def agentic():
+    d = agentic_data()
+    rows = d["interfaces"]
+    built = sum(1 for i in rows if i["status"] == "Built")
+    if built == 0:
+        lead = ("None of these interfaces is built yet. A row says Built only when its code and its "
+                "tests are on main.")
+    else:
+        lead = ("%s of the %s interfaces %s built. A row says Built only when its code and its tests "
+                "are on main." % (WORDS.get(built, str(built)), WORDS.get(len(rows), str(len(rows))).lower(),
+                                  "is" if built == 1 else "are"))
+    out = [lead, "",
+           "| Interface | What it lets you build | Status |", "|---|---|---|"]
+    for i in rows:
+        name = i["name"]
+        if i["link"] and os.path.exists(rel(i["link"])):
+            name = "[%s](%s)" % (name, i["link"])
+        out.append("| %s | %s | %s |" % (name, i["lets_you"][0].upper() + i["lets_you"][1:], i["status"]))
+    out += ["", "Built: the code and its tests are on main. Written: the document exists. "
+                "Designed: decided, not yet in the tree."]
+    return "\n".join(out)
+
+
+def agentic_design():
+    doc = agentic_data()["design_doc"]
+    if os.path.exists(rel(doc)):
+        return "The design, with the cost and the matching safeguard for each choice, is in [`%s`](%s)." % (doc, doc)
+    return "The design document, `%s`, is not written yet." % doc
+
 
 def parts():
     c = counts()
@@ -315,7 +376,6 @@ def parts():
     p = {
         "n_engines_word": WORDS.get(n, str(n)),
         "n_engines": WORDS.get(n, str(n)).lower(),
-        "n_others_word": WORDS.get(n - 1, str(n - 1)).lower(),
         "tolerance": tolerance(),
         "badge": "[![conformance](https://github.com/%s/actions/workflows/conformance.yml/badge.svg?branch=main)]"
                  "(https://github.com/%s/actions/workflows/conformance.yml)" % (REPO, REPO),
@@ -324,6 +384,8 @@ def parts():
         "conformance": conformance(),
         "trace_example": trace_example(),
         "benchmark": benchmark(),
+        "agentic": agentic(),
+        "agentic_design": agentic_design(),
         "n_vectors": format(c["vectors"], ","),
         "n_packs": format(c["packs"], ","),
     }

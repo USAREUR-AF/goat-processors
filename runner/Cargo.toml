@@ -1,0 +1,36 @@
+[package]
+name = "goat-processors"
+version = "0.3.0"
+edition = "2021"
+rust-version = "1.80"
+description = "goat-processors runner: runs a declared pipeline of processing functions on the goat fabric"
+license = "Apache-2.0"
+publish = false
+
+[[bin]]
+name = "goat-processors"
+path = "src/main.rs"
+
+[dependencies]
+# The Rust engine, through its public API only (load_pack, ingest, tick, snapshot).
+goat_correlator = { path = "../engines/rust" }
+# Every third-party crate is pinned and listed in NOTICE.
+zenoh = { version = "=1.9.0", default-features = false, features = ["transport_tcp", "transport_tls"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_norway = "=0.9.42"
+# The API's mutual TLS listener. Each is already in the build through zenoh.
+rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std"] }
+rustls-pki-types = { version = "=1.16.0", features = ["std"] }
+x509-parser = "=0.18.1"
+# The agent interfaces: SHA-256 for the audit's input digests, and the public
+# CA roots for https model endpoints. Both already in the build through zenoh.
+ring = "=0.17.14"
+webpki-roots = "=1.0.12"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+# The runner is its own workspace, apart from the engines.
+[workspace]

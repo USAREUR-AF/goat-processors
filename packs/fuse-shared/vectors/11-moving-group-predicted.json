@@ -1,164 +1,9 @@
 {
  "name": "11-moving-group-predicted",
  "pack": "fuse-shared",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "fuse.group": "s1",
-    "course": 90,
-    "speed_ms": 100,
-    "ce": 30
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-1/T1",
-     "group": "s1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A7",
-    "time_ms": 0,
-    "lat": 1.000179864,
-    "lon": 1.0,
-    "fuse.group": "s1",
-    "ce": 20,
-    "course": 90,
-    "speed_ms": 100
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "adsb/A7",
-     "group": "s1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 1000,
-    "lat": 1.0,
-    "lon": 1.000899457,
-    "fuse.group": "s1",
-    "course": 90,
-    "speed_ms": 100,
-    "ce": 30
-   },
-   "expect": [],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A7",
-    "time_ms": 1000,
-    "lat": 1.000179864,
-    "lon": 1.000899457,
-    "fuse.group": "s1",
-    "ce": 20,
-    "course": 90,
-    "speed_ms": 100
-   },
-   "expect": [],
-   "trace": []
-  },
-  {
-   "tick": 3000,
-   "expect": [
-    {
-     "ev": "fused",
-     "group": "s1",
-     "members": [
-      "adsb/A7",
-      "radar-1/T1"
-     ],
-     "from": null,
-     "lat": 1.000179864,
-     "lon": 1.0026983718749203,
-     "course": 90.0,
-     "speed_ms": 99.99999939204996,
-     "ce": 16.78998121142307,
-     "attributes": {}
-    }
-   ],
-   "trace": [
-    {
-     "stage": "intersect",
-     "group": "s1",
-     "member": "radar-1/T1",
-     "value": 1.0
-    },
-    {
-     "stage": "kinematics",
-     "group": "s1",
-     "method": "covariance_intersection",
-     "candidates": [
-      {
-       "member": "adsb/A7",
-       "var": 563.8069381598793,
-       "time_ms": 1000,
-       "rank": null
-      },
-      {
-       "member": "radar-1/T1",
-       "var": 1065.133198106829,
-       "time_ms": 1000,
-       "rank": null
-      }
-     ],
-     "winner": null
-    },
-    {
-     "stage": "attribute",
-     "group": "s1",
-     "key": "callsign",
-     "rule": "latest",
-     "candidates": [],
-     "winner": null,
-     "value": null
-    },
-    {
-     "stage": "attribute",
-     "group": "s1",
-     "key": "type",
-     "rule": "majority",
-     "candidates": [],
-     "winner": null,
-     "value": null
-    },
-    {
-     "stage": "attribute",
-     "group": "s1",
-     "key": "track.class",
-     "rule": "majority",
-     "candidates": [],
-     "winner": null,
-     "value": null
-    }
-   ]
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
   "entities": {
    "adsb/A7": {
-    "last_time_ms": 1000,
-    "group": "s1",
     "filter": {
      "east": [
       99.99997993764842,
@@ -175,6 +20,8 @@
       12.552790346907994
      ]
     },
+    "group": "s1",
+    "last_time_ms": 1000,
     "report": {
      "ce": 20,
      "course": 90,
@@ -188,8 +35,6 @@
     }
    },
    "radar-1/T1": {
-    "last_time_ms": 1000,
-    "group": "s1",
     "filter": {
      "east": [
       99.99998010535879,
@@ -206,6 +51,8 @@
       12.658891142663963
      ]
     },
+    "group": "s1",
+    "last_time_ms": 1000,
     "report": {
      "ce": 30,
      "course": 90,
@@ -218,6 +65,159 @@
      "uid": "T1"
     }
    }
+  },
+  "ref": [
+   1.0,
+   1.0
+  ]
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "course": 90,
+    "fuse.group": "s1",
+    "lat": 1.0,
+    "lon": 1.0,
+    "speed_ms": 100,
+    "time_ms": 0,
+    "track.source_id": "radar-1",
+    "uid": "T1"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "entity": "adsb/A7",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
+   "ingest": {
+    "ce": 20,
+    "course": 90,
+    "fuse.group": "s1",
+    "lat": 1.000179864,
+    "lon": 1.0,
+    "speed_ms": 100,
+    "time_ms": 0,
+    "track.source_id": "adsb",
+    "uid": "A7"
+   },
+   "trace": []
+  },
+  {
+   "expect": [],
+   "ingest": {
+    "ce": 30,
+    "course": 90,
+    "fuse.group": "s1",
+    "lat": 1.0,
+    "lon": 1.000899457,
+    "speed_ms": 100,
+    "time_ms": 1000,
+    "track.source_id": "radar-1",
+    "uid": "T1"
+   },
+   "trace": []
+  },
+  {
+   "expect": [],
+   "ingest": {
+    "ce": 20,
+    "course": 90,
+    "fuse.group": "s1",
+    "lat": 1.000179864,
+    "lon": 1.000899457,
+    "speed_ms": 100,
+    "time_ms": 1000,
+    "track.source_id": "adsb",
+    "uid": "A7"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "attributes": {},
+     "ce": 16.78998121142307,
+     "course": 90.0,
+     "ev": "fused",
+     "from": null,
+     "group": "s1",
+     "lat": 1.000179864,
+     "lon": 1.0026983718749203,
+     "members": [
+      "adsb/A7",
+      "radar-1/T1"
+     ],
+     "speed_ms": 99.99999939204996
+    }
+   ],
+   "tick": 3000,
+   "trace": [
+    {
+     "group": "s1",
+     "member": "radar-1/T1",
+     "stage": "intersect",
+     "value": 1.0
+    },
+    {
+     "candidates": [
+      {
+       "member": "adsb/A7",
+       "rank": null,
+       "time_ms": 1000,
+       "var": 563.8069381598793
+      },
+      {
+       "member": "radar-1/T1",
+       "rank": null,
+       "time_ms": 1000,
+       "var": 1065.133198106829
+      }
+     ],
+     "group": "s1",
+     "method": "covariance_intersection",
+     "stage": "kinematics",
+     "winner": null
+    },
+    {
+     "candidates": [],
+     "group": "s1",
+     "key": "callsign",
+     "rule": "latest",
+     "stage": "attribute",
+     "value": null,
+     "winner": null
+    },
+    {
+     "candidates": [],
+     "group": "s1",
+     "key": "type",
+     "rule": "majority",
+     "stage": "attribute",
+     "value": null,
+     "winner": null
+    },
+    {
+     "candidates": [],
+     "group": "s1",
+     "key": "track.class",
+     "rule": "majority",
+     "stage": "attribute",
+     "value": null,
+     "winner": null
+    }
+   ]
   }
- }
+ ]
 }

@@ -213,9 +213,9 @@
 <rect x="150" y="1518" width="452.0" height="6" rx="2" fill="#2a78d6"><title>dense-8, gnn: 0.96</title></rect>
 <rect x="150" y="1526" width="469.5" height="6" rx="2" fill="#eb6834"><title>dense-8, window: 1.00</title></rect>
 <rect x="150" y="1534" width="470.0" height="6" rx="2" fill="#1baf7a"><title>dense-8, distance: 1.00</title></rect>
-<rect x="150" y="1542" width="432.9" height="6" rx="2" fill="#eda100"><title>dense-8, assign: 0.92</title></rect>
+<rect x="150" y="1542" width="432.6" height="6" rx="2" fill="#eda100"><title>dense-8, assign: 0.92</title></rect>
 <rect x="150" y="1550" width="469.5" height="6" rx="2" fill="#e87ba4"><title>dense-8, gnn-imm: 1.00</title></rect>
-<rect x="150" y="1558" width="462.9" height="6" rx="2" fill="#008300"><title>dense-8, assign-imm: 0.98</title></rect>
+<rect x="150" y="1558" width="462.6" height="6" rx="2" fill="#008300"><title>dense-8, assign-imm: 0.98</title></rect>
 <rect x="150" y="1566" width="452.0" height="6" rx="2" fill="#6250d6"><title>dense-8, gnn-restart: 0.96</title></rect>
 <rect x="150" y="1574" width="468.5" height="6" rx="2" fill="#e34948"><title>dense-8, assign-time: 1.00</title></rect>
 <text x="142" y="1625.0" font-size="12" text-anchor="end" fill="#0b0b0b">clock-offset-200ms</text>

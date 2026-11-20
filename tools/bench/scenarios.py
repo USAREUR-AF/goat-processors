@@ -16,7 +16,7 @@ the same on every Python version and platform.
 import math
 
 R = 6371008.8
-LAT0, LON0 = 50.0, 10.0          # reference point of every scenario
+LAT0, LON0 = 1.0, 1.0            # notional reference point of every scenario: open ocean (Gulf of Guinea)
 TICK_MS = 1000                   # one tick per second of input time
 STEP_S = 0.1                     # integration step of the truth motion
 
@@ -92,15 +92,26 @@ class Obj:
     (clockwise from north). `moves` is a list of (start_s, end_s, turn_dps,
     accel_mps2): between start and end the heading changes at turn_dps and the
     speed at accel_mps2. With `parent`, the object appears at `born_s` at the
-    parent's position and velocity (a split).
+    parent's position and velocity (a split). `climbs` is a list of
+    (start_s, end_s, vertical_mps): the height changes at that rate between
+    the two times (climbs and dives); without it the height stays `alt`.
     """
 
     def __init__(self, oid, east=0.0, north=0.0, speed=0.0, heading=0.0, alt=3000.0,
-                 env="A", moves=(), born_s=0.0, parent=None):
+                 env="A", moves=(), born_s=0.0, parent=None, climbs=()):
         self.oid, self.env, self.alt = oid, env, alt
         self.e0, self.n0, self.v0, self.h0 = east, north, speed, heading
         self.moves, self.born_s, self.parent = list(moves), born_s, parent
+        self.climbs = list(climbs)
         self.track = None   # list of (east, north, speed, heading) every STEP_S from born_s
+
+    def alt_at(self, t_s):
+        """Height at t_s: `alt` plus every climb or dive up to t_s, never below 0."""
+        h = self.alt
+        for (t0, t1, vz) in self.climbs:
+            if t_s > t0:
+                h += vz * (min(t_s, t1) - t0)
+        return max(0.0, h)
 
     def integrate(self, duration_s, objects):
         if self.parent is not None:
@@ -145,6 +156,95 @@ class Obj:
         return v * math.sin(math.radians(h)), v * math.cos(math.radians(h))
 
 
+class Member(Obj):
+    """A formation member: flies at an offset from a leader, in the leader's frame.
+
+    `slots` is a list of (t_s, along_m, across_m): the offset ahead of and to
+    the right of the leader, linear between the listed times and held outside
+    them. An offset that grows is a split from the formation, one that shrinks
+    a join. The leader must be listed before the member. Speed and heading are
+    those of the resulting path (finite differences over STEP_S).
+    """
+
+    def __init__(self, oid, leader, slots, alt=None, env="A", born_s=0.0):
+        Obj.__init__(self, oid, alt=alt if alt is not None else 0.0, env=env, born_s=born_s)
+        self.leader, self.slots = leader, sorted(slots)
+        self._alt_from_leader = alt is None
+
+    def _offset(self, t):
+        sl = self.slots
+        if t <= sl[0][0]:
+            return sl[0][1], sl[0][2]
+        for (t0, a0, c0), (t1, a1, c1) in zip(sl, sl[1:]):
+            if t <= t1:
+                f = (t - t0) / (t1 - t0) if t1 > t0 else 1.0
+                return a0 + f * (a1 - a0), c0 + f * (c1 - c0)
+        return sl[-1][1], sl[-1][2]
+
+    def integrate(self, duration_s, objects):
+        lead = objects[self.leader]
+        if self._alt_from_leader:
+            self.alt, self.climbs = lead.alt, list(lead.climbs)
+        steps = int(round((duration_s - self.born_s) / STEP_S))
+        pts = []
+        for i in range(steps + 1):
+            t = self.born_s + i * STEP_S
+            e, n, _, h = lead.state(t)
+            along, across = self._offset(t)
+            hr = math.radians(h)
+            pts.append((e + along * math.sin(hr) + across * math.cos(hr),
+                        n + along * math.cos(hr) - across * math.sin(hr)))
+        out = []
+        for i, (e, n) in enumerate(pts):
+            j = min(i, len(pts) - 2)
+            de, dn = pts[j + 1][0] - pts[j][0], pts[j + 1][1] - pts[j][1]
+            v = math.hypot(de, dn) / STEP_S
+            h = math.degrees(math.atan2(de, dn)) % 360.0 if v > 0 else lead.state(self.born_s + i * STEP_S)[3]
+            out.append((e, n, v, h))
+        self.track = out
+
+
+class Recorded(Obj):
+    """A truth object that follows recorded positions: (t_s, east_m, north_m) samples,
+    linear between them; it exists from the first sample to the last."""
+
+    def __init__(self, oid, samples, env="S", alt=0.0):
+        Obj.__init__(self, oid, alt=alt, env=env, born_s=samples[0][0])
+        self.samples = sorted(samples)
+        self.end_s = self.samples[-1][0]
+
+    def integrate(self, duration_s, objects):
+        self.track = [None, None]             # unused: state() reads the samples
+
+    def exists(self, t_s):
+        return self.born_s <= t_s <= self.end_s
+
+    def _seg(self, t):
+        sm = self.samples
+        lo, hi = 0, len(sm) - 1
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if sm[mid][0] <= t:
+                lo = mid
+            else:
+                hi = mid
+        return sm[lo], sm[hi]
+
+    def state(self, t_s):
+        a, b = self._seg(t_s)
+        dt = b[0] - a[0]
+        f = (t_s - a[0]) / dt if dt > 0 else 0.0
+        f = min(max(f, 0.0), 1.0)
+        ve, vn = ((b[1] - a[1]) / dt, (b[2] - a[2]) / dt) if dt > 0 else (0.0, 0.0)
+        return (a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2]), math.hypot(ve, vn),
+                math.degrees(math.atan2(ve, vn)) % 360.0)
+
+    def velocity(self, t_s):
+        a, b = self._seg(t_s)
+        dt = b[0] - a[0]
+        return ((b[1] - a[1]) / dt, (b[2] - a[2]) / dt) if dt > 0 else (0.0, 0.0)
+
+
 # ---------------------------------------------------------------------------
 # Sensors
 
@@ -168,13 +268,16 @@ class Sensor:
     | `sees` | object ids reported (None: all) |
     | `clock_offset_ms`, `clock_drift_ms_min` | the sensor's clock error: a report made at true time t is stamped t + offset + drift * t / 60 s. The position is measured at t (truth stays exact); a report stamped before 0 is not sent |
     | `delivery_spread_ms` | extra delay after `latency_ms`, uniform in 0 to this, drawn per report; reports then arrive out of order |
+    | `outages`, `start_s` | (start_s, end_s) windows with no reports (dropouts, intermittent updates); the time the sensor joins (a late-joining sensor) |
+    | `reuse_numbers` | a dropped track's number is given to the next new track (track-number reuse); otherwise numbers only grow |
     | `time_state` | None: reports carry no time quality. Otherwise `time_state` (`coherent`, `drifting` or `free-running`) and `time_error_ms` on every report: the clock's error at that report, rounded up, at least 1 ms; twice that when free-running (such a clock knows only a loose bound). Keys as in spec/correlate.md, "Time quality" |
     """
 
     def __init__(self, source, period_ms=1000, jitter_ms=0, sigma_m=20.0, ce="honest",
                  ce_factor=1.0, pd=1.0, latency_ms=0, bias_m=(0.0, 0.0), vel_sigma=2.0,
                  hae_sigma=30.0, swaps=(), drops=(), false_tracks=0, sees=None,
-                 clock_offset_ms=0, clock_drift_ms_min=0.0, delivery_spread_ms=0, time_state=None):
+                 clock_offset_ms=0, clock_drift_ms_min=0.0, delivery_spread_ms=0, time_state=None,
+                 outages=(), start_s=0.0, reuse_numbers=False):
         self.source = source
         self.period_ms, self.jitter_ms = period_ms, jitter_ms
         self.sigma_m, self.ce, self.ce_factor = sigma_m, ce, ce_factor
@@ -184,6 +287,12 @@ class Sensor:
         self.false_tracks, self.sees = false_tracks, sees
         self.clock_offset_ms, self.clock_drift_ms_min = clock_offset_ms, clock_drift_ms_min
         self.delivery_spread_ms, self.time_state = delivery_spread_ms, time_state
+        self.outages, self.start_s, self.reuse_numbers = list(outages), start_s, reuse_numbers
+
+    def silent(self, t_ms):
+        """True when the sensor sends nothing at t_ms: before it joins, or in an outage."""
+        t = t_ms / 1000.0
+        return t < self.start_s or any(a <= t < b for a, b in self.outages)
 
     def clock_error_ms(self, t):
         """Stamped minus true time for a report made at true time t (ms)."""
@@ -220,6 +329,12 @@ class Sensor:
             parts.append("delivery +0 to %g s" % (self.delivery_spread_ms / 1000.0))
         if self.time_state:
             parts.append("time %s" % self.time_state)
+        if self.outages:
+            parts.append("%d outage%s" % (len(self.outages), "" if len(self.outages) == 1 else "s"))
+        if self.start_s:
+            parts.append("joins at %g s" % self.start_s)
+        if self.reuse_numbers:
+            parts.append("reuses track numbers")
         return ", ".join(parts)
 
 
@@ -297,8 +412,12 @@ class Scenario:
         seen = [oid for oid in self.order if s.sees is None or oid in s.sees]
         # Track numbers: one per object in order; swaps and drops change them.
         counter = [0]
+        freed = []             # numbers of dropped tracks, for reuse_numbers
 
         def new_uid():
+            if s.reuse_numbers and freed:
+                freed.sort(key=lambda u: int(u[1:]))
+                return freed.pop(0)
             counter[0] += 1
             return "T%d" % counter[0]
 
@@ -320,8 +439,16 @@ class Scenario:
                 if kind[0] == "swap":
                     _, a, b = kind
                     uid_of[a], uid_of[b] = uid_of[b], uid_of[a]
+                    # A dropped number (None) moves with its restart time.
+                    ga, gb = gaps.pop(a, None), gaps.pop(b, None)
+                    if gb is not None:
+                        gaps[a] = gb
+                    if ga is not None:
+                        gaps[b] = ga
                 else:
                     _, o, g = kind
+                    if uid_of[o] is not None:
+                        freed.append(uid_of[o])
                     uid_of[o] = None
                     gaps[o] = events[ei][0] + g
                 ei += 1
@@ -333,11 +460,11 @@ class Scenario:
                 detected = noise.chance(s.pd)
                 t = max(0, t_nom + j)
                 o = self.objects[oid]
-                if uid_of[oid] is None or not detected or not o.exists(t / 1000.0):
+                if uid_of[oid] is None or not detected or not o.exists(t / 1000.0) or s.silent(t):
                     continue
                 e, n, _, _ = o.state(t / 1000.0)
                 ve, vn = o.velocity(t / 1000.0)
-                r = self._report(s, noise, uid_of[oid], t, e, n, ve, vn, o.alt, o.env, oid)
+                r = self._report(s, noise, uid_of[oid], t, e, n, ve, vn, o.alt_at(t / 1000.0), o.env, oid)
                 if r is not None:
                     out.append(r)
         # False tracks: each lives 20-60 s, near the objects, on a straight line.

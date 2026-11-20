@@ -1,277 +1,14 @@
 {
  "name": "63-state-test-velocity-and-height",
  "pack": "correlate-gnn-state",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "course": 90,
-    "speed_ms": 100,
-    "hae": 3000,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-1/T1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A7",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "course": 270,
-    "speed_ms": 100,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "adsb/A7"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "gate",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "state",
-     "dof": 4,
-     "value": 800.0,
-     "limit": 13.2767,
-     "pass": false
-    },
-    {
-     "stage": "confirm",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "count",
-     "value": 0,
-     "limit": 2,
-     "pass": false
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "eo-2",
-    "uid": "E3",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "hae": 3050,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "eo-2/E3"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "gate",
-     "a": "eo-2/E3",
-     "b": "adsb/A7",
-     "test": "state",
-     "dof": 4,
-     "value": 0.9975062344139651,
-     "limit": 13.2767,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "eo-2/E3",
-     "b": "adsb/A7",
-     "test": "same",
-     "value": "A",
-     "limit": "A",
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "eo-2/E3",
-     "b": "adsb/A7",
-     "test": "count",
-     "value": 1,
-     "limit": 2,
-     "pass": false
-    },
-    {
-     "stage": "gate",
-     "a": "eo-2/E3",
-     "b": "radar-1/T1",
-     "test": "state",
-     "dof": 5,
-     "value": 1.1225062344139651,
-     "limit": 15.0863,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "eo-2/E3",
-     "b": "radar-1/T1",
-     "test": "same",
-     "value": "A",
-     "limit": "A",
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "eo-2/E3",
-     "b": "radar-1/T1",
-     "test": "count",
-     "value": 1,
-     "limit": 2,
-     "pass": false
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "eo-2",
-    "uid": "E3",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "hae": 3050,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "correlate",
-     "group": "g1",
-     "members": [
-      "adsb/A7",
-      "eo-2/E3"
-     ]
-    }
-   ],
-   "trace": [
-    {
-     "stage": "gate",
-     "a": "eo-2/E3",
-     "b": "adsb/A7",
-     "test": "state",
-     "dof": 4,
-     "value": 0.9975062344139651,
-     "limit": 13.2767,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "eo-2/E3",
-     "b": "adsb/A7",
-     "test": "same",
-     "value": "A",
-     "limit": "A",
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "eo-2/E3",
-     "b": "adsb/A7",
-     "test": "count",
-     "value": 2,
-     "limit": 2,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "eo-2/E3",
-     "b": "radar-1/T1",
-     "test": "state",
-     "dof": 5,
-     "value": 1.1225062344139651,
-     "limit": 15.0863,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "eo-2/E3",
-     "b": "radar-1/T1",
-     "test": "same",
-     "value": "A",
-     "limit": "A",
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "eo-2/E3",
-     "b": "radar-1/T1",
-     "test": "count",
-     "value": 2,
-     "limit": 2,
-     "pass": true
-    },
-    {
-     "stage": "rank",
-     "a": "eo-2/E3",
-     "b": "adsb/A7",
-     "test": "rank",
-     "value": 0.0,
-     "limit": null,
-     "pass": true
-    },
-    {
-     "stage": "rank",
-     "a": "eo-2/E3",
-     "b": "radar-1/T1",
-     "test": "rank",
-     "value": 0.0,
-     "limit": null,
-     "pass": true
-    }
-   ]
-  },
-  {
-   "tick": 0,
-   "expect": [
-    {
-     "ev": "fused",
-     "group": "g1",
-     "primary": null,
-     "members": [
-      "adsb/A7",
-      "eo-2/E3"
-     ],
-     "lat": 1.0,
-     "lon": 1.0,
-     "course": 270.0,
-     "speed_ms": 99.7506234413965,
-     "hae": 3050.0
-    }
-   ],
-   "trace": []
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
+  "counts": {
+   "adsb/A7|eo-2/E3": 0,
+   "adsb/A7|radar-1/T1": 0,
+   "eo-2/E3|radar-1/T1": 2
+  },
   "entities": {
    "adsb/A7": {
-    "last_time_ms": 0,
-    "group": "g1",
-    "hold_failures": 0,
     "filter": {
      "east": [
       0.0,
@@ -287,12 +24,12 @@
       0.0,
       25.0
      ]
-    }
-   },
-   "eo-2/E3": {
-    "last_time_ms": 0,
+    },
     "group": "g1",
     "hold_failures": 0,
+    "last_time_ms": 0
+   },
+   "eo-2/E3": {
     "filter": {
      "east": [
       0.0,
@@ -308,12 +45,12 @@
       0.0,
       10000.0
      ]
-    }
+    },
+    "group": "g1",
+    "hold_failures": 0,
+    "last_time_ms": 0
    },
    "radar-1/T1": {
-    "last_time_ms": 0,
-    "group": null,
-    "hold_failures": 0,
     "filter": {
      "east": [
       0.0,
@@ -329,7 +66,10 @@
       0.0,
       25.0
      ]
-    }
+    },
+    "group": null,
+    "hold_failures": 0,
+    "last_time_ms": 0
    }
   },
   "groups": {
@@ -338,11 +78,271 @@
     "eo-2/E3"
    ]
   },
-  "counts": {
-   "adsb/A7|eo-2/E3": 0,
-   "adsb/A7|radar-1/T1": 0,
-   "eo-2/E3|radar-1/T1": 2
+  "next_group": 2,
+  "ref": [
+   1.0,
+   1.0
+  ]
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "course": 90,
+    "hae": 3000,
+    "lat": 1.0,
+    "lon": 1.0,
+    "speed_ms": 100,
+    "time_ms": 0,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": []
   },
-  "next_group": 2
- }
+  {
+   "expect": [
+    {
+     "entity": "adsb/A7",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "course": 270,
+    "lat": 1.0,
+    "lon": 1.0,
+    "speed_ms": 100,
+    "time_ms": 0,
+    "track.simulated": 0,
+    "track.source_id": "adsb",
+    "type": "a-f-A-M-F",
+    "uid": "A7"
+   },
+   "trace": [
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "dof": 4,
+     "limit": 13.2767,
+     "pass": false,
+     "stage": "gate",
+     "test": "state",
+     "value": 800.0
+    },
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "limit": 2,
+     "pass": false,
+     "stage": "confirm",
+     "test": "count",
+     "value": 0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "eo-2/E3",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "hae": 3050,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 0,
+    "track.simulated": 0,
+    "track.source_id": "eo-2",
+    "type": "a-f-A-M-F",
+    "uid": "E3"
+   },
+   "trace": [
+    {
+     "a": "eo-2/E3",
+     "b": "adsb/A7",
+     "dof": 4,
+     "limit": 13.2767,
+     "pass": true,
+     "stage": "gate",
+     "test": "state",
+     "value": 0.9975062344139651
+    },
+    {
+     "a": "eo-2/E3",
+     "b": "adsb/A7",
+     "limit": "A",
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": "A"
+    },
+    {
+     "a": "eo-2/E3",
+     "b": "adsb/A7",
+     "limit": 2,
+     "pass": false,
+     "stage": "confirm",
+     "test": "count",
+     "value": 1
+    },
+    {
+     "a": "eo-2/E3",
+     "b": "radar-1/T1",
+     "dof": 5,
+     "limit": 15.0863,
+     "pass": true,
+     "stage": "gate",
+     "test": "state",
+     "value": 1.1225062344139651
+    },
+    {
+     "a": "eo-2/E3",
+     "b": "radar-1/T1",
+     "limit": "A",
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": "A"
+    },
+    {
+     "a": "eo-2/E3",
+     "b": "radar-1/T1",
+     "limit": 2,
+     "pass": false,
+     "stage": "confirm",
+     "test": "count",
+     "value": 1
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "correlate",
+     "group": "g1",
+     "members": [
+      "adsb/A7",
+      "eo-2/E3"
+     ]
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "hae": 3050,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 0,
+    "track.simulated": 0,
+    "track.source_id": "eo-2",
+    "type": "a-f-A-M-F",
+    "uid": "E3"
+   },
+   "trace": [
+    {
+     "a": "eo-2/E3",
+     "b": "adsb/A7",
+     "dof": 4,
+     "limit": 13.2767,
+     "pass": true,
+     "stage": "gate",
+     "test": "state",
+     "value": 0.9975062344139651
+    },
+    {
+     "a": "eo-2/E3",
+     "b": "adsb/A7",
+     "limit": "A",
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": "A"
+    },
+    {
+     "a": "eo-2/E3",
+     "b": "adsb/A7",
+     "limit": 2,
+     "pass": true,
+     "stage": "confirm",
+     "test": "count",
+     "value": 2
+    },
+    {
+     "a": "eo-2/E3",
+     "b": "radar-1/T1",
+     "dof": 5,
+     "limit": 15.0863,
+     "pass": true,
+     "stage": "gate",
+     "test": "state",
+     "value": 1.1225062344139651
+    },
+    {
+     "a": "eo-2/E3",
+     "b": "radar-1/T1",
+     "limit": "A",
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": "A"
+    },
+    {
+     "a": "eo-2/E3",
+     "b": "radar-1/T1",
+     "limit": 2,
+     "pass": true,
+     "stage": "confirm",
+     "test": "count",
+     "value": 2
+    },
+    {
+     "a": "eo-2/E3",
+     "b": "adsb/A7",
+     "limit": null,
+     "pass": true,
+     "stage": "rank",
+     "test": "rank",
+     "value": 0.0
+    },
+    {
+     "a": "eo-2/E3",
+     "b": "radar-1/T1",
+     "limit": null,
+     "pass": true,
+     "stage": "rank",
+     "test": "rank",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "course": 270.0,
+     "ev": "fused",
+     "group": "g1",
+     "hae": 3050.0,
+     "lat": 1.0,
+     "lon": 1.0,
+     "members": [
+      "adsb/A7",
+      "eo-2/E3"
+     ],
+     "primary": null,
+     "speed_ms": 99.7506234413965
+    }
+   ],
+   "tick": 0,
+   "trace": []
+  }
+ ]
 }

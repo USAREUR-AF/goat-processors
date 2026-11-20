@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runner contract: tools/perf/README.md, "Runner contract". Never builds.
+here=$(cd "$(dirname "$0")" && pwd)
+exec python3 -I "$here/goat_run.py" "$@"

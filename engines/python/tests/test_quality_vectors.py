@@ -4,9 +4,7 @@ import os
 import unittest
 
 from goat_quality import Engine, PackError, load_pack, parse_pack
-from test_vectors import equal
-
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+from vectorlib import ROOT, equal
 
 
 class QualityVectors(unittest.TestCase):

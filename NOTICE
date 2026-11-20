@@ -12,5 +12,31 @@ This product is licensed under the Apache License, Version 2.0 (see LICENSE at
 the root of this repository).
 
 The engines use only the standard library of their language. No third-party
-code is included in this repository. The packs and vectors are original work;
+code is included in this repository.
+
+The runner (runner/) is built with third-party Rust crates, fetched at build
+time and not included in this repository. Its direct dependencies, each
+pinned to one version in runner/Cargo.toml and runner/Cargo.lock:
+
+  zenoh 1.9.0         EPL-2.0 OR Apache-2.0  https://github.com/eclipse-zenoh/zenoh
+  serde 1.0.228       MIT OR Apache-2.0      https://github.com/serde-rs/serde
+  serde_norway 0.9.42 MIT OR Apache-2.0      https://github.com/cafkafk/serde-yaml
+  rustls 0.23.46      Apache-2.0 OR ISC OR MIT  https://github.com/rustls/rustls
+  rustls-pki-types 1.16.0  MIT OR Apache-2.0  https://github.com/rustls/pki-types
+  x509-parser 0.18.1  MIT OR Apache-2.0      https://github.com/rusticata/x509-parser
+  ring 0.17.14        Apache-2.0 AND ISC     https://github.com/briansmith/ring
+  webpki-roots 1.0.12 CDLA-Permissive-2.0    https://github.com/rustls/webpki-roots
+
+Every crate those depend on, with its version and license, is listed in
+runner/THIRD-PARTY.md. The .deb package carries this file and LICENSE in
+/usr/share/doc/goat-processors/. The packs and vectors are original work;
 coordinates in the vectors are notional points in open ocean.
+
+Recorded ship trajectories (tools/bench/data/recorded-ships.json) are derived
+from "Vessel Traffic (AIS)" published by the NOAA Office for Coastal
+Management and the Bureau of Ocean Energy Management on MarineCadastre.gov
+(daily file AIS_2023_01_01; https://marinecadastre.gov/ais). That material is
+a work of the U.S. Government and is not subject to copyright protection
+within the United States (17 U.S.C. 403 notice). Only times and positions
+were kept; vessel identifiers were removed and positions were moved to a
+notional point in open ocean (tools/bench/recorded.py).

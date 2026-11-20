@@ -1,130 +1,130 @@
 {
  "name": "25-dateline-circle",
  "pack": "filter-dateline",
+ "snapshot": {
+  "entities": {
+   "sat/1": {
+    "course": null,
+    "kept_ms": 0,
+    "lat": 20.0,
+    "lon": -179.95,
+    "speed_ms": null,
+    "stale_ms": null,
+    "time_ms": 0
+   },
+   "sat/2": {
+    "course": null,
+    "kept_ms": null,
+    "lat": 20.0,
+    "lon": 179.85,
+    "speed_ms": null,
+    "stale_ms": null,
+    "time_ms": 0
+   }
+  }
+ },
  "steps": [
   {
-   "ingest": {
-    "track.source_id": "sat",
-    "uid": "1",
-    "time_ms": 0,
-    "lat": 20.0,
-    "lon": -179.95
-   },
    "expect": [
     {
-     "ev": "keep",
      "entity": "sat/1",
+     "ev": "keep",
      "rule": "anchorage"
     }
    ],
+   "ingest": {
+    "lat": 20.0,
+    "lon": -179.95,
+    "time_ms": 0,
+    "track.source_id": "sat",
+    "uid": "1"
+   },
    "trace": [
     {
-     "stage": "rule",
-     "rule": "zone",
      "entity": "sat/1",
-     "test": "polygon",
-     "negated": false,
-     "value": "outside",
      "limit": null,
-     "pass": false
+     "negated": false,
+     "pass": false,
+     "rule": "zone",
+     "stage": "rule",
+     "test": "polygon",
+     "value": "outside"
     },
     {
-     "stage": "rule",
-     "rule": "anchorage",
      "entity": "sat/1",
-     "test": "circle",
-     "negated": false,
-     "value": 5224.459798766329,
      "limit": 10000.0,
-     "pass": true
+     "negated": false,
+     "pass": true,
+     "rule": "anchorage",
+     "stage": "rule",
+     "test": "circle",
+     "value": 5224.459798766329
     }
    ]
   },
   {
-   "ingest": {
-    "track.source_id": "sat",
-    "uid": "2",
-    "time_ms": 0,
-    "lat": 20.0,
-    "lon": 179.85
-   },
    "expect": [
     {
-     "ev": "drop",
      "entity": "sat/2",
+     "ev": "drop",
      "rule": "default"
     }
    ],
+   "ingest": {
+    "lat": 20.0,
+    "lon": 179.85,
+    "time_ms": 0,
+    "track.source_id": "sat",
+    "uid": "2"
+   },
    "trace": [
     {
-     "stage": "rule",
-     "rule": "zone",
      "entity": "sat/2",
-     "test": "polygon",
-     "negated": false,
-     "value": "outside",
      "limit": null,
-     "pass": false
+     "negated": false,
+     "pass": false,
+     "rule": "zone",
+     "stage": "rule",
+     "test": "polygon",
+     "value": "outside"
     },
     {
-     "stage": "rule",
-     "rule": "anchorage",
      "entity": "sat/2",
-     "test": "circle",
-     "negated": false,
-     "value": 15673.378930881641,
      "limit": 10000.0,
-     "pass": false
+     "negated": false,
+     "pass": false,
+     "rule": "anchorage",
+     "stage": "rule",
+     "test": "circle",
+     "value": 15673.378930881641
     },
     {
-     "stage": "rule",
-     "rule": "tasked",
      "entity": "sat/2",
-     "test": "key",
-     "negated": false,
-     "value": null,
      "limit": [
       "alpha",
       "bravo"
      ],
+     "negated": false,
      "pass": false,
-     "unknown": true
+     "rule": "tasked",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
     },
     {
-     "stage": "rule",
-     "rule": "range-test",
      "entity": "sat/2",
-     "test": "source",
-     "negated": false,
-     "value": "sat",
      "limit": [
       "range"
      ],
-     "pass": false
+     "negated": false,
+     "pass": false,
+     "rule": "range-test",
+     "stage": "rule",
+     "test": "source",
+     "value": "sat"
     }
    ]
   }
- ],
- "snapshot": {
-  "entities": {
-   "sat/1": {
-    "time_ms": 0,
-    "lat": 20.0,
-    "lon": -179.95,
-    "course": null,
-    "speed_ms": null,
-    "stale_ms": null,
-    "kept_ms": 0
-   },
-   "sat/2": {
-    "time_ms": 0,
-    "lat": 20.0,
-    "lon": 179.85,
-    "course": null,
-    "speed_ms": null,
-    "stale_ms": null,
-    "kept_ms": null
-   }
-  }
- }
+ ]
 }

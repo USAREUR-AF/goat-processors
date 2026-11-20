@@ -2,7 +2,7 @@
 
 use std::cmp::Ordering;
 
-use crate::json::Json;
+use crate::model::Json;
 
 use super::pack::Rule;
 use super::Member;
@@ -96,4 +96,23 @@ pub fn winner(rule: Rule, cands: &[Candidate], members: &[Member], unlisted_rank
             best.0
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn majority_equality_and_number_order() {
+        assert!(equal(&Json::Int(1), &Json::Num(1.0)));
+        assert!(!equal(&Json::Int(1), &Json::Bool(true)));
+        assert!(!equal(&Json::Str("1".into()), &Json::Int(1)));
+        assert!(equal(&Json::Bool(false), &Json::Bool(false)));
+        assert_eq!(compare_numbers(&Json::Int(i64::MAX), &Json::Int(i64::MAX - 1)), Ordering::Greater);
+        assert_eq!(compare_numbers(&Json::Int(2), &Json::Num(2.5)), Ordering::Less);
+        assert!(usable(Rule::Majority, &Json::Bool(true)) && !usable(Rule::Max, &Json::Bool(true)));
+        assert!(!usable(Rule::Latest, &Json::Null) && !usable(Rule::Priority, &Json::Arr(vec![])));
+        let names: Vec<&str> = [Rule::Priority, Rule::Latest, Rule::Majority, Rule::Max, Rule::Min].iter().map(|r| r.name()).collect();
+        assert_eq!(names, ["priority", "latest", "majority", "max", "min"]);
+    }
 }

@@ -1,190 +1,12 @@
 {
  "name": "20-distance-same-source-zero-speed-latest",
  "pack": "correlate-distance",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "net-a",
-    "uid": "1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "course": 0,
-    "speed_ms": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "net-a/1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "net-a",
-    "uid": "2",
-    "time_ms": 500,
-    "lat": 1.0,
-    "lon": 1.000449729,
-    "course": 0,
-    "speed_ms": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "net-a/2"
-    },
-    {
-     "ev": "correlate",
-     "group": "g1",
-     "members": [
-      "net-a/1",
-      "net-a/2"
-     ]
-    }
-   ],
-   "trace": [
-    {
-     "stage": "gate",
-     "a": "net-a/2",
-     "b": "net-a/1",
-     "test": "distance",
-     "value": 50.00003583070038,
-     "limit": 200.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "net-a/2",
-     "b": "net-a/1",
-     "test": "course",
-     "value": 0.0,
-     "limit": 30.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "net-a/2",
-     "b": "net-a/1",
-     "test": "speed",
-     "value": 0.0,
-     "limit": 45.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "net-a/2",
-     "b": "net-a/1",
-     "test": "count",
-     "value": 1,
-     "limit": 1,
-     "pass": true
-    },
-    {
-     "stage": "rank",
-     "a": "net-a/2",
-     "b": "net-a/1",
-     "test": "rank",
-     "value": 1.9983791833705684,
-     "limit": null,
-     "pass": true
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "net-a",
-    "uid": "1",
-    "time_ms": 1000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "course": 0,
-    "speed_ms": 0
-   },
-   "expect": [],
-   "trace": [
-    {
-     "stage": "hold",
-     "a": "net-a/1",
-     "b": "net-a/2",
-     "test": "distance",
-     "value": 50.00003583070038,
-     "limit": 400.0,
-     "pass": true
-    }
-   ]
-  },
-  {
-   "tick": 1500,
-   "expect": [
-    {
-     "ev": "fused",
-     "group": "g1",
-     "primary": "net-a/1",
-     "members": [
-      "net-a/1",
-      "net-a/2"
-     ],
-     "lat": 1.0,
-     "lon": 1.0,
-     "course": 0.0,
-     "speed_ms": 0.0
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "net-a",
-    "uid": "2",
-    "time_ms": 2000,
-    "lat": 1.0,
-    "lon": 1.008994574,
-    "course": 0,
-    "speed_ms": 0
-   },
-   "expect": [
-    {
-     "ev": "leave",
-     "group": "g1",
-     "entity": "net-a/2",
-     "reason": "hold"
-    },
-    {
-     "ev": "dissolve",
-     "group": "g1",
-     "entity": "net-a/1"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "hold",
-     "a": "net-a/2",
-     "b": "net-a/1",
-     "test": "distance",
-     "value": 526.7039087945445,
-     "limit": 400.0,
-     "pass": false
-    }
-   ]
-  },
-  {
-   "tick": 2500,
-   "expect": [],
-   "trace": []
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
+  "counts": {
+   "net-a/1|net-a/2": 0
+  },
   "entities": {
    "net-a/1": {
-    "last_time_ms": 1000,
-    "group": null,
-    "hold_failures": 0,
     "filter": {
      "east": [
       0.0,
@@ -200,12 +22,12 @@
       0.998402555910543,
       2.219027334043308
      ]
-    }
-   },
-   "net-a/2": {
-    "last_time_ms": 2000,
+    },
     "group": null,
     "hold_failures": 0,
+    "last_time_ms": 1000
+   },
+   "net-a/2": {
     "filter": {
      "east": [
       526.7039087945445,
@@ -221,13 +43,191 @@
       1.4946193702670385,
       2.43185021726662
      ]
-    }
+    },
+    "group": null,
+    "hold_failures": 0,
+    "last_time_ms": 2000
    }
   },
   "groups": {},
-  "counts": {
-   "net-a/1|net-a/2": 0
+  "next_group": 2,
+  "ref": [
+   1.0,
+   1.0
+  ]
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "net-a/1",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "course": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "speed_ms": 0,
+    "time_ms": 0,
+    "track.source_id": "net-a",
+    "uid": "1"
+   },
+   "trace": []
   },
-  "next_group": 2
- }
+  {
+   "expect": [
+    {
+     "entity": "net-a/2",
+     "ev": "new"
+    },
+    {
+     "ev": "correlate",
+     "group": "g1",
+     "members": [
+      "net-a/1",
+      "net-a/2"
+     ]
+    }
+   ],
+   "ingest": {
+    "course": 0,
+    "lat": 1.0,
+    "lon": 1.000449729,
+    "speed_ms": 0,
+    "time_ms": 500,
+    "track.source_id": "net-a",
+    "uid": "2"
+   },
+   "trace": [
+    {
+     "a": "net-a/2",
+     "b": "net-a/1",
+     "limit": 200.0,
+     "pass": true,
+     "stage": "gate",
+     "test": "distance",
+     "value": 50.00003583070038
+    },
+    {
+     "a": "net-a/2",
+     "b": "net-a/1",
+     "limit": 30.0,
+     "pass": true,
+     "stage": "confirm",
+     "test": "course",
+     "value": 0.0
+    },
+    {
+     "a": "net-a/2",
+     "b": "net-a/1",
+     "limit": 45.0,
+     "pass": true,
+     "stage": "confirm",
+     "test": "speed",
+     "value": 0.0
+    },
+    {
+     "a": "net-a/2",
+     "b": "net-a/1",
+     "limit": 1,
+     "pass": true,
+     "stage": "confirm",
+     "test": "count",
+     "value": 1
+    },
+    {
+     "a": "net-a/2",
+     "b": "net-a/1",
+     "limit": null,
+     "pass": true,
+     "stage": "rank",
+     "test": "rank",
+     "value": 1.9983791833705684
+    }
+   ]
+  },
+  {
+   "expect": [],
+   "ingest": {
+    "course": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "speed_ms": 0,
+    "time_ms": 1000,
+    "track.source_id": "net-a",
+    "uid": "1"
+   },
+   "trace": [
+    {
+     "a": "net-a/1",
+     "b": "net-a/2",
+     "limit": 400.0,
+     "pass": true,
+     "stage": "hold",
+     "test": "distance",
+     "value": 50.00003583070038
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "course": 0.0,
+     "ev": "fused",
+     "group": "g1",
+     "lat": 1.0,
+     "lon": 1.0,
+     "members": [
+      "net-a/1",
+      "net-a/2"
+     ],
+     "primary": "net-a/1",
+     "speed_ms": 0.0
+    }
+   ],
+   "tick": 1500,
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "entity": "net-a/2",
+     "ev": "leave",
+     "group": "g1",
+     "reason": "hold"
+    },
+    {
+     "entity": "net-a/1",
+     "ev": "dissolve",
+     "group": "g1"
+    }
+   ],
+   "ingest": {
+    "course": 0,
+    "lat": 1.0,
+    "lon": 1.008994574,
+    "speed_ms": 0,
+    "time_ms": 2000,
+    "track.source_id": "net-a",
+    "uid": "2"
+   },
+   "trace": [
+    {
+     "a": "net-a/2",
+     "b": "net-a/1",
+     "limit": 400.0,
+     "pass": false,
+     "stage": "hold",
+     "test": "distance",
+     "value": 526.7039087945445
+    }
+   ]
+  },
+  {
+   "expect": [],
+   "tick": 2500,
+   "trace": []
+  }
+ ]
 }
