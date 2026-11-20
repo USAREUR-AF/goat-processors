@@ -249,3 +249,67 @@ fn service_reads_and_publishes_on_the_fabric() {
     let st = json::parse(&std::fs::read_to_string(d.join("status.json")).unwrap()).unwrap();
     assert!(st.get("counters").unwrap().get("per_source").unwrap().get("adsb").is_some());
 }
+
+#[test]
+fn service_batch_layout_publishes_a_fixed_key_set() {
+    use zenoh::Wait;
+    let d = tmp("service-fabric-batch");
+    let port = {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        l.local_addr().unwrap().port()
+    };
+    let mut zc = zenoh::Config::default();
+    zc.insert_json5("mode", "\"peer\"").unwrap();
+    zc.insert_json5("listen/endpoints", &format!("[\"tcp/127.0.0.1:{port}\"]")).unwrap();
+    zc.insert_json5("scouting/multicast/enabled", "false").unwrap();
+    let z = zenoh::open(zc).wait().unwrap();
+    let got = z.declare_subscriber("volatile/rou/**").with(zenoh::handlers::FifoChannel::new(10_000)).wait().unwrap();
+
+    let cfg = format!(
+        "name: t\nsite: s\npacks_dir: {}\ntick_ms: 200\nfabric:\n  mode: peer\n  connect: [\"tcp/127.0.0.1:{port}\"]\ninputs:\n  fabric:\n    keys: [\"data/entity/track/**\"]\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: quality, pack: quality-feed}}\noutputs:\n  fabric:\n    prefix: volatile/rou/stream/processors\n    layout: batch\n    heartbeat_ms: 1000\nstatus_file: {}\napi:\n  enabled: false\n",
+        repo().join("packs").display(),
+        d.join("status.json").display()
+    );
+    std::fs::write(d.join("r.yaml"), cfg).unwrap();
+    let ok = bin().args(["config", "check", "-c"]).arg(d.join("r.yaml")).output().unwrap();
+    assert!(ok.status.success(), "{}", String::from_utf8_lossy(&ok.stdout));
+    let mut child = bin().args(["run", "-c"]).arg(d.join("r.yaml")).stderr(Stdio::null()).spawn().unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut keys = std::collections::BTreeSet::new();
+    let mut joined = false;
+    let mut i = 0;
+    while Instant::now() < deadline && !(joined && keys.contains("volatile/rou/stream/processors/quality")) {
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+        for (src, dlat) in [("radar-1", 0.0), ("radar-2", 0.0001)] {
+            let r = format!("{{\"track.source_id\":\"{src}\",\"uid\":\"T1\",\"time_ms\":{now},\"lat\":{},\"lon\":1.0,\"ce\":30.0,\"type\":\"a-f-A\"}}", 1.0 + dlat + i as f64 * 1e-5);
+            z.put(format!("data/entity/track/s/{src}/T1"), r).wait().unwrap();
+        }
+        i += 1;
+        std::thread::sleep(Duration::from_millis(200));
+        while let Ok(Some(s)) = got.try_recv() {
+            let key = s.key_expr().as_str().to_string();
+            if key.ends_with("/tracks") {
+                let text = String::from_utf8_lossy(&s.payload().to_bytes()).to_string();
+                // JSON lines: one system track per line, each with now_ms.
+                for l in text.lines() {
+                    let v = json::parse(l).unwrap();
+                    assert!(v.get("now_ms").is_some(), "{l}");
+                    joined |= v.get("members").map(|m| m.to_string()) == Some("[\"radar-1/T1\",\"radar-2/T1\"]".into());
+                }
+            }
+            keys.insert(key);
+        }
+    }
+    child.kill().unwrap();
+    child.wait().unwrap();
+    assert!(joined, "no system track joined the two sources: {keys:?}");
+    // Only fixed keys: no key per track and none per quality subject.
+    for k in &keys {
+        assert!(
+            ["volatile/rou/stream/processors/tracks", "volatile/rou/stream/processors/quality"].contains(&k.as_str())
+                || k.starts_with("volatile/rou/stream/processors/events/"),
+            "a key outside the fixed set: {k}"
+        );
+    }
+}

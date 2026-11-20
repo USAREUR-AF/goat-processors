@@ -85,6 +85,11 @@ impl Session {
     pub fn put(&self, key: &str, value: &Json) -> Result<(), String> {
         self.session.put(key, value.to_string()).encoding(zenoh::bytes::Encoding::APPLICATION_JSON).wait().map_err(|e| format!("publish {key}: {e}"))
     }
+
+    /// Publishes text as JSON lines (one JSON object per line).
+    pub fn put_text(&self, key: &str, value: String) -> Result<(), String> {
+        self.session.put(key, value).encoding(zenoh::bytes::Encoding::TEXT_PLAIN.with_schema("jsonl")).wait().map_err(|e| format!("publish {key}: {e}"))
+    }
 }
 
 /// Reads a payload: a report, an array of reports, or JSON lines of reports.

@@ -131,6 +131,8 @@ exits 1. The service runs the same check before it starts.
 | `pipeline[].pack` | yes | | a pack name under `packs_dir` (`goat-processors pack ls`), or a path to a pack directory |
 | `outputs.fabric.prefix` | no | `data/processed/<site>/<name>` | key prefix of everything the runner publishes |
 | `outputs.fabric.trace` | no | `false` | also publish every trace record (large) |
+| `outputs.fabric.layout` | no | `per-entity` | `per-entity`: one key per system track and per quality subject, every tick. `batch`: the fixed keys `<prefix>/tracks` and `<prefix>/quality`, each one value holding the whole set (below) |
+| `outputs.fabric.heartbeat_ms` | no | `5000` | with `layout: batch`, the longest time between two publishes of an unchanged set, input-clock milliseconds |
 | `outputs.file.path` | no | | append one JSON line per stage per step; must be under `/var/lib/goat-processors` |
 | `outputs.file.trace` | no | `false` | include the trace in those lines |
 | `record.path` | no | | append every ingest and tick (replay format); under `/var/lib/goat-processors` |
@@ -174,6 +176,7 @@ identity by source priority.
 | state, pipeline, counters per source | `goat-processors status` |
 | is it running and ticking (exit 0 or 1) | `goat-processors health` |
 | reports per second, processing latency | `goat-processors metrics` |
+| the same for a Prometheus scraper: reports per source, system tracks, system tracks with members from more than one source, source tracks per source, events per function and event, quality events per source, latency quantiles | `GET /v1/metrics/prometheus` (role read) |
 | the system tracks now | `goat-processors tracks` |
 | what led to one system track | `goat-processors explain <id>` (the id from `tracks`) |
 | list packs | `goat-processors pack ls` |
@@ -195,6 +198,21 @@ identity by source priority.
 | `<prefix>/quality/<scope>/<subject>` | a quality measure event, or an `action-start` / `action-end`; `scope` is `entity` or `source` | every tick |
 | `<prefix>/events/<function>` | `{stage, now_ms, events}`: every event one function returned for one call | each call with events |
 | `<prefix>/trace/<function>` | `{stage, now_ms, trace}` | with `outputs.fabric.trace: true` |
+
+With `outputs.fabric.layout: batch` the key set is fixed and does not grow
+with the number of tracks:
+
+| Key | Value | When |
+|---|---|---|
+| `<prefix>/tracks` | JSON lines: one system track per line, as above, each with `now_ms`. An empty value means no system track | on a tick, when the set differs from the last one published, or `heartbeat_ms` after it |
+| `<prefix>/quality` | JSON lines: one quality event per line, each with `now_ms` | the same rule |
+| `<prefix>/events/<function>`, `<prefix>/trace/<function>` | as above | as above |
+
+JSON lines let a reader split the value with newline framing (for example
+`goat-xf-pipe-zenoh --in-frame newline`), and the runner's own fabric input
+reads it as a list of reports. For live data, put the prefix in the volatile
+class, for example `volatile/<slot>/stream/processors/<site>`, so the routers
+route it and never store it.
 
 The events are described in each function's specification under `spec/`.
 

@@ -45,10 +45,33 @@ struct Sinks {
     fabric: Option<fabric::Session>,
     prefix: String,
     fabric_trace: bool,
+    batch: Option<Batch>,
     file: Option<(File, bool)>,
     record: Option<File>,
     errors: u64,
     published: u64,
+}
+
+/// State of `layout: batch`: what was last published, and when.
+struct Batch {
+    heartbeat_ms: i64,
+    tracks: Option<(String, i64)>,
+    quality: Option<(String, i64)>,
+}
+
+impl Batch {
+    /// Whether a set whose content is `body` is due at `now`: it differs from
+    /// the last one published, or the heartbeat has passed.
+    fn due(last: &mut Option<(String, i64)>, body: String, now: i64, heartbeat_ms: i64) -> bool {
+        let due = match last {
+            None => true,
+            Some((b, t)) => *b != body || now - *t >= heartbeat_ms || now < *t,
+        };
+        if due {
+            *last = Some((body, now));
+        }
+        due
+    }
 }
 
 impl Sinks {
@@ -82,6 +105,9 @@ impl Sinks {
             for e in &s.events {
                 let ev = e.get("ev").and_then(|v| v.as_str()).unwrap_or("");
                 let field = |k: &str| e.get(k).and_then(|v| v.as_str()).map(fabric::key_chunk);
+                if self.batch.is_some() {
+                    continue;
+                }
                 if Some(i) == track_stage && (ev == "fused" || ev == "system") {
                     if let Some(id) = field("group").or_else(|| field("system")) {
                         puts.push((format!("{}/tracks/{}", self.prefix, id), with_now(e, now)));
@@ -92,6 +118,36 @@ impl Sinks {
                         puts.push((format!("{}/quality/{}/{}", self.prefix, scope, subject), with_now(e, now)));
                     }
                 }
+            }
+        }
+        let mut texts: Vec<(String, String)> = Vec::new();
+        if let (Some(b), Some(t)) = (self.batch.as_mut(), now) {
+            // Each set is JSON lines: one object per line, each with `now_ms`,
+            // so a reader splits it with newline framing, and the runner's own
+            // input reads it as a list of reports.
+            let lines = |v: &[Json]| v.iter().map(|e| with_now(e, now).to_string() + "\n").collect::<String>();
+            let tracks: Vec<Json> = track_events(out).into_iter().map(|(_, e)| e).collect();
+            let quality: Vec<Json> = out
+                .stages
+                .iter()
+                .filter(|s| s.function == "quality")
+                .flat_map(|s| s.events.iter())
+                .filter(|e| matches!(e.get("ev").and_then(|v| v.as_str()), Some("quality" | "action-start" | "action-end")))
+                .cloned()
+                .collect();
+            if track_stage.is_some() && Batch::due(&mut b.tracks, Json::Arr(tracks.clone()).to_string(), t, b.heartbeat_ms) {
+                texts.push((format!("{}/tracks", self.prefix), lines(&tracks)));
+            }
+            if out.stages.iter().any(|s| s.function == "quality")
+                && Batch::due(&mut b.quality, Json::Arr(quality.clone()).to_string(), t, b.heartbeat_ms)
+            {
+                texts.push((format!("{}/quality", self.prefix), lines(&quality)));
+            }
+        }
+        for (k, v) in texts {
+            match fab.put_text(&k, v) {
+                Ok(()) => self.published += 1,
+                Err(_) => self.errors += 1,
             }
         }
         for (k, v) in puts {
@@ -265,6 +321,10 @@ struct Runner {
     pipeline_changes: u64,
     /// The system tracks of the latest tick that made any, by id.
     tracks: BTreeMap<String, Json>,
+    /// Events returned, by (function, `ev`). Both are bounded by the specs.
+    events: BTreeMap<(String, String), u64>,
+    /// Quality events about a source, by (source, `ev`, measure or action).
+    quality_sources: BTreeMap<(String, String, String), u64>,
     tracks_now_ms: Option<i64>,
     recent: VecDeque<Recent>,
     recent_records: usize,
@@ -306,6 +366,17 @@ impl Runner {
             }
         }
         self.sinks.emit(self.n, &step, &out);
+        for st in &out.stages {
+            for e in &st.events {
+                let txt = |k: &str| e.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let ev = txt("ev");
+                if st.function == "quality" && txt("scope") == "source" {
+                    let what = if ev == "quality" { txt("measure") } else { txt("action") };
+                    *self.quality_sources.entry((txt("subject"), ev.clone(), what)).or_default() += 1;
+                }
+                *self.events.entry((st.function.clone(), ev)).or_default() += 1;
+            }
+        }
         let now = match &step {
             Step::Tick(t) => Some(*t),
             _ => None,
@@ -393,6 +464,64 @@ impl Runner {
         Json::Obj(m)
     }
 
+    /// The metrics in the Prometheus text format, for a scraper.
+    fn prometheus(&self) -> String {
+        let mut o = String::new();
+        let esc = |v: &str| v.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n");
+        let mut metric = |name: &str, kind: &str, help: &str, rows: Vec<(String, f64)>| {
+            o.push_str(&format!("# HELP goat_processors_{name} {help}\n# TYPE goat_processors_{name} {kind}\n"));
+            for (labels, v) in rows {
+                o.push_str(&format!("goat_processors_{name}{labels} {v}\n"));
+            }
+        };
+        let k = &self.p.counters;
+        let state = self.status();
+        let running = state.get("state").and_then(|v| v.as_str()) == Some("running");
+        metric("up", "gauge", "1 when the service is running and not paused", vec![(String::new(), if running && !self.paused { 1.0 } else { 0.0 })]);
+        metric("reports_in_total", "counter", "reports read, per source (track.source_id)", k.per_source.iter().map(|(s, n)| (format!("{{source=\"{}\"}}", esc(s)), *n as f64)).collect());
+        metric("reports_out_total", "counter", "reports passed by every stage", vec![(String::new(), k.reports_out as f64)]);
+        metric("reports_stopped_total", "counter", "reports stopped, per stage", k.stopped.iter().map(|(s, n)| (format!("{{function=\"{}\"}}", esc(s)), *n as f64)).collect());
+        metric("unreadable_total", "counter", "input samples that were not reports", vec![(String::new(), self.unreadable as f64)]);
+        metric("ticks_total", "counter", "ticks made", vec![(String::new(), k.ticks as f64)]);
+        metric("published_total", "counter", "values published to the fabric", vec![(String::new(), self.sinks.published as f64)]);
+        metric("output_errors_total", "counter", "outputs that failed", vec![(String::new(), self.sinks.errors as f64)]);
+        // The system tracks of the latest tick: how many, how many hold
+        // members from more than one source, and members per source.
+        let mut multi = 0u64;
+        let mut per_source: BTreeMap<String, u64> = BTreeMap::new();
+        for t in self.tracks.values() {
+            let mut srcs = std::collections::BTreeSet::new();
+            if let Some(Json::Arr(ms)) = t.get("members") {
+                for m in ms.iter().filter_map(|m| m.as_str()) {
+                    let src = m.rsplit_once('/').map(|(a, _)| a).unwrap_or(m).to_string();
+                    *per_source.entry(src.clone()).or_default() += 1;
+                    srcs.insert(src);
+                }
+            }
+            if srcs.len() > 1 {
+                multi += 1;
+            }
+        }
+        metric("system_tracks", "gauge", "system tracks at the latest tick", vec![(String::new(), self.tracks.len() as f64)]);
+        metric("system_tracks_multi_source", "gauge", "system tracks whose members come from more than one source", vec![(String::new(), multi as f64)]);
+        metric("source_tracks", "gauge", "source tracks held in a system track at the latest tick, per source", per_source.iter().map(|(s, n)| (format!("{{source=\"{}\"}}", esc(s)), *n as f64)).collect());
+        metric("events_total", "counter", "events returned, per function and event", self.events.iter().map(|((f, e), n)| (format!("{{function=\"{}\",ev=\"{}\"}}", esc(f), esc(e)), *n as f64)).collect());
+        metric("quality_source_events_total", "counter", "quality events about a source, per source, event and measure or action", self.quality_sources.iter().map(|((s, e, w), n)| (format!("{{source=\"{}\",ev=\"{}\",what=\"{}\"}}", esc(s), esc(e), esc(w)), *n as f64)).collect());
+        let summary = |v: Vec<i64>, scale: f64| -> Vec<(String, f64)> {
+            if v.is_empty() {
+                return vec![];
+            }
+            let mut s = v;
+            s.sort_unstable();
+            let q = |f: f64| s[((s.len() - 1) as f64 * f).round() as usize] as f64 * scale;
+            vec![("{quantile=\"0.5\"}".into(), q(0.5)), ("{quantile=\"0.9\"}".into(), q(0.9)), ("{quantile=\"0.99\"}".into(), q(0.99))]
+        };
+        metric("processing_seconds", "gauge", "time to take one report through every stage, recent reports", summary(self.latency_us.iter().map(|x| *x as i64).collect(), 1e-6));
+        metric("report_age_seconds", "gauge", "wall time minus report time at ingest, recent reports (wall clock only)", summary(self.age_ms.iter().copied().collect(), 1e-3));
+        metric("last_tick_ms", "gauge", "input-clock time of the latest tick, epoch ms", self.p.last_now_ms.map(|t| vec![(String::new(), t as f64)]).unwrap_or_default());
+        o
+    }
+
     fn tracks_json(&self) -> Json {
         let mut m = BTreeMap::new();
         m.insert("now_ms".into(), self.tracks_now_ms.map(Json::Int).unwrap_or(Json::Null));
@@ -458,6 +587,7 @@ impl Runner {
             }
             Ask::Pipeline => ok(self.pipeline_json()),
             Ask::Metrics => ok(self.metrics()),
+            Ask::Prometheus => crate::http::Response::text(200, "text/plain; version=0.0.4", self.prometheus()),
             Ask::Tracks => ok(self.tracks_json()),
             Ask::Explain(id) => match self.explain(&id) {
                 Some(v) => ok(v),
@@ -652,6 +782,11 @@ pub fn run(c: Config) -> Result<(), String> {
         fabric: if c.outputs.fabric.is_some() { session } else { None },
         prefix: c.output_prefix(),
         fabric_trace: c.outputs.fabric.as_ref().is_some_and(|f| f.trace),
+        batch: c.outputs.fabric.as_ref().filter(|f| f.layout == crate::config::Layout::Batch).map(|f| Batch {
+            heartbeat_ms: f.heartbeat_ms as i64,
+            tracks: None,
+            quality: None,
+        }),
         file: match &c.outputs.file {
             Some(f) => Some((append(&f.path)?, f.trace)),
             None => None,
@@ -702,6 +837,8 @@ pub fn run(c: Config) -> Result<(), String> {
         dropped_paused: 0,
         pipeline_changes: 0,
         tracks: BTreeMap::new(),
+        events: BTreeMap::new(),
+        quality_sources: BTreeMap::new(),
         tracks_now_ms: None,
         recent: VecDeque::new(),
         recent_records: 0,
@@ -786,5 +923,21 @@ pub fn run(c: Config) -> Result<(), String> {
                 next_wall = due + tick;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod batch_tests {
+    use super::Batch;
+
+    #[test]
+    fn a_set_is_published_on_change_or_at_the_heartbeat() {
+        let mut last = None;
+        assert!(Batch::due(&mut last, "a".into(), 0, 1000), "the first set is published");
+        assert!(!Batch::due(&mut last, "a".into(), 200, 1000), "unchanged within the heartbeat");
+        assert!(Batch::due(&mut last, "b".into(), 400, 1000), "changed");
+        assert!(!Batch::due(&mut last, "b".into(), 1399, 1000));
+        assert!(Batch::due(&mut last, "b".into(), 1400, 1000), "heartbeat");
+        assert!(Batch::due(&mut last, "b".into(), 100, 1000), "the clock went back");
     }
 }

@@ -144,6 +144,12 @@ fn every_route_and_verb() {
     assert!(m.get("reports_in").unwrap().as_i64().unwrap() >= 30);
     assert!(m.get("processing_us").unwrap().get("p99").is_some());
     assert!(svc.get("/v1/routes").as_array().unwrap().len() >= 13);
+    let (st, prom) = svc.raw("GET", "/v1/metrics/prometheus", None, None).unwrap();
+    assert_eq!(st, 200, "{prom}");
+    assert!(prom.contains("goat_processors_up 1"), "{prom}");
+    assert!(prom.contains("goat_processors_reports_in_total{source=\"adsb\"}"), "{prom}");
+    assert!(prom.contains("# TYPE goat_processors_system_tracks_multi_source gauge"), "{prom}");
+    assert!(prom.contains("goat_processors_events_total{function=\"correlate\""), "{prom}");
 
     // tracks and explain: the two sources are one system track, explained by its trace
     let tr = svc.get("/v1/tracks");

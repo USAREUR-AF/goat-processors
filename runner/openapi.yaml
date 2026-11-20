@@ -181,6 +181,20 @@ paths:
           content:
             application/json:
               schema: {type: object}
+  /v1/metrics/prometheus:
+    get:
+      summary: the metrics in the Prometheus text format (role read)
+      responses:
+        "200":
+          description: |
+            goat_processors_up, reports_in_total by source, reports_stopped_total
+            by function, system_tracks, system_tracks_multi_source,
+            source_tracks by source, events_total by function and ev,
+            quality_source_events_total by source, processing_seconds and
+            report_age_seconds quantiles, last_tick_ms.
+          content:
+            text/plain:
+              schema: {type: string}
   /v1/tracks:
     get:
       summary: the system tracks of the latest tick that made tracks (role read; CLI tracks)

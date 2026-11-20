@@ -345,7 +345,7 @@ pub struct Outputs {
     pub file: Option<FileOutput>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FabricOutput {
     /// Key prefix for everything the runner publishes. Default
@@ -355,6 +355,35 @@ pub struct FabricOutput {
     /// Also publish every trace record. Off by default: the trace is large.
     #[serde(default)]
     pub trace: bool,
+    /// How tracks and quality reach the fabric. `per-entity` (default): one
+    /// key per system track and per quality subject, every tick. `batch`: one
+    /// key `<prefix>/tracks` and one key `<prefix>/quality`, each carrying the
+    /// whole set in one value, published on a tick only when the set changed
+    /// or `heartbeat_ms` has passed since the last publish.
+    #[serde(default)]
+    pub layout: Layout,
+    /// With `layout: batch`, the longest time between two publishes of an
+    /// unchanged set, in input-clock milliseconds. Default 5000.
+    #[serde(default = "default_heartbeat_ms")]
+    pub heartbeat_ms: u64,
+}
+
+fn default_heartbeat_ms() -> u64 {
+    5000
+}
+
+impl Default for FabricOutput {
+    fn default() -> Self {
+        FabricOutput { prefix: None, trace: false, layout: Layout::PerEntity, heartbeat_ms: default_heartbeat_ms() }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Layout {
+    #[default]
+    PerEntity,
+    Batch,
 }
 
 #[derive(Debug, Clone, Deserialize)]
