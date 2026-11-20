@@ -164,6 +164,36 @@ The directories default to `../../packs`, `../../spec/correlate-load-vectors`,
 `../../spec/quality-load-vectors` relative to this directory. Override them with
 `zig build test -Dpacks=<dir> -Dload-vectors=<dir> -Dfuse-load-vectors=<dir> -Dfilter-load-vectors=<dir> -Dquality-load-vectors=<dir>`.
 
+## Tests
+
+`zig build test` runs, besides the vectors:
+
+| Root | What |
+|---|---|
+| `src/unit_test.zig` | the unit tests of every module (`test` blocks in each file of `src/`), the registries and the no-op test kind (`src/correlate/noop_test.zig`) |
+| `src/property_test.zig` | property tests over every scenario vector: determinism (twice, the same bytes); order independence where the specifications say order does not matter: the key order of a report, the order of `name=value` parameters on a pack line, and in a filter pack the other directives after the rules |
+| `src/fuzz_test.zig` | seeded fuzzing (seed `0x60a7`, `FUZZ_SEED` and `FUZZ_ITERATIONS` override): mutated pack.def texts through all four parsers, mutated vector files through the JSON and steps readers, generated reports through the engine of every pack; bounded to seconds |
+
+Snapshot then restore: the engine has no restore operation (no specification
+defines one), so that property is not tested.
+
+## Coverage
+
+Zig 0.13 has no coverage instrumentation of its own (no `-fprofile`, no
+sanitizer coverage; kcov would be a third-party package). `coverage/run.sh`
+measures line coverage with gdb and objdump instead: a one-shot breakpoint on
+the first statement address of every line of the DWARF line table, the test
+binaries and a Debug runner run under gdb, a line covered when its breakpoint
+was hit. Test code (the test roots, `*_test.zig`, `engine_test_util.zig`,
+every `test` block) is left out. `coverage/run.sh --check` fails below
+`coverage/floor`, and CI runs it in this engine's job.
+
+| | Lines | Coverage |
+|---|---|---|
+| Baseline (commit a2b8791, before the refactor: vectors and runner) | 3,025 of 3,077 | 98.3 % |
+| Floor, max(baseline, 80 %) | | 98.3 % |
+| Now | 3,169 of 3,195 | 99.2 % |
+
 ## The runner
 
 ```

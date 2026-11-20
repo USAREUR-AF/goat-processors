@@ -3,6 +3,7 @@
 //
 //   Pack                                  the parsed pack.def
 //   load_pack(alloc, dir) !Pack           spec operation `load_pack(dir)`
+//   parse(alloc, text) !Pack              the same, from the text of a pack.def
 //   Engine.create(backing, pack) !*Engine
 //   engine.ingest(report) !Result         one input entity
 //   engine.tick(now_ms) !Result           one tick
@@ -40,6 +41,7 @@ fn checkShape(comptime M: type) void {
     const A = std.mem.Allocator;
     const want = .{
         .{ "load_pack", fn (A, []const u8) anyerror!M.Pack },
+        .{ "parse", fn (A, []const u8) anyerror!M.Pack },
         .{ "create", fn (A, M.Pack) anyerror!*E },
         .{ "ingest", fn (*E, json.ObjectMap) anyerror!Result },
         .{ "tick", fn (*E, i64) anyerror!Result },
@@ -47,7 +49,7 @@ fn checkShape(comptime M: type) void {
         .{ "destroy", fn (*E) void },
     };
     inline for (want) |w| {
-        const holder = if (comptime std.mem.eql(u8, w[0], "load_pack")) M else E;
+        const holder = if (comptime std.mem.eql(u8, w[0], "load_pack") or std.mem.eql(u8, w[0], "parse")) M else E;
         const got = @typeInfo(@TypeOf(@field(holder, w[0]))).Fn;
         const exp = @typeInfo(w[1]).Fn;
         if (got.params.len != exp.params.len) @compileError(@typeName(M) ++ "." ++ w[0] ++ ": wrong parameter count");

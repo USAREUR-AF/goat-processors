@@ -25,6 +25,7 @@ const Num = measures.Num;
 const TimeState = qpack.TimeState;
 
 pub const load_pack = qpack.load;
+pub const parse = qpack.parse;
 
 pub const Result = record.Result;
 
@@ -544,3 +545,48 @@ pub const Engine = struct {
         return snapshot_quality.snapshot(self);
     }
 };
+
+const util = @import("../engine_test_util.zig");
+
+test "quality: samples, rules that start and end, forwarding, forgetting" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const pack = try qpack.parse(a,
+        \\pack q
+        \\version 1
+        \\filter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+        \\window window_ms=10000 min_samples=1 forget_ms=3000
+        \\rule many scope=source measure=reports op=>= limit=2 for=1 clear=0 action=mark
+        \\rule slow scope=entity measure=interval_max op=> limit=500 for=1 clear=100 action=downgrade factor=2
+        \\rule odd scope=entity measure=duplicate op=>= limit=1 for=1 clear=0 action=drop
+        \\rule seen scope=entity measure=age op=>= limit=0 for=1 clear=-1 action=alert
+    );
+    const o = try util.run(@This(), a, pack,
+        \\[{"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 0, "lat": 0, "lon": 0, "received_ms": 10, "time_state": "drifting", "time_error_ms": 5, "quality.marks": ["x"]}},
+        \\ {"ingest": {"track.source_id": "b", "uid": "2", "time_ms": 0, "lat": 0, "lon": 0}},
+        \\ {"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 1000, "lat": 0, "lon": 0.001, "speed_ms": 1, "course": 90, "ce": 10}},
+        \\ {"tick": 1000},
+        \\ {"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 1000, "lat": 0, "lon": 0.001}},
+        \\ {"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 500, "lat": 0, "lon": 0.001}},
+        \\ {"tick": 1500},
+        \\ {"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 1600, "lat": 0, "lon": 0.001}},
+        \\ {"tick": 900},
+        \\ {"tick": 10000},
+        \\ {"ingest": {"time_ms": 1}}]
+    );
+    try std.testing.expectEqualStrings("new", util.ev(o, 0, 0));
+    try std.testing.expectEqualStrings("pass", util.ev(o, 0, 1));
+    var starts: usize = 0;
+    for (o.events) |e| for (e.array.items) |x| {
+        if (std.mem.eql(u8, x.object.get("ev").?.string, "action-start")) starts += 1;
+    };
+    try std.testing.expect(starts >= 2);
+    // After the duplicate, `odd` is active: the next report of the entity is withheld.
+    try std.testing.expect(o.events[7].array.items[0].object.get("withheld").?.bool);
+    try std.testing.expectEqualStrings("reject", util.ev(o, 8, 0));
+    try std.testing.expectEqualStrings("tick-out-of-order", o.events[8].array.items[0].object.get("reason").?.string);
+    try std.testing.expect(util.has(o, 9, "forget") and util.has(o, 9, "action-end"));
+    try std.testing.expectEqualStrings("reject", util.ev(o, 10, 0));
+    try std.testing.expectEqual(@as(usize, 0), o.snapshot.object.get("entities").?.object.count());
+}

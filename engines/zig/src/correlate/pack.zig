@@ -376,3 +376,69 @@ pub fn load(alloc: Allocator, dir: []const u8) !Pack {
 pub fn loadWith(alloc: Allocator, dir: []const u8, registry: tests.Registry) !Pack {
     return parseWith(alloc, try json_read.readPackDef(alloc, dir), registry);
 }
+
+const minimal_confirm =
+    \\pack p
+    \\version 1.0.0
+    \\filter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+    \\confirm_count 2
+    \\hold_failures 2
+    \\stale_ms 1000
+;
+
+test "a minimal confirm pack, its defaults, and lines that break it" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const p = try parse(a, minimal_confirm);
+    try std.testing.expectEqualStrings("confirm", p.method.name);
+    try std.testing.expectEqual(@as(f64, 100), p.priorityOf("x"));
+    try std.testing.expect(p.timeDefaultOf("x") == null);
+    try std.testing.expectError(error.UnknownDirective, parse(a, minimal_confirm ++ "\nbogus 1"));
+    try std.testing.expectError(error.RepeatedDirective, parse(a, minimal_confirm ++ "\nstale_ms 2"));
+    try std.testing.expectError(error.DirectiveNotForMethod, parse(a, minimal_confirm ++ "\nnew_cost 2"));
+    try std.testing.expectError(error.BadValue, parse(a, minimal_confirm ++ "\nmethod vote"));
+    try std.testing.expectError(error.BadValue, parse(a, minimal_confirm ++ "\nmaneuver accel_var=0.5 p_enter=0.1 p_leave=0.2"));
+    try std.testing.expectError(error.BadValue, parse(a, minimal_confirm ++ "\nrestart gate=0"));
+    try std.testing.expectError(error.RepeatedDirective, parse(a, minimal_confirm ++ "\ntime_default s error_ms=1\ntime_default s state=drifting"));
+    try std.testing.expectError(error.NotANumber, parse(a, minimal_confirm ++ "\npriority s x"));
+    const q = try parse(a, minimal_confirm ++ "\npriority s 3 # comment\ntime_default s error_ms=1 state=free-running\nsame_source allow\noutput latest");
+    try std.testing.expectEqual(@as(f64, 3), q.priorityOf("s"));
+    try std.testing.expect(q.same_source_allow);
+    try std.testing.expectEqual(TimeState.@"free-running", q.timeDefaultOf("s").?.state.?);
+}
+
+test "an assign pack and its ranges" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const base =
+        \\pack p
+        \\version 1.0.0-rc.1
+        \\method assign
+        \\filter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+        \\new_cost 9
+        \\keep_bonus 1
+        \\stale_ms 1000
+    ;
+    const p = try parse(a, base);
+    try std.testing.expectEqualStrings("s", p.method.group_prefix);
+    try std.testing.expectError(error.MissingDirective, parse(a, minimal_confirm ++ "\nmethod assign"));
+    try std.testing.expectError(error.DirectiveNotForMethod, parse(a, base ++ "\nconfirm_count 1"));
+    try std.testing.expectError(error.BadValue, parse(a, base ++ "\nhypotheses 2"));
+    try std.testing.expectError(error.BadValue, parse(a, base ++ "\ntime_offset sigma_ms=5"));
+    _ = try parse(a, base ++ "\nwindow 3\nhypotheses 2\nmargin 4\nbias sigma_m=10 floor_m=1 gate=9\ntime_offset sigma_ms=5");
+    try std.testing.expectError(error.BadValue, parse(a, base ++ "\nbias sigma_m=1 floor_m=2 gate=9"));
+}
+
+test "numbers, counts and versions" {
+    try std.testing.expect(isDecimal("+1.5e-3"));
+    try std.testing.expect(isDecimal(".5"));
+    try std.testing.expect(!isDecimal("1e"));
+    try std.testing.expect(!isDecimal("."));
+    try std.testing.expectError(error.NotANumber, parseCount("-1"));
+    try std.testing.expect(isSemver("1.2.3"));
+    try std.testing.expect(isSemver("1.2.3+build"));
+    try std.testing.expect(!isSemver("1.2"));
+    try std.testing.expect(!isSemver("1.2.3-"));
+}

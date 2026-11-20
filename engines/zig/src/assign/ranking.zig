@@ -71,3 +71,22 @@ pub fn ranked(alloc: Allocator, e: Entries, k: usize) ![]const Assignment {
     std.mem.sort(Assignment, all.items, {}, ranksBefore);
     return all.items[0..@min(k, all.items.len)];
 }
+
+test "ranking: totals ascending, ties to the smaller choice vector, columns used once" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // Two rows, one column; entries [col, alone] per row; row 1 may not take the column.
+    const cols = [_]Column{.{ .id = 7, .others = &.{"x"} }};
+    const values = [_]?f64{ 1, 5, null, 2 };
+    const e = Entries{ .cols = &cols, .rows = &.{ "r0", "r1" }, .values = &values };
+    try std.testing.expectEqual(@as(?u64, 7), e.chosenId(0));
+    try std.testing.expectEqual(@as(?u64, null), e.chosenId(1));
+    const r = try ranked(a, e, 5);
+    try std.testing.expectEqual(@as(usize, 2), r.len);
+    try std.testing.expectEqual(@as(f64, 3), r[0].total);
+    try std.testing.expectEqual(@as(usize, 0), r[0].choice[0]);
+    try std.testing.expectEqual(@as(f64, 7), r[1].total);
+    const one = try ranked(a, e, 1);
+    try std.testing.expectEqual(@as(usize, 1), one.len);
+}

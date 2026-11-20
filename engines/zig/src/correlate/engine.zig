@@ -15,6 +15,7 @@ const Entity = entity_mod.Entity;
 pub const Pack = pack_mod.Pack;
 
 pub const load_pack = pack_mod.load;
+pub const parse = pack_mod.parse;
 
 pub const Result = record.Result;
 
@@ -294,3 +295,96 @@ pub const Engine = struct {
         return self.pack.method.snapshot(self);
     }
 };
+
+const util = @import("../engine_test_util.zig");
+
+test "confirm: rejects, new, time record, restart and the fused output" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const pack = try pack_mod.parse(a,
+        \\pack p
+        \\version 1.0.0
+        \\filter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+        \\maneuver accel_var=50 p_enter=0.05 p_leave=0.2
+        \\restart gate=20
+        \\gate mahalanobis gate=9.21
+        \\confirm_count 1
+        \\hold mahalanobis gate=18.42
+        \\hold_failures 1
+        \\stale_ms 5000
+        \\time_default b error_ms=100
+    );
+    const o = try util.run(@This(), a, pack,
+        \\[{"ingest": {"uid": "x"}},
+        \\ {"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 1000, "lat": 0, "lon": 0, "course": 90, "speed_ms": 10}},
+        \\ {"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 500, "lat": 0, "lon": 0}},
+        \\ {"ingest": {"track.source_id": "b", "uid": "2", "time_ms": 1000, "lat": 0, "lon": 0.0001, "hae": 5}},
+        \\ {"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 2000, "lat": 1, "lon": 1}},
+        \\ {"tick": 2000},
+        \\ {"tick": 20000}]
+    );
+    try std.testing.expectEqualStrings("reject", util.ev(o, 0, 0));
+    try std.testing.expectEqualStrings("missing:track.source_id", o.events[0].array.items[0].object.get("reason").?.string);
+    try std.testing.expectEqualStrings("new", util.ev(o, 1, 0));
+    try std.testing.expectEqualStrings("out-of-order", o.events[2].array.items[0].object.get("reason").?.string);
+    // b has a time error from its time_default: the `time` record comes first.
+    try std.testing.expectEqualStrings("time", o.trace[3].array.items[0].object.get("test").?.string);
+    try std.testing.expectEqualStrings("correlate", util.ev(o, 3, 1));
+    // a jumps a degree: the restart test fails, then a hold failure ends the group.
+    try std.testing.expectEqualStrings("restart", o.trace[4].array.items[0].object.get("test").?.string);
+    try std.testing.expect(!o.trace[4].array.items[0].object.get("pass").?.bool);
+    try std.testing.expectEqualStrings("leave", util.ev(o, 4, 0));
+    try std.testing.expectEqualStrings("dissolve", util.ev(o, 4, 1));
+    try std.testing.expectEqual(@as(usize, 0), o.events[5].array.items.len);
+    try std.testing.expectEqualStrings("drop", util.ev(o, 6, 0));
+    try std.testing.expectEqual(@as(usize, 0), o.snapshot.object.get("entities").?.object.count());
+}
+
+test "assign: a report gives new; the tick starts and joins system tracks" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const pack = try pack_mod.parse(a,
+        \\pack p
+        \\version 1.0.0
+        \\method assign
+        \\filter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+        \\new_cost 9
+        \\keep_bonus 1
+        \\stale_ms 5000
+        \\restart gate=20
+        \\bias sigma_m=50 floor_m=5 gate=9
+        \\time_offset sigma_ms=100
+        \\window 2
+        \\hypotheses 2
+        \\margin 50
+    );
+    const o = try util.run(@This(), a, pack,
+        \\[{"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 1000, "lat": 0, "lon": 0, "hae": 3}},
+        \\ {"tick": 1000},
+        \\ {"ingest": {"track.source_id": "b", "uid": "2", "time_ms": 1500, "lat": 0, "lon": 0.0001}},
+        \\ {"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 1500, "lat": 0, "lon": 0}},
+        \\ {"tick": 2000},
+        \\ {"tick": 3000},
+        \\ {"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 3000, "lat": 1, "lon": 1}},
+        \\ {"tick": 4000},
+        \\ {"tick": 30000},
+        \\ {"tick": 31000},
+        \\ {"ingest": {"track.source_id": "b", "uid": "2", "time_ms": 32000, "lat": 0, "lon": 0}}]
+    );
+    try std.testing.expectEqualStrings("new", util.ev(o, 0, 0));
+    try std.testing.expect(util.has(o, 1, "system") and util.has(o, 1, "provisional"));
+    var saw_bias = false;
+    var saw_join = false;
+    for (o.trace) |t| for (t.array.items) |r| {
+        if (std.mem.eql(u8, r.object.get("stage").?.string, "bias")) saw_bias = true;
+    };
+    for (o.events) |e| for (e.array.items) |x| {
+        if (std.mem.eql(u8, x.object.get("ev").?.string, "join")) saw_join = true;
+    };
+    try std.testing.expect(saw_join);
+    try std.testing.expect(saw_bias);
+    try std.testing.expect(o.snapshot.object.get("histories") != null);
+    try std.testing.expect(o.snapshot.object.get("bias") != null);
+}

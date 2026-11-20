@@ -104,3 +104,26 @@ pub fn update(st: State, m: params.Maneuver, q1: f64, dt: f64, meas: kalman.Meas
 pub fn predict(st: State, m: params.Maneuver, q1: f64, dt: f64) Filter {
     return blend(st.mu[0], st.mu[1], st.models[0].predict(dt, q1), st.models[1].predict(dt, m.accel_var));
 }
+
+test "the first state holds the long-run mode probabilities; update keeps them a distribution" {
+    const m = params.Maneuver{ .accel_var = 10, .p_enter = 0.1, .p_leave = 0.3 };
+    const ax = kalman.Axis{ .p = 0, .v = 1, .pp = 100, .pv = 0, .vv = 4 };
+    const st = init(m, .{ .east = ax, .north = ax });
+    try std.testing.expectApproxEqAbs(@as(f64, 0.75), st.mu[0], 1e-12);
+    try std.testing.expectApproxEqAbs(@as(f64, 0.25), st.mu[1], 1e-12);
+    const c = combined(st);
+    try std.testing.expectApproxEqAbs(ax.p, c.east.p, 1e-12);
+    const meas = kalman.Measurement{ .east = 50, .north = 0, .r_east = 100, .r_north = 100, .r_vel = 1 };
+    const step = update(st, m, 1, 1, meas);
+    try std.testing.expectApproxEqAbs(@as(f64, 1), step.state.mu[0] + step.state.mu[1], 1e-12);
+    // A large miss favors the maneuver model.
+    try std.testing.expect(step.state.mu[1] > st.mu[1]);
+    const p = predict(st, m, 1, 2);
+    try std.testing.expectApproxEqAbs(@as(f64, 2), p.east.p, 1e-12);
+}
+
+test "switching over 0 s is the identity" {
+    const t = switching(.{ .accel_var = 10, .p_enter = 0.1, .p_leave = 0.3 }, 0);
+    try std.testing.expectEqual(@as(f64, 1), t[0][0]);
+    try std.testing.expectEqual(@as(f64, 0), t[0][1]);
+}
