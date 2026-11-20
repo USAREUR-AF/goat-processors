@@ -24,17 +24,45 @@ func isNumber(v any) bool {
 	return false
 }
 
-// usable is Attributes, candidates: a string, a number or a boolean for priority,
-// latest and majority; a number for max and min.
-func usable(rule string, v any) bool {
-	if rule == "max" || rule == "min" {
-		return isNumber(v)
-	}
+// attributeRule is one row of the attribute rules table: which values are
+// candidates, and the winner among one or more candidates in key order.
+type attributeRule struct {
+	usable func(v any) bool
+	decide func(g *Engine, cands []candidate) *candidate
+}
+
+// scalar is a string, a number or a boolean.
+func scalar(v any) bool {
 	switch v.(type) {
 	case string, bool:
 		return true
 	}
 	return isNumber(v)
+}
+
+// attributeRules is the Attributes table: candidates are strings, numbers
+// and booleans for priority, latest and majority, numbers for max and min.
+// Every rule but majority keeps the earlier candidate on a tie. Adding a
+// rule is one row.
+var attributeRules = map[string]attributeRule{
+	"priority": {scalar, firstBest(func(g *Engine, c, w candidate) bool { return g.rankOrder(c.Entity) < g.rankOrder(w.Entity) })},
+	"latest":   {scalar, firstBest(func(_ *Engine, c, w candidate) bool { return c.LastTime > w.LastTime })},
+	"majority": {scalar, func(_ *Engine, cands []candidate) *candidate { return majority(cands) }},
+	"max":      {isNumber, firstBest(func(_ *Engine, c, w candidate) bool { return num(c.value) > num(w.value) })},
+	"min":      {isNumber, firstBest(func(_ *Engine, c, w candidate) bool { return num(c.value) < num(w.value) })},
+}
+
+// firstBest is a winner rule: the first candidate no later one beats.
+func firstBest(better func(g *Engine, c, w candidate) bool) func(*Engine, []candidate) *candidate {
+	return func(g *Engine, cands []candidate) *candidate {
+		w := &cands[0]
+		for i := 1; i < len(cands); i++ {
+			if better(g, cands[i], *w) {
+				w = &cands[i]
+			}
+		}
+		return w
+	}
 }
 
 // equal is Attributes, equality for majority: strings by bytes, numbers by value,
@@ -64,12 +92,13 @@ func num(v any) float64 { f, _ := model.ToFloat(v); return f }
 // attribute decides one attribute for a group and appends its trace record
 // (Trace, item 3). ok is false when there is no candidate.
 func (g *Engine) attribute(name string, a Attribute, members []member, tr *[]Obj) (winner string, value any, ok bool) {
+	rule := attributeRules[a.Rule]
 	var cands []candidate
 	records := []any{}
 	for i := range members {
 		m := &members[i]
 		v, present := m.Report[a.Key]
-		if !present || !usable(a.Rule, v) {
+		if !present || !rule.usable(v) {
 			continue
 		}
 		cands = append(cands, candidate{m, v})
@@ -78,7 +107,7 @@ func (g *Engine) attribute(name string, a Attribute, members []member, tr *[]Obj
 
 	var w *candidate
 	if len(cands) > 0 {
-		w = g.decide(a.Rule, cands)
+		w = rule.decide(g, cands)
 	}
 	var winnerKey, winnerValue any
 	if w != nil {
@@ -89,27 +118,6 @@ func (g *Engine) attribute(name string, a Attribute, members []member, tr *[]Obj
 		return "", nil, false
 	}
 	return w.Key, w.value, true
-}
-
-// decide applies the rule's Winner column to one or more candidates in key order.
-// Every rule except majority keeps the earlier candidate on a tie.
-func (g *Engine) decide(rule string, cands []candidate) *candidate {
-	if rule == "majority" {
-		return majority(cands)
-	}
-	better := map[string]func(c, w candidate) bool{
-		"priority": func(c, w candidate) bool { return g.rankOrder(c.Entity) < g.rankOrder(w.Entity) },
-		"latest":   func(c, w candidate) bool { return c.LastTime > w.LastTime },
-		"max":      func(c, w candidate) bool { return num(c.value) > num(w.value) },
-		"min":      func(c, w candidate) bool { return num(c.value) < num(w.value) },
-	}[rule]
-	w := &cands[0]
-	for i := 1; i < len(cands); i++ {
-		if better(cands[i], *w) {
-			w = &cands[i]
-		}
-	}
-	return w
 }
 
 // majority counts equal values; the value held by the most candidates wins, a tie

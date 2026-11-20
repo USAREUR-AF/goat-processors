@@ -38,64 +38,67 @@ func (r result) passes(negated bool) bool {
 	return (r.truth == isTrue) != negated
 }
 
-// evaluate runs one condition against the report and the entities' state
-// before it (read only).
-func evaluate(c Condition, r *report, states map[string]*State) result {
-	switch c.Name {
-	case "circle":
+// conditionKind is one row of the conditions table: the parameter sets it
+// accepts (exactly one of them; spec: Pack) and its evaluation against the
+// report and the entities' state before it (read only).
+type conditionKind struct {
+	sets [][]string
+	eval func(c Condition, r *report, states map[string]*State) result
+}
+
+// conditions is the Conditions table; adding a condition is one row (and,
+// for a new parameter, its reading in parseWhen).
+var conditions = map[string]conditionKind{
+	"circle": {[][]string{{"lat", "lon", "radius_m"}}, func(c Condition, r *report, _ map[string]*State) result {
 		d := distance(r.lat, r.lon, c.Lat, c.Lon)
 		return result{of(d <= c.RadiusM), d, c.RadiusM}
-
-	case "polygon":
+	}},
+	"polygon": {[][]string{{"vertices"}}, func(c Condition, r *report, _ map[string]*State) result {
 		where := polygonTest(c.Vertices, r.lat, r.lon)
 		return result{of(where != outside), where, nil}
-
-	case "near":
-		return near(c, r, states)
-
-	case "env":
+	}},
+	"near": {[][]string{{"reference", "radius_m", "max_age_ms"}}, near},
+	"env": {[][]string{{"in"}}, func(c Condition, r *report, _ map[string]*State) result {
 		env, ok := r.environment()
 		return inList(env, ok, c.In)
-
-	case "affiliation":
+	}},
+	"affiliation": {[][]string{{"in"}}, func(c Condition, r *report, _ map[string]*State) result {
 		aff, ok := r.affiliation()
 		return inList(aff, ok, c.In)
-
-	case "source":
+	}},
+	"source": {[][]string{{"in"}}, func(c Condition, r *report, _ map[string]*State) result {
 		return inList(r.source, true, c.In)
-
-	case "uid":
+	}},
+	"uid": {[][]string{{"in"}}, func(c Condition, r *report, _ map[string]*State) result {
 		return inList(r.uid, true, c.In)
-
-	case "key":
-		return keyCondition(c, r)
-
-	case "has":
+	}},
+	"key": {[][]string{{"name", "eq"}, {"name", "in"}, {"name", "min"}, {"name", "max"}, {"name", "min", "max"}},
+		func(c Condition, r *report, _ map[string]*State) result { return keyCondition(c, r) }},
+	"has": {[][]string{{"name"}}, func(c Condition, r *report, _ map[string]*State) result {
 		_, present := r.values[c.KeyName]
 		return result{of(present), present, nil}
-
-	case "speed":
+	}},
+	"speed": {[][]string{{"min"}, {"max"}, {"min", "max"}}, func(c Condition, r *report, _ map[string]*State) result {
 		return rangeOf(r.values["speed_ms"], c)
-
-	case "altitude":
+	}},
+	"altitude": {[][]string{{"min"}, {"max"}, {"min", "max"}}, func(c Condition, r *report, _ map[string]*State) result {
 		return rangeOf(r.values["hae"], c)
-
-	case "interval":
+	}},
+	"interval": {[][]string{{"min_ms"}}, func(c Condition, r *report, states map[string]*State) result {
 		s := states[r.key]
 		if s == nil || s.KeptMs == nil {
 			return result{isFalse, nil, c.MinMs}
 		}
 		gap := r.timeMs - *s.KeptMs
 		return result{of(gap < c.MinMs), gap, c.MinMs}
-
-	case "order":
+	}},
+	"order": {[][]string{{}}, func(c Condition, r *report, states map[string]*State) result {
 		s := states[r.key]
 		if s == nil || s.KeptMs == nil {
 			return result{isFalse, r.timeMs, nil}
 		}
 		return result{of(r.timeMs < *s.KeptMs), r.timeMs, *s.KeptMs}
-	}
-	panic("unknown condition " + c.Name) // ParsePack admits no other name
+	}},
 }
 
 // near: the distance from the report to the reference predicted to the

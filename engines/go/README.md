@@ -33,6 +33,24 @@ and `Tick(now_ms)`, each returning its events and trace records, and
 | `runner/` | the command-line runner of `tools/perf/README.md` (`runner/build`, `runner/run`) |
 | `.` (root) | no code; its test runs the correlate vectors (the perf harness times that binary here) |
 
+## Extension points
+
+Each kind of extension is one row in one table:
+
+| Kind | Table | Registration |
+|---|---|---|
+| a correlate test | `correlate.DefaultTests()` (`correlate/tests.go`) | a `TestKind` (parameters, pure `Run(Test, Pair) Outcome`) in a `correlate.Registry`, read with `ParsePackWith` / `LoadPackWith` |
+| a correlate method | `methods` (`correlate/methods.go`) | its directives, checks and constructor of the `method` interface |
+| a quality measure | `quality.DefaultMeasures()` (`quality/measures.go`) | a `Measure` (entity value from a `Window`, source `Aggregate`) in a `quality.Registry`, read with `ParsePackWith` / `LoadPackWith` |
+| a filter condition | `conditions` (`filter/conditions.go`) | its parameter sets and evaluation |
+| a fuse kinematics method, attribute rule | `kinematicsMethods` (`fuse/kinematics.go`), `attributeRules` (`fuse/attributes.go`) | one function, one rule |
+
+The default tables are built by a function at each pack load, so a test can
+register a kind in its own copy without touching any other pack: the test
+kind `noop` exists only in `correlate/noop_test.go` (with its fixture packs
+in `correlate/testdata/`), and the measure `always_one` only in
+`quality/registry_test.go`.
+
 ## Where each spec section lives
 
 ### `spec/correlate.md`

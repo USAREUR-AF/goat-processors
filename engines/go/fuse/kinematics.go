@@ -9,29 +9,47 @@ import (
 // from (nil for inverse_variance and covariance_intersection). East and north are
 // computed by the same formulas, east first.
 
+// kinematicsMethod is one row of the kinematics table: from a group's
+// predicted members, in key order, the result per axis, the member it came
+// from (nil for a combination) and, for covariance_intersection, the
+// weight of each fold.
+type kinematicsMethod func(g *Engine, members []member) (east, north Axis, from *member, folds []float64)
+
+// kinematicsMethods is the kinematics table (Kinematics); adding a method is
+// one row.
+var kinematicsMethods = map[string]kinematicsMethod{
+	"inverse_variance": func(_ *Engine, members []member) (Axis, Axis, *member, []float64) {
+		e, n := inverseVariance(members)
+		return e, n, nil, nil
+	},
+	"covariance_intersection": func(_ *Engine, members []member) (Axis, Axis, *member, []float64) {
+		e, n, folds := covarianceIntersection(members)
+		return e, n, nil, folds
+	},
+	"best": pickBy(func(_ *Engine, m, w member) bool { return m.variance() < w.variance() }),
+	"priority": pickBy(func(g *Engine, m, w member) bool {
+		return g.rankOrder(m.Entity) < g.rankOrder(w.Entity)
+	}),
+	"latest": pickBy(func(_ *Engine, m, w member) bool { return m.LastTime > w.LastTime }),
+}
+
+// pickBy is a method that takes one member's filter: the first, in key
+// order, that no later member beats (best, priority, latest).
+func pickBy(better func(g *Engine, m, w member) bool) kinematicsMethod {
+	return func(g *Engine, members []member) (Axis, Axis, *member, []float64) {
+		from := pick(members, func(m, w member) bool { return better(g, m, w) })
+		return from.east, from.north, from, nil
+	}
+}
+
 // kinematics combines the predicted members of a group by the pack's method and
 // appends the intersect records (covariance_intersection) and the kinematics
 // record (Trace, items 1 and 2).
 func (g *Engine) kinematics(name string, members []member, tr *[]Obj) (east, north Axis, from *member) {
 	method := g.pack.Kinematics
-	switch method {
-	case "inverse_variance":
-		east, north = inverseVariance(members)
-	case "covariance_intersection":
-		var weights []float64
-		east, north, weights = covarianceIntersection(members)
-		for i, w := range weights {
-			*tr = append(*tr, trace.Intersect(model.OrNull(name), members[i+1].Key, w))
-		}
-	case "best":
-		from = pick(members, func(m, w member) bool { return m.variance() < w.variance() })
-	case "priority":
-		from = pick(members, func(m, w member) bool { return g.rankOrder(m.Entity) < g.rankOrder(w.Entity) })
-	case "latest":
-		from = pick(members, func(m, w member) bool { return m.LastTime > w.LastTime })
-	}
-	if from != nil {
-		east, north = from.east, from.north
+	east, north, from, folds := kinematicsMethods[method](g, members)
+	for i, w := range folds {
+		*tr = append(*tr, trace.Intersect(model.OrNull(name), members[i+1].Key, w))
 	}
 
 	candidates := make([]any, len(members))

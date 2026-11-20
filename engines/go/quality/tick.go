@@ -56,7 +56,7 @@ func (g *Engine) Tick(now int64) (events, tr []Obj) {
 		for _, key := range sources[source] { // key order
 			of = append(of, measures[key])
 		}
-		m := sourceMeasuresOf(of)
+		m := sourceMeasuresOf(g.pack.Measures, of)
 		events = append(events, Obj{"ev": "quality", "scope": "source", "subject": source, "measures": m})
 		events, tr = g.evaluate("source", source, m, events, tr)
 	}

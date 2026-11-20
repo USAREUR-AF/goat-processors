@@ -12,10 +12,8 @@ import (
 
 // Kinematics methods and attribute rules (spec/fuse.md: What fuse does, Attributes).
 var (
-	kinematicsMethods = []string{"inverse_variance", "covariance_intersection", "best", "priority", "latest"}
-	attributeRules    = []string{"priority", "latest", "majority", "max", "min"}
-	filterParams      = []string{"accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms"}
-	onceOnly          = []string{"pack", "version", "filter", "kinematics", "stale_ms"}
+	filterParams = []string{"accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms"}
+	onceOnly     = []string{"pack", "version", "filter", "kinematics", "stale_ms"}
 )
 
 // Attribute is one `attribute <key> rule=<rule>` line.
@@ -172,7 +170,7 @@ func (p *Pack) directive(d string, values []string, seen map[string]bool) error 
 		if err != nil {
 			return err
 		}
-		if !oneOf(v, kinematicsMethods) {
+		if _, known := kinematicsMethods[v]; !known {
 			return fmt.Errorf("unknown kinematics method %q", v)
 		}
 		p.Kinematics = v
@@ -193,8 +191,8 @@ func (p *Pack) directive(d string, values []string, seen map[string]bool) error 
 			return fmt.Errorf("attribute key %q holds '='", key)
 		}
 		rule, ok := strings.CutPrefix(values[1], "rule=")
-		if !ok || !oneOf(rule, attributeRules) {
-			return fmt.Errorf("attribute %s: expected rule=<%s>", key, strings.Join(attributeRules, "|"))
+		if _, known := attributeRules[rule]; !ok || !known {
+			return fmt.Errorf("attribute %s: expected rule=<%s>", key, strings.Join(model.SortedKeys(attributeRules), "|"))
 		}
 		for _, a := range p.Attributes {
 			if a.Key == key {

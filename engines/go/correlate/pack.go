@@ -12,9 +12,20 @@ import (
 // Test is one configured test from a gate, confirm or hold line (spec: Tests, Pack).
 type Test struct {
 	Name string
-	Num  map[string]float64
-	Key  string // for "same"
+	Num  map[string]float64 // the parameters, by name
+	Key  string             // the text parameter (same)
+	kind TestKind
 }
+
+// Registry holds the extension tables a pack is read with: the Tests
+// table. DefaultRegistry is the specification's; a caller adds a kind to
+// its own copy and reads packs with ParsePackWith.
+type Registry struct {
+	Tests map[string]TestKind
+}
+
+// DefaultRegistry returns a new copy of the specification's tables.
+func DefaultRegistry() Registry { return Registry{Tests: DefaultTests()} }
 
 // Pack is a loaded pack.def (spec: correlate.md Pack, correlate-assign.md Pack).
 type Pack struct {
@@ -65,12 +76,15 @@ type Pack struct {
 }
 
 // LoadPack reads <dir>/pack.def (spec: load_pack).
-func LoadPack(dir string) (*Pack, error) {
+func LoadPack(dir string) (*Pack, error) { return LoadPackWith(dir, DefaultRegistry()) }
+
+// LoadPackWith reads <dir>/pack.def with the given tables.
+func LoadPackWith(dir string, r Registry) (*Pack, error) {
 	text, err := io.ReadPackDef(dir)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePack(text)
+	return ParsePackWith(text, r)
 }
 
 // parseFloat is the number grammar of the pack: Go's decimal syntax without
@@ -105,21 +119,21 @@ func floats(tokens []string, names []string, into ...*float64) error {
 	return nil
 }
 
-func parseTest(fields []string) (Test, error) {
+func parseTest(fields []string, kinds map[string]TestKind) (Test, error) {
 	if len(fields) == 0 {
 		return Test{}, fmt.Errorf("test name missing")
 	}
-	kind, ok := testKinds[fields[0]]
+	kind, ok := kinds[fields[0]]
 	if !ok {
 		return Test{}, fmt.Errorf("unknown test %q", fields[0])
 	}
-	params, err := io.Params(fields[1:], kind.params, nil)
+	params, err := io.Params(fields[1:], kind.Params, nil)
 	if err != nil {
 		return Test{}, err
 	}
-	t := Test{Name: fields[0], Num: map[string]float64{}}
+	t := Test{Name: fields[0], Num: map[string]float64{}, kind: kind}
 	for k, v := range params {
-		if kind.text {
+		if kind.Text {
 			t.Key = v
 			continue
 		}
@@ -143,7 +157,10 @@ func oneValue(d string, rest []string) (string, error) {
 var repeatable = map[string]bool{"gate": true, "confirm": true, "hold": true, "priority": true, "time_default": true}
 
 // ParsePack parses the text of a pack.def (spec: Pack).
-func ParsePack(text string) (*Pack, error) {
+func ParsePack(text string) (*Pack, error) { return ParsePackWith(text, DefaultRegistry()) }
+
+// ParsePackWith parses the text of a pack.def with the given tables.
+func ParsePackWith(text string, r Registry) (*Pack, error) {
 	p := &Pack{SameSource: "forbid", Output: "priority", Priority: map[string]int64{}, Method: "confirm", Window: 1, Hypotheses: 1,
 		TimeDefaults: map[string]model.TimeDefault{}}
 	seen := map[string]bool{}
@@ -160,7 +177,7 @@ func ParsePack(text string) (*Pack, error) {
 			return nil, fmt.Errorf("line %d: repeated directive %q", n+1, d)
 		}
 		seen[d] = true
-		if err := p.directive(d, rest); err != nil {
+		if err := p.directive(d, rest, r); err != nil {
 			return nil, fmt.Errorf("line %d: %w", n+1, err)
 		}
 	}
@@ -171,7 +188,7 @@ func ParsePack(text string) (*Pack, error) {
 }
 
 // directive applies one line.
-func (p *Pack) directive(d string, rest []string) error {
+func (p *Pack) directive(d string, rest []string, r Registry) error {
 	var err error
 	var v string
 	switch d {
@@ -237,7 +254,7 @@ func (p *Pack) directive(d string, rest []string) error {
 		}
 	case "gate", "confirm", "hold":
 		var t Test
-		if t, err = parseTest(rest); err == nil {
+		if t, err = parseTest(rest, r.Tests); err == nil {
 			switch d {
 			case "gate":
 				p.Gate = append(p.Gate, t)
