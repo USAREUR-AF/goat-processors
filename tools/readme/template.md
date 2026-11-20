@@ -168,16 +168,17 @@ explained in [Methods and packs](#methods-and-packs).
 
 An AI agent here is a program, usually driven by a language model, that reads
 data and acts through tools. The processors stay fast and exact, with no model
-inside the engines. The design connects agents at the edges, through the same
-doors a person uses, and gives every agent action the identity it acts for and
-an entry in a log.
+inside the engines. Agents connect at the edges, through the same doors a
+person uses, and every agent action carries the identity it acts for and is
+written to an audit log.
 
 {{agentic}}
 
-The runner works with no agent at all, and in the design every agent feature
-stays optional. Each site declares which model its agent features may use, one
-on its own machines or one hosted by a provider, and the highest level of data
-that may be sent to it. {{agentic_design}}
+Every agent feature is optional: with all of them enabled and no agent
+connected, the runner's output is the same, byte for byte (tested). Each site
+declares which model its agent features may use, one on its own machines or
+one hosted by a provider, and the highest level of data that may be sent to
+it. {{agentic_design}}
 
 ## Contributing
 

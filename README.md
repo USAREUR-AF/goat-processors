@@ -236,28 +236,29 @@ All numbers are from the evaluation set (663 scenarios, held-out seeds); bracket
 
 An AI agent here is a program, usually driven by a language model, that reads
 data and acts through tools. The processors stay fast and exact, with no model
-inside the engines. The design connects agents at the edges, through the same
-doors a person uses, and gives every agent action the identity it acts for and
-an entry in a log.
+inside the engines. Agents connect at the edges, through the same doors a
+person uses, and every agent action carries the identity it acts for and is
+written to an audit log.
 
-None of these interfaces is built yet. A row says Built only when its code and its tests are on main.
+Six of the seven interfaces are built. A row says Built only when its code and its tests are on main.
 
 | Interface | What it lets you build | Status |
 |---|---|---|
-| MCP server | Connect an AI assistant to a running runner over MCP (Model Context Protocol, the common way an assistant calls a program's tools): it can read tracks and quality marks and propose changes, with the authority of the person it acts for and no more | Designed |
-| Agent as a source | Have an agent publish tracks or notes on the goat fabric (the network the runner reads and publishes on) under its own name, marked as agent-derived with its model and inputs; the processors take them in like any other source | Designed |
+| [MCP server](runner/src/mcp.rs) | Connect an AI assistant to a running runner over MCP (Model Context Protocol, the common way an assistant calls a program's tools): it can read tracks and quality marks and propose changes, with the authority of the person it acts for and no more | Built |
+| [Agent as a source](runner/src/api.rs) | Have an agent publish tracks or notes on the goat fabric (the network the runner reads and publishes on) under its own name, marked as agent-derived with its model and inputs; the processors take them in like any other source | Built |
 | Agent as an adjudicator | Let an agent or an analyst settle a hard case with a hint ("treat A and B as one object", "keep A and B apart") that the engines record and trace like any other input, so a replay stays exact | Designed |
-| Settings proposals and site auto-approval | Have an agent propose a pack or config change that a person approves, or that a site rule approves within set bounds once the benchmark passes; every change is logged and can be reverted in one step | Designed |
-| Audit log | See every agent call and action afterwards: who it acted for, which tool, a fingerprint (hash) of its inputs, and the result | Designed |
-| The "why?" explainer | Ask in plain words why two tracks were joined or kept apart, and get an answer in which every sentence cites the trace record it comes from | Designed |
-| Build-your-own guide | Build your own integration from one runnable example per interface (MCP, source, adjudicator, settings), each run in CI | Designed |
+| [Settings proposals and site auto-approval](runner/src/proposals.rs) | Have an agent propose another installed pack for a function; a person approves it, or a site rule does, within the packs the rule allows and once its gate command (the benchmark, for example) passes; every change is logged and can be reverted in one step | Built |
+| [Audit log](runner/src/api.rs) | See every agent call and action afterwards: who it acted for, which tool, a fingerprint (hash) of its inputs, and the result | Built |
+| [The "why?" explainer](runner/src/agentic.rs) | Ask in plain words why two tracks were joined or kept apart, and get an answer in which every sentence cites the trace record it comes from | Built |
+| [Build-your-own guide](runner/examples/README.md) | Build your own integration from one runnable example per built interface (MCP, source, settings), each run in CI; the adjudicator example follows when hints are built | Built |
 
 Built: the code and its tests are on main. Written: the document exists. Designed: decided, not yet in the tree.
 
-The runner works with no agent at all, and in the design every agent feature
-stays optional. Each site declares which model its agent features may use, one
-on its own machines or one hosted by a provider, and the highest level of data
-that may be sent to it. The design, with the cost and the matching safeguard for each choice, is in [`docs/design/agentic-ai.md`](docs/design/agentic-ai.md).
+Every agent feature is optional: with all of them enabled and no agent
+connected, the runner's output is the same, byte for byte (tested). Each site
+declares which model its agent features may use, one on its own machines or
+one hosted by a provider, and the highest level of data that may be sent to
+it. The design, with the cost and the matching safeguard for each choice, is in [`docs/design/agentic-ai.md`](docs/design/agentic-ai.md).
 
 ## Contributing
 

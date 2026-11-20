@@ -333,8 +333,9 @@ def agentic():
         lead = ("None of these interfaces is built yet. A row says Built only when its code and its "
                 "tests are on main.")
     else:
-        lead = ("%s of the %d interfaces are built. A row says Built only when its code and its tests "
-                "are on main." % (WORDS.get(built, str(built)), len(rows)))
+        lead = ("%s of the %s interfaces %s built. A row says Built only when its code and its tests "
+                "are on main." % (WORDS.get(built, str(built)), WORDS.get(len(rows), str(len(rows))).lower(),
+                                  "is" if built == 1 else "are"))
     out = [lead, "",
            "| Interface | What it lets you build | Status |", "|---|---|---|"]
     for i in rows:

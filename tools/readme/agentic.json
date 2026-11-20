@@ -1,7 +1,7 @@
 {
   "_about": [
     "The agent interfaces, one entry each, and their status. tools/readme/make-readme.py writes the README section from this file and site/build.py checks the landing page against it.",
-    "status is one of Built, Written, Designed. Built: the code is on main and every path in tests exists there (CI runs them on every change). Written: the document named in link exists. Designed: decided, not yet in the tree.",
+    "status is one of Built, Written, Designed. Built: the code is on main and every path in tests exists there (runner/tests/agents.rs holds one test per build-list item, a1 to a9, run by the runner workflow on every change). Written: the document named in link exists. Designed: decided, not yet in the tree.",
     "Both scripts refuse a Built entry with no tests or a missing test path, and a Built or Written entry whose link is missing.",
     "build lists the items of the agent build list (A1 to A9) the entry covers."
   ],
@@ -15,9 +15,11 @@
         "A1",
         "A2"
       ],
-      "status": "Designed",
-      "link": null,
-      "tests": []
+      "status": "Built",
+      "link": "runner/src/mcp.rs",
+      "tests": [
+        "runner/tests/agents.rs"
+      ]
     },
     {
       "id": "source",
@@ -26,9 +28,11 @@
       "build": [
         "A3"
       ],
-      "status": "Designed",
-      "link": null,
-      "tests": []
+      "status": "Built",
+      "link": "runner/src/api.rs",
+      "tests": [
+        "runner/tests/agents.rs"
+      ]
     },
     {
       "id": "adjudicator",
@@ -44,13 +48,15 @@
     {
       "id": "settings",
       "name": "Settings proposals and site auto-approval",
-      "lets_you": "have an agent propose a pack or config change that a person approves, or that a site rule approves within set bounds once the benchmark passes; every change is logged and can be reverted in one step",
+      "lets_you": "have an agent propose another installed pack for a function; a person approves it, or a site rule does, within the packs the rule allows and once its gate command (the benchmark, for example) passes; every change is logged and can be reverted in one step",
       "build": [
         "A5"
       ],
-      "status": "Designed",
-      "link": null,
-      "tests": []
+      "status": "Built",
+      "link": "runner/src/proposals.rs",
+      "tests": [
+        "runner/tests/agents.rs"
+      ]
     },
     {
       "id": "audit",
@@ -59,9 +65,11 @@
       "build": [
         "A6"
       ],
-      "status": "Designed",
-      "link": null,
-      "tests": []
+      "status": "Built",
+      "link": "runner/src/api.rs",
+      "tests": [
+        "runner/tests/agents.rs"
+      ]
     },
     {
       "id": "explainer",
@@ -70,20 +78,24 @@
       "build": [
         "A7"
       ],
-      "status": "Designed",
-      "link": null,
-      "tests": []
+      "status": "Built",
+      "link": "runner/src/agentic.rs",
+      "tests": [
+        "runner/tests/agents.rs"
+      ]
     },
     {
       "id": "guide",
       "name": "Build-your-own guide",
-      "lets_you": "build your own integration from one runnable example per interface (MCP, source, adjudicator, settings), each run in CI",
+      "lets_you": "build your own integration from one runnable example per built interface (MCP, source, settings), each run in CI; the adjudicator example follows when hints are built",
       "build": [
         "A8"
       ],
-      "status": "Designed",
-      "link": null,
-      "tests": []
+      "status": "Built",
+      "link": "runner/examples/README.md",
+      "tests": [
+        "runner/tests/agents.rs"
+      ]
     }
   ]
 }
