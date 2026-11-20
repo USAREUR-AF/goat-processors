@@ -18,7 +18,17 @@ public final class TestMain {
     private TestMain() {}
 
     static final List<String> CLASSES = List.of(
-            "goat.correlate.NoopTestKindTest");
+            "goat.model.ModelTest",
+            "goat.trace.TraceTest",
+            "goat.io.IoTest",
+            "goat.filter.FilterTest",
+            "goat.correlate.CorrelateTest",
+            "goat.correlate.NoopTestKindTest",
+            "goat.assign.AssignTest",
+            "goat.fuse.FuseTest",
+            "goat.quality.QualityTest",
+            "goat.property.PropertyTest",
+            "goat.fuzz.FuzzTest");
 
     public static void main(String[] args) throws Exception {
         int pass = 0, fail = 0;

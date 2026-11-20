@@ -8,7 +8,8 @@ import java.util.Map;
 
 /**
  * Minimal JSON reader and writer. Objects are LinkedHashMap, arrays ArrayList,
- * integers Long, other numbers Double, JSON null is Java null.
+ * integers Long, other numbers Double, JSON null is Java null. Input that is not JSON is an
+ * IllegalArgumentException, whatever is wrong with it.
  */
 public final class Json {
     private final String s;
@@ -39,6 +40,12 @@ public final class Json {
         }
     }
 
+    /** The character at the cursor; the end of the input is an error. */
+    private char peek() {
+        if (i >= s.length()) throw err("unexpected end");
+        return s.charAt(i);
+    }
+
     private void expect(char c) {
         if (i >= s.length() || s.charAt(i) != c) throw err("expected '" + c + "'");
         i++;
@@ -67,7 +74,7 @@ public final class Json {
         Map<String, Object> m = new LinkedHashMap<>();
         expect('{');
         ws();
-        if (s.charAt(i) == '}') { i++; return m; }
+        if (peek() == '}') { i++; return m; }
         while (true) {
             ws();
             String k = string();
@@ -76,7 +83,7 @@ public final class Json {
             ws();
             m.put(k, value());
             ws();
-            if (s.charAt(i) == ',') { i++; continue; }
+            if (peek() == ',') { i++; continue; }
             expect('}');
             return m;
         }
@@ -86,12 +93,12 @@ public final class Json {
         List<Object> l = new ArrayList<>();
         expect('[');
         ws();
-        if (s.charAt(i) == ']') { i++; return l; }
+        if (peek() == ']') { i++; return l; }
         while (true) {
             ws();
             l.add(value());
             ws();
-            if (s.charAt(i) == ',') { i++; continue; }
+            if (peek() == ',') { i++; continue; }
             expect(']');
             return l;
         }
@@ -105,7 +112,8 @@ public final class Json {
             char c = s.charAt(i++);
             if (c == '"') return b.toString();
             if (c != '\\') { b.append(c); continue; }
-            char e = s.charAt(i++);
+            char e = peek();
+            i++;
             switch (e) {
                 case '"': b.append('"'); break;
                 case '\\': b.append('\\'); break;
@@ -116,7 +124,12 @@ public final class Json {
                 case 'r': b.append('\r'); break;
                 case 't': b.append('\t'); break;
                 case 'u':
-                    b.append((char) Integer.parseInt(s.substring(i, i + 4), 16));
+                    if (i + 4 > s.length()) throw err("unexpected end");
+                    try {
+                        b.append((char) Integer.parseInt(s.substring(i, i + 4), 16));
+                    } catch (NumberFormatException ex) {
+                        throw err("bad escape");
+                    }
                     i += 4;
                     break;
                 default: throw err("bad escape");

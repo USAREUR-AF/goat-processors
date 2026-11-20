@@ -168,10 +168,33 @@ Floats: Java evaluates every `double` operation as one correctly rounded binary6
 (strict semantics since Java 17) and never contracts into a fused multiply-add; the code calls no
 `Math.fma`.
 
+## Tests
+
+`test/` holds the engine's own tests, run by `goat.TestMain` (standard library only: every
+`public static void test*()` of the listed classes); `build.sh` runs them before the vectors.
+
+| Kind | Where |
+|---|---|
+| unit, per module | `test/goat/<module>/*Test.java`: model, trace and snapshot, io (JSON, function table, steps, comparison, runner contract), filter, correlate, assign, fuse, quality |
+| registration point | `test/goat/correlate/NoopTestKindTest.java` (above) |
+| property: determinism | `PropertyTest`: every scenario vector twice, and every pack on a seeded random scenario twice, byte for byte |
+| property: order independence | `PropertyTest`: a report's key order (a JSON object); correlate's once-only directives (correlate.md, Pack); filter's directives other than its rules (filter.md, Pack) |
+| property: snapshot then restore | none: this engine has no restore, as no specification defines reading a snapshot back |
+| fuzzing | `FuzzTest`: the JSON reader (round trip of seeded random values; mutated vector files and random text) and the four pack.def readers (mutated packs and load vectors). Each must accept or refuse with its own error, the same way twice. Seeded (`goat.testkit.Rng`, xorshift64*), at least 200 cases and at most 4 s per test; `-Dgoat.fuzz.cases=N` runs longer |
+
+**Coverage.** Java has no line coverage in the JDK without a third-party package (JaCoCo is
+one), so `test/goat/coverage/Coverage.java` measures it with the JDK's own debugger interface,
+`jdk.jdi`: a breakpoint on every line of every class of `src/` (the lines of the class files'
+line tables), counted when hit by the tests or any conformance vector. `coverage.sh` runs it and
+fails below the floor; CI runs it in the java job. Baseline (the engine before the refactor,
+commit 407a295, under the conformance vectors, its only tests then): 96.6 % (2,654 of 2,748
+lines). Floor: max(96.6 %, 80 %) = 96.6 %. The per-file report is `build-test/coverage.tsv`.
+
 ## Build, test, run
 
 ```
 engines/java/build.sh          # compile src/ and test/, the tests (goat.TestMain), then every conformance vector
+engines/java/coverage.sh       # line coverage of tests and vectors; fails below 96.6 %
 engines/java/runner/build      # the perf runner (tools/perf/README.md, Runner contract)
 engines/java/runner/run --function correlate --pack packs/correlate-gnn --steps <file> [--events <file>] [--trace]
 ```
