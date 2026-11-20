@@ -55,10 +55,14 @@ pub fn cloneValue(a: Allocator, v: json.Value) Allocator.Error!json.Value {
             break :blk .{ .array = out };
         },
         .object => |obj| blk: {
-            var out = json.ObjectMap.init(a);
-            try out.ensureTotalCapacity(obj.count());
-            var it = obj.iterator();
-            while (it.next()) |e| out.putAssumeCapacity(try a.dupe(u8, e.key_ptr.*), try cloneValue(a, e.value_ptr.*));
+            // The map's entries and hash index copied as they are (no key is
+            // hashed again), then each key and value copied in place: a key's
+            // bytes are unchanged, so its hash in the index still holds.
+            var out = try obj.cloneWithAllocator(a);
+            for (out.keys(), out.values()) |*k, *val| {
+                k.* = try a.dupe(u8, k.*);
+                val.* = try cloneValue(a, val.*);
+            }
             break :blk .{ .object = out };
         },
     };
@@ -157,7 +161,7 @@ test "ce, time error and time state readers" {
     try std.testing.expectEqual(@as(f64, 0), none.error_ms);
 }
 
-test "clone is deep and keeps key order" {
+test "clone is deep, keeps key order and lookups work on a large object" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
@@ -166,5 +170,15 @@ test "clone is deep and keeps key order" {
     try std.testing.expectEqualStrings("b", c.object.keys()[0]);
     try std.testing.expectEqualStrings("y", c.object.get("b").?.array.items[1].object.get("x").?.string);
     try std.testing.expect(isNumber(.{ .number_string = "1e400" }));
+    var big = json.ObjectMap.init(a);
+    var names: [20][]u8 = undefined;
+    for (&names, 0..) |*n, i| {
+        n.* = try std.fmt.allocPrint(a, "key{d}", .{i});
+        try big.put(n.*, .{ .integer = @intCast(i) });
+    }
+    const cb = try cloneValue(a, .{ .object = big });
+    for (&names) |n| n[0] = 'X';
+    try std.testing.expectEqual(@as(i64, 13), cb.object.get("key13").?.integer);
+    try std.testing.expect(cb.object.get("Xey13") == null);
     try std.testing.expect(asNumber(.{ .string = "1" }) == null);
 }
