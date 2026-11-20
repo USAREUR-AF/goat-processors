@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-#include "json.hpp"
+#include "model/json.hpp"
 
 namespace vectors {
 
