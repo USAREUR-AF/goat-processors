@@ -932,17 +932,6 @@
   },
   "next_system": 2,
   "reported": [],
-  "intervals": {
-   "adsb": [
-    1000
-   ],
-   "eo-2": [
-    1000
-   ],
-   "radar-1": [
-    1000
-   ]
-  },
   "bias": {
    "adsb|eo-2": {
     "east": -19.99994762539523,

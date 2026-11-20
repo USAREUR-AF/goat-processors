@@ -152,11 +152,6 @@
   "reported": [
    "adsb/A7",
    "radar-1/T1"
-  ],
-  "intervals": {
-   "radar-1": [
-    1000
-   ]
-  }
+  ]
  }
 }

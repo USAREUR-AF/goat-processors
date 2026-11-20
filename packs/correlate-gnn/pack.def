@@ -5,33 +5,35 @@
 # on two consecutive reports. It stays grouped until it falls outside a wider
 # region (chi-square 2 dof, 99.99 %: 18.42) on two consecutive reports.
 # Derived values, each from a stated probability or unit:
-# - course 42 deg and speed 73 %, both above 25 m/s: each track's velocity
+# - course 42 deg and speed 73 %: each track's velocity
 #   error is vel_sigma_ms = 5 m/s per axis, so the difference of two tracks has
 #   5 * sqrt(2) = 7.1 m/s, and 99 % of it (z = 2.576) lies within 18.2 m/s.
 #   At 25 m/s that is 18.2 / 25 = 0.73 rad (42 deg) of course and a
-#   speed ratio within 73 %. Below 25 m/s course is not defined well enough to
-#   test, so both tests are skipped.
+#   speed ratio within 73 %. Below 5 m/s, the velocity error itself, course
+#   is not defined, so both tests are skipped; between 5 and 25 m/s the tests
+#   are stricter than 99 %.
 # - height within 300 m: three times a 100 m height error.
 # - confirm on 2 reports in a row: a different object passes the 99 % gate by
 #   chance at most about one time in ten here, so two in a row keep false
 #   confirmation near 1 %. Leave after 2 failures in a row of the 99.99 %
 #   region, so one outlier report never splits a pair.
-# - stale after 60 s without a report (the fixed form of staleness): five
-#   times the slowest update period this pack expects (12 s); five missed
-#   updates in a row at a detection probability of 0.5 happen about 3 % of
-#   the time.
+# - stale after 120 s without a report (the fixed form of staleness): ten
+#   times the slowest update period this pack expects (12 s); ten missed
+#   updates in a row at a detection probability of 0.5 happen about 0.1 % of
+#   the time. (Staleness from each source's rate, stale_rate, measured worse
+#   for this pack on the benchmark, so it is not used here.)
 pack           correlate-gnn
 version        1.0.0
 filter         accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
 gate           mahalanobis gate=9.21
 gate           same key=track.simulated
 gate           same key=@env
-confirm        course max_deg=42 min_speed_ms=25
-confirm        speed max_pct=73 min_speed_ms=25
+confirm        course max_deg=42 min_speed_ms=5
+confirm        speed max_pct=73 min_speed_ms=5
 confirm        altitude max_m=300
 confirm_count  2
 hold           mahalanobis gate=18.42
 hold_failures  2
-stale_ms       60000
+stale_ms       120000
 same_source    forbid
 output         priority

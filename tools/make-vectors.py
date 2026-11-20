@@ -171,7 +171,7 @@ scenario("16-dissolve-resets-remaining-member", "correlate-gnn", [
     ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
     ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
     ("ingest", rep("adsb", "A7", 2000, 3000, 0, ce=30, **AIR)),
-    ("tick", 61001),
+    ("tick", 121001),
 ], [["new"], ["new"], ["correlate"], [], ["leave", "dissolve", "drop"]])
 
 # 17. In a three-member group the hold stops at the first member that passes.
@@ -273,9 +273,9 @@ scenario("27-assign-stale-members", "correlate-assign", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
     ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
     ("tick", 500),
-    ("ingest", rep("radar-1", "T1", 30000, 0, 0, ce=30, **AIR)),
-    ("tick", 60001),
-    ("tick", 90001),
+    ("ingest", rep("radar-1", "T1", 60000, 0, 0, ce=30, **AIR)),
+    ("tick", 120001),
+    ("tick", 180001),
 ], [["new"], ["new"], ["start", "join", "system"], [], ["leave", "drop", "system"], ["leave", "end", "drop"]])
 
 # 28. An air and a surface track at one spot fail the gate: two system tracks.

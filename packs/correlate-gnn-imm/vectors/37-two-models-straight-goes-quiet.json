@@ -251,13 +251,6 @@
   },
   "groups": {},
   "counts": {},
-  "next_group": 1,
-  "intervals": {
-   "radar-1": [
-    1000,
-    1000,
-    1000
-   ]
-  }
+  "next_group": 1
  }
 }

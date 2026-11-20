@@ -145,7 +145,7 @@
    "ingest": {
     "track.source_id": "radar-1",
     "uid": "T1",
-    "time_ms": 30000,
+    "time_ms": 60000,
     "lat": 1.0,
     "lon": 1.0,
     "ce": 30,
@@ -156,7 +156,7 @@
    "trace": []
   },
   {
-   "tick": 60001,
+   "tick": 120001,
    "expect": [
     {
      "ev": "leave",
@@ -202,7 +202,7 @@
    ]
   },
   {
-   "tick": 90001,
+   "tick": 180001,
    "expect": [
     {
      "ev": "leave",
@@ -230,11 +230,6 @@
   "entities": {},
   "systems": {},
   "next_system": 2,
-  "reported": [],
-  "intervals": {
-   "radar-1": [
-    30000
-   ]
-  }
+  "reported": []
  }
 }
