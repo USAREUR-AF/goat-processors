@@ -788,6 +788,16 @@
   },
   "next_system": 2,
   "reported": [],
+  "intervals": {
+   "adsb": [
+    1000,
+    1000
+   ],
+   "radar-1": [
+    1000,
+    1000
+   ]
+  },
   "bias": {
    "adsb|radar-1": {
     "east": 399.9999531111168,

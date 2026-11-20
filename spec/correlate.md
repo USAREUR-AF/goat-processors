@@ -1,9 +1,15 @@
 # Correlate specification
 
-Status: Written. Version 0.8. Every language's engine implements this document
+Status: Written. Version 1.0. Every language's engine implements this document
 and passes every vector. Engines are written from this document and the
 vectors, never from another engine's source.
-Version 0.8 adds the time quality of a report (Reports, "Time quality") and
+Version 1.0 retires the `window` test; adds the `state` test (the full-state
+track-to-track statistic), confirmation by sequential test (`sprt`), staleness
+from each source's update interval (`stale_rate`) and the `fused` output, which
+becomes the default; and states where each default value of the packs comes
+from (Methods and sources). A pack that names its directives and uses no
+`window` test behaves as in 0.8, except that a pack without an `output` line
+now gives the fused output. Version 0.8 added the time quality of a report (Reports, "Time quality") and
 the pack directive `time_default`; a report and pack without them behave as
 in 0.7. Version 0.7 added the optional `restart` directive (Restart). Version 0.6 spelled the pack line `maneuver` (it was
 `manoeuvre` in 0.5).
@@ -303,17 +309,49 @@ B's predicted position.
 | Test | Parameters | `value` | Passes when |
 |---|---|---|---|
 | `distance` | `max_m` | distance, m | `value < max_m` |
-| `window` | `multiplier`, `window_m`, `err_min_m`, `err_max_m` | distance, m | `value < multiplier * sqrt(ea² + eb²) + window_m`, where `e` is the entity's last `ce` (or `default_ce_m`) clamped to [`err_min_m`, `err_max_m`]; `limit` is that right-hand side |
 | `mahalanobis` | `gate` | `d²` (below) | `value < gate` |
 | `course` | `max_deg`, `min_speed_ms` | `min(abs(ca-cb), 360-abs(ca-cb))`, deg | `value <= max_deg` |
 | `speed` | `max_pct`, `min_speed_ms` | `abs(1 - slow/fast) * 100` | `value <= max_pct` |
 | `altitude` | `max_m` | `abs(hae_a - hae_b)`, m | `value <= max_m` |
 | `same` | `key` | — | the two values are equal, or both absent |
+| `state` | `probability`, `hae_sigma_m` | `d²_state` (below) | `value < limit`, `limit` the chi-square quantile of `probability` for the record's degrees of freedom (table below) |
 
 `d² = sum over east, north of (pa - pb)² / (pp_b + r_a)`, with `pb` and
 `pp_b` from B's prediction (with B's timing variance added, Track estimate),
 `pa` from A's filter and `r_a` A's measurement variance on that axis, which is
 `ce_a²` when A's last report has time error 0.
+
+**The `state` test** compares the two tracks' whole kinematic state, not only
+their positions: the track-to-track association test of Bar-Shalom (1981).
+Per axis, with A's filter `[pa, va, ppa, pva, vva]` and B's prediction to A's
+time `[pb, vb, ppb, pvb, vvb]` (with B's timing variance added to `ppb`, as
+for every test):
+
+- `dp = pa - pb`, `dv = va - vb`;
+- `spp = ppa + ta + ppb` (`ta` A's timing variance on that axis),
+  `spv = pva + pvb`, `svv = vva + vvb`;
+- `det = spp*svv - spv*spv`;
+- `q = (svv*dp*dp - 2*spv*dp*dv + spp*dv*dv) / det`.
+
+`d²_state` is `q` of east plus `q` of north, 4 degrees of freedom. When both
+A's and B's last reports have `hae`, it adds `dh*dh / (2*h*h)`, with
+`dh = hae_a - hae_b` and `h` the test's `hae_sigma_m`, for 5 degrees of
+freedom. The two tracks' estimates are treated as independent: the
+cross-covariance of tracks that share process noise (Bar-Shalom and Campo
+1986) is not modeled in this version. A turning or slow target needs no
+special case: its velocity covariance is large, and the velocity difference
+counts for less. The trace record adds `"dof": 4` or `5`.
+
+`probability` is one of the values of this table, and `limit` is read from
+it (Abramowitz and Stegun 1964, table 26.8), so that no engine computes a
+quantile:
+
+| `probability` | 4 dof | 5 dof |
+|---|---|---|
+| 0.95 | 9.4877 | 11.0705 |
+| 0.99 | 13.2767 | 15.0863 |
+| 0.995 | 14.8603 | 16.7496 |
+| 0.999 | 18.4668 | 20.5150 |
 
 Within a stage (`gate`, `confirm`, or `hold` against one member), tests run
 in pack order and stop at the first that fails; the tests after it are not

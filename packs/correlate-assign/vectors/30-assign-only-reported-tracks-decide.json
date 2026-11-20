@@ -232,6 +232,7 @@
    ]
   },
   "next_system": 2,
-  "reported": []
+  "reported": [],
+  "intervals": {}
  }
 }

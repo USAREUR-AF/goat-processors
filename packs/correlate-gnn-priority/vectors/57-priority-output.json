@@ -1,6 +1,6 @@
 {
- "name": "13-window-moving-fused",
- "pack": "correlate-window",
+ "name": "57-priority-output",
+ "pack": "correlate-gnn-priority",
  "steps": [
   {
    "ingest": {
@@ -9,9 +9,7 @@
     "time_ms": 0,
     "lat": 1.0,
     "lon": 1.0,
-    "course": 45,
-    "speed_ms": 10,
-    "ce": 150,
+    "ce": 100,
     "type": "a-u-S-X",
     "track.simulated": 0
    },
@@ -28,11 +26,9 @@
     "track.source_id": "radar-1",
     "uid": "S4",
     "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.000899457,
-    "course": 45,
-    "speed_ms": 10,
-    "ce": 150,
+    "lat": 1.000269796,
+    "lon": 1.000539674,
+    "ce": 100,
     "type": "a-u-S-X",
     "track.simulated": 0
    },
@@ -47,18 +43,9 @@
      "stage": "gate",
      "a": "radar-1/S4",
      "b": "ais/M1",
-     "test": "window",
-     "value": 99.9999604832469,
-     "limit": 1112.1320343559642,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "test": "same",
-     "value": 0,
-     "limit": 0,
+     "test": "mahalanobis",
+     "value": 0.2249996879261313,
+     "limit": 9.21,
      "pass": true
     },
     {
@@ -69,34 +56,6 @@
      "value": "S",
      "limit": "S",
      "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "test": "course",
-     "value": 0.0,
-     "limit": 45.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "test": "speed",
-     "value": 0.0,
-     "limit": 40.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "test": "altitude",
-     "value": null,
-     "limit": null,
-     "pass": true,
-     "skipped": true
     },
     {
      "stage": "confirm",
@@ -114,11 +73,9 @@
     "track.source_id": "ais",
     "uid": "M1",
     "time_ms": 10000,
-    "lat": 1.000635909,
-    "lon": 1.000636006,
-    "course": 45,
-    "speed_ms": 10,
-    "ce": 150,
+    "lat": 1.0,
+    "lon": 1.000179891,
+    "ce": 100,
     "type": "a-u-S-X",
     "track.simulated": 0
    },
@@ -137,18 +94,9 @@
      "stage": "gate",
      "a": "ais/M1",
      "b": "radar-1/S4",
-     "test": "window",
-     "value": 100.0003256077773,
-     "limit": 1112.1320343559642,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "test": "same",
-     "value": 0,
-     "limit": 0,
+     "test": "mahalanobis",
+     "value": 0.0024603285363242497,
+     "limit": 9.21,
      "pass": true
     },
     {
@@ -164,34 +112,6 @@
      "stage": "confirm",
      "a": "ais/M1",
      "b": "radar-1/S4",
-     "test": "course",
-     "value": 0.0,
-     "limit": 45.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "test": "speed",
-     "value": 0.0,
-     "limit": 40.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "test": "altitude",
-     "value": null,
-     "limit": null,
-     "pass": true,
-     "skipped": true
-    },
-    {
-     "stage": "confirm",
-     "a": "ais/M1",
-     "b": "radar-1/S4",
      "test": "count",
      "value": 2,
      "limit": 2,
@@ -202,14 +122,14 @@
      "a": "ais/M1",
      "b": "radar-1/S4",
      "test": "rank",
-     "value": 0.20000130243322958,
+     "value": 0.0024603285363242497,
      "limit": null,
      "pass": true
     }
    ]
   },
   {
-   "tick": 20000,
+   "tick": 12000,
    "expect": [
     {
      "ev": "fused",
@@ -219,10 +139,10 @@
       "ais/M1",
       "radar-1/S4"
      ],
-     "lat": 1.0012718310552975,
-     "lon": 1.0021714817908345,
-     "course": 45.0,
-     "speed_ms": 10.0
+     "lat": 1.000269796,
+     "lon": 1.000539674,
+     "course": 0.0,
+     "speed_ms": 0.0
     }
    ],
    "trace": []
@@ -240,18 +160,18 @@
     "hold_failures": 0,
     "filter": {
      "east": [
-      70.71031299481896,
-      7.0710658901610755,
-      11554.054054054053,
-      60.810810810810814,
-      20.4954954954955
+      19.804349115599187,
+      1.9657650233261417,
+      9902.200488997601,
+      982.8850855745767,
+      222.0048899755493
      ],
      "north": [
-      70.71030538876451,
-      7.071065850129211,
-      11554.054054054053,
-      60.810810810810814,
-      20.4954954954955
+      0.0,
+      0.0,
+      9902.200488997601,
+      982.8850855745767,
+      222.0048899755493
      ]
     }
    },
@@ -261,18 +181,18 @@
     "hold_failures": 0,
     "filter": {
      "east": [
-      99.9999604832469,
-      7.071067811865475,
-      22500.0,
+      59.999954054327226,
       0.0,
-      25.0
+      10000.0,
+      0.0,
+      10000.0
      ],
      "north": [
+      29.999987866685,
       0.0,
-      7.0710678118654755,
-      22500.0,
+      10000.0,
       0.0,
-      25.0
+      10000.0
      ]
     }
    }

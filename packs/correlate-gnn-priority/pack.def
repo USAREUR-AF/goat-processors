@@ -1,0 +1,17 @@
+# As correlate-gnn, with a source priority table for the output and a second
+# hold test, so the vectors cover the priority output and a hold that stops at
+# its first failing test. The priorities are an example: radar-1 is preferred
+# to ais. Values as in correlate-gnn.
+pack           correlate-gnn-priority
+version        1.0.0
+filter         accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+gate           mahalanobis gate=9.21
+gate           same key=@env
+confirm_count  2
+hold           mahalanobis gate=18.42
+hold           same key=@env
+hold_failures  2
+stale_ms       60000
+output         priority
+priority       radar-1 1
+priority       ais 50

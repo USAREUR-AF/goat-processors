@@ -1,0 +1,30 @@
+# Confirmation by sequential test (Wald 1947): each report adds the
+# log-likelihood ratio of "same object" against "different objects" to the
+# pair, from the difference of the two tracks' full states (position and
+# velocity per axis, height when both report it; Bar-Shalom 1981). A pair is
+# confirmed when the ratio reaches ln((1 - missed) / false) and released when
+# it falls to ln(missed / (1 - false)).
+# Derived values:
+# - false = missed = 0.01: one wrong pairing, and one missed pairing, per
+#   hundred decisions.
+# - "different objects" spread pos_m = 10000 m, vel_ms = 300 m/s: other
+#   objects lie anywhere within the surveyed area (10 km) and fly at up to
+#   300 m/s.
+# - height error 100 m per track (hae_sigma_m).
+# - gate 9.21: a pair starts a test only inside the 99 % region (chi-square,
+#   2 degrees of freedom) of the position difference.
+# - stale after 5 times the source's median update interval (last 9), within
+#   5 s and 60 s.
+# - output fused: the members' estimates weighted by their information, so
+#   the output does not depend on source names.
+pack           correlate-sprt
+version        1.0.0
+filter         accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+maneuver       accel_var=400 p_enter=0.05 p_leave=0.1
+gate           mahalanobis gate=9.21
+gate           same key=track.simulated
+gate           same key=@env
+sprt           false=0.01 missed=0.01 pos_m=10000 vel_ms=300 hae_sigma_m=100
+stale_rate     factor=5 floor_ms=5000 ceiling_ms=60000 samples=9
+same_source    forbid
+output         fused

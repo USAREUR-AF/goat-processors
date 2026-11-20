@@ -1539,6 +1539,12 @@
   },
   "next_system": 3,
   "reported": [],
+  "intervals": {
+   "radar-1": [
+    1000,
+    1000
+   ]
+  },
   "restarted": [],
   "bias": {
    "adsb|radar-1": {

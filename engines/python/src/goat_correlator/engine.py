@@ -7,13 +7,17 @@ R = 6371008.8
 
 TESTS = {
     "distance": ("max_m",),
-    "window": ("multiplier", "window_m", "err_min_m", "err_max_m"),
     "mahalanobis": ("gate",),
     "course": ("max_deg", "min_speed_ms"),
     "speed": ("max_pct", "min_speed_ms"),
     "altitude": ("max_m",),
     "same": ("key",),
+    "state": ("probability", "hae_sigma_m"),
 }
+# Chi-square quantiles for 4 and 5 degrees of freedom (spec/correlate.md, the
+# `state` test): probability -> (4 dof, 5 dof).
+CHI2 = {0.95: (9.4877, 11.0705), 0.99: (13.2767, 15.0863),
+        0.995: (14.8603, 16.7496), 0.999: (18.4668, 20.5150)}
 FILTER_PARAMS = ("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms")
 MANEUVER_PARAMS = ("accel_var", "p_enter", "p_leave")
 MODELS = ("quiet", "maneuver")
@@ -69,8 +73,10 @@ class Pack:
         self.hold_failures = None
         self.stale_ms = None
         self.same_source = "forbid"
-        self.output = "priority"
+        self.output = "fused"
         self.priority = {}
+        self.sprt = None
+        self.stale_rate = None
         self.method = "confirm"
         self.new_cost = None
         self.keep_bonus = None
@@ -124,7 +130,7 @@ def parse_pack(text):
         d, args = parts[0], parts[1:]
         if d in ("pack", "version", "filter", "confirm_count", "hold_failures",
                  "stale_ms", "same_source", "output", "method", "new_cost", "keep_bonus",
-                 "maneuver", "window", "hypotheses", "bias", "restart", "margin", "time_offset"):
+                 "maneuver", "window", "hypotheses", "bias", "restart", "margin", "time_offset", "sprt", "stale_rate"):
             if d in seen:
                 raise PackError("line %d: repeated directive %s" % (i, d))
             seen.add(d)
@@ -149,6 +155,9 @@ def parse_pack(text):
             if set(kv) != set(TESTS[name]):
                 raise PackError("line %d: test %s needs exactly %s" % (i, name, ", ".join(TESTS[name])))
             params = {k: (v if name == "same" else _num(v, i)) for k, v in kv.items()}
+            if name == "state" and (params["probability"] not in CHI2 or params["hae_sigma_m"] <= 0):
+                raise PackError("line %d: state needs probability one of %s and hae_sigma_m above 0"
+                                % (i, ", ".join(str(x) for x in sorted(CHI2))))
             getattr(p, d).append((name, params))
         elif d == "maneuver":
             kv = _params(args, i)
@@ -158,6 +167,25 @@ def parse_pack(text):
             if m["p_enter"] <= 0 or m["p_leave"] <= 0 or m["p_enter"] + m["p_leave"] >= 1:
                 raise PackError("line %d: p_enter and p_leave must be above 0 with a sum below 1" % i)
             p.maneuver = m
+        elif d == "stale_rate":
+            kv = _params(args, i)
+            want = {"factor", "floor_ms", "ceiling_ms", "samples"}
+            if set(kv) != want:
+                raise PackError("line %d: stale_rate needs exactly %s" % (i, ", ".join(sorted(want))))
+            sr = {"factor": _num(kv["factor"], i), "floor_ms": _int(kv["floor_ms"], i),
+                  "ceiling_ms": _int(kv["ceiling_ms"], i), "samples": _int(kv["samples"], i)}
+            if sr["factor"] <= 0 or sr["floor_ms"] < 0 or sr["ceiling_ms"] < sr["floor_ms"] or sr["samples"] < 1:
+                raise PackError("line %d: stale_rate needs factor above 0, 0 <= floor_ms <= ceiling_ms, samples 1 or above" % i)
+            p.stale_rate = sr
+        elif d == "sprt":
+            kv = _params(args, i)
+            want = {"false", "missed", "pos_m", "vel_ms", "hae_sigma_m"}
+            if set(kv) != want:
+                raise PackError("line %d: sprt needs exactly %s" % (i, ", ".join(sorted(want))))
+            sp = {k: _num(v, i) for k, v in kv.items()}
+            if not (0 < sp["false"] < 0.5 and 0 < sp["missed"] < 0.5) or min(sp["pos_m"], sp["vel_ms"], sp["hae_sigma_m"]) <= 0:
+                raise PackError("line %d: sprt false and missed in (0, 0.5), spreads above 0" % i)
+            p.sprt = sp
         elif d == "time_offset":
             kv = _params(args, i)
             if set(kv) != {"sigma_ms"}:
@@ -222,8 +250,8 @@ def parse_pack(text):
                 raise PackError("line %d: same_source is forbid or allow" % i)
             p.same_source = args[0]
         elif d == "output":
-            if args not in (["priority"], ["latest"]):
-                raise PackError("line %d: output is priority or latest" % i)
+            if args not in (["priority"], ["latest"], ["fused"]):
+                raise PackError("line %d: output is fused, priority or latest" % i)
             p.output = args[0]
         elif d == "priority":
             if len(args) != 2:
@@ -250,8 +278,16 @@ def parse_pack(text):
                             "new_cost, keep_bonus, stale_ms, window, hypotheses, margin, bias, time_offset, restart, time_default")
     else:
         required = ("pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms")
+        if p.sprt is not None:
+            required = ("pack", "version", "filter", "stale_ms")
+            if p.hold or any(d in seen for d in ("confirm_count", "hold_failures")):
+                raise PackError("sprt replaces confirm_count, hold and hold_failures")
         if any(d in seen for d in ("new_cost", "keep_bonus", "window", "hypotheses", "bias", "margin", "time_offset")):
             raise PackError("new_cost, keep_bonus, window, hypotheses, margin, bias and time_offset need method assign")
+    if p.stale_rate is not None:
+        if "stale_ms" in seen:
+            raise PackError("stale_ms and stale_rate exclude each other")
+        required = tuple(d for d in required if d != "stale_ms")
     for d in required:
         if d not in seen:
             raise PackError("missing directive %s" % d)
@@ -389,6 +425,9 @@ class Engine:
         self.groups = {}
         self.group_order = []
         self.counts = {}
+        self.llr = {}
+        self.intervals = {}
+        self._memo = {}
         self.next_group = 1
         self.retiring = set()
         self.restarted = set()
@@ -477,7 +516,12 @@ class Engine:
     def _predict_in(self, b, t, a):
         """B's prediction to t for a comparison with A: B's timing variance
         added to pp (no shift without a bias estimate)."""
-        return self._with_time(self._predict(b, t), b)
+        memo = self._memo
+        k = (b.key, t)
+        pr = memo.get(k)
+        if pr is None:
+            pr = memo[k] = self._with_time(self._predict(b, t), b)
+        return pr
 
     @staticmethod
     def _with_time(pr, b):
@@ -491,6 +535,83 @@ class Engine:
         return ((a.east[0] - be[0]) ** 2 / (be[2] + re_)
                 + (a.north[0] - bn[0]) ** 2 / (bn[2] + rn_))
 
+    def _state_d2(self, a, b, hae_sigma):
+        """Track-to-track statistic on the full kinematic state: per axis the
+        position and velocity difference of A's filter and B's prediction to
+        A's time, with the sum of their covariances (timing variances added to
+        position), plus the height difference when both report hae."""
+        pb = self._predict_in(b, a.last_time_ms, a)
+        total = 0.0
+        for x, fa in ((0, a.east), (1, a.north)):
+            dp = fa[0] - pb[x][0]
+            dv = fa[1] - pb[x][1]
+            spp = fa[2] + a.t_var[x] + pb[x][2]
+            spv = fa[3] + pb[x][3]
+            svv = fa[4] + pb[x][4]
+            det = spp * svv - spv * spv
+            total += (svv * dp * dp - 2.0 * spv * dp * dv + spp * dv * dv) / det
+        ha, hb = a.report.get("hae"), b.report.get("hae")
+        if ha is None or hb is None:
+            return total, 4
+        dh = float(ha) - float(hb)
+        return total + dh * dh / (2.0 * hae_sigma * hae_sigma), 5
+
+    def _sprt_step(self, a, b):
+        """correlate.md, Sequential test: d² of the full state under "same
+        object" (covariance S) and the log-likelihood ratio increment against
+        "different objects" (covariance S + diag(pos_m², vel_ms²))."""
+        sp = self.pack.sprt
+        pb = self._predict_in(b, a.last_time_ms, a)
+        q1 = 0.0
+        lam = 0.0
+        p0, v0 = sp["pos_m"] ** 2, sp["vel_ms"] ** 2
+        for x, fa in ((0, a.east), (1, a.north)):
+            dp = fa[0] - pb[x][0]
+            dv = fa[1] - pb[x][1]
+            spp = fa[2] + a.t_var[x] + pb[x][2]
+            spv = fa[3] + pb[x][3]
+            svv = fa[4] + pb[x][4]
+            det = spp * svv - spv * spv
+            qa = (svv * dp * dp - 2.0 * spv * dp * dv + spp * dv * dv) / det
+            tpp, tvv = spp + p0, svv + v0
+            det0 = tpp * tvv - spv * spv
+            qb = (tvv * dp * dp - 2.0 * spv * dp * dv + tpp * dv * dv) / det0
+            q1 += qa
+            lam += 0.5 * (qb - qa) + 0.5 * math.log(det0 / det)
+        ha, hb = a.report.get("hae"), b.report.get("hae")
+        if ha is not None and hb is not None:
+            dh = float(ha) - float(hb)
+            h1 = 2.0 * sp["hae_sigma_m"] ** 2
+            h0 = h1 + p0
+            q1 += dh * dh / h1
+            lam += 0.5 * (dh * dh / h0 - dh * dh / h1) + 0.5 * math.log(h0 / h1)
+        return q1, lam
+
+    def _run_same(self, a, b, trace):
+        """The categorical (`same`) tests of the gate stage only."""
+        for name, prm in self.pack.gate:
+            if name == "same" and not self._run_test("gate", name, prm, a, b, trace):
+                return False
+        return True
+
+    def _sprt_update(self, a, b, gate_ok, trace):
+        """Add one report's evidence to the pair's log-likelihood ratio,
+        clamped to [ln B, ln A]; returns the new value."""
+        sp = self.pack.sprt
+        up = math.log((1.0 - sp["missed"]) / sp["false"])
+        lo = math.log(sp["missed"] / (1.0 - sp["false"]))
+        pk = self._pair(a.key, b.key)
+        old = self.llr.get(pk, 0.0)
+        if gate_ok:
+            q1, lam = self._sprt_step(a, b)
+            new = min(max(old + lam, lo), up)
+        else:
+            q1, lam, new = None, None, lo
+        self.llr[pk] = new
+        trace.append({"stage": "sprt", "a": a.key, "b": b.key, "test": "llr", "value": new,
+                      "limit": up, "pass": new >= up, "lower": lo, "increment": lam, "d2": q1})
+        return new, up, lo
+
     def _dist(self, a, b):
         be, bn = self._predict_in(b, a.last_time_ms, a)
         return math.hypot(a.east[0] - be[0], a.north[0] - bn[0])
@@ -501,16 +622,14 @@ class Engine:
         if name == "distance":
             value, limit = self._dist(a, b), prm["max_m"]
             ok = value < limit
-        elif name == "window":
-            lo, hi = prm["err_min_m"], prm["err_max_m"]
-            ea = min(max(a.ce(self.pack), lo), hi)
-            eb = min(max(b.ce(self.pack), lo), hi)
-            value = self._dist(a, b)
-            limit = prm["multiplier"] * math.sqrt(ea * ea + eb * eb) + prm["window_m"]
-            ok = value < limit
         elif name == "mahalanobis":
             value, limit = self._d2(a, b), prm["gate"]
             ok = value < limit
+        elif name == "state":
+            value, dof = self._state_d2(a, b, prm["hae_sigma_m"])
+            limit = CHI2[prm["probability"]][dof - 4]
+            ok = value < limit
+            rec["dof"] = dof
         elif name in ("course", "speed"):
             ca, cb = ra.get("course"), rb.get("course")
             sa, sb = ra.get("speed_ms"), rb.get("speed_ms")
@@ -623,6 +742,7 @@ class Engine:
                           "value": te, "limit": None, "pass": True,
                           "var_east": ae, "var_north": an})
         fresh = ent is None
+        fresh_entity = ent is None
         if ent is not None and self.pack.restart is not None:
             pe, pn = pred
             d2 = (e - pe[0]) ** 2 / (pe[2] + re_) + (n - pn[0]) ** 2 / (pn[2] + rn_)
@@ -656,12 +776,62 @@ class Engine:
                 r = f["vel_sigma_ms"] ** 2
                 ent.east = _vel_update(ent.east, vel[0], r)
                 ent.north = _vel_update(ent.north, vel[1], r)
+        if self.pack.stale_rate is not None and not fresh_entity:
+            ring = self.intervals.setdefault(source, [])
+            ring.append(t - ent.last_time_ms)
+            if len(ring) > self.pack.stale_rate["samples"]:
+                del ring[0]
         ent.report = dict(report)
         ent.r_meas = (re_, rn_)
         ent.t_var = (ae, an)
         ent.time_err = te
         ent.last_time_ms = t
         return ent
+
+    def _fused_event(self, g, members, now_ms):
+        """Output `fused`: per axis the inverse-variance combination of the
+        members' predictions to now_ms, members in key order."""
+        acc = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]
+        hae, hae_t = None, None
+        for m in members:
+            e = self.entities[m]
+            pr = self._predict(e, now_ms)
+            for x in (0, 1):
+                a, o = pr[x], acc[x]
+                o[0] += 1.0 / a[2]
+                o[1] += a[0] / a[2]
+                o[2] += 1.0 / a[4]
+                o[3] += a[1] / a[4]
+            if e.report.get("hae") is not None and (hae_t is None or e.last_time_ms > hae_t):
+                hae, hae_t = float(e.report["hae"]), e.last_time_ms
+        pe = acc[0][1] / acc[0][0]
+        pn = acc[1][1] / acc[1][0]
+        ve = acc[0][3] / acc[0][2]
+        vn = acc[1][3] / acc[1][2]
+        lat, lon = self._to_deg(pe, pn)
+        course = math.degrees(math.atan2(ve, vn))
+        if course < 0:
+            course += 360.0
+        if course >= 360.0:
+            course -= 360.0
+        ev = {"ev": "fused", "group": g, "primary": None, "members": list(members),
+              "lat": lat, "lon": lon, "course": course, "speed_ms": math.hypot(ve, vn)}
+        if hae is not None:
+            ev["hae"] = hae
+        return ev
+
+    def _stale_limit(self, source):
+        """The stale time of a source: stale_ms, or with stale_rate factor
+        times the median of its last intervals, within the floor and ceiling."""
+        sr = self.pack.stale_rate
+        if sr is None:
+            return self.pack.stale_ms
+        ring = self.intervals.get(source)
+        if not ring:
+            return sr["ceiling_ms"]
+        srt = sorted(ring)
+        lim = sr["factor"] * srt[(len(srt) - 1) // 2]
+        return min(max(lim, sr["floor_ms"]), sr["ceiling_ms"])
 
     def _time_error_ms(self, report, source):
         """correlate.md, Reports, Time quality: the report's value, else the
@@ -673,10 +843,38 @@ class Engine:
 
     def ingest(self, report):
         events, trace = [], []
+        self._memo = {}
         ent = self._accept(report, events, trace)
         if ent is None:
             return events, trace
         key, source = ent.key, ent.source
+
+        if ent.group is not None and self.pack.sprt is not None:
+            keep = False
+            others = [k for k in sorted(self.groups[ent.group]) if k != key]
+            # The link: the other member whose pair ratio is highest (no
+            # state reads 0; ties to key order). Only that pair is updated.
+            best = None
+            for k in others:
+                v = self.llr.get(self._pair(key, k), 0.0)
+                if best is None or v > best[0]:
+                    best = (v, k)
+            others = [best[1]]
+            for k in others:
+                b = self.entities[k]
+                ok = self._run_same(ent, b, trace)
+                new, up, lo = self._sprt_update(ent, b, ok, trace)
+                if new > lo:
+                    keep = True
+            if not keep:
+                g = ent.group
+                self._leave(ent, "release", events)
+                for k in list(self.llr):
+                    if key in k.split("|"):
+                        o = k.split("|")[0] if k.split("|")[1] == key else k.split("|")[1]
+                        if self.llr[k] <= math.log(self.pack.sprt["missed"] / (1.0 - self.pack.sprt["false"])):
+                            del self.llr[k]
+            return events, trace
 
         if ent.group is not None:
             ok = False
@@ -707,6 +905,17 @@ class Engine:
                     continue
             pk = self._pair(key, k)
             ok = self._run_stage("gate", ent, b, trace) and self._run_stage("confirm", ent, b, trace)
+            if self.pack.sprt is not None:
+                if not ok and pk not in self.llr:
+                    continue
+                if not ok:
+                    ok = self._run_same(ent, b, [])
+                new, up, lo = self._sprt_update(ent, b, ok, trace)
+                if new <= lo:
+                    del self.llr[pk]
+                if new >= up:
+                    ready.append(b)
+                continue
             c = self.counts.get(pk, 0) + 1 if ok else 0
             self.counts[pk] = c
             trace.append({"stage": "confirm", "a": key, "b": k, "test": "count",
@@ -722,7 +931,8 @@ class Engine:
                               "value": d2, "limit": None, "pass": True})
                 if best is None or d2 < best_d2:
                     best, best_d2 = b, d2
-            self.counts[self._pair(key, best.key)] = 0
+            if self.pack.sprt is None:
+                self.counts[self._pair(key, best.key)] = 0
             if best.group is not None:
                 ent.group = best.group
                 self.groups[best.group].append(key)
@@ -742,7 +952,7 @@ class Engine:
         events, trace = [], []
         for k in sorted(self.entities):
             ent = self.entities[k]
-            stale = now_ms - ent.last_time_ms > self.pack.stale_ms
+            stale = now_ms - ent.last_time_ms > self._stale_limit(ent.source)
             sm = ent.report.get("stale_ms")
             if sm is not None and now_ms >= int(sm):
                 stale = True
@@ -753,9 +963,14 @@ class Engine:
             del self.entities[k]
             for pk in [pk for pk in self.counts if k in pk.split("|")]:
                 del self.counts[pk]
+            for pk in [pk for pk in self.llr if k in pk.split("|")]:
+                del self.llr[pk]
             events.append({"ev": "drop", "entity": k})
         for g in self.group_order:
             members = self.groups[g]
+            if self.pack.output == "fused":
+                events.append(self._fused_event(g, members, now_ms))
+                continue
             if self.pack.output == "priority":
                 primary = min(members, key=lambda m: (self.pack.priority.get(self.entities[m].source, 100), m))
             else:
@@ -784,6 +999,9 @@ class Engine:
             "groups": {g: list(self.groups[g]) for g in self.group_order},
             "counts": dict(sorted(self.counts.items())),
             "next_group": self.next_group,
+            **({"llr": dict(sorted(self.llr.items()))} if self.pack.sprt is not None else {}),
+            **({"intervals": {k: list(v) for k, v in sorted(self.intervals.items())}}
+               if self.pack.stale_rate is not None else {}),
         }
 
 
@@ -1067,7 +1285,7 @@ class AssignEngine(Engine):
                 + (a.north[0] - fn[0]) ** 2 / (a.north[2] + a.t_var[1] + fn[1]))
 
     def _stale(self, ent, now_ms):
-        if now_ms - ent.last_time_ms > self.pack.stale_ms:
+        if now_ms - ent.last_time_ms > self._stale_limit(ent.source):
             return True
         sm = ent.report.get("stale_ms")
         return sm is not None and now_ms >= int(sm)
@@ -1367,6 +1585,8 @@ class AssignEngine(Engine):
             "next_system": self.committed.next,
             "reported": sorted(self.reported),
         }
+        if self.pack.stale_rate is not None:
+            out["intervals"] = {k: list(v) for k, v in sorted(self.intervals.items())}
         if self.pack.restart is not None:
             out["restarted"] = sorted(self.restarted)
         if self.pack.bias is not None:

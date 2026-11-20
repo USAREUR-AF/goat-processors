@@ -352,6 +352,13 @@
   "counts": {
    "adsb/A7|radar-1/T1": 0
   },
-  "next_group": 2
+  "next_group": 2,
+  "intervals": {
+   "radar-1": [
+    1000,
+    1000,
+    1000
+   ]
+  }
  }
 }

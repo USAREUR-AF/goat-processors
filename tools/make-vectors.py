@@ -147,31 +147,6 @@ scenario("10-environment-differs", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
 ], [["new"], ["new"], []])
 
-# 11. Window pack: priority picks the fused output's source.
-scenario("11-window-priority-output", "correlate-window", [
-    ("ingest", rep("ais", "M1", 0, 0, 0, ce=300, **SEA)),
-    ("ingest", rep("radar-1", "S4", 0, 600, 300, ce=200, **SEA)),
-    ("ingest", rep("ais", "M1", 10000, 50, 0, ce=300, **SEA)),
-    ("tick", 12000),
-], [["new"], ["new"], ["correlate"], ["fused"]])
-
-# 12. Window pack: outside the window, not grouped.
-scenario("12-window-outside", "correlate-window", [
-    ("ingest", rep("ais", "M1", 0, 0, 0, ce=100, **SEA)),
-    ("ingest", rep("radar-1", "S4", 0, 1500, 0, ce=100, **SEA)),
-    ("ingest", rep("ais", "M1", 10000, 0, 0, ce=100, **SEA)),
-], [["new"], ["new"], []])
-
-# 13. Moving pair on the window pack with reported velocity; fused output carries
-#     the filtered course and speed predicted forward.
-mvs = dict(course=45, speed_ms=10, ce=150, **SEA)
-scenario("13-window-moving-fused", "correlate-window", [
-    ("ingest", rep("ais", "M1", 0, 0, 0, **mvs)),
-    ("ingest", rep("radar-1", "S4", 0, 100, 0, **mvs)),
-    ("ingest", rep("ais", "M1", 10000, 70.71, 70.71, **mvs)),
-    ("tick", 20000),
-], [["new"], ["new"], ["correlate"], ["fused"]])
-
 # 14. A report's own stale_ms drops it before the pack's stale_ms.
 scenario("14-report-stale-ms", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, stale_ms=5000, **AIR)),
@@ -195,7 +170,7 @@ scenario("16-dissolve-resets-remaining-member", "correlate-gnn", [
     ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
     ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
     ("ingest", rep("adsb", "A7", 2000, 3000, 0, ce=30, **AIR)),
-    ("tick", 121001),
+    ("tick", 61001),
 ], [["new"], ["new"], ["correlate"], [], ["leave", "dissolve", "drop"]])
 
 # 17. In a three-member group the hold stops at the first member that passes.
@@ -207,16 +182,6 @@ scenario("17-hold-stops-at-first-passing-member", "correlate-gnn", [
     ("ingest", rep("eo-2", "E3", 2000, -15, 5, ce=40, **AIR)),
     ("ingest", rep("eo-2", "E3", 3000, -15, 5, ce=40, **AIR)),
 ], [["new"], ["new"], ["correlate"], ["new"], ["join"], []])
-
-# 18. Window pack: a hold that fails its first test runs no second test; two
-#     hold failures in a row are needed before the member leaves.
-scenario("18-window-hold-stops-at-first-failure", "correlate-window", [
-    ("ingest", rep("ais", "M1", 0, 0, 0, ce=100, **SEA)),
-    ("ingest", rep("radar-1", "S4", 0, 100, 0, ce=100, **SEA)),
-    ("ingest", rep("ais", "M1", 10000, 0, 0, ce=100, **SEA)),
-    ("ingest", rep("radar-1", "S4", 20000, 5000, 0, ce=100, **SEA)),
-    ("ingest", rep("radar-1", "S4", 30000, 9000, 0, ce=100, **SEA)),
-], [["new"], ["new"], ["correlate"], [], ["leave", "dissolve"]])
 
 # 19. Course without speed: course and speed tests are skipped; a later report
 #     without course makes it absent again.
@@ -307,9 +272,9 @@ scenario("27-assign-stale-members", "correlate-assign", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
     ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
     ("tick", 500),
-    ("ingest", rep("radar-1", "T1", 60000, 0, 0, ce=30, **AIR)),
-    ("tick", 120001),
-    ("tick", 180001),
+    ("ingest", rep("radar-1", "T1", 30000, 0, 0, ce=30, **AIR)),
+    ("tick", 60001),
+    ("tick", 90001),
 ], [["new"], ["new"], ["start", "join", "system"], [], ["leave", "drop", "system"], ["leave", "end", "drop"]])
 
 # 28. An air and a surface track at one spot fail the gate: two system tracks.
@@ -724,6 +689,28 @@ CP = ["system", "system", "provisional", "provisional"]
 #     reports carry time_error_ms 20 (trace `time`).
 scenario("56-assign-time-offset-fit", "correlate-assign-time", CLOCK, per_round(CLOCK, [
     CP, ["start", "start", "join", "join"] + CP, CP, CP]))
+
+
+# --- retained rules on correlate-gnn-priority (vectors 57-58) ---
+
+# 57. Priority picks the fused output's member: radar-1 (priority 1) over ais
+#     (priority 50), although ais reported later.
+scenario("57-priority-output", "correlate-gnn-priority", [
+    ("ingest", rep("ais", "M1", 0, 0, 0, ce=100, **SEA)),
+    ("ingest", rep("radar-1", "S4", 0, 60, 30, ce=100, **SEA)),
+    ("ingest", rep("ais", "M1", 10000, 20, 0, ce=100, **SEA)),
+    ("tick", 12000),
+], [["new"], ["new"], ["correlate"], ["fused"]])
+
+# 58. A hold that fails its first test runs no second test (trace); two hold
+#     failures in a row are needed before the member leaves.
+scenario("58-hold-stops-at-first-failure", "correlate-gnn-priority", [
+    ("ingest", rep("ais", "M1", 0, 0, 0, ce=100, **SEA)),
+    ("ingest", rep("radar-1", "S4", 0, 100, 0, ce=100, **SEA)),
+    ("ingest", rep("ais", "M1", 10000, 0, 0, ce=100, **SEA)),
+    ("ingest", rep("radar-1", "S4", 20000, 5000, 0, ce=100, **SEA)),
+    ("ingest", rep("radar-1", "S4", 30000, 9000, 0, ce=100, **SEA)),
+], [["new"], ["new"], ["correlate"], [], ["leave", "dissolve"]])
 
 
 NEAR = 1e-6

@@ -288,6 +288,11 @@
    ]
   },
   "next_system": 2,
-  "reported": []
+  "reported": [],
+  "intervals": {
+   "radar-1": [
+    1000
+   ]
+  }
  }
 }

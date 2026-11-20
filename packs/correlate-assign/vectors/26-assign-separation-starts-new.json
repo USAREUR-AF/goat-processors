@@ -453,6 +453,15 @@
    ]
   },
   "next_system": 3,
-  "reported": []
+  "reported": [],
+  "intervals": {
+   "adsb": [
+    1000,
+    2000
+   ],
+   "radar-1": [
+    1000
+   ]
+  }
  }
 }

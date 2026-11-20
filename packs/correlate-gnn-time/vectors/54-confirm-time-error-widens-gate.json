@@ -88,7 +88,7 @@
      "b": "radar-1/T1",
      "test": "course",
      "value": 0.0,
-     "limit": 45.0,
+     "limit": 42.0,
      "pass": true
     },
     {
@@ -97,7 +97,7 @@
      "b": "radar-1/T1",
      "test": "speed",
      "value": 0.0,
-     "limit": 40.0,
+     "limit": 73.0,
      "pass": true
     },
     {
@@ -189,7 +189,7 @@
      "b": "adsb/A7",
      "test": "course",
      "value": 0.0,
-     "limit": 45.0,
+     "limit": 42.0,
      "pass": true
     },
     {
@@ -198,7 +198,7 @@
      "b": "adsb/A7",
      "test": "speed",
      "value": 0.0,
-     "limit": 40.0,
+     "limit": 73.0,
      "pass": true
     },
     {
@@ -462,6 +462,17 @@
   "counts": {
    "adsb/A7|radar-1/T1": 0
   },
-  "next_group": 2
+  "next_group": 2,
+  "intervals": {
+   "adsb": [
+    1000
+   ],
+   "radar-1": [
+    1000,
+    1000,
+    1000,
+    1000
+   ]
+  }
  }
 }

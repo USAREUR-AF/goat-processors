@@ -871,6 +871,17 @@
   },
   "next_system": 2,
   "reported": [],
+  "intervals": {
+   "adsb": [
+    1000,
+    1000,
+    20000
+   ],
+   "radar-1": [
+    1000,
+    1000
+   ]
+  },
   "restarted": [],
   "bias": {
    "adsb|radar-1": {

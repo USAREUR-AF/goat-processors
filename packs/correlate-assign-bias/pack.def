@@ -7,8 +7,11 @@
 # weighted mean, accepted while the pair's residual stays below gate = 13.82
 # (chi-square 2 degrees of freedom, 0.1 %). The added uncertainty falls as
 # 300² / (pairs + 1), to no less than 10 m.
+# Stale after 5 times the source's median update interval (last 9), within
+# 5 s and 60 s: five missed updates in a row at a detection probability of
+# 0.5 happen about 3 % of the time.
 pack        correlate-assign-bias
-version     0.1.0
+version     1.0.0
 method      assign
 filter      accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
 maneuver    accel_var=400 p_enter=0.05 p_leave=0.1
@@ -17,5 +20,5 @@ gate        same key=track.simulated
 gate        same key=@env
 new_cost    9.21
 keep_bonus  2
-stale_ms    120000
+stale_rate  factor=5 floor_ms=5000 ceiling_ms=60000 samples=9
 bias        sigma_m=300 floor_m=10 gate=13.82
