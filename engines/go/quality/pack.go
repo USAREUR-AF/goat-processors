@@ -2,28 +2,31 @@
 //
 // Each file implements named sections of the specification:
 //
-//	pack.go      Pack (the pack.def reader)
-//	engine.go    Reports, Order, Frame and filter, Samples, Ingest, Forwarding
-//	time.go      Reports, Time quality; Input clock
-//	measures.go  Window, Entity measures, Source measures
-//	tick.go      Tick, Rules
-//	snapshot.go  Snapshot
+//	pack.go        Pack (the pack.def reader)
+//	engine.go      What quality does (Engine, New, Load)
+//	reports.go     Reports
+//	time.go        Reports, Time quality; Input clock
+//	ingest.go      Order, Frame and filter, Samples, Ingest
+//	forwarding.go  Forwarding
+//	measures.go    Window, Entity measures, Source measures
+//	tick.go        Tick
+//	rules.go       Rules
+//	snapshot.go    Snapshot
 //
-// The frame, the filter, the report type checks and the time quality keys and
-// time_default line are those of the correlate engine (package correlator,
-// spec/correlate.md 0.8), as spec/quality.md cites correlate.md for them.
+// The frame, the filter, the report type checks and the time quality keys
+// and time_default line are package model's (spec/correlate.md 0.8), as
+// spec/quality.md cites correlate.md for them.
 package quality
 
 import (
 	"fmt"
 	"math"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
-	correlator "goat-correlator/engines/go"
+	"goat-correlator/engines/go/io"
+	"goat-correlator/engines/go/model"
 )
 
 // Rule is one rule line (spec: Rules, Pack).
@@ -44,28 +47,19 @@ type Pack struct {
 	Name, Version string
 
 	// filter line, the parameters of correlate.md Track estimate
-	AccelVar, DefaultCeM, VelSigmaMs, UnknownVelMs float64
+	model.FilterParams
 
 	// window line
 	WindowMs, MinSamples, ForgetMs int64
 
 	Rules []Rule // pack order
 
+	// Measures is the measures table the pack was read with (Registry).
+	Measures []Measure
+
 	// time_default lines by source id (spec: Reports, Time quality)
-	TimeDefaults map[string]correlator.TimeDefault
+	TimeDefaults map[string]model.TimeDefault
 }
-
-// entityMeasures and sourceMeasures are the measures tables, in table order
-// (spec: Entity measures, Source measures).
-var entityMeasures = []string{
-	"reports", "interval_last", "interval_mean", "interval_max", "age",
-	"latency_mean", "latency_max", "lateness_mean", "lateness_max", "lateness_min",
-	"nis_mean", "speed_err_mean", "out_of_order", "duplicate", "source_out_of_order",
-	"missing_ce", "missing_vel", "missing_hae",
-	"time_error_mean", "time_error_max", "time_state_last", "time_state_worst", "missing_time",
-}
-
-var sourceMeasures = append(append([]string{}, entityMeasures...), "entities")
 
 // Values (spec: Pack, Values).
 var (
@@ -93,50 +87,34 @@ func parseInteger(s string) (int64, error) {
 }
 
 // LoadPack reads <dir>/pack.def (spec: load_pack).
-func LoadPack(dir string) (*Pack, error) {
-	b, err := os.ReadFile(filepath.Join(dir, "pack.def"))
+func LoadPack(dir string) (*Pack, error) { return LoadPackWith(dir, DefaultRegistry()) }
+
+// LoadPackWith reads <dir>/pack.def with the given tables.
+func LoadPackWith(dir string, r Registry) (*Pack, error) {
+	text, err := io.ReadPackDef(dir)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePack(string(b))
+	return ParsePackWith(text, r)
 }
 
-// params splits name=value tokens. Every name must be in required or optional,
-// appear at most once, and every required name must be present.
-func params(tokens []string, required, optional []string) (map[string]string, error) {
-	known := map[string]bool{}
-	for _, n := range required {
-		known[n] = true
-	}
-	for _, n := range optional {
-		known[n] = true
-	}
-	out := map[string]string{}
-	for _, tok := range tokens {
-		name, value, ok := strings.Cut(tok, "=")
-		if !ok {
-			return nil, fmt.Errorf("parameter without '=': %q", tok)
-		}
-		if !known[name] {
-			return nil, fmt.Errorf("unknown parameter %q", name)
-		}
-		if _, seen := out[name]; seen {
-			return nil, fmt.Errorf("repeated parameter %q", name)
-		}
-		out[name] = value
-	}
-	for _, n := range required {
-		if _, ok := out[n]; !ok {
-			return nil, fmt.Errorf("missing parameter %q", n)
-		}
-	}
-	return out, nil
+// Registry holds the extension tables a pack is read with: the measures
+// table. DefaultRegistry is the specification's; a caller adds a measure to
+// its own copy and reads packs with ParsePackWith.
+type Registry struct {
+	Measures []Measure
 }
+
+// DefaultRegistry returns a new copy of the specification's tables.
+func DefaultRegistry() Registry { return Registry{Measures: DefaultMeasures()} }
 
 // ParsePack parses the text of a pack.def (spec: Pack). Every row of the
 // load-error table is a returned error.
-func ParsePack(text string) (*Pack, error) {
-	p := &Pack{TimeDefaults: map[string]correlator.TimeDefault{}}
+func ParsePack(text string) (*Pack, error) { return ParsePackWith(text, DefaultRegistry()) }
+
+// ParsePackWith parses the text of a pack.def with the given tables.
+func ParsePackWith(text string, reg Registry) (*Pack, error) {
+	p := &Pack{TimeDefaults: map[string]model.TimeDefault{}, Measures: reg.Measures}
 	seen := map[string]bool{}
 	ruleNames := map[string]bool{}
 	for n, line := range packLines(text) {
@@ -179,7 +157,7 @@ func ParsePack(text string) (*Pack, error) {
 			}
 		case "rule":
 			var r Rule
-			r, err = parseRule(rest)
+			r, err = parseRule(rest, reg.Measures)
 			if err == nil && ruleNames[r.Name] {
 				err = fmt.Errorf("rule name %q used by an earlier rule", r.Name)
 			}
@@ -190,8 +168,8 @@ func ParsePack(text string) (*Pack, error) {
 		case "time_default":
 			// The grammar of correlate.md, Pack, with this pack's number grammar.
 			var source string
-			var d correlator.TimeDefault
-			source, d, err = correlator.ParseTimeDefault(rest, parseNumber)
+			var d model.TimeDefault
+			source, d, err = model.ParseTimeDefault(rest, parseNumber)
 			if _, given := p.TimeDefaults[source]; err == nil && given {
 				err = fmt.Errorf("source %q given on an earlier time_default", source)
 			}
@@ -238,7 +216,7 @@ func hasControl(line string) bool {
 }
 
 func (p *Pack) parseFilter(tokens []string) error {
-	m, err := params(tokens, []string{"accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms"}, nil)
+	m, err := io.Params(tokens, []string{"accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms"}, nil)
 	if err != nil {
 		return err
 	}
@@ -261,7 +239,7 @@ func (p *Pack) parseFilter(tokens []string) error {
 }
 
 func (p *Pack) parseWindow(tokens []string) error {
-	m, err := params(tokens, []string{"window_ms", "min_samples", "forget_ms"}, nil)
+	m, err := io.Params(tokens, []string{"window_ms", "min_samples", "forget_ms"}, nil)
 	if err != nil {
 		return err
 	}
@@ -278,28 +256,22 @@ func (p *Pack) parseWindow(tokens []string) error {
 	return nil
 }
 
-func parseRule(tokens []string) (Rule, error) {
+func parseRule(tokens []string, measures []Measure) (Rule, error) {
 	var r Rule
 	if len(tokens) == 0 || !ruleNameRe.MatchString(tokens[0]) {
 		return r, fmt.Errorf("rule without a valid name")
 	}
 	r.Name = tokens[0]
-	m, err := params(tokens[1:], []string{"scope", "measure", "op", "limit", "for", "clear", "action"}, []string{"factor"})
+	m, err := io.Params(tokens[1:], []string{"scope", "measure", "op", "limit", "for", "clear", "action"}, []string{"factor"})
 	if err != nil {
 		return r, err
 	}
 	r.Scope, r.Measure, r.Op, r.Action = m["scope"], m["measure"], m["op"], m["action"]
 
-	var measures []string
-	switch r.Scope {
-	case "entity":
-		measures = entityMeasures
-	case "source":
-		measures = sourceMeasures
-	default:
+	if r.Scope != "entity" && r.Scope != "source" {
 		return r, fmt.Errorf("scope %q", r.Scope)
 	}
-	if !contains(measures, r.Measure) {
+	if !hasMeasure(measures, r.Scope, r.Measure) {
 		return r, fmt.Errorf("measure %q not a %s measure", r.Measure, r.Scope)
 	}
 	if !contains([]string{"<", "<=", ">", ">="}, r.Op) {
@@ -350,6 +322,17 @@ func contains(list []string, s string) bool {
 	for _, x := range list {
 		if x == s {
 			return true
+		}
+	}
+	return false
+}
+
+// hasMeasure reports whether the table has the measure for the scope: an
+// entity rule takes an entity measure, a source rule any measure.
+func hasMeasure(measures []Measure, scope, name string) bool {
+	for _, m := range measures {
+		if m.Name == name {
+			return scope == "source" || m.Entity != nil
 		}
 	}
 	return false

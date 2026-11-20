@@ -2,19 +2,18 @@ package fuse
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"goat-correlator/engines/go/io"
+	"goat-correlator/engines/go/model"
 )
 
 // Kinematics methods and attribute rules (spec/fuse.md: What fuse does, Attributes).
 var (
-	kinematicsMethods = []string{"inverse_variance", "covariance_intersection", "best", "priority", "latest"}
-	attributeRules    = []string{"priority", "latest", "majority", "max", "min"}
-	filterParams      = []string{"accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms"}
-	onceOnly          = []string{"pack", "version", "filter", "kinematics", "stale_ms"}
+	filterParams = []string{"accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms"}
+	onceOnly     = []string{"pack", "version", "filter", "kinematics", "stale_ms"}
 )
 
 // Attribute is one `attribute <key> rule=<rule>` line.
@@ -23,14 +22,11 @@ type Attribute struct{ Key, Rule string }
 // Pack is a loaded fuse pack.def (spec/fuse.md: Pack).
 type Pack struct {
 	Name, Version string
-	AccelVar      float64
-	DefaultCeM    float64
-	VelSigmaMs    float64
-	UnknownVelMs  float64
-	Kinematics    string
-	Attributes    []Attribute // pack order
-	Sources       []string    // rank order
-	StaleMs       int64
+	model.FilterParams
+	Kinematics string
+	Attributes []Attribute // pack order
+	Sources    []string    // rank order
+	StaleMs    int64
 }
 
 // Rank is the index of a source among the `source` lines, or -1 when unlisted
@@ -46,11 +42,11 @@ func (p *Pack) Rank(source string) int {
 
 // LoadPack reads <dir>/pack.def (spec: load_pack).
 func LoadPack(dir string) (*Pack, error) {
-	b, err := os.ReadFile(filepath.Join(dir, "pack.def"))
+	text, err := io.ReadPackDef(dir)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePack(string(b))
+	return ParsePack(text)
 }
 
 // A number is an optional '-', digits, optionally '.' and digits, optionally
@@ -174,7 +170,7 @@ func (p *Pack) directive(d string, values []string, seen map[string]bool) error 
 		if err != nil {
 			return err
 		}
-		if !oneOf(v, kinematicsMethods) {
+		if _, known := kinematicsMethods[v]; !known {
 			return fmt.Errorf("unknown kinematics method %q", v)
 		}
 		p.Kinematics = v
@@ -195,8 +191,8 @@ func (p *Pack) directive(d string, values []string, seen map[string]bool) error 
 			return fmt.Errorf("attribute key %q holds '='", key)
 		}
 		rule, ok := strings.CutPrefix(values[1], "rule=")
-		if !ok || !oneOf(rule, attributeRules) {
-			return fmt.Errorf("attribute %s: expected rule=<%s>", key, strings.Join(attributeRules, "|"))
+		if _, known := attributeRules[rule]; !ok || !known {
+			return fmt.Errorf("attribute %s: expected rule=<%s>", key, strings.Join(model.SortedKeys(attributeRules), "|"))
 		}
 		for _, a := range p.Attributes {
 			if a.Key == key {

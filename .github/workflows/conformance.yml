@@ -58,7 +58,15 @@ jobs:
         with:
           go-version-file: engines/go/go.mod
           cache: false
-      - run: go test -v ./...
+      # Vectors, unit, property and fuzz tests, with statement coverage of
+      # every package (go's own -coverpkg); the floor is max(baseline 97.7 %
+      # measured on the pre-refactor engine, 80 %): engines/go/REFACTOR.md.
+      - run: go test -v -coverpkg=./... -coverprofile=cover.out ./...
+        working-directory: engines/go
+      - run: |
+          total=$(go tool cover -func=cover.out | awk '/^total:/ {sub("%", "", $3); print $3}')
+          echo "statement coverage ${total}% (floor 97.7%)"
+          awk -v t="$total" 'BEGIN { exit !(t + 0 >= 97.7) }'
         working-directory: engines/go
   java:
     runs-on: ubuntu-latest

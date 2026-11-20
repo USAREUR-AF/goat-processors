@@ -3,7 +3,7 @@ package quality
 import (
 	"sort"
 
-	correlator "goat-correlator/engines/go"
+	"goat-correlator/engines/go/model"
 )
 
 // Time quality (spec: Reports, "Time quality") and the input clock (spec:
@@ -29,10 +29,10 @@ type timeQuality struct {
 //     not take error 0 and coherent here).
 func (g *Engine) resolveTimeQuality(source string, report map[string]any) timeQuality {
 	var tq timeQuality
-	if x, ok := correlator.ValidTimeError(report["time_error_ms"]); ok {
+	if x, ok := model.ValidTimeError(report["time_error_ms"]); ok {
 		tq.errorReport = x
 	}
-	if s, ok := correlator.ValidTimeState(report["time_state"]); ok {
+	if s, ok := model.ValidTimeState(report["time_state"]); ok {
 		tq.stateReport = s
 	}
 	if def, ok := g.pack.TimeDefaults[source]; ok {
@@ -90,6 +90,12 @@ func (g *Engine) inputClock(source string) any {
 	for _, l := range latest {
 		times = append(times, l)
 	}
+	return median(times)
+}
+
+// median is the median of times (reordered): an int64 for an odd count,
+// else the binary64 mean of the two middle values.
+func median(times []int64) any {
 	sort.Slice(times, func(i, j int) bool { return times[i] < times[j] })
 	n := len(times)
 	if n%2 == 1 {
