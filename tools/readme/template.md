@@ -117,13 +117,19 @@ the vector is changed only through the specification.
 
 ## Benchmark
 
-The correlate packs are scored against ground truth on generated scenarios:
-crossing, formation, splitting and turning objects; sensors with understated
-or absent error, bias, latency, low detection, track number swaps and false
-tracks; and sensors whose clocks are offset, drifting or free-running, or
-whose reports arrive out of order. Every score and its formula is in [docs/benchmark.md](docs/benchmark.md),
-which `tools/bench/bench.py report` writes. Pack names are explained in
-[Methods and packs](#methods-and-packs).
+The correlate packs are scored against ground truth on two separated sets of
+scenarios. The **tuning set** is public and is the only one packs are tuned on.
+The **evaluation set** comes from held-out seeds and gives every number below;
+its seeds are published after each release and then replaced. Each set holds
+500 random scenarios and the same families: formations that split and join,
+shallow crossings and merges, 3 to 9 g turns, climbs and dives, stop-and-go
+surface traffic, sensor dropouts, latency, out-of-order bursts, wrong stated
+error and bias, scale up to 1,000 objects, clutter, mixed air, surface and
+land traffic, track-number reuse and late sensors, and ships on recorded
+public AIS tracks. Every score, its formula and its 95 % interval are in
+[docs/benchmark.md](docs/benchmark.md), which `tools/bench/bench.py report`
+writes; a difference counts only when the intervals separate. Pack names are
+explained in [Methods and packs](#methods-and-packs).
 
 | Measure | Meaning |
 |---|---|
