@@ -85,9 +85,16 @@ number(B) ->
     Re = <<"^(-?[0-9]+)(?:\\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$">>,
     case re:run(B, Re, [{capture, all_but_first, list}]) of
         {match, [Int]} -> list_to_integer(Int);
-        {match, [Int, Frac]} -> list_to_float(Int ++ "." ++ Frac);
-        {match, [Int, Frac, Exp]} -> list_to_float(Int ++ "." ++ default0(Frac) ++ "e" ++ Exp);
+        {match, [Int, Frac]} -> finite(Int ++ "." ++ Frac, B);
+        {match, [Int, Frac, Exp]} -> finite(Int ++ "." ++ default0(Frac) ++ "e" ++ Exp, B);
         nomatch -> fail({not_a_number, B})
+    end.
+
+%% A number whose nearest binary64 is infinite is a load error: OTP has no
+%% infinite float (DISAGREEMENTS.md).
+finite(Text, B) ->
+    try list_to_float(Text)
+    catch error:badarg -> fail({not_finite, B})
     end.
 
 default0("") -> "0";

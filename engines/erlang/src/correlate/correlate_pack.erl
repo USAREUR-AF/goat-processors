@@ -187,7 +187,14 @@ to_float(B) ->
                       [I, F] -> {I, F};
                       [I] -> {I, ""}
                   end,
-    list_to_float(Sign ++ default0(Int) ++ "." ++ default0(Frac) ++ "e" ++ Exp).
+    finite(fun() -> list_to_float(Sign ++ default0(Int) ++ "." ++ default0(Frac) ++ "e" ++ Exp) end, B).
+
+%% A number whose nearest binary64 is infinite is a load error: OTP has no
+%% infinite float (DISAGREEMENTS.md).
+finite(Read, B) ->
+    try Read()
+    catch error:badarg -> fail({not_finite, B})
+    end.
 
 default0("") -> "0";
 default0(S) -> S.

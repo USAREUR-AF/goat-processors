@@ -112,9 +112,16 @@ read_number(T) ->
 %% number: -?[0-9]+(\.[0-9]+)?, read as the nearest binary64.
 number(T) ->
     case re:run(T, <<"^-?[0-9]+(\\.[0-9]+)?$">>, [{capture, all, list}]) of
-        {match, [_, _Fraction]} -> binary_to_float(T);
-        {match, [_]} -> binary_to_float(<<T/binary, ".0">>);
+        {match, [_, _Fraction]} -> finite(T, T);
+        {match, [_]} -> finite(<<T/binary, ".0">>, T);
         nomatch -> fail({bad_number, T})
+    end.
+
+%% A number whose nearest binary64 is infinite is a load error: OTP has no
+%% infinite float (DISAGREEMENTS.md).
+finite(Text, T) ->
+    try binary_to_float(Text)
+    catch error:badarg -> fail({not_finite, T})
     end.
 
 latitude(T) ->
