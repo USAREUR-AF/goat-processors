@@ -1,5 +1,5 @@
-"""goat-quality Python engine, written from spec/quality.md."""
+"""goat-quality: the quality function of the Python engine (goat_core.quality)."""
 
-from .engine import Engine, Pack, PackError, load_pack, parse_pack
+from .engine import Engine, Pack, PackError, load_pack, make_engine, parse_pack
 
-__all__ = ["Engine", "Pack", "PackError", "load_pack", "parse_pack"]
+__all__ = ["Engine", "Pack", "PackError", "load_pack", "make_engine", "parse_pack"]

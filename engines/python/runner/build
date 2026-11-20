@@ -1,0 +1,3 @@
+#!/bin/sh
+# Runner contract: nothing to build for the Python engine (standard library only).
+exit 0
