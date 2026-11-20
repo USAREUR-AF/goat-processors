@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs the built rust runner; never builds (tools/perf/README.md, Runner contract).
+here=$(cd "$(dirname "$0")/.." && pwd)
+exec "${CARGO_TARGET_DIR:-$here/target}/release/runner" "$@"

@@ -91,3 +91,18 @@ down because the text could be read another way.
 | 2 | Input clock; Reports | "The entities whose source is" a source means the entities whose *entity* source it is. On a key collision, a report from source `a` for the entity `a/b/c` created by source `a/b` has no source latest, and `a/b` is one of the other sources of its input clock (vector q22, step 2). |
 | 3 | Rules, Actions; Reports | A source rule is in force for a report when it is active for the report's own `track.source_id`, which on a key collision differs from the entity's source. |
 | 4 | Input clock; Samples | The clock is an integer for an odd count of other sources; for an even count it is `(a + b) / 2` with `a` and `b` converted to binary64, and `lateness` is then `clock - t` in binary64. Source and entity `lateness_max`/`lateness_min` keep the sample's type (integer or binary64); two integers are compared exactly. |
+
+# Limits found by fuzzing (refactor round, 2026-11-20)
+
+The refactor's fuzz tests (`tests/fuzz.rs`) feed every engine malformed
+reports. Three classes of input with extreme values reach behavior no spec
+defines. No vector holds any of them, and the refactor changes none of them
+(a change would alter output, so it is not a refactor). They are listed here
+for proc-coord to decide in the specs; the fuzz tests keep their numbers inside
+the range below.
+
+| # | Input | What the engine does | What a spec decision would need |
+|---|---|---|---|
+| 1 | A report `lon` (or a predicted position, from a huge `speed_ms` or `dt`) so large that `wrap` (correlate.md Frame, filter.md Geometry) moves it by 360 at a time for longer than any run, or a non-finite one (`1e999` reads as infinity) | `wrap180` subtracts 360 until the value is in range: above about 1e12 degrees that takes impractically long, and for infinity, or above 2^62 where subtracting 360 no longer changes the value, it never ends | A range for `lat`/`lon` (a reject reason, as for a missing key), or `wrap` defined by remainder |
+| 2 | `time_ms`, `received_ms`, `stale_ms` or a tick near the signed 64-bit limits | `received_ms - time_ms` (quality Samples, `latency`) and `now_ms - last_time_ms` (staleness) overflow: a panic in a debug build, a wrapped value in a release build | A range for millisecond integers (open point 2 of correlate.md covers only their parsing) |
+| 3 | A `ce` so large that `ce²` is infinite, so a variance is infinite and a cost is NaN | `method assign`: sorting the assignment totals panics on NaN (`Ranking` assumes totals compare) | A bound on `ce`, or the order of a NaN total |
