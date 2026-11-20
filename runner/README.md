@@ -208,7 +208,7 @@ with the number of tracks:
 
 | Key | Value | When |
 |---|---|---|
-| `<prefix>/tracks` | JSON lines: one system track per line, as above, each with `now_ms`. An empty value means no system track | on a tick, when the set differs from the last one published, or `heartbeat_ms` after it |
+| `<prefix>/tracks` | JSON lines: one system track per line, as above, each with `now_ms` and `track_number`: a number 1 to 65535 that the track keeps while it lives, for formats whose track identifier is a number (ASTERIX I062/040). A new track takes the next free number, wrapping after 65535. An empty value means no system track | on a tick, when the set differs from the last one published, or `heartbeat_ms` after it |
 | `<prefix>/quality` | JSON lines: one quality event per line, each with `now_ms` | the same rule |
 | `<prefix>/events/<function>`, `<prefix>/trace/<function>` | as above | as above |
 

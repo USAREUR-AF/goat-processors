@@ -57,9 +57,43 @@ struct Batch {
     heartbeat_ms: i64,
     tracks: Option<(String, i64)>,
     quality: Option<(String, i64)>,
+    /// A number 1 to 65535 per system track, held while the track lives, for
+    /// formats whose track identifier is a number (ASTERIX I062/040).
+    numbers: BTreeMap<String, u16>,
+    next_number: u16,
 }
 
 impl Batch {
+    /// Gives each track in `tracks` its number (`track_number`), keeping the
+    /// number of a track seen before, and frees the numbers of tracks no
+    /// longer in the set. A new track takes the next free number after the
+    /// last one given, wrapping after 65535.
+    fn number(&mut self, tracks: &mut [Json]) {
+        let ids: Vec<String> = tracks.iter().map(|t| t.get("group").or_else(|| t.get("system")).and_then(|v| v.as_str()).unwrap_or("").to_string()).collect();
+        self.numbers.retain(|id, _| ids.contains(id));
+        for (t, id) in tracks.iter_mut().zip(ids) {
+            let n = match self.numbers.get(&id) {
+                Some(n) => *n,
+                None => {
+                    let used: std::collections::BTreeSet<u16> = self.numbers.values().copied().collect();
+                    if used.len() >= 65535 {
+                        continue;
+                    }
+                    let mut n = self.next_number;
+                    while n == 0 || used.contains(&n) {
+                        n = n.wrapping_add(1);
+                    }
+                    self.next_number = n.wrapping_add(1);
+                    self.numbers.insert(id, n);
+                    n
+                }
+            };
+            if let Json::Obj(m) = t {
+                m.insert("track_number".into(), Json::Int(n as i64));
+            }
+        }
+    }
+
     /// Whether a set whose content is `body` is due at `now`: it differs from
     /// the last one published, or the heartbeat has passed.
     fn due(last: &mut Option<(String, i64)>, body: String, now: i64, heartbeat_ms: i64) -> bool {
@@ -126,7 +160,10 @@ impl Sinks {
             // so a reader splits it with newline framing, and the runner's own
             // input reads it as a list of reports.
             let lines = |v: &[Json]| v.iter().map(|e| with_now(e, now).to_string() + "\n").collect::<String>();
-            let tracks: Vec<Json> = track_events(out).into_iter().map(|(_, e)| e).collect();
+            let mut tracks: Vec<Json> = track_events(out).into_iter().map(|(_, e)| e).collect();
+            if track_stage.is_some() {
+                b.number(&mut tracks);
+            }
             let quality: Vec<Json> = out
                 .stages
                 .iter()
@@ -786,6 +823,8 @@ pub fn run(c: Config) -> Result<(), String> {
             heartbeat_ms: f.heartbeat_ms as i64,
             tracks: None,
             quality: None,
+            numbers: BTreeMap::new(),
+            next_number: 1,
         }),
         file: match &c.outputs.file {
             Some(f) => Some((append(&f.path)?, f.trace)),
@@ -939,5 +978,23 @@ mod batch_tests {
         assert!(!Batch::due(&mut last, "b".into(), 1399, 1000));
         assert!(Batch::due(&mut last, "b".into(), 1400, 1000), "heartbeat");
         assert!(Batch::due(&mut last, "b".into(), 100, 1000), "the clock went back");
+    }
+
+    #[test]
+    fn a_track_keeps_its_number_and_an_ended_track_frees_it() {
+        use goat_correlator::json::{self, Json};
+        let mut b = Batch { heartbeat_ms: 1000, tracks: None, quality: None, numbers: Default::default(), next_number: 1 };
+        let set = |ids: &[&str]| -> Vec<Json> { ids.iter().map(|i| json::parse(&format!("{{\"group\":\"{i}\"}}")).unwrap()).collect() };
+        let num = |t: &Json| t.get("track_number").and_then(|v| v.as_i64()).unwrap();
+        let mut a = set(&["s1", "s2"]);
+        b.number(&mut a);
+        assert_eq!((num(&a[0]), num(&a[1])), (1, 2));
+        let mut a = set(&["s2", "s3"]);
+        b.number(&mut a);
+        assert_eq!((num(&a[0]), num(&a[1])), (2, 3), "s2 keeps 2; s3 takes the next number");
+        b.next_number = 65535;
+        let mut a = set(&["s2", "s3", "s4", "s5"]);
+        b.number(&mut a);
+        assert_eq!((num(&a[2]), num(&a[3])), (65535, 1), "wraps past 65535, skipping 0; 1 is free again");
     }
 }
