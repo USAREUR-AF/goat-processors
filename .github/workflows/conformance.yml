@@ -65,6 +65,7 @@ jobs:
           distribution: temurin
           java-version: "17"
       - run: engines/java/build.sh
+      - run: engines/java/coverage.sh
   cpp:
     runs-on: ubuntu-latest
     timeout-minutes: 10
