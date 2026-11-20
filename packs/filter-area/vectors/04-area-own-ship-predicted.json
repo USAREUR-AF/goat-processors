@@ -1,203 +1,203 @@
 {
  "name": "04-area-own-ship-predicted",
  "pack": "filter-area",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "own",
-    "uid": "OS1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 0.9,
-    "course": 90,
-    "speed_ms": 15
-   },
-   "expect": [
-    {
-     "ev": "keep",
-     "entity": "own/OS1",
-     "rule": "own-ship"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "own-ship",
-     "entity": "own/OS1",
-     "test": "source",
-     "negated": false,
-     "value": "own",
-     "limit": [
-      "own"
-     ],
-     "pass": true
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 55000,
-    "lat": 1.0,
-    "lon": 1.264280229,
-    "type": "a-n-S-X"
-   },
-   "expect": [
-    {
-     "ev": "keep",
-     "entity": "radar-1/T1",
-     "rule": "near-own-ship"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "own-ship",
-     "entity": "radar-1/T1",
-     "test": "source",
-     "negated": false,
-     "value": "radar-1",
-     "limit": [
-      "own"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "outside-box",
-     "entity": "radar-1/T1",
-     "test": "polygon",
-     "negated": true,
-     "value": "inside",
-     "limit": null,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "harbor",
-     "entity": "radar-1/T1",
-     "test": "circle",
-     "negated": false,
-     "value": 33594.05351686199,
-     "limit": 5000.0,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "near-own-ship",
-     "entity": "radar-1/T1",
-     "test": "near",
-     "negated": false,
-     "value": 39674.99998583271,
-     "limit": 40000.0,
-     "pass": true
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T2",
-    "time_ms": 55000,
-    "lat": 1.0,
-    "lon": 0.544714345,
-    "type": "a-n-S-X"
-   },
-   "expect": [
-    {
-     "ev": "drop",
-     "entity": "radar-1/T2",
-     "rule": "default"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "own-ship",
-     "entity": "radar-1/T2",
-     "test": "source",
-     "negated": false,
-     "value": "radar-1",
-     "limit": [
-      "own"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "outside-box",
-     "entity": "radar-1/T2",
-     "test": "polygon",
-     "negated": true,
-     "value": "inside",
-     "limit": null,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "harbor",
-     "entity": "radar-1/T2",
-     "test": "circle",
-     "negated": false,
-     "value": 90350.72967397935,
-     "limit": 5000.0,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "near-own-ship",
-     "entity": "radar-1/T2",
-     "test": "near",
-     "negated": false,
-     "value": 40324.99993531187,
-     "limit": 40000.0,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "high-air",
-     "entity": "radar-1/T2",
-     "test": "env",
-     "negated": false,
-     "value": "S",
-     "limit": [
-      "A"
-     ],
-     "pass": false
-    }
-   ]
-  }
- ],
  "snapshot": {
   "entities": {
    "own/OS1": {
-    "time_ms": 0,
+    "course": 90.0,
+    "kept_ms": 0,
     "lat": 1.0,
     "lon": 0.9,
-    "course": 90,
-    "speed_ms": 15,
+    "speed_ms": 15.0,
     "stale_ms": null,
-    "kept_ms": 0
+    "time_ms": 0
    },
    "radar-1/T1": {
-    "time_ms": 55000,
+    "course": null,
+    "kept_ms": 55000,
     "lat": 1.0,
     "lon": 1.264280229,
-    "course": null,
     "speed_ms": null,
     "stale_ms": null,
-    "kept_ms": 55000
+    "time_ms": 55000
    },
    "radar-1/T2": {
-    "time_ms": 55000,
+    "course": null,
+    "kept_ms": null,
     "lat": 1.0,
     "lon": 0.544714345,
-    "course": null,
     "speed_ms": null,
     "stale_ms": null,
-    "kept_ms": null
+    "time_ms": 55000
    }
   }
- }
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "own/OS1",
+     "ev": "keep",
+     "rule": "own-ship"
+    }
+   ],
+   "ingest": {
+    "course": 90,
+    "lat": 1.0,
+    "lon": 0.9,
+    "speed_ms": 15,
+    "time_ms": 0,
+    "track.source_id": "own",
+    "uid": "OS1"
+   },
+   "trace": [
+    {
+     "entity": "own/OS1",
+     "limit": [
+      "own"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "own-ship",
+     "stage": "rule",
+     "test": "source",
+     "value": "own"
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "keep",
+     "rule": "near-own-ship"
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.264280229,
+    "time_ms": 55000,
+    "track.source_id": "radar-1",
+    "type": "a-n-S-X",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "own"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "own-ship",
+     "stage": "rule",
+     "test": "source",
+     "value": "radar-1"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": null,
+     "negated": true,
+     "pass": false,
+     "rule": "outside-box",
+     "stage": "rule",
+     "test": "polygon",
+     "value": "inside"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": 5000.0,
+     "negated": false,
+     "pass": false,
+     "rule": "harbor",
+     "stage": "rule",
+     "test": "circle",
+     "value": 33594.05351686199
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": 40000.0,
+     "negated": false,
+     "pass": true,
+     "rule": "near-own-ship",
+     "stage": "rule",
+     "test": "near",
+     "value": 39674.99998583271
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T2",
+     "ev": "drop",
+     "rule": "default"
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 0.544714345,
+    "time_ms": 55000,
+    "track.source_id": "radar-1",
+    "type": "a-n-S-X",
+    "uid": "T2"
+   },
+   "trace": [
+    {
+     "entity": "radar-1/T2",
+     "limit": [
+      "own"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "own-ship",
+     "stage": "rule",
+     "test": "source",
+     "value": "radar-1"
+    },
+    {
+     "entity": "radar-1/T2",
+     "limit": null,
+     "negated": true,
+     "pass": false,
+     "rule": "outside-box",
+     "stage": "rule",
+     "test": "polygon",
+     "value": "inside"
+    },
+    {
+     "entity": "radar-1/T2",
+     "limit": 5000.0,
+     "negated": false,
+     "pass": false,
+     "rule": "harbor",
+     "stage": "rule",
+     "test": "circle",
+     "value": 90350.72967397935
+    },
+    {
+     "entity": "radar-1/T2",
+     "limit": 40000.0,
+     "negated": false,
+     "pass": false,
+     "rule": "near-own-ship",
+     "stage": "rule",
+     "test": "near",
+     "value": 40324.99993531187
+    },
+    {
+     "entity": "radar-1/T2",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "high-air",
+     "stage": "rule",
+     "test": "env",
+     "value": "S"
+    }
+   ]
+  }
+ ]
 }

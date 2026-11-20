@@ -1,79 +1,79 @@
 {
  "name": "01-area-own-ship-first-rule",
  "pack": "filter-area",
+ "snapshot": {
+  "entities": {
+   "own/OS1": {
+    "course": null,
+    "kept_ms": 1000,
+    "lat": 3.0,
+    "lon": 0.7,
+    "speed_ms": null,
+    "stale_ms": null,
+    "time_ms": 1000
+   }
+  }
+ },
  "steps": [
   {
-   "ingest": {
-    "track.source_id": "own",
-    "uid": "OS1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 0.9
-   },
    "expect": [
     {
-     "ev": "keep",
      "entity": "own/OS1",
+     "ev": "keep",
      "rule": "own-ship"
     }
    ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 0.9,
+    "time_ms": 0,
+    "track.source_id": "own",
+    "uid": "OS1"
+   },
    "trace": [
     {
-     "stage": "rule",
-     "rule": "own-ship",
      "entity": "own/OS1",
-     "test": "source",
-     "negated": false,
-     "value": "own",
      "limit": [
       "own"
      ],
-     "pass": true
+     "negated": false,
+     "pass": true,
+     "rule": "own-ship",
+     "stage": "rule",
+     "test": "source",
+     "value": "own"
     }
    ]
   },
   {
-   "ingest": {
-    "track.source_id": "own",
-    "uid": "OS1",
-    "time_ms": 1000,
-    "lat": 3.0,
-    "lon": 0.7
-   },
    "expect": [
     {
-     "ev": "keep",
      "entity": "own/OS1",
+     "ev": "keep",
      "rule": "own-ship"
     }
    ],
+   "ingest": {
+    "lat": 3.0,
+    "lon": 0.7,
+    "time_ms": 1000,
+    "track.source_id": "own",
+    "uid": "OS1"
+   },
    "trace": [
     {
-     "stage": "rule",
-     "rule": "own-ship",
      "entity": "own/OS1",
-     "test": "source",
-     "negated": false,
-     "value": "own",
      "limit": [
       "own"
      ],
-     "pass": true
+     "negated": false,
+     "pass": true,
+     "rule": "own-ship",
+     "stage": "rule",
+     "test": "source",
+     "value": "own"
     }
    ]
   }
- ],
- "snapshot": {
-  "entities": {
-   "own/OS1": {
-    "time_ms": 1000,
-    "lat": 3.0,
-    "lon": 0.7,
-    "course": null,
-    "speed_ms": null,
-    "stale_ms": null,
-    "kept_ms": 1000
-   }
-  }
- }
+ ]
 }

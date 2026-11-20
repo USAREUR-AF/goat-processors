@@ -1,173 +1,10 @@
 {
  "name": "47-assign-bias-residual-refused",
  "pack": "correlate-assign-bias",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A7",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 30,
-    "course": 90,
-    "speed_ms": 300,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "adsb/A7"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 30,
-    "course": 0,
-    "speed_ms": 300,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-1/T1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "tick": 10000,
-   "expect": [
-    {
-     "ev": "start",
-     "system": "s1",
-     "entity": "adsb/A7"
-    },
-    {
-     "ev": "join",
-     "system": "s1",
-     "entity": "radar-1/T1"
-    },
-    {
-     "ev": "system",
-     "system": "s1",
-     "members": [
-      "adsb/A7",
-      "radar-1/T1"
-     ],
-     "lat": 1.013489805455868,
-     "lon": 1.013491860331546,
-     "course": 45.0,
-     "speed_ms": 212.1320343559642
-    }
-   ],
-   "trace": [
-    {
-     "stage": "assign",
-     "a": "adsb/A7",
-     "b": "alone",
-     "test": "cost",
-     "value": 9.21,
-     "limit": null,
-     "pass": true
-    },
-    {
-     "stage": "assign",
-     "a": "adsb/A7",
-     "b": "alone",
-     "test": "choice",
-     "value": 9.21,
-     "limit": null,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "mahalanobis",
-     "value": 0.0,
-     "limit": 18.42,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "same",
-     "value": 0,
-     "limit": 0,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "same",
-     "value": "A",
-     "limit": "A",
-     "pass": true
-    },
-    {
-     "stage": "assign",
-     "a": "radar-1/T1",
-     "b": "s1",
-     "test": "cost",
-     "value": 0.0,
-     "limit": null,
-     "pass": true
-    },
-    {
-     "stage": "assign",
-     "a": "radar-1/T1",
-     "b": "alone",
-     "test": "cost",
-     "value": 9.21,
-     "limit": null,
-     "pass": true
-    },
-    {
-     "stage": "assign",
-     "a": "radar-1/T1",
-     "b": "s1",
-     "test": "choice",
-     "value": 0.0,
-     "limit": null,
-     "pass": true
-    },
-    {
-     "stage": "bias",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "offset",
-     "value": 23.47417840375587,
-     "limit": 13.82,
-     "pass": false,
-     "east": 0.0,
-     "north": 0.0,
-     "var": 90000.0,
-     "pairs": 0
-    }
-   ]
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
+  "bias": {},
   "entities": {
    "adsb/A7": {
-    "last_time_ms": 0,
-    "system": "s1",
     "filter": {
      "east": [
       0.0,
@@ -184,8 +21,13 @@
       25.0
      ]
     },
+    "last_time_ms": 0,
+    "mode": [
+     0.6666666666666666,
+     0.3333333333333333
+    ],
     "models": {
-     "quiet": {
+     "maneuver": {
       "east": [
        0.0,
        300.0,
@@ -201,7 +43,7 @@
        25.0
       ]
      },
-     "maneuver": {
+     "quiet": {
       "east": [
        0.0,
        300.0,
@@ -218,14 +60,9 @@
       ]
      }
     },
-    "mode": [
-     0.6666666666666666,
-     0.3333333333333333
-    ]
+    "system": "s1"
    },
    "radar-1/T1": {
-    "last_time_ms": 0,
-    "system": "s1",
     "filter": {
      "east": [
       0.0,
@@ -242,8 +79,13 @@
       25.0
      ]
     },
+    "last_time_ms": 0,
+    "mode": [
+     0.6666666666666666,
+     0.3333333333333333
+    ],
     "models": {
-     "quiet": {
+     "maneuver": {
       "east": [
        0.0,
        0.0,
@@ -259,7 +101,7 @@
        25.0
       ]
      },
-     "maneuver": {
+     "quiet": {
       "east": [
        0.0,
        0.0,
@@ -276,20 +118,178 @@
       ]
      }
     },
-    "mode": [
-     0.6666666666666666,
-     0.3333333333333333
-    ]
+    "system": "s1"
    }
   },
+  "next_system": 2,
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "reported": [],
   "systems": {
    "s1": [
     "adsb/A7",
     "radar-1/T1"
    ]
+  }
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "adsb/A7",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "course": 90,
+    "lat": 1.0,
+    "lon": 1.0,
+    "speed_ms": 300,
+    "time_ms": 0,
+    "track.simulated": 0,
+    "track.source_id": "adsb",
+    "type": "a-f-A-M-F",
+    "uid": "A7"
+   },
+   "trace": []
   },
-  "next_system": 2,
-  "reported": [],
-  "bias": {}
- }
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "course": 0,
+    "lat": 1.0,
+    "lon": 1.0,
+    "speed_ms": 300,
+    "time_ms": 0,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "entity": "adsb/A7",
+     "ev": "start",
+     "system": "s1"
+    },
+    {
+     "entity": "radar-1/T1",
+     "ev": "join",
+     "system": "s1"
+    },
+    {
+     "course": 45.0,
+     "ev": "system",
+     "lat": 1.013489805455868,
+     "lon": 1.013491860331546,
+     "members": [
+      "adsb/A7",
+      "radar-1/T1"
+     ],
+     "speed_ms": 212.1320343559642,
+     "system": "s1"
+    }
+   ],
+   "tick": 10000,
+   "trace": [
+    {
+     "a": "adsb/A7",
+     "b": "alone",
+     "limit": null,
+     "pass": true,
+     "stage": "assign",
+     "test": "cost",
+     "value": 9.21
+    },
+    {
+     "a": "adsb/A7",
+     "b": "alone",
+     "limit": null,
+     "pass": true,
+     "stage": "assign",
+     "test": "choice",
+     "value": 9.21
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": 18.42,
+     "pass": true,
+     "stage": "gate",
+     "test": "mahalanobis",
+     "value": 0.0
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": 0,
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": 0
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": "A",
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": "A"
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "s1",
+     "limit": null,
+     "pass": true,
+     "stage": "assign",
+     "test": "cost",
+     "value": 0.0
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "alone",
+     "limit": null,
+     "pass": true,
+     "stage": "assign",
+     "test": "cost",
+     "value": 9.21
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "s1",
+     "limit": null,
+     "pass": true,
+     "stage": "assign",
+     "test": "choice",
+     "value": 0.0
+    },
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "east": 0.0,
+     "limit": 13.82,
+     "north": 0.0,
+     "pairs": 0,
+     "pass": false,
+     "stage": "bias",
+     "test": "offset",
+     "value": 23.47417840375587,
+     "var": 90000.0
+    }
+   ]
+  }
+ ]
 }

@@ -1,415 +1,12 @@
 {
  "name": "54-confirm-time-error-widens-gate",
  "pack": "correlate-gnn-time",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "course": 90,
-    "speed_ms": 200,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-1/T1"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "filter",
-     "a": "radar-1/T1",
-     "b": null,
-     "test": "time",
-     "value": 500.0,
-     "limit": null,
-     "pass": true,
-     "var_east": 10000.0,
-     "var_north": 3.7493994566546444e-29
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A7",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.001798915,
-    "course": 90,
-    "speed_ms": 200,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "adsb/A7"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "gate",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "mahalanobis",
-     "value": 1.8348629751307446,
-     "limit": 9.21,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "same",
-     "value": 0,
-     "limit": 0,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "same",
-     "value": "A",
-     "limit": "A",
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "course",
-     "value": 0.0,
-     "limit": 45.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "speed",
-     "value": 0.0,
-     "limit": 40.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "altitude",
-     "value": null,
-     "limit": null,
-     "pass": true,
-     "skipped": true
-    },
-    {
-     "stage": "confirm",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "count",
-     "value": 1,
-     "limit": 2,
-     "pass": false
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 1000,
-    "lat": 1.0,
-    "lon": 1.001798915,
-    "course": 90,
-    "speed_ms": 200,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "correlate",
-     "group": "g1",
-     "members": [
-      "adsb/A7",
-      "radar-1/T1"
-     ]
-    }
-   ],
-   "trace": [
-    {
-     "stage": "filter",
-     "a": "radar-1/T1",
-     "b": null,
-     "test": "time",
-     "value": 500.0,
-     "limit": null,
-     "pass": true,
-     "var_east": 10000.0,
-     "var_north": 3.7493994566546444e-29
-    },
-    {
-     "stage": "gate",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "mahalanobis",
-     "value": 3.3825928775493668,
-     "limit": 9.21,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "same",
-     "value": 0,
-     "limit": 0,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "same",
-     "value": "A",
-     "limit": "A",
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "course",
-     "value": 0.0,
-     "limit": 45.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "speed",
-     "value": 0.0,
-     "limit": 40.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "altitude",
-     "value": null,
-     "limit": null,
-     "pass": true,
-     "skipped": true
-    },
-    {
-     "stage": "confirm",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "count",
-     "value": 2,
-     "limit": 2,
-     "pass": true
-    },
-    {
-     "stage": "rank",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "rank",
-     "value": 3.3825928775493668,
-     "limit": null,
-     "pass": true
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A7",
-    "time_ms": 1000,
-    "lat": 1.0,
-    "lon": 1.003597829,
-    "course": 90,
-    "speed_ms": 200,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [],
-   "trace": [
-    {
-     "stage": "hold",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "mahalanobis",
-     "value": 2.446015357304979,
-     "limit": 18.42,
-     "pass": true
-    }
-   ]
-  },
-  {
-   "tick": 1500,
-   "expect": [
-    {
-     "ev": "fused",
-     "group": "g1",
-     "primary": "adsb/A7",
-     "members": [
-      "adsb/A7",
-      "radar-1/T1"
-     ],
-     "lat": 1.0,
-     "lon": 1.0044972867059703,
-     "course": 90.0,
-     "speed_ms": 199.99999945494133
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 2000,
-    "lat": 1.0,
-    "lon": 1.003597829,
-    "time_error_ms": 0,
-    "time_state": "unsynced",
-    "course": 90,
-    "speed_ms": 200,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [],
-   "trace": [
-    {
-     "stage": "hold",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "mahalanobis",
-     "value": 29.018611136260017,
-     "limit": 18.42,
-     "pass": false
-    }
-   ]
-  },
-  {
-   "tick": 2500,
-   "expect": [
-    {
-     "ev": "fused",
-     "group": "g1",
-     "primary": "adsb/A7",
-     "members": [
-      "adsb/A7",
-      "radar-1/T1"
-     ],
-     "lat": 1.0,
-     "lon": 1.0062962014119403,
-     "course": 90.0,
-     "speed_ms": 199.99999945494133
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 3000,
-    "lat": 1.0,
-    "lon": 1.005396744,
-    "time_error_ms": -5,
-    "course": 90,
-    "speed_ms": 200,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [],
-   "trace": [
-    {
-     "stage": "filter",
-     "a": "radar-1/T1",
-     "b": null,
-     "test": "time",
-     "value": 500.0,
-     "limit": null,
-     "pass": true,
-     "var_east": 9999.999988754238,
-     "var_north": 3.6147414709143326e-29
-    },
-    {
-     "stage": "hold",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "mahalanobis",
-     "value": 3.4987778816511685,
-     "limit": 18.42,
-     "pass": true
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 4000,
-    "lat": 1.0,
-    "lon": 1.007195659,
-    "time_error_ms": true,
-    "course": 90,
-    "speed_ms": 200,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [],
-   "trace": [
-    {
-     "stage": "filter",
-     "a": "radar-1/T1",
-     "b": null,
-     "test": "time",
-     "value": 500.0,
-     "limit": null,
-     "pass": true,
-     "var_east": 9999.999993523317,
-     "var_north": 3.503917027659361e-29
-    },
-    {
-     "stage": "hold",
-     "a": "radar-1/T1",
-     "b": "adsb/A7",
-     "test": "mahalanobis",
-     "value": 3.4708597598825603,
-     "limit": 18.42,
-     "pass": true
-    }
-   ]
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
+  "counts": {
+   "adsb/A7|radar-1/T1": 0
+  },
   "entities": {
    "adsb/A7": {
-    "last_time_ms": 1000,
-    "group": "g1",
-    "hold_failures": 0,
     "filter": {
      "east": [
       399.99999235534057,
@@ -425,12 +22,12 @@
       6.206896551724139,
       12.658891142663963
      ]
-    }
-   },
-   "radar-1/T1": {
-    "last_time_ms": 4000,
+    },
     "group": "g1",
     "hold_failures": 0,
+    "last_time_ms": 1000
+   },
+   "radar-1/T1": {
     "filter": {
      "east": [
       799.9999669107668,
@@ -447,6 +44,9 @@
       5.847186058652813
      ]
     },
+    "group": "g1",
+    "hold_failures": 0,
+    "last_time_ms": 4000,
     "time": {
      "var_east": 9999.999993523317,
      "var_north": 3.503917027659361e-29
@@ -459,9 +59,409 @@
     "radar-1/T1"
    ]
   },
-  "counts": {
-   "adsb/A7|radar-1/T1": 0
+  "next_group": 2,
+  "ref": [
+   1.0,
+   1.0
+  ]
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "course": 90,
+    "lat": 1.0,
+    "lon": 1.0,
+    "speed_ms": 200,
+    "time_ms": 0,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "a": "radar-1/T1",
+     "b": null,
+     "limit": null,
+     "pass": true,
+     "stage": "filter",
+     "test": "time",
+     "value": 500.0,
+     "var_east": 10000.0,
+     "var_north": 3.7493994566546444e-29
+    }
+   ]
   },
-  "next_group": 2
- }
+  {
+   "expect": [
+    {
+     "entity": "adsb/A7",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "course": 90,
+    "lat": 1.0,
+    "lon": 1.001798915,
+    "speed_ms": 200,
+    "time_ms": 0,
+    "track.simulated": 0,
+    "track.source_id": "adsb",
+    "type": "a-f-A-M-F",
+    "uid": "A7"
+   },
+   "trace": [
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "limit": 9.21,
+     "pass": true,
+     "stage": "gate",
+     "test": "mahalanobis",
+     "value": 1.8348629751307433
+    },
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "limit": 0,
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": 0
+    },
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "limit": "A",
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": "A"
+    },
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "limit": 45.0,
+     "pass": true,
+     "stage": "confirm",
+     "test": "course",
+     "value": 0.0
+    },
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "limit": 40.0,
+     "pass": true,
+     "stage": "confirm",
+     "test": "speed",
+     "value": 0.0
+    },
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "limit": null,
+     "pass": true,
+     "skipped": true,
+     "stage": "confirm",
+     "test": "altitude",
+     "value": null
+    },
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "limit": 2,
+     "pass": false,
+     "stage": "confirm",
+     "test": "count",
+     "value": 1
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "correlate",
+     "group": "g1",
+     "members": [
+      "adsb/A7",
+      "radar-1/T1"
+     ]
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "course": 90,
+    "lat": 1.0,
+    "lon": 1.001798915,
+    "speed_ms": 200,
+    "time_ms": 1000,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "a": "radar-1/T1",
+     "b": null,
+     "limit": null,
+     "pass": true,
+     "stage": "filter",
+     "test": "time",
+     "value": 500.0,
+     "var_east": 10000.0,
+     "var_north": 3.7493994566546444e-29
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": 9.21,
+     "pass": true,
+     "stage": "gate",
+     "test": "mahalanobis",
+     "value": 3.3825928775493663
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": 0,
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": 0
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": "A",
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": "A"
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": 45.0,
+     "pass": true,
+     "stage": "confirm",
+     "test": "course",
+     "value": 0.0
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": 40.0,
+     "pass": true,
+     "stage": "confirm",
+     "test": "speed",
+     "value": 0.0
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": null,
+     "pass": true,
+     "skipped": true,
+     "stage": "confirm",
+     "test": "altitude",
+     "value": null
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": 2,
+     "pass": true,
+     "stage": "confirm",
+     "test": "count",
+     "value": 2
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": null,
+     "pass": true,
+     "stage": "rank",
+     "test": "rank",
+     "value": 3.3825928775493663
+    }
+   ]
+  },
+  {
+   "expect": [],
+   "ingest": {
+    "ce": 30,
+    "course": 90,
+    "lat": 1.0,
+    "lon": 1.003597829,
+    "speed_ms": 200,
+    "time_ms": 1000,
+    "track.simulated": 0,
+    "track.source_id": "adsb",
+    "type": "a-f-A-M-F",
+    "uid": "A7"
+   },
+   "trace": [
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "limit": 18.42,
+     "pass": true,
+     "stage": "hold",
+     "test": "mahalanobis",
+     "value": 2.4460153573049794
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "course": 90.0,
+     "ev": "fused",
+     "group": "g1",
+     "lat": 1.0,
+     "lon": 1.0044972867059703,
+     "members": [
+      "adsb/A7",
+      "radar-1/T1"
+     ],
+     "primary": "adsb/A7",
+     "speed_ms": 199.99999945494133
+    }
+   ],
+   "tick": 1500,
+   "trace": []
+  },
+  {
+   "expect": [],
+   "ingest": {
+    "ce": 30,
+    "course": 90,
+    "lat": 1.0,
+    "lon": 1.003597829,
+    "speed_ms": 200,
+    "time_error_ms": 0,
+    "time_ms": 2000,
+    "time_state": "unsynced",
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": 18.42,
+     "pass": false,
+     "stage": "hold",
+     "test": "mahalanobis",
+     "value": 29.018611136260017
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "course": 90.0,
+     "ev": "fused",
+     "group": "g1",
+     "lat": 1.0,
+     "lon": 1.0062962014119403,
+     "members": [
+      "adsb/A7",
+      "radar-1/T1"
+     ],
+     "primary": "adsb/A7",
+     "speed_ms": 199.99999945494133
+    }
+   ],
+   "tick": 2500,
+   "trace": []
+  },
+  {
+   "expect": [],
+   "ingest": {
+    "ce": 30,
+    "course": 90,
+    "lat": 1.0,
+    "lon": 1.005396744,
+    "speed_ms": 200,
+    "time_error_ms": -5,
+    "time_ms": 3000,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "a": "radar-1/T1",
+     "b": null,
+     "limit": null,
+     "pass": true,
+     "stage": "filter",
+     "test": "time",
+     "value": 500.0,
+     "var_east": 9999.999988754238,
+     "var_north": 3.6147414709143326e-29
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": 18.42,
+     "pass": true,
+     "stage": "hold",
+     "test": "mahalanobis",
+     "value": 3.4987778816511685
+    }
+   ]
+  },
+  {
+   "expect": [],
+   "ingest": {
+    "ce": 30,
+    "course": 90,
+    "lat": 1.0,
+    "lon": 1.007195659,
+    "speed_ms": 200,
+    "time_error_ms": true,
+    "time_ms": 4000,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "a": "radar-1/T1",
+     "b": null,
+     "limit": null,
+     "pass": true,
+     "stage": "filter",
+     "test": "time",
+     "value": 500.0,
+     "var_east": 9999.999993523317,
+     "var_north": 3.503917027659361e-29
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "adsb/A7",
+     "limit": 18.42,
+     "pass": true,
+     "stage": "hold",
+     "test": "mahalanobis",
+     "value": 3.4708597598825603
+    }
+   ]
+  }
+ ]
 }

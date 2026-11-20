@@ -1,154 +1,9 @@
 {
  "name": "07-shared-sensor-inverse-variance-overclaims",
  "pack": "fuse-independent",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "trk-a",
-    "uid": "S1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.000359783,
-    "fuse.group": "obj-1",
-    "ce": 30,
-    "callsign": "ALPHA",
-    "type": "a-f-A"
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "trk-a/S1",
-     "group": "obj-1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "trk-b",
-    "uid": "S9",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.000359783,
-    "fuse.group": "obj-1",
-    "ce": 40,
-    "callsign": "BRAVO",
-    "type": "a-h-A"
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "trk-b/S9",
-     "group": "obj-1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "tick": 0,
-   "expect": [
-    {
-     "ev": "fused",
-     "group": "obj-1",
-     "members": [
-      "trk-a/S1",
-      "trk-b/S9"
-     ],
-     "from": null,
-     "lat": 1.0,
-     "lon": 1.000359783,
-     "course": 0.0,
-     "speed_ms": 0.0,
-     "ce": 24.0,
-     "attributes": {
-      "type": {
-       "value": "a-f-A",
-       "from": "trk-a/S1"
-      },
-      "callsign": {
-       "value": "ALPHA",
-       "from": "trk-a/S1"
-      }
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "kinematics",
-     "group": "obj-1",
-     "method": "inverse_variance",
-     "candidates": [
-      {
-       "member": "trk-a/S1",
-       "var": 1800.0,
-       "time_ms": 0,
-       "rank": null
-      },
-      {
-       "member": "trk-b/S9",
-       "var": 3200.0,
-       "time_ms": 0,
-       "rank": null
-      }
-     ],
-     "winner": null
-    },
-    {
-     "stage": "attribute",
-     "group": "obj-1",
-     "key": "type",
-     "rule": "priority",
-     "candidates": [
-      {
-       "member": "trk-a/S1",
-       "value": "a-f-A",
-       "time_ms": 0,
-       "rank": null
-      },
-      {
-       "member": "trk-b/S9",
-       "value": "a-h-A",
-       "time_ms": 0,
-       "rank": null
-      }
-     ],
-     "winner": "trk-a/S1",
-     "value": "a-f-A"
-    },
-    {
-     "stage": "attribute",
-     "group": "obj-1",
-     "key": "callsign",
-     "rule": "priority",
-     "candidates": [
-      {
-       "member": "trk-a/S1",
-       "value": "ALPHA",
-       "time_ms": 0,
-       "rank": null
-      },
-      {
-       "member": "trk-b/S9",
-       "value": "BRAVO",
-       "time_ms": 0,
-       "rank": null
-      }
-     ],
-     "winner": "trk-a/S1",
-     "value": "ALPHA"
-    }
-   ]
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.000359783
-  ],
   "entities": {
    "trk-a/S1": {
-    "last_time_ms": 0,
-    "group": "obj-1",
     "filter": {
      "east": [
       0.0,
@@ -165,6 +20,8 @@
       10000.0
      ]
     },
+    "group": "obj-1",
+    "last_time_ms": 0,
     "report": {
      "callsign": "ALPHA",
      "ce": 30,
@@ -178,8 +35,6 @@
     }
    },
    "trk-b/S9": {
-    "last_time_ms": 0,
-    "group": "obj-1",
     "filter": {
      "east": [
       0.0,
@@ -196,6 +51,8 @@
       10000.0
      ]
     },
+    "group": "obj-1",
+    "last_time_ms": 0,
     "report": {
      "callsign": "BRAVO",
      "ce": 40,
@@ -208,6 +65,149 @@
      "uid": "S9"
     }
    }
+  },
+  "ref": [
+   1.0,
+   1.000359783
+  ]
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "trk-a/S1",
+     "ev": "new",
+     "group": "obj-1"
+    }
+   ],
+   "ingest": {
+    "callsign": "ALPHA",
+    "ce": 30,
+    "fuse.group": "obj-1",
+    "lat": 1.0,
+    "lon": 1.000359783,
+    "time_ms": 0,
+    "track.source_id": "trk-a",
+    "type": "a-f-A",
+    "uid": "S1"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "entity": "trk-b/S9",
+     "ev": "new",
+     "group": "obj-1"
+    }
+   ],
+   "ingest": {
+    "callsign": "BRAVO",
+    "ce": 40,
+    "fuse.group": "obj-1",
+    "lat": 1.0,
+    "lon": 1.000359783,
+    "time_ms": 0,
+    "track.source_id": "trk-b",
+    "type": "a-h-A",
+    "uid": "S9"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "attributes": {
+      "callsign": {
+       "from": "trk-a/S1",
+       "value": "ALPHA"
+      },
+      "type": {
+       "from": "trk-a/S1",
+       "value": "a-f-A"
+      }
+     },
+     "ce": 24.0,
+     "course": 0.0,
+     "ev": "fused",
+     "from": null,
+     "group": "obj-1",
+     "lat": 1.0,
+     "lon": 1.000359783,
+     "members": [
+      "trk-a/S1",
+      "trk-b/S9"
+     ],
+     "speed_ms": 0.0
+    }
+   ],
+   "tick": 0,
+   "trace": [
+    {
+     "candidates": [
+      {
+       "member": "trk-a/S1",
+       "rank": null,
+       "time_ms": 0,
+       "var": 1800.0
+      },
+      {
+       "member": "trk-b/S9",
+       "rank": null,
+       "time_ms": 0,
+       "var": 3200.0
+      }
+     ],
+     "group": "obj-1",
+     "method": "inverse_variance",
+     "stage": "kinematics",
+     "winner": null
+    },
+    {
+     "candidates": [
+      {
+       "member": "trk-a/S1",
+       "rank": null,
+       "time_ms": 0,
+       "value": "a-f-A"
+      },
+      {
+       "member": "trk-b/S9",
+       "rank": null,
+       "time_ms": 0,
+       "value": "a-h-A"
+      }
+     ],
+     "group": "obj-1",
+     "key": "type",
+     "rule": "priority",
+     "stage": "attribute",
+     "value": "a-f-A",
+     "winner": "trk-a/S1"
+    },
+    {
+     "candidates": [
+      {
+       "member": "trk-a/S1",
+       "rank": null,
+       "time_ms": 0,
+       "value": "ALPHA"
+      },
+      {
+       "member": "trk-b/S9",
+       "rank": null,
+       "time_ms": 0,
+       "value": "BRAVO"
+      }
+     ],
+     "group": "obj-1",
+     "key": "callsign",
+     "rule": "priority",
+     "stage": "attribute",
+     "value": "ALPHA",
+     "winner": "trk-a/S1"
+    }
+   ]
   }
- }
+ ]
 }

@@ -1,246 +1,15 @@
 {
  "name": "13-window-moving-fused",
  "pack": "correlate-window",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "ais",
-    "uid": "M1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "course": 45,
-    "speed_ms": 10,
-    "ce": 150,
-    "type": "a-u-S-X",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "ais/M1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "S4",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.000899457,
-    "course": 45,
-    "speed_ms": 10,
-    "ce": 150,
-    "type": "a-u-S-X",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-1/S4"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "gate",
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "test": "window",
-     "value": 99.9999604832469,
-     "limit": 1112.1320343559642,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "test": "same",
-     "value": 0,
-     "limit": 0,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "test": "same",
-     "value": "S",
-     "limit": "S",
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "test": "course",
-     "value": 0.0,
-     "limit": 45.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "test": "speed",
-     "value": 0.0,
-     "limit": 40.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "test": "altitude",
-     "value": null,
-     "limit": null,
-     "pass": true,
-     "skipped": true
-    },
-    {
-     "stage": "confirm",
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "test": "count",
-     "value": 1,
-     "limit": 2,
-     "pass": false
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "ais",
-    "uid": "M1",
-    "time_ms": 10000,
-    "lat": 1.000635909,
-    "lon": 1.000636006,
-    "course": 45,
-    "speed_ms": 10,
-    "ce": 150,
-    "type": "a-u-S-X",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "correlate",
-     "group": "g1",
-     "members": [
-      "ais/M1",
-      "radar-1/S4"
-     ]
-    }
-   ],
-   "trace": [
-    {
-     "stage": "gate",
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "test": "window",
-     "value": 100.0003256077773,
-     "limit": 1112.1320343559642,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "test": "same",
-     "value": 0,
-     "limit": 0,
-     "pass": true
-    },
-    {
-     "stage": "gate",
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "test": "same",
-     "value": "S",
-     "limit": "S",
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "test": "course",
-     "value": 0.0,
-     "limit": 45.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "test": "speed",
-     "value": 0.0,
-     "limit": 40.0,
-     "pass": true
-    },
-    {
-     "stage": "confirm",
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "test": "altitude",
-     "value": null,
-     "limit": null,
-     "pass": true,
-     "skipped": true
-    },
-    {
-     "stage": "confirm",
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "test": "count",
-     "value": 2,
-     "limit": 2,
-     "pass": true
-    },
-    {
-     "stage": "rank",
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "test": "rank",
-     "value": 0.20000130243322958,
-     "limit": null,
-     "pass": true
-    }
-   ]
-  },
-  {
-   "tick": 20000,
-   "expect": [
-    {
-     "ev": "fused",
-     "group": "g1",
-     "primary": "radar-1/S4",
-     "members": [
-      "ais/M1",
-      "radar-1/S4"
-     ],
-     "lat": 1.0012718310552975,
-     "lon": 1.0021714817908345,
-     "course": 45.0,
-     "speed_ms": 10.0
-    }
-   ],
-   "trace": []
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
+  "counts": {
+   "ais/M1|radar-1/S4": 0
+  },
   "entities": {
    "ais/M1": {
-    "last_time_ms": 10000,
-    "group": "g1",
-    "hold_failures": 0,
     "filter": {
      "east": [
-      70.71031299481896,
+      70.71031299481898,
       7.0710658901610755,
       11554.054054054053,
       60.810810810810814,
@@ -253,12 +22,12 @@
       60.810810810810814,
       20.4954954954955
      ]
-    }
-   },
-   "radar-1/S4": {
-    "last_time_ms": 0,
+    },
     "group": "g1",
     "hold_failures": 0,
+    "last_time_ms": 10000
+   },
+   "radar-1/S4": {
     "filter": {
      "east": [
       99.9999604832469,
@@ -274,7 +43,10 @@
       0.0,
       25.0
      ]
-    }
+    },
+    "group": "g1",
+    "hold_failures": 0,
+    "last_time_ms": 0
    }
   },
   "groups": {
@@ -283,9 +55,237 @@
     "radar-1/S4"
    ]
   },
-  "counts": {
-   "ais/M1|radar-1/S4": 0
+  "next_group": 2,
+  "ref": [
+   1.0,
+   1.0
+  ]
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "ais/M1",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "ce": 150,
+    "course": 45,
+    "lat": 1.0,
+    "lon": 1.0,
+    "speed_ms": 10,
+    "time_ms": 0,
+    "track.simulated": 0,
+    "track.source_id": "ais",
+    "type": "a-u-S-X",
+    "uid": "M1"
+   },
+   "trace": []
   },
-  "next_group": 2
- }
+  {
+   "expect": [
+    {
+     "entity": "radar-1/S4",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "ce": 150,
+    "course": 45,
+    "lat": 1.0,
+    "lon": 1.000899457,
+    "speed_ms": 10,
+    "time_ms": 0,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-u-S-X",
+    "uid": "S4"
+   },
+   "trace": [
+    {
+     "a": "radar-1/S4",
+     "b": "ais/M1",
+     "limit": 1112.1320343559642,
+     "pass": true,
+     "stage": "gate",
+     "test": "window",
+     "value": 99.9999604832469
+    },
+    {
+     "a": "radar-1/S4",
+     "b": "ais/M1",
+     "limit": 0,
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": 0
+    },
+    {
+     "a": "radar-1/S4",
+     "b": "ais/M1",
+     "limit": "S",
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": "S"
+    },
+    {
+     "a": "radar-1/S4",
+     "b": "ais/M1",
+     "limit": 45.0,
+     "pass": true,
+     "stage": "confirm",
+     "test": "course",
+     "value": 0.0
+    },
+    {
+     "a": "radar-1/S4",
+     "b": "ais/M1",
+     "limit": 40.0,
+     "pass": true,
+     "stage": "confirm",
+     "test": "speed",
+     "value": 0.0
+    },
+    {
+     "a": "radar-1/S4",
+     "b": "ais/M1",
+     "limit": null,
+     "pass": true,
+     "skipped": true,
+     "stage": "confirm",
+     "test": "altitude",
+     "value": null
+    },
+    {
+     "a": "radar-1/S4",
+     "b": "ais/M1",
+     "limit": 2,
+     "pass": false,
+     "stage": "confirm",
+     "test": "count",
+     "value": 1
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "correlate",
+     "group": "g1",
+     "members": [
+      "ais/M1",
+      "radar-1/S4"
+     ]
+    }
+   ],
+   "ingest": {
+    "ce": 150,
+    "course": 45,
+    "lat": 1.000635909,
+    "lon": 1.000636006,
+    "speed_ms": 10,
+    "time_ms": 10000,
+    "track.simulated": 0,
+    "track.source_id": "ais",
+    "type": "a-u-S-X",
+    "uid": "M1"
+   },
+   "trace": [
+    {
+     "a": "ais/M1",
+     "b": "radar-1/S4",
+     "limit": 1112.1320343559642,
+     "pass": true,
+     "stage": "gate",
+     "test": "window",
+     "value": 100.00032560777727
+    },
+    {
+     "a": "ais/M1",
+     "b": "radar-1/S4",
+     "limit": 0,
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": 0
+    },
+    {
+     "a": "ais/M1",
+     "b": "radar-1/S4",
+     "limit": "S",
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": "S"
+    },
+    {
+     "a": "ais/M1",
+     "b": "radar-1/S4",
+     "limit": 45.0,
+     "pass": true,
+     "stage": "confirm",
+     "test": "course",
+     "value": 0.0
+    },
+    {
+     "a": "ais/M1",
+     "b": "radar-1/S4",
+     "limit": 40.0,
+     "pass": true,
+     "stage": "confirm",
+     "test": "speed",
+     "value": 0.0
+    },
+    {
+     "a": "ais/M1",
+     "b": "radar-1/S4",
+     "limit": null,
+     "pass": true,
+     "skipped": true,
+     "stage": "confirm",
+     "test": "altitude",
+     "value": null
+    },
+    {
+     "a": "ais/M1",
+     "b": "radar-1/S4",
+     "limit": 2,
+     "pass": true,
+     "stage": "confirm",
+     "test": "count",
+     "value": 2
+    },
+    {
+     "a": "ais/M1",
+     "b": "radar-1/S4",
+     "limit": null,
+     "pass": true,
+     "stage": "rank",
+     "test": "rank",
+     "value": 0.20000130243322953
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "course": 45.0,
+     "ev": "fused",
+     "group": "g1",
+     "lat": 1.0012718310552975,
+     "lon": 1.0021714817908345,
+     "members": [
+      "ais/M1",
+      "radar-1/S4"
+     ],
+     "primary": "radar-1/S4",
+     "speed_ms": 10.0
+    }
+   ],
+   "tick": 20000,
+   "trace": []
+  }
+ ]
 }

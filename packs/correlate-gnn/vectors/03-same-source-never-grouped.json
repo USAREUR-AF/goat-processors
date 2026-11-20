@@ -1,84 +1,10 @@
 {
  "name": "03-same-source-never-grouped",
  "pack": "correlate-gnn",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-1/T1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T2",
-    "time_ms": 0,
-    "lat": 1.000044966,
-    "lon": 1.000044973,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-1/T2"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 1000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T2",
-    "time_ms": 1000,
-    "lat": 1.000044966,
-    "lon": 1.000044973,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [],
-   "trace": []
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
+  "counts": {},
   "entities": {
    "radar-1/T1": {
-    "last_time_ms": 1000,
-    "group": null,
-    "hold_failures": 0,
     "filter": {
      "east": [
       0.0,
@@ -94,12 +20,12 @@
       762.7338403847376,
       1525.755810258257
      ]
-    }
-   },
-   "radar-1/T2": {
-    "last_time_ms": 1000,
+    },
     "group": null,
     "hold_failures": 0,
+    "last_time_ms": 1000
+   },
+   "radar-1/T2": {
     "filter": {
      "east": [
       5.000014700890364,
@@ -115,11 +41,85 @@
       762.7338403847376,
       1525.755810258257
      ]
-    }
+    },
+    "group": null,
+    "hold_failures": 0,
+    "last_time_ms": 1000
    }
   },
   "groups": {},
-  "counts": {},
-  "next_group": 1
- }
+  "next_group": 1,
+  "ref": [
+   1.0,
+   1.0
+  ]
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 0,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T2",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "lat": 1.000044966,
+    "lon": 1.000044973,
+    "time_ms": 0,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T2"
+   },
+   "trace": []
+  },
+  {
+   "expect": [],
+   "ingest": {
+    "ce": 30,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 1000,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": []
+  },
+  {
+   "expect": [],
+   "ingest": {
+    "ce": 30,
+    "lat": 1.000044966,
+    "lon": 1.000044973,
+    "time_ms": 1000,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T2"
+   },
+   "trace": []
+  }
+ ]
 }
