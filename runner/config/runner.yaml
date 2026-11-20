@@ -1,0 +1,46 @@
+# goat-processors runner configuration.
+# Check it after every edit:   goat-processors config check
+# Every key is explained in /usr/share/doc/goat-processors/README.md, Configure.
+
+# This runner's name and its site. Letters, digits, - and _ only.
+# They form the default output prefix: data/processed/<site>/<name>.
+name: processors-1
+site: CHANGE-ME
+
+# Where the packs (settings files) are. The package installs them here.
+packs_dir: /usr/share/goat-processors/packs
+
+# One tick a second. A tick is when every function produces its output.
+tick_ms: 1000
+# wall: ticks follow this host's clock. input: ticks follow the report times
+# (only for replaying old data).
+clock: wall
+
+# The goat fabric (Zenoh). Replace the router address with your site's.
+fabric:
+  mode: client
+  connect:
+    - tls/CHANGE-ME-router:7447
+  tls:
+    root_ca: /etc/goat-processors/tls/ca.pem
+    certificate: /etc/goat-processors/tls/runner.pem
+    private_key: /etc/goat-processors/tls/runner.key
+
+# What the runner reads: the tracks the translators publish on the fabric.
+inputs:
+  fabric:
+    keys:
+      - data/entity/track/**
+
+# The functions, in order. `goat-processors pack ls` lists every pack.
+# Add a filter stage first, or a fuse stage after correlate, when needed.
+pipeline:
+  - function: correlate
+    pack: correlate-assign-time
+  - function: quality
+    pack: quality-feed
+
+# What the runner publishes, under data/processed/<site>/<name>/.
+outputs:
+  fabric:
+    trace: false
