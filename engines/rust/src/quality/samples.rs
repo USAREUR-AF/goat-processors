@@ -48,6 +48,15 @@ impl Ms {
         }
     }
 
+    /// Two values compared as binary64 values, except two integers, which
+    /// are compared exactly (as `measures::compare_numbers` on their JSON).
+    pub(super) fn compare(&self, other: &Ms) -> std::cmp::Ordering {
+        match (self, other) {
+            (Ms::Int(a), Ms::Int(b)) => a.cmp(b),
+            _ => self.as_f64().total_cmp(&other.as_f64()),
+        }
+    }
+
     /// `self - t`, ms: an integer when `self` is one, else a binary64.
     pub(super) fn minus(self, t: i64) -> Ms {
         match self {

@@ -1,7 +1,6 @@
 //! correlate.md Track estimate, per entity: the entity's stored filter, last
 //! report and variances, and its prediction to a time (never changing it).
 
-use std::collections::BTreeMap;
 
 use super::pack::{FilterParams, Maneuver, Pack};
 use crate::model::report;
@@ -21,7 +20,7 @@ pub(crate) struct Entity {
     /// With the pack's `maneuver` directive: the two models and `mu`.
     pub(crate) imm: Option<TwoModel>,
     /// The entity's last accepted report.
-    pub(crate) report: BTreeMap<String, Json>,
+    pub(crate) report: crate::model::json::Map,
     /// That report's measurement variance `(r_east, r_north)` (Track
     /// estimate, Measurement variance).
     pub(crate) r: (f64, f64),
@@ -87,7 +86,7 @@ impl Entity {
 }
 
 /// A report's `ce`; absent when not a number or 0 or below (spec: Reports).
-pub(crate) fn report_ce(report: &BTreeMap<String, Json>) -> Option<f64> {
+pub(crate) fn report_ce(report: &crate::model::json::Map) -> Option<f64> {
     report::optional_f64(report, "ce")
 }
 

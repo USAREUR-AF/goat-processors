@@ -74,7 +74,7 @@ fn num_or_null(v: Option<f64>) -> Json {
 
 /// Spec Reports: an optional number; `null`, wrong type (a boolean is never a
 /// number) is absent.
-fn optional_number(report: &BTreeMap<String, Json>, key: &str) -> Option<f64> {
+fn optional_number(report: &crate::model::json::Map, key: &str) -> Option<f64> {
     report.get(key).and_then(Json::as_f64)
 }
 

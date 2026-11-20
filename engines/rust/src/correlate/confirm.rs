@@ -198,15 +198,15 @@ impl Engine {
                     ("hold_failures", (e.hold_failures as f64).into()),
                 ];
                 pairs.extend(filter_json(e));
-                (k.clone(), obj(pairs))
+                (k.into(), obj(pairs))
             })
             .collect();
         let groups = self
             .groups
             .iter()
-            .map(|(g, ms)| (group_name(*g), Json::Arr(ms.iter().map(|m| m.as_str().into()).collect())))
+            .map(|(g, ms)| (group_name(*g).into(), Json::Arr(ms.iter().map(|m| m.as_str().into()).collect())))
             .collect();
-        let counts = self.counts.iter().map(|((x, y), n)| (format!("{}|{}", x, y), Json::Num(*n as f64))).collect();
+        let counts = self.counts.iter().map(|((x, y), n)| (format!("{}|{}", x, y).into(), Json::Num(*n as f64))).collect();
         obj(vec![
             ("ref", reference),
             ("entities", Json::Obj(entities)),

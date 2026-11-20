@@ -17,7 +17,7 @@ impl Engine {
                     ("filter", filter),
                     ("report", Json::Obj(e.report.clone())),
                 ]);
-                (key.clone(), entity)
+                (key.into(), entity)
             })
             .collect();
         obj(vec![("ref", reference), ("entities", Json::Obj(entities))])

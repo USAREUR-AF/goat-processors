@@ -1,7 +1,102 @@
 //! A small JSON value, reader and writer (standard library only).
 
+use std::borrow::Borrow;
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::hash::{Hash, Hasher};
+use std::ops::Deref;
+use std::sync::Arc;
+
+/// An object key. A key the engine writes is a literal and costs nothing; a
+/// key it reads is shared, so copying an object never copies its keys. Keys
+/// compare, order and print as their text.
+#[derive(Clone)]
+pub enum Key {
+    Static(&'static str),
+    Shared(Arc<str>),
+}
+
+impl Key {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Key::Static(s) => s,
+            Key::Shared(s) => s,
+        }
+    }
+}
+
+impl Deref for Key {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl Borrow<str> for Key {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl PartialEq for Key {
+    fn eq(&self, other: &Key) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl Eq for Key {}
+
+impl PartialOrd for Key {
+    fn partial_cmp(&self, other: &Key) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Key {
+    fn cmp(&self, other: &Key) -> Ordering {
+        self.as_str().cmp(other.as_str())
+    }
+}
+
+impl Hash for Key {
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        self.as_str().hash(h)
+    }
+}
+
+impl fmt::Debug for Key {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.as_str(), f)
+    }
+}
+
+impl fmt::Display for Key {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl From<&'static str> for Key {
+    fn from(s: &'static str) -> Key {
+        Key::Static(s)
+    }
+}
+
+impl From<String> for Key {
+    fn from(s: String) -> Key {
+        Key::Shared(s.into())
+    }
+}
+
+impl From<&String> for Key {
+    fn from(s: &String) -> Key {
+        Key::Shared(s.as_str().into())
+    }
+}
+
+/// A JSON object: its keys in byte order.
+pub type Map = BTreeMap<Key, Json>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Json {
@@ -13,7 +108,7 @@ pub enum Json {
     Int(i64),
     Str(String),
     Arr(Vec<Json>),
-    Obj(BTreeMap<String, Json>),
+    Obj(Map),
 }
 
 impl Json {
@@ -68,7 +163,7 @@ impl Json {
         }
     }
 
-    pub fn as_object(&self) -> Option<&BTreeMap<String, Json>> {
+    pub fn as_object(&self) -> Option<&Map> {
         match self {
             Json::Obj(m) => Some(m),
             _ => None,
@@ -106,9 +201,9 @@ impl From<bool> for Json {
     }
 }
 
-/// Builds an object from `(key, value)` pairs.
-pub fn obj(pairs: Vec<(&str, Json)>) -> Json {
-    Json::Obj(pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+/// Builds an object from `(key, value)` pairs with literal keys.
+pub fn obj(pairs: Vec<(&'static str, Json)>) -> Json {
+    Json::Obj(pairs.into_iter().map(|(k, v)| (Key::Static(k), v)).collect())
 }
 
 impl fmt::Display for Json {
@@ -158,6 +253,33 @@ fn write_str(f: &mut fmt::Formatter<'_>, s: &str) -> fmt::Result {
         }
     }
     write!(f, "\"")
+}
+
+/// The keys of reports and of steps files, kept as literals when read.
+fn known_key(k: &str) -> Option<&'static str> {
+    Some(match k {
+        "track.source_id" => "track.source_id",
+        "uid" => "uid",
+        "time_ms" => "time_ms",
+        "lat" => "lat",
+        "lon" => "lon",
+        "ce" => "ce",
+        "hae" => "hae",
+        "course" => "course",
+        "speed_ms" => "speed_ms",
+        "type" => "type",
+        "stale_ms" => "stale_ms",
+        "time_error_ms" => "time_error_ms",
+        "time_state" => "time_state",
+        "received_ms" => "received_ms",
+        "fuse.group" => "fuse.group",
+        "quality.marks" => "quality.marks",
+        "ingest" => "ingest",
+        "tick" => "tick",
+        "expect" => "expect",
+        "trace" => "trace",
+        _ => return None,
+    })
 }
 
 pub fn parse(text: &str) -> Result<Json, String> {
@@ -232,7 +354,7 @@ impl<'a> Parser<'a> {
         }
         loop {
             self.ws();
-            let k = self.string()?;
+            let k = self.key()?;
             self.ws();
             self.expect(b':')?;
             let v = self.value()?;
@@ -280,8 +402,35 @@ impl<'a> Parser<'a> {
     }
 
     fn string(&mut self) -> Result<String, String> {
+        Ok(self.text()?.into_owned())
+    }
+
+    /// An object key: the keys of reports and steps are literals (no
+    /// allocation), any other is shared.
+    fn key(&mut self) -> Result<Key, String> {
+        let t = self.text()?;
+        Ok(match known_key(&t) {
+            Some(k) => Key::Static(k),
+            None => Key::Shared(Arc::from(&*t)),
+        })
+    }
+
+    /// A string's text: borrowed from the input when it holds no escape.
+    fn text(&mut self) -> Result<std::borrow::Cow<'a, str>, String> {
         self.expect(b'"')?;
-        let mut out: Vec<u8> = Vec::new();
+        let start = self.i;
+        while let Some(&c) = self.s.get(self.i) {
+            match c {
+                b'"' => {
+                    let t = std::str::from_utf8(&self.s[start..self.i]).map_err(|_| self.err("invalid utf-8"))?;
+                    self.i += 1;
+                    return Ok(std::borrow::Cow::Borrowed(t));
+                }
+                b'\\' => break,
+                _ => self.i += 1,
+            }
+        }
+        let mut out: Vec<u8> = self.s[start..self.i].to_vec();
         loop {
             let c = self.peek().ok_or_else(|| self.err("unterminated string"))?;
             self.i += 1;
@@ -316,7 +465,7 @@ impl<'a> Parser<'a> {
                 _ => out.push(c),
             }
         }
-        String::from_utf8(out).map_err(|_| self.err("invalid utf-8"))
+        String::from_utf8(out).map(std::borrow::Cow::Owned).map_err(|_| self.err("invalid utf-8"))
     }
 
     fn number(&mut self) -> Result<Json, String> {

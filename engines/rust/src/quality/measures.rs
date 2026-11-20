@@ -2,17 +2,24 @@
 //! of a measure (`MEASURES`), and the `quality` event (Events).
 
 use std::cell::OnceCell;
+use std::cmp::Ordering;
 
 use super::*;
 
 /// Spec Entity measures: a mean is `s / n`, `s` starting at 0.0 and adding
 /// each sample in order.
 pub(super) fn mean(values: &[f64]) -> f64 {
+    mean_of(values.iter().copied())
+}
+
+/// `mean` of samples as they come, converted to binary64, with no copy.
+fn mean_of(values: impl ExactSizeIterator<Item = f64>) -> f64 {
+    let n = values.len();
     let mut s = 0.0;
     for v in values {
         s += v;
     }
-    s / values.len() as f64
+    s / n as f64
 }
 
 /// Two numbers compared as binary64 values, except two integers, which are
@@ -80,18 +87,18 @@ const fn measure(name: &'static str, entity: fn(&Window) -> Json, source: Aggreg
 pub const MEASURES: &[Measure] = &[
     measure("reports", |w| Json::Int(w.reports()), Sum),
     measure("interval_last", |w| int_or_null(w.intervals().and_then(|v| v.last().copied())), Mean),
-    measure("interval_mean", |w| num_or_null(w.intervals().map(|v| mean(&as_f64(v)))), Mean),
+    measure("interval_mean", |w| num_or_null(w.intervals().map(|v| mean_of(v.iter().map(|x| *x as f64)))), Mean),
     measure("interval_max", |w| int_or_null(w.intervals().and_then(|v| v.iter().max().copied())), Largest),
     measure("age", |w| Json::Int(w.age_ms), Smallest),
-    measure("latency_mean", |w| num_or_null(w.latencies().map(|v| mean(&as_f64(v)))), Mean),
+    measure("latency_mean", |w| num_or_null(w.latencies().map(|v| mean_of(v.iter().map(|x| *x as f64)))), Mean),
     measure("latency_max", |w| int_or_null(w.latencies().and_then(|v| v.iter().max().copied())), Largest),
     measure(
         "lateness_mean",
-        |w| num_or_null(w.lateness().map(|v| mean(&v.iter().map(|x| x.as_f64()).collect::<Vec<f64>>()))),
+        |w| num_or_null(w.lateness().map(|v| mean_of(v.iter().map(|x| x.as_f64())))),
         Mean,
     ),
-    measure("lateness_max", |w| w.lateness().map_or(Json::Null, |v| largest(lateness_json(v))), Largest),
-    measure("lateness_min", |w| w.lateness().map_or(Json::Null, |v| smallest(lateness_json(v))), Smallest),
+    measure("lateness_max", |w| w.lateness().map_or(Json::Null, |v| first_best(v, Ms::compare, Ordering::Greater).to_json()), Largest),
+    measure("lateness_min", |w| w.lateness().map_or(Json::Null, |v| first_best(v, Ms::compare, Ordering::Less).to_json()), Smallest),
     measure("nis_mean", |w| num_or_null(w.nis().map(|v| mean(v))), Mean),
     measure("speed_err_mean", |w| num_or_null(w.speed_err().map(|v| mean(v))), Mean),
     measure("out_of_order", |w| Json::Int(w.count(|r| r.order == Order::OutOfOrder)), Sum),
@@ -101,7 +108,7 @@ pub const MEASURES: &[Measure] = &[
     measure("missing_vel", |w| num_or_null(w.fraction_without(|r| r.vel)), Mean),
     measure("missing_hae", |w| num_or_null(w.fraction_without(|r| r.hae)), Mean),
     measure("time_error_mean", |w| num_or_null(w.time_errors().map(|v| mean(v))), Mean),
-    measure("time_error_max", |w| w.time_errors().map_or(Json::Null, |v| largest(v.iter().map(|x| Json::Num(*x)).collect())), Largest),
+    measure("time_error_max", |w| w.time_errors().map_or(Json::Null, |v| Json::Num(first_best(v, f64::total_cmp, Ordering::Greater))), Largest),
     measure("time_state_last", |w| int_or_null(w.time_states().and_then(|v| v.last().copied())), Largest),
     measure("time_state_worst", |w| int_or_null(w.time_states().and_then(|v| v.iter().max().copied())), Largest),
     measure("missing_time", |w| num_or_null(w.fraction_without(|r| r.time_state.is_some())), Mean),
@@ -113,12 +120,11 @@ pub fn find(name: &str, scope: Scope) -> Option<&'static Measure> {
     MEASURES.iter().find(|m| m.name == name && (m.entity.is_some() || scope == Scope::Source))
 }
 
-fn as_f64(v: &[i64]) -> Vec<f64> {
-    v.iter().map(|x| *x as f64).collect()
-}
-
-fn lateness_json(v: &[Ms]) -> Vec<Json> {
-    v.iter().map(|x| x.to_json()).collect()
+/// The first of `values` (not empty) that no later value beats: a later
+/// value replaces it only when `compare(later, it)` is `wins`. As `largest`
+/// and `smallest`, on the samples themselves.
+fn first_best<T: Copy>(values: &[T], compare: impl Fn(&T, &T) -> Ordering, wins: Ordering) -> T {
+    values[1..].iter().fold(values[0], |best, v| if compare(v, &best) == wins { *v } else { best })
 }
 
 /// An entity's window `W` as the measures read it, with `k = min_samples`.
@@ -247,7 +253,7 @@ pub(super) fn source_measures(members: &[&Measures]) -> Measures {
 
 /// Spec Events: `quality`.
 pub(super) fn quality_event(scope: Scope, subject: &str, measures: &Measures) -> Json {
-    let measures = measures.iter().map(|(k, v)| (k.to_string(), v.clone())).collect();
+    let measures = measures.iter().map(|(k, v)| (crate::model::json::Key::Static(k), v.clone())).collect();
     obj(vec![
         ("ev", "quality".into()),
         ("scope", scope.name().into()),

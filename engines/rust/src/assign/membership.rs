@@ -69,7 +69,7 @@ impl Membership {
     }
 
     pub(crate) fn systems_json(&self) -> Json {
-        Json::Obj(self.systems.iter().map(|(s, ms)| (system_name(*s), names(ms))).collect())
+        Json::Obj(self.systems.iter().map(|(s, ms)| (system_name(*s).into(), names(ms))).collect())
     }
 }
 

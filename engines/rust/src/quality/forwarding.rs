@@ -4,7 +4,7 @@ use super::*;
 
 impl Engine {
     /// Spec Forwarding: the `pass` event.
-    pub(super) fn forward(&self, key: &str, source: &str, fields: &BTreeMap<String, Json>, valid_ce: Option<f64>) -> Json {
+    pub(super) fn forward(&self, key: &str, source: &str, fields: &crate::model::json::Map, valid_ce: Option<f64>) -> Json {
         let actions: Vec<&Rule> =
             self.pack.rules.iter().filter(|r| r.action != Action::Alert && self.in_force(r, key, source)).collect();
         let names = Json::Arr(actions.iter().map(|r| r.name.as_str().into()).collect());

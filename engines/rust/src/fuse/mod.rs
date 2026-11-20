@@ -32,7 +32,7 @@ struct Entity {
     east: Axis,
     north: Axis,
     /// The last normalized report.
-    report: BTreeMap<String, Json>,
+    report: crate::model::json::Map,
 }
 
 /// One member of a group at a tick, its filter predicted to `now_ms`.
@@ -43,7 +43,7 @@ pub struct Member<'a> {
     pub rank: Option<usize>,
     pub east: Axis,
     pub north: Axis,
-    pub report: &'a BTreeMap<String, Json>,
+    pub report: &'a crate::model::json::Map,
 }
 
 impl Member<'_> {
@@ -272,7 +272,7 @@ impl Engine {
             ]));
             if let Some(c) = won {
                 let value = obj(vec![("value", c.value.clone()), ("from", members[c.member].key.as_str().into())]);
-                attrs.insert(key.clone(), value);
+                attrs.insert(key.into(), value);
             }
         }
 

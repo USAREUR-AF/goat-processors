@@ -5,7 +5,7 @@ use super::*;
 pub(super) const REQUIRED: [&str; 5] = ["track.source_id", "uid", "time_ms", "lat", "lon"];
 
 /// Reports: the required key that is missing, checked in table order.
-pub(super) fn missing_required(fields: &BTreeMap<String, Json>) -> Option<&'static str> {
+pub(super) fn missing_required(fields: &crate::model::json::Map) -> Option<&'static str> {
     REQUIRED.into_iter().find(|key| {
         let v = fields.get(*key);
         match *key {
@@ -19,7 +19,7 @@ pub(super) fn missing_required(fields: &BTreeMap<String, Json>) -> Option<&'stat
 /// The normalized report: every key removed that is `null`, an optional
 /// correlate key of the wrong type, a `ce` of 0 or below, or an unusable
 /// `fuse.group` (not a string, or empty).
-pub(super) fn normalize(fields: &BTreeMap<String, Json>) -> BTreeMap<String, Json> {
+pub(super) fn normalize(fields: &crate::model::json::Map) -> crate::model::json::Map {
     fields
         .iter()
         .filter(|(key, value)| match key.as_str() {

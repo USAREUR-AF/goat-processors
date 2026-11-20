@@ -6,7 +6,7 @@ use super::*;
 /// The report being decided: its required keys and all its fields.
 pub(super) struct Report<'a> {
     pub(super) required: Required<'a>,
-    pub(super) fields: &'a BTreeMap<String, Json>,
+    pub(super) fields: &'a crate::model::json::Map,
 }
 
 impl Report<'_> {

@@ -43,7 +43,7 @@ impl Engine {
                     ("filter", obj(vec![("east", axis(&e.east)), ("north", axis(&e.north))])),
                     ("window", Json::Arr(window)),
                 ]);
-                (k.clone(), value)
+                (k.into(), value)
             })
             .collect();
         let rules = self
@@ -52,9 +52,9 @@ impl Engine {
             .map(|(name, states)| {
                 let states = states
                     .iter()
-                    .map(|(s, st)| (s.clone(), obj(vec![("count", Json::Int(st.count as i64)), ("active", st.active.into())])))
+                    .map(|(s, st)| (s.into(), obj(vec![("count", Json::Int(st.count as i64)), ("active", st.active.into())])))
                     .collect();
-                (name.clone(), Json::Obj(states))
+                (name.into(), Json::Obj(states))
             })
             .collect();
         obj(vec![

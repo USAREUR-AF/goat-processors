@@ -40,7 +40,7 @@ struct Entity {
 
 impl Entity {
     /// Position and motion keys taken from an accepted report; `kept_ms` null.
-    fn from_report(r: &Required, fields: &BTreeMap<String, Json>) -> Entity {
+    fn from_report(r: &Required, fields: &crate::model::json::Map) -> Entity {
         Entity {
             time_ms: r.time_ms,
             lat: r.lat,
@@ -199,7 +199,7 @@ impl Engine {
                     ("stale_ms", opt_int(e.stale_ms)),
                     ("kept_ms", opt_int(e.kept_ms)),
                 ]);
-                (k.clone(), state)
+                (k.into(), state)
             })
             .collect();
         obj(vec![("entities", Json::Obj(entities))])

@@ -15,7 +15,7 @@ impl Engine {
             .map(|(k, e)| {
                 let mut pairs = vec![("last_time_ms", e.last_time_ms.into()), ("system", e.system.map_or(Json::Null, |s| system_name(s).into()))];
                 pairs.extend(filter_json(e));
-                (k.clone(), obj(pairs))
+                (k.into(), obj(pairs))
             })
             .collect();
         let mut pairs = vec![
@@ -29,7 +29,7 @@ impl Engine {
             pairs.push(("restarted", Json::Arr(self.restarted.iter().map(|k| k.as_str().into()).collect())));
         }
         if self.pack.bias.is_some() {
-            pairs.push(("bias", Json::Obj(self.bias.iter().map(|(k, b)| (k.clone(), b.json(self.pack.time_offset.is_some()))).collect())));
+            pairs.push(("bias", Json::Obj(self.bias.iter().map(|(k, b)| (k.into(), b.json(self.pack.time_offset.is_some()))).collect())));
         }
         if self.pack.window > 1 {
             let histories = self

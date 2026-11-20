@@ -32,17 +32,17 @@ pub fn record(stage: &str, a: &str, b: &str, test: &str, value: Json, limit: Jso
 }
 
 /// An event `{"ev": <ev>, ...pairs}`.
-pub fn event(ev: &str, pairs: Vec<(&str, Json)>) -> Json {
+pub fn event(ev: &str, pairs: Vec<(&'static str, Json)>) -> Json {
     let mut all = vec![("ev", Json::from(ev))];
     all.extend(pairs);
     obj(all)
 }
 
 /// Adds integer keys (correlate-assign.md Trace: `h`, `r`) to a trace record.
-pub fn tagged(mut rec: Json, tags: &[(&str, usize)]) -> Json {
+pub fn tagged(mut rec: Json, tags: &[(&'static str, usize)]) -> Json {
     if let Json::Obj(m) = &mut rec {
         for (k, v) in tags {
-            m.insert(k.to_string(), Json::Int(*v as i64));
+            m.insert((*k).into(), Json::Int(*v as i64));
         }
     }
     rec
