@@ -234,7 +234,7 @@ const POLICY: &str = "  actions:\n    - {who: local-admin, actions: [use_pack, s
 #[test]
 fn a1_reference_client_lists_and_calls_every_tool() {
     let local = stub_http();
-    let agents = format!("agents:\n  endpoints:\n    - {{name: local-stub, url: \"{local}\", kind: local, data_level: site}}\n{POLICY}");
+    let agents = format!("agents:\n  endpoints:\n    - {{name: local-stub, url: \"{local}\", kind: local, data_level: site}}\n  sources:\n    - {{who: local-admin, source_id: agent-example}}\n{POLICY}");
     let svc = Service::start("agents-a1", &agents);
     svc.feed(10);
     let out = Command::new("python3")
@@ -520,4 +520,70 @@ fn a5_proposals_policy_approval_and_revert() {
 
 fn tmp_path(name: &str) -> PathBuf {
     Path::new(env!("CARGO_TARGET_TMPDIR")).join(name)
+}
+
+#[test]
+fn a3_agent_as_a_source() {
+    let dir = tmp("agents-a3-files");
+    let agents = format!(
+        "outputs:\n  file:\n    path: {d}/out.jsonl\n    trace: true\nrecord:\n  path: {d}/record.jsonl\nagents:\n  sources:\n    - {{who: local, source_id: agent-vision}}\n",
+        d = dir.display()
+    );
+    let svc = Service::start("agents-a3", &agents);
+    let token = svc.token();
+    // Refusals: another source id, no model, an identity not listed.
+    let report = |src: &str, model: bool, t: i64, lat: f64| {
+        format!(
+            "{{\"track.source_id\":\"{src}\",\"uid\":\"V1\",\"time_ms\":{t},\"lat\":{lat},\"lon\":1.0,\"ce\":40.0,\"course\":0.0,\"speed_ms\":11.0,\"type\":\"a-f-S\"{}}}",
+            if model { ",\"provenance.model\":\"vision-stub-1\",\"provenance.inputs\":\"camera-3 frames\"" } else { "" }
+        )
+    };
+    let publish = |tok: Option<&str>, body: &str| svc.tool(tok, "publish", &format!("{{\"reports\":{}}}", Json::Str(body.into())));
+    let (err, text) = publish(None, &report("radar-1", true, now_ms(), 1.0));
+    assert!(err && text.contains("may publish only as \\\"agent-vision\\\""), "{text}");
+    let (err, text) = publish(None, &report("agent-vision", false, now_ms(), 1.0));
+    assert!(err && text.contains("no provenance.model"), "{text}");
+    let (err, text) = publish(Some(&token), &report("agent-vision", true, now_ms(), 1.0));
+    assert!(err && text.contains("is not an agent source"), "{text}");
+
+    // The agent reports the same object as the two sensors.
+    let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
+    for i in 0..10 {
+        let t = now_ms();
+        let lat = 1.0 + i as f64 * 2e-5;
+        for (src, d) in [("radar-1", 0.0), ("adsb", 0.00005)] {
+            let r = format!("{{\"track.source_id\":\"{src}\",\"uid\":\"T1\",\"time_ms\":{t},\"lat\":{},\"lon\":1.0,\"ce\":30.0,\"course\":0.0,\"speed_ms\":11.0,\"type\":\"a-f-S\"}}", lat + d);
+            sock.send_to(r.as_bytes(), &svc.udp).unwrap();
+        }
+        let (err, text) = publish(None, &report("agent-vision", true, t, lat + 0.00002));
+        assert!(!err, "{text}");
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    std::thread::sleep(Duration::from_millis(500));
+
+    // The processors took it as a source: it is a member, with its provenance.
+    let (_, text) = svc.tool(None, "tracks", "{}");
+    let v = json::parse(&text).unwrap();
+    let t = v.get("tracks").unwrap().as_array().unwrap().iter().find(|t| t.get("members").unwrap().to_string().contains("agent-vision/V1")).cloned().unwrap_or_else(|| panic!("no track with the agent: {text}"));
+    let prov = t.get("agent_provenance").unwrap().get("agent-vision/V1").unwrap();
+    assert_eq!(s(prov, "agent"), "local");
+    assert_eq!(s(prov, "model"), "vision-stub-1");
+    let (_, st) = svc.tool(None, "status", "{}");
+    assert!(st.contains("\"agent-vision\":10"), "{st}");
+    // The provenance is in the output lines and the trace sits beside it.
+    let out = std::fs::read_to_string(dir.join("out.jsonl")).unwrap();
+    assert!(out.lines().any(|l| l.contains("\"provenance\":{\"agent\":\"local\",\"inputs\":\"camera-3 frames\",\"model\":\"vision-stub-1\"}") && l.contains("\"trace\":")));
+    assert!(out.contains("\"agent_provenance\""));
+    // Audited.
+    assert!(svc.agent_audit("publish").iter().any(|a| s(a, "outcome") == "accepted 1 reports as agent-vision"));
+    assert!(svc.agent_audit("publish").iter().any(|a| s(a, "outcome").starts_with("refused")));
+    // Recorded: a replay of the record gives the same output.
+    let replay = bin().arg("replay").arg(dir.join("record.jsonl")).args(["--trace", "-c"]).arg(svc.dir.join("r.yaml")).output().unwrap();
+    let replayed = String::from_utf8(replay.stdout).unwrap();
+    let out = std::fs::read_to_string(dir.join("out.jsonl")).unwrap();
+    let a: Vec<&str> = replayed.lines().collect();
+    let b: Vec<&str> = out.lines().collect();
+    let n = a.len().min(b.len());
+    assert!(n > 40);
+    assert_eq!(&a[..n], &b[..n]);
 }

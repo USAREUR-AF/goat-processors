@@ -71,6 +71,8 @@ def main():
         "explain": {"track": track_ids[0] if track_ids else "none"},
         "why": {"track": track_ids[0] if track_ids else "none"},
         "replay": {"content": json.dumps(vector)},
+        "publish": {"reports": json.dumps({"track.source_id": "agent-example", "uid": "X1", "time_ms": 0, "lat": 1.0, "lon": 1.0,
+                                           "provenance.model": "none"})},
         # The action calls re-select the pack the last stage runs. Selecting a
         # pack restarts that stage empty, so the last stage (usually quality)
         # is used rather than correlate, whose system tracks the read tools show.

@@ -81,9 +81,21 @@ pub struct Agents {
     /// once a gate passes.
     #[serde(default)]
     pub auto_approve: Vec<AutoApprove>,
+    /// Which identity may publish reports as which source (`POST /v1/source`).
+    #[serde(default)]
+    pub sources: Vec<AgentSource>,
     /// Where pending and decided proposals are kept.
     #[serde(default = "default_proposals_file")]
     pub proposals_file: PathBuf,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentSource {
+    /// The publishing identity: `local-admin`, `local`, or a mesh certificate name.
+    pub who: String,
+    /// The `track.source_id` its reports must carry, for example `agent-vision`.
+    pub source_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -114,6 +126,7 @@ impl Default for Agents {
             endpoints: vec![],
             actions: vec![],
             auto_approve: vec![],
+            sources: vec![],
             proposals_file: default_proposals_file(),
         }
     }

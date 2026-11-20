@@ -31,6 +31,7 @@ pub const PROTOCOL: &str = "2025-06-18";
 pub enum Class {
     Read,
     Proposal,
+    Source,
     Action,
 }
 
@@ -39,6 +40,7 @@ impl Class {
         match self {
             Class::Read => "read",
             Class::Proposal => "proposal",
+            Class::Source => "source",
             Class::Action => "action",
         }
     }
@@ -143,6 +145,16 @@ pub const TOOLS: &[Tool] = &[
         method: "POST",
         path: "/v1/proposals/{id}/revert",
         body: None,
+    },
+    Tool {
+        name: "publish",
+        class: Class::Source,
+        level: Level::Lowest,
+        description: "Publish shared-model reports as this agent's source (agents.sources gives its source id). Each report needs track.source_id, uid, time_ms, lat, lon and provenance.model; the runner marks them agent-derived with your identity.",
+        args: &[("reports", "string", "one report as a JSON object, a JSON array of reports, or JSON lines", true)],
+        method: "POST",
+        path: "/v1/source",
+        body: Some("reports"),
     },
     Tool { name: "stop", class: Class::Action, level: Level::Lowest, description: "Pause processing. Needs the role operate and the site policy agents.actions.", args: &[], method: "POST", path: "/v1/stop", body: None },
     Tool { name: "start", class: Class::Action, level: Level::Lowest, description: "Resume processing. Needs the role operate and the site policy agents.actions.", args: &[], method: "POST", path: "/v1/start", body: None },
