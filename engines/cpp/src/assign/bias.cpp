@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "correlate/common.hpp"
-#include "correlate/engine.hpp"
+#include "assign/assign.hpp"
 
 namespace corr::correlate {
 
@@ -106,7 +106,7 @@ PairUpdate update_pair(const BiasState& st0, const Filter& fs, const Filter& ft,
 
 // ---- The engine's use of the pair states ----------------------------------------
 
-BiasState Engine::bias_state(const std::string& pair) const {
+BiasState AssignMethod::bias_state(const std::string& pair) const {
     auto it = bias_.find(pair);
     return it != bias_.end() ? it->second : initial_bias(*pack_.bias);
 }
@@ -115,7 +115,7 @@ BiasState Engine::bias_state(const std::string& pair) const {
 // correlate.md "Track estimate"), then, when the pack has `bias` and the two
 // sources differ, moved into A's frame. Without `bias` this is B's
 // prediction for comparison.
-Filter Engine::predict_into_frame(const Entity& a, const Entity& b, std::int64_t t) const {
+Filter AssignMethod::predict_into_frame(const Entity& a, const Entity& b, std::int64_t t) const {
     Filter f = predict_for_comparison(b, t);
     if (!pack_.bias || a.source == b.source) return f;
     const bool b_first = b.source < a.source;
@@ -126,7 +126,7 @@ Filter Engine::predict_into_frame(const Entity& a, const Entity& b, std::int64_t
 // "Update", after the commit: committed system tracks in creation order,
 // members not retiring in key order, each pair X before Y from two different
 // sources with at least one of them among the tick's rows.
-void Engine::bias_update(std::int64_t now_ms, const std::set<std::string>& rows, Output& out) {
+void AssignMethod::bias_update(std::int64_t now_ms, const std::set<std::string>& rows, Output& out) {
     const BiasParams& bp = *pack_.bias;
     const bool timed = pack_.time_offset_sigma_ms.has_value();
     for (const auto& kv : committed_.systems) {

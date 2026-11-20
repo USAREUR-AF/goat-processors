@@ -32,7 +32,7 @@ add_library(goat_engine
   src/snapshot/snapshot.cpp
   src/filter/pack.cpp src/filter/geometry.cpp src/filter/conditions.cpp src/filter/engine.cpp
   src/correlate/pack.cpp src/correlate/engine.cpp src/correlate/measurement.cpp src/correlate/two_model.cpp
-  src/correlate/tests.cpp src/correlate/confirm.cpp
+  src/correlate/tests.cpp src/correlate/confirm.cpp src/correlate/core.cpp src/correlate/methods.cpp
   src/assign/membership.cpp src/assign/ranking.cpp src/assign/bias.cpp src/assign/cost.cpp src/assign/assign.cpp
   src/fuse/pack.cpp src/fuse/kinematics.cpp src/fuse/attributes.cpp src/fuse/engine.cpp
   src/quality/pack.cpp src/quality/input_clock.cpp src/quality/measures.cpp src/quality/rules.cpp
@@ -64,4 +64,17 @@ foreach(fn correlate filter fuse quality)
   target_compile_definitions(${exe} PRIVATE CORR_REPO_ROOT="${GOAT_REPO_ROOT}" VECTOR_FUNCTION="${fn}")
   target_compile_options(${exe} PRIVATE -Wall -Wextra ${GOAT_FLOAT_FLAGS})
   add_test(NAME ${test} COMMAND ${exe} "${GOAT_REPO_ROOT}")
+endforeach()
+
+# The engine's own tests: unit tests per module, property tests and the
+# parser fuzzers (test/test_*.cpp), one executable, one ctest per module.
+file(GLOB GOAT_UNIT_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/test_*.cpp)
+add_executable(unit_tests test/unit_main.cpp ${GOAT_UNIT_SOURCES})
+target_link_libraries(unit_tests PRIVATE goat_engine)
+target_include_directories(unit_tests PRIVATE test)
+target_compile_definitions(unit_tests PRIVATE CORR_REPO_ROOT="${GOAT_REPO_ROOT}"
+                                              CORR_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test")
+target_compile_options(unit_tests PRIVATE -Wall -Wextra ${GOAT_FLOAT_FLAGS})
+foreach(module extension)
+  add_test(NAME unit_${module} COMMAND unit_tests ${module})
 endforeach()

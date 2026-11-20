@@ -8,7 +8,7 @@
 
 #include "assign/cost.hpp"
 #include "correlate/common.hpp"
-#include "correlate/engine.hpp"
+#include "assign/assign.hpp"
 
 namespace corr::correlate {
 
@@ -32,6 +32,16 @@ Json trace_record(const char* stage, Json a, Json b, const char* test, Json valu
 
 } // namespace
 
+// ---- Ingest -----------------------------------------------------------------------
+
+// "Window": a retiring entity's report is rejected.
+const char* AssignMethod::refuse(const std::string& key) const {
+    return retiring_.count(key) ? "retiring" : nullptr;
+}
+
+// An accepted report is decided at the next tick.
+void AssignMethod::accepted(Entity& a, Output&) { reported_.insert(a.key); }
+
 // ---- Assignment of one source ----------------------------------------------------
 
 // "Fused estimate": members predicted to t, inverse-variance weighted per
@@ -40,7 +50,7 @@ Json trace_record(const char* stage, Json a, Json b, const char* test, Json valu
 // that entity: its timing variance added (correlate.md "Track estimate"),
 // then, with `bias`, moved into that entity's frame. The estimate for output
 // passes no frame and gets neither.
-Filter Engine::fuse(const std::set<std::string>& members, std::int64_t t, const Entity* frame) const {
+Filter AssignMethod::fuse(const std::set<std::string>& members, std::int64_t t, const Entity* frame) const {
     std::vector<Filter> predictions;
     predictions.reserve(members.size());
     for (const std::string& k : members) {
@@ -55,7 +65,7 @@ Filter Engine::fuse(const std::set<std::string>& members, std::int64_t t, const 
 // (entries[i][j], j == columns.size() for alone; +infinity when forbidden),
 // writes the gate and cost records, and returns the ranked assignments.
 // `h` is the history's rank, written to the trace when window is above 1.
-std::vector<RankedAssignment> Engine::rank_source(const std::vector<std::string>& rows, const Membership& m,
+std::vector<RankedAssignment> AssignMethod::rank_source(const std::vector<std::string>& rows, const Membership& m,
                                                   int h, std::vector<int>& columns,
                                                   std::vector<std::vector<double>>& entries,
                                                   Output& out) const {
@@ -125,7 +135,7 @@ std::vector<RankedAssignment> Engine::rank_source(const std::vector<std::string>
 
 // Step 4, apply, to the record's membership, rows in key order; the events,
 // choices and cost go to the record.
-void Engine::apply_assignment(const std::vector<std::string>& rows, const std::vector<int>& columns,
+void AssignMethod::apply_assignment(const std::vector<std::string>& rows, const std::vector<int>& columns,
                               const RankedAssignment& r, Record& rec) const {
     Membership& m = rec.membership;
     const size_t ncol = columns.size();
@@ -160,7 +170,7 @@ void Engine::apply_assignment(const std::vector<std::string>& rows, const std::v
 
 // ---- Window: on each tick -----------------------------------------------------------
 
-Output Engine::tick_assign(std::int64_t now_ms) {
+Output AssignMethod::tick(std::int64_t now_ms) {
     Output out;
     const bool windowed = pack_.window > 1;
     const size_t k = static_cast<size_t>(pack_.hypotheses);
@@ -300,7 +310,7 @@ Output Engine::tick_assign(std::int64_t now_ms) {
 // membership, retiring members included, or with `margin` the best history's
 // latest membership, which holds no retiring member); with a window, one
 // `provisional` per system track of the best history.
-void Engine::system_output(std::int64_t now_ms, const Membership& reported, Output& out) const {
+void AssignMethod::system_output(std::int64_t now_ms, const Membership& reported, Output& out) const {
     for (const auto& kv : reported.systems) {
         const Entity* latest_hae = nullptr;   // greatest last_time_ms with hae, ties to key order
         Json names = Json::make_array();
@@ -339,7 +349,7 @@ void Engine::system_output(std::int64_t now_ms, const Membership& reported, Outp
 
 // ---- Snapshot ---------------------------------------------------------------------
 
-Json Engine::snapshot_assign() const {
+Json AssignMethod::snapshot() const {
     Json s = Json::make_object();
     s["ref"] = snapshot::ref_json(ref_);
     Json entities = Json::make_object();

@@ -57,17 +57,17 @@ Each module also offers the same calls on its own types: `<fn>::load_pack(dir)`,
 
 | Section | File |
 |---|---|
-| What the correlator does | `src/correlate/engine.cpp` (ingest, tick, snapshot) |
+| What the correlator does | `src/correlate/engine.cpp` (ingest, tick, snapshot), `src/correlate/core.cpp` (what the methods share), `src/correlate/method.hpp` and `src/correlate/methods.cpp` (the methods) |
 | Reports (with Time quality) | `src/model/report.cpp`; its use in `src/correlate/engine.cpp` (`ingest`) |
 | Frame | `src/model/frame.cpp` |
-| Track estimate | `src/model/estimate.cpp` (steps 1 to 3); `src/correlate/measurement.cpp` (Measurement variance, prediction for comparison) |
+| Track estimate | `src/model/estimate.cpp` (steps 1 to 3); `src/correlate/measurement.cpp` (Measurement variance, prediction for comparison, d²) |
 | Two-model filter | `src/correlate/two_model.cpp` |
-| Restart | `src/correlate/restart.cpp` |
-| Tests | `src/correlate/tests.cpp` |
-| Association | `src/correlate/confirm.cpp` |
+| Restart | `src/correlate/core.cpp` (`restart_test`), with d² of `src/correlate/measurement.cpp` |
+| Tests | `src/correlate/tests.cpp` (the kinds and `builtin_tests()`), `src/correlate/core.cpp` (`run_stage`) |
+| Association | `src/correlate/confirm.cpp` (method confirm) |
 | Events, Trace | `src/trace/trace.hpp` (builders); each record where its step is |
-| Snapshot | `src/correlate/confirm.cpp` (`snapshot_confirm`), `src/correlate/engine.cpp` (`filter_json`), `src/snapshot/snapshot.cpp` |
-| Pack | `src/correlate/pack.cpp`; `time_default` in `src/model/pack_text.cpp` |
+| Snapshot | `src/correlate/confirm.cpp`, `src/correlate/core.cpp` (`filter_json`), `src/snapshot/snapshot.cpp` |
+| Pack | `src/correlate/pack.cpp`; each method's directives in `src/correlate/methods.cpp`; `time_default` in `src/model/pack_text.cpp` |
 | Floats | `CMakeLists.txt` (`GOAT_FLOAT_FLAGS`) |
 
 ### spec/correlate-assign.md
@@ -75,12 +75,12 @@ Each module also offers the same calls on its own types: `<fn>::load_pack(dir)`,
 | Section | File |
 |---|---|
 | Memberships | `src/assign/membership.cpp` |
-| Assignment of one source | `src/assign/assign.cpp` (`rank_source`, `apply_assignment`, `fuse`) |
+| Assignment of one source | `src/assign/assign.cpp` (`rank_source`, `apply_assignment`), `src/assign/cost.cpp` (Fused estimate, Cost) |
 | Sensor bias (with Time offset) | `src/assign/bias.cpp` |
 | Ranking | `src/assign/ranking.cpp` |
-| Window | `src/assign/assign.cpp` (`tick_assign`) |
+| Window | `src/assign/assign.cpp` (`AssignMethod::tick`) |
 | Events, Trace | `src/assign/assign.cpp`, `src/assign/membership.cpp` |
-| Snapshot | `src/assign/assign.cpp` (`snapshot_assign`) |
+| Snapshot | `src/assign/assign.cpp` (`AssignMethod::snapshot`) |
 | Pack | `src/correlate/pack.cpp` |
 
 ### spec/filter.md
@@ -113,7 +113,8 @@ Each module also offers the same calls on its own types: `<fn>::load_pack(dir)`,
 | Reports, Time quality | `src/model/report.cpp` (steps 1 and 2); step 3 in `src/quality/engine.cpp` |
 | Frame and filter | `src/model/frame.cpp`, `src/model/estimate.cpp` |
 | Input clock | `src/quality/input_clock.cpp` |
-| Entity measures, Source measures | `src/quality/measures.cpp` |
+| Samples | `src/quality/engine.cpp` (taken), `src/quality/measures.cpp` (`window_samples`) |
+| Entity measures, Source measures | `src/quality/measures.cpp` (the table `measures()`) |
 | Rules, Forwarding | `src/quality/rules.cpp` |
 | Pack | `src/quality/pack.cpp` |
 
@@ -122,6 +123,18 @@ Each module also offers the same calls on its own types: `<fn>::load_pack(dir)`,
 | Section | File |
 |---|---|
 | What the engine checks | `test/vector_support.hpp`, `test/run_vectors.cpp` |
+
+## Extending: one registration point per kind
+
+| Kind | Where | Adding one |
+|---|---|---|
+| a correlate method | `methods()` in `src/correlate/methods.cpp` | a class deriving from `correlate::Method` (`src/correlate/method.hpp`) and one row: name, required and refused directives, factory |
+| a correlate test | `builtin_tests()` in `src/correlate/tests.cpp` | one `TestRegistry::add`: name, parameters, a pure function of the pair |
+| a quality measure | `measures()` in `src/quality/measures.cpp` | one row: name, a pure function of the window samples, the source aggregate |
+
+`test/test_extension.cpp` proves the test registration with a `noop` kind
+registered only there, on the test-only fixture pack
+`test/fixtures/correlate-noop/` with its own vector.
 
 ## Build and run the vectors
 

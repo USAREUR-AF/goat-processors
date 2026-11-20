@@ -9,15 +9,17 @@
 #include <vector>
 
 #include "model/estimate.hpp"    // FilterParams
+#include "correlate/tests.hpp"
 #include "model/pack_text.hpp"   // PackError, TimeDefault
 
 namespace corr::correlate {
 
 // One line of `gate`, `confirm` or `hold` (spec "Tests").
 struct TestSpec {
-    std::string name;                     // distance, window, mahalanobis, course, speed, altitude, same
+    std::string name;                     // the kind's name: distance, window, mahalanobis, ...
     std::map<std::string, double> num;    // numeric parameters
-    std::string key;                      // `same` only
+    std::string key;                      // the text parameter (`same`)
+    TestFn run = nullptr;                 // the kind's function (correlate/tests.hpp)
 };
 
 // correlate.md "Two-model filter": the `maneuver` line.
@@ -37,7 +39,7 @@ struct BiasParams {
 struct Pack {
     std::string name;
     std::string version;
-    bool method_assign = false;                // method, default confirm (spec correlate-assign.md)
+    std::string method = "confirm";            // the `method` line; a name of correlate/method.hpp methods()
     FilterParams filter;
     std::optional<ManeuverParams> maneuver;  // optional, either method
     std::optional<double> restart_gate;      // correlate.md "Restart": optional, either method
@@ -60,6 +62,9 @@ struct Pack {
 
 // Parses the text of a pack.def; throws PackError on any load error.
 Pack parse_pack(const std::string& text);
+
+// The same with the test kinds of `tests` in place of builtin_tests().
+Pack parse_pack_with(const std::string& text, const TestRegistry& tests);
 
 // Reads <dir>/pack.def; throws PackError.
 Pack load_pack(const std::string& dir);

@@ -1,5 +1,6 @@
 // correlate.md "Pack" and correlate-assign.md "Pack".
 #include "correlate/pack.hpp"
+#include "correlate/method.hpp"
 #include "model/report.hpp"
 
 #include <cstdlib>
@@ -9,20 +10,6 @@
 namespace corr::correlate {
 
 namespace {
-
-// Spec "Tests": the parameters each test takes.
-const std::map<std::string, std::vector<std::string>>& test_params() {
-    static const std::map<std::string, std::vector<std::string>> table = {
-        {"distance", {"max_m"}},
-        {"window", {"multiplier", "window_m", "err_min_m", "err_max_m"}},
-        {"mahalanobis", {"gate"}},
-        {"course", {"max_deg", "min_speed_ms"}},
-        {"speed", {"max_pct", "min_speed_ms"}},
-        {"altitude", {"max_m"}},
-        {"same", {"key"}},
-    };
-    return table;
-}
 
 [[noreturn]] void fail(int line, const std::string& what) { pack_fail(line, what); }
 
@@ -78,14 +65,15 @@ std::map<std::string, std::string> parse_params(int line, const std::vector<std:
     return out;
 }
 
-TestSpec parse_test(int line, const std::vector<std::string>& words) {
+TestSpec parse_test(int line, const std::vector<std::string>& words, const TestRegistry& tests) {
     if (words.size() < 2) fail(line, "missing test name");
-    auto it = test_params().find(words[1]);
-    if (it == test_params().end()) fail(line, "unknown test: " + words[1]);
+    const TestKind* kind = tests.find(words[1]);
+    if (!kind) fail(line, "unknown test: " + words[1]);
     TestSpec t;
     t.name = words[1];
-    for (const auto& kv : parse_params(line, words, 2, it->second)) {
-        if (t.name == "same") {
+    t.run = kind->run;
+    for (const auto& kv : parse_params(line, words, 2, kind->params)) {
+        if (kind->text_param) {
             if (kv.second.empty()) fail(line, "empty key");
             t.key = kv.second;
         } else {
@@ -101,7 +89,9 @@ void want_args(int line, const std::vector<std::string>& words, size_t n) {
 
 } // namespace
 
-Pack parse_pack(const std::string& text) {
+Pack parse_pack(const std::string& text) { return parse_pack_with(text, builtin_tests()); }
+
+Pack parse_pack_with(const std::string& text, const TestRegistry& tests) {
     Pack p;
     std::set<std::string> seen;
     std::istringstream in(text);
@@ -128,8 +118,12 @@ Pack parse_pack(const std::string& text) {
             p.version = words[1];
         } else if (d == "method") {
             want_args(line, words, 1);
-            if (words[1] == "assign") p.method_assign = true;
-            else if (words[1] != "confirm") fail(line, "method is confirm or assign");
+            if (!find_method(words[1])) {
+                std::string names;
+                for (const MethodKind& m : methods()) names += std::string(names.empty() ? "" : " or ") + m.name;
+                fail(line, "method is " + names);
+            }
+            p.method = words[1];
         } else if (d == "new_cost") {
             want_args(line, words, 1);
             p.new_cost = parse_number(line, words[1]);
@@ -200,11 +194,11 @@ Pack parse_pack(const std::string& text) {
                 fail(line, "default_ce_m, vel_sigma_ms and unknown_vel_ms must be above 0");
             if (!(p.filter.accel_var >= 0)) fail(line, "accel_var must be 0 or above");
         } else if (d == "gate") {
-            p.gate.push_back(parse_test(line, words));
+            p.gate.push_back(parse_test(line, words, tests));
         } else if (d == "confirm") {
-            p.confirm.push_back(parse_test(line, words));
+            p.confirm.push_back(parse_test(line, words, tests));
         } else if (d == "hold") {
-            p.hold.push_back(parse_test(line, words));
+            p.hold.push_back(parse_test(line, words, tests));
         } else if (d == "confirm_count") {
             want_args(line, words, 1);
             p.confirm_count = parse_integer(line, words[1]);
@@ -231,20 +225,12 @@ Pack parse_pack(const std::string& text) {
         }
     }
     // Each method has its own directives (correlate.md "Pack", correlate-assign.md "Pack").
-    std::vector<const char*> required, refused;
-    if (p.method_assign) {
-        required = {"pack", "version", "filter", "new_cost", "keep_bonus", "stale_ms"};
-        refused = {"confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"};
-    } else {
-        required = {"pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms"};
-        refused = {"new_cost", "keep_bonus", "window", "hypotheses", "margin", "bias", "time_offset"};
-    }
-    for (const char* req : required)
+    const MethodKind& method = *find_method(p.method);
+    for (const char* req : method.required)
         if (!seen.count(req)) throw PackError(std::string("pack.def: missing directive ") + req);
-    for (const char* d : refused)
+    for (const char* d : method.refused)
         if (seen.count(d))
-            throw PackError(std::string("pack.def: directive ") + d + " is not allowed with method " +
-                            (p.method_assign ? "assign" : "confirm"));
+            throw PackError(std::string("pack.def: directive ") + d + " is not allowed with method " + method.name);
     // correlate.md "Pack": checked once the whole file is read.
     if (p.maneuver && !(p.maneuver->accel_var > p.filter.accel_var))
         throw PackError("pack.def: maneuver accel_var must be above filter accel_var");

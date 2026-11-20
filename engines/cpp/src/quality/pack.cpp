@@ -7,6 +7,8 @@
 
 #include "quality/pack.hpp"
 
+#include "quality/measures.hpp"
+
 namespace corr::quality {
 
 namespace {
@@ -183,19 +185,19 @@ std::vector<std::vector<std::string>> pack_lines(const std::string& text) {
 } // namespace
 
 const std::vector<std::string>& entity_measure_names() {
-    static const std::vector<std::string> names = {
-        "reports", "interval_last", "interval_mean", "interval_max", "age",
-        "latency_mean", "latency_max", "lateness_mean", "lateness_max", "lateness_min",
-        "nis_mean", "speed_err_mean", "out_of_order", "duplicate", "source_out_of_order",
-        "missing_ce", "missing_vel", "missing_hae", "time_error_mean", "time_error_max",
-        "time_state_last", "time_state_worst", "missing_time"};
+    static const std::vector<std::string> names = [] {
+        std::vector<std::string> n;
+        for (const MeasureKind& m : measures())
+            if (m.entity) n.push_back(m.name);
+        return n;
+    }();
     return names;
 }
 
 const std::vector<std::string>& source_measure_names() {
     static const std::vector<std::string> names = [] {
-        std::vector<std::string> n = entity_measure_names();
-        n.push_back("entities");
+        std::vector<std::string> n;
+        for (const MeasureKind& m : measures()) n.push_back(m.name);
         return n;
     }();
     return names;

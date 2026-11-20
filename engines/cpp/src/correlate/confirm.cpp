@@ -1,6 +1,6 @@
 // correlate.md "Association", "On each tick" (method confirm), "Snapshot"
 // (method confirm). The confirm method's pipeline, moved here unchanged.
-#include "correlate/engine.hpp"
+#include "correlate/confirm.hpp"
 
 #include "model/report.hpp"
 #include "snapshot/snapshot.hpp"
@@ -11,16 +11,22 @@ namespace corr::correlate {
 
 using namespace detail;
 
+// Spec "Association": A in a group holds, else associates.
+void ConfirmMethod::accepted(Entity& a, Output& out) {
+    if (a.group) hold(a, out);
+    else associate(a, out);
+}
+
 // ---- Association -----------------------------------------------------------
 
-bool Engine::group_has_source(int g, const std::string& source) const {
+bool ConfirmMethod::group_has_source(int g, const std::string& source) const {
     for (const auto& k : groups_.at(g))
         if (entities_.at(k).source == source) return true;
     return false;
 }
 
 // `leave`, then `dissolve` when one member is left.
-void Engine::leave_group(Entity& e, const char* reason, Output& out) {
+void ConfirmMethod::leave_group(Entity& e, const char* reason, Output& out) {
     int g = e.group;
     auto& members = groups_.at(g);
     members.erase(e.key);
@@ -45,7 +51,7 @@ void Engine::leave_group(Entity& e, const char* reason, Output& out) {
 
 // Spec "Association": A is in a group G: hold. Other members in key order;
 // the hold passes at the first member for which every test passes.
-void Engine::hold(Entity& a, Output& out) {
+void ConfirmMethod::hold(Entity& a, Output& out) {
     bool any = false;
     for (const std::string& bk : groups_.at(a.group)) {
         if (bk == a.key) continue;
@@ -64,7 +70,7 @@ void Engine::hold(Entity& a, Output& out) {
 }
 
 // Spec "Association": A is not in a group: associate.
-void Engine::associate(Entity& a, Output& out) {
+void ConfirmMethod::associate(Entity& a, Output& out) {
     std::vector<std::string> reached;
     for (const auto& kv : entities_) {
         const Entity& b = kv.second;
@@ -130,14 +136,7 @@ void Engine::associate(Entity& a, Output& out) {
     }
 }
 
-// Spec "On each tick", 1: the pack's stale_ms, or the report's own stale_ms.
-bool Engine::is_stale(const Entity& e, std::int64_t now_ms) const {
-    auto report_stale = e.last.find("stale_ms");
-    return now_ms - e.last_time_ms > pack_.stale_ms ||
-           (is_integer(report_stale) && now_ms >= report_stale->integer);
-}
-
-Output Engine::tick_confirm(std::int64_t now_ms) {
+Output ConfirmMethod::tick(std::int64_t now_ms) {
     Output out;
 
     // 1. Staleness, entities in key order.
@@ -193,7 +192,7 @@ Output Engine::tick_confirm(std::int64_t now_ms) {
     return out;
 }
 
-Json Engine::snapshot_confirm() const {
+Json ConfirmMethod::snapshot() const {
     Json s = Json::make_object();
     if (ref_) {
         Json ref = Json::make_array();
