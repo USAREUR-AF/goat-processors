@@ -60,14 +60,18 @@ python3 -I runner/examples/mcp_client.py
 ```
 
 ```
-server goat-processors 0.2.0, protocol 2025-06-18, 19 tools
+server goat-processors <version>, protocol 2025-06-18, 19 tools
 ok    status     {"clock":"wall","counters":{...
 ok    tracks     {"now_ms":1795164251800,"tracks":[{"course":0.0,"ev":"system",...
 ok    explain    {"events":[{"event":{"entity":"radar-1/T1","ev":"new"},...
 ```
 
-With `--actions` and the token (`sudo ... --token-file /run/goat-processors/api.token`)
-it also calls the action tools, which the site must allow in `agents.actions`.
+With `--actions` and the token it also calls the action tools, which the site
+must allow in `agents.actions`:
+
+```sh
+sudo python3 -I runner/examples/mcp_client.py --actions --token-file /run/goat-processors/api.token
+```
 
 **The "why?" explainer** is the runner's own agent, built on these tools: it
 reads one track's events and trace records, sends them to a model endpoint,
@@ -118,16 +122,22 @@ published 3 reports as agent-example
 
 Each report is a shared-model report (`spec/correlate.md`, Reports) plus
 `provenance.model` and, if useful, `provenance.inputs`. The runner adds
-`provenance.kind: agent` and `provenance.agent: <identity>`. A system track
-with an agent member then reads:
+`provenance.kind: agent`, `provenance.agent: <identity>` and
+`provenance.checked: true`. A system track with an agent member then reads:
 
 ```json
 {"ev": "system", "system": "s1", "members": ["adsb/T1", "agent-example/D1", "radar-1/T1"],
- "agent_provenance": {"agent-example/D1": {"agent": "local", "model": "my-model-1"}}, ...}
+ "agent_provenance": {"agent-example/D1": {"agent": "local", "checked": true, "model": "my-model-1"}}, ...}
 ```
 
 The quality function measures the agent's source like any other, so a
 quality rule can mark, downgrade or drop it.
+
+An agent may instead publish on the fabric under its own key prefix. Then
+the runner cannot check who wrote the provenance keys: it keeps them as
+written, marks them `checked: false`, and relies on the site's fabric access
+rules for that prefix. Publish through the API when the label must be
+trusted (docs/design/agentic-ai.md, section 4.1).
 
 ## 3. Agent changing settings: `propose_pack.py`
 
@@ -160,9 +170,10 @@ Every proposal and decision is in `goat-processors proposals`, the proposals
 file (`agents.proposals_file`) and the audit log. An applied change is
 written to the record file, so a replay makes it at the same step.
 
-A gate can be any command: `goat-processors selftest`, or the site's
-benchmark on its tuning scenarios. It runs with `GOAT_PROPOSAL_FUNCTION`
-and `GOAT_PROPOSAL_PACK` set, and passes when it exits 0.
+A gate is a command and its arguments, written as a list (not one shell
+string): `[goat-processors, selftest]`, or the site's own benchmark run on
+its recorded scenarios. It runs with `GOAT_PROPOSAL_FUNCTION` and
+`GOAT_PROPOSAL_PACK` set, and passes when it exits 0.
 
 ## 4. Agent as an adjudicator: hints
 

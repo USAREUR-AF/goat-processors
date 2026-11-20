@@ -237,6 +237,9 @@ pub fn agent_provenance(r: &Json) -> Option<(String, Json)> {
             m.insert(k.to_string().into(), v.clone());
         }
     }
+    // true only for a report an agent published through the API, where the
+    // runner checked the identity; false for provenance as a publisher wrote it.
+    m.insert("checked".into(), Json::Bool(matches!(r.get("provenance.checked"), Some(Json::Bool(true)))));
     Some((entity, Json::Obj(m)))
 }
 
