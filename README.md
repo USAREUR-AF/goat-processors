@@ -251,7 +251,7 @@ Built: the code and its tests are on main. Written: the document exists. Designe
 The runner works with no agent at all, and in the design every agent feature
 stays optional. Each site declares which model its agent features may use, one
 on its own machines or one hosted by a provider, and the highest level of data
-that may be sent to it. The design document, `docs/design/agentic-ai.md`, is not written yet.
+that may be sent to it. The design, with the cost and the matching safeguard for each choice, is in [`docs/design/agentic-ai.md`](docs/design/agentic-ai.md).
 
 ## Contributing
 

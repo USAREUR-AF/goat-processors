@@ -48,6 +48,9 @@ pub enum Ask {
     Metrics,
     Tracks,
     Explain(String),
+    Propose { function: String, pack: String, reason: String },
+    Proposals,
+    Decide { id: String, verb: String },
 }
 
 #[derive(Debug, Clone)]
@@ -80,6 +83,14 @@ pub const ROUTES: &[(&str, &str, Role, &str)] = &[
     ("POST", "/v1/replay", Role::Read, "run a replay file (the body) through a separate copy of the pipeline"),
     ("GET", "/v1/audit", Role::Operate, "the latest audit lines; query limit (default 100)"),
     ("GET", "/v1/routes", Role::Read, "this table"),
+    ("GET", "/v1/proposals", Role::Read, "every proposal, pending and decided"),
+    ("POST", "/v1/proposals", Role::Read, "propose a pack for a function; body {\"function\", \"pack\", \"reason\"}; nothing changes until it is applied"),
+    ("POST", "/v1/proposals/{id}/approve", Role::Operate, "apply a pending proposal"),
+    ("POST", "/v1/proposals/{id}/reject", Role::Operate, "reject a pending proposal"),
+    ("POST", "/v1/proposals/{id}/revert", Role::Operate, "restore the pack an applied proposal replaced"),
+    ("POST", "/v1/source", Role::Read, "publish reports as an agent source listed in agents.sources; the runner adds the agent's identity to their provenance"),
+    ("GET", "/v1/why/{track}", Role::Read, "a plain explanation of one system track from a model endpoint; every sentence cites trace records; query endpoint"),
+    ("POST", "/mcp", Role::Read, "the MCP endpoint: the routes above as tools for agents (JSON-RPC 2.0); each tool keeps its route's role"),
 ];
 
 fn matches(pattern: &str, path: &str) -> Option<Vec<String>> {
@@ -140,6 +151,27 @@ pub struct Server {
 const MAX_CONNECTIONS: usize = 32;
 
 impl Server {
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+
+    /// One agent call: identity, tool, the SHA-256 of its inputs, and the outcome.
+    pub fn audit_agent(&self, who: &Identity, tool: &str, inputs_sha256: &str, outcome: &str) {
+        let mut m = BTreeMap::new();
+        m.insert("time_ms".into(), Json::Int(crate::service::wall_ms()));
+        m.insert("who".into(), Json::Str(who.name.clone()));
+        m.insert("via".into(), Json::Str(who.via.into()));
+        m.insert("role".into(), Json::Str(who.role.name().into()));
+        m.insert("agent_tool".into(), Json::Str(tool.into()));
+        m.insert("inputs_sha256".into(), Json::Str(inputs_sha256.into()));
+        m.insert("outcome".into(), Json::Str(outcome.into()));
+        if let Ok(mut f) = self.audit.lock() {
+            if let Some(f) = f.as_mut() {
+                let _ = writeln!(f, "{}", Json::Obj(m));
+            }
+        }
+    }
+
     fn audit(&self, who: &Identity, req: &Request, status: u16) {
         let mut m = BTreeMap::new();
         m.insert("time_ms".into(), Json::Int(crate::service::wall_ms()));
@@ -178,7 +210,9 @@ impl Server {
             return r;
         }
         let resp = self.dispatch(i, args, req, &who);
-        if method != "GET" && ROUTES[i].1 != "/v1/replay" || resp.status == 403 || resp.status == 401 {
+        // Agent calls are audited per tool, with their inputs digest (mcp.rs, agentic.rs).
+        let agent_route = matches!(ROUTES[i].1, "/mcp" | "/v1/why/{track}" | "/v1/source");
+        if (method != "GET" && ROUTES[i].1 != "/v1/replay" || resp.status == 403 || resp.status == 401) && !agent_route {
             self.audit(&who, req, resp.status);
         }
         resp
@@ -202,10 +236,28 @@ impl Server {
             "/v1/metrics" => Ask::Metrics,
             "/v1/tracks" => Ask::Tracks,
             "/v1/explain/{track}" => Ask::Explain(args[0].clone()),
+            "/v1/proposals" if req.method == "GET" => Ask::Proposals,
+            "/v1/proposals" => {
+                let body = json::parse(&String::from_utf8_lossy(&req.body)).ok();
+                let f = |k: &str| body.as_ref().and_then(|b| b.get(k)).and_then(|v| v.as_str()).map(str::to_string);
+                match (f("function"), f("pack")) {
+                    (Some(function), Some(pack)) => Ask::Propose { function, pack, reason: f("reason").unwrap_or_default() },
+                    _ => return error(400, "the body must be {\"function\": ..., \"pack\": ..., \"reason\": ...}", ""),
+                }
+            }
+            p if p.starts_with("/v1/proposals/{id}/") => Ask::Decide { id: args[0].clone(), verb: p.rsplit('/').next().unwrap_or("").to_string() },
             "/v1/packs" => return self.packs(),
             "/v1/replay" => return self.replay(req),
             "/v1/audit" => return self.read_audit(req),
             "/v1/routes" => return routes_json(),
+            "/v1/source" => return self.publish(req, who),
+            "/v1/why/{track}" => return crate::agentic::why(self, who, &args[0], req.query.get("endpoint").map(String::as_str)),
+            "/mcp" => {
+                if !self.config.agents.mcp {
+                    return error(404, "the MCP endpoint is off (agents.mcp: false)", "");
+                }
+                return crate::mcp::handle(self, req, who);
+            }
             _ => return error(500, "unrouted", ""),
         };
         let (rtx, rrx) = channel();
@@ -254,6 +306,52 @@ impl Server {
             out.push('\n');
         });
         Response::text(200, "application/x-ndjson", out)
+    }
+
+    /// An agent publishes reports as its source (docs/design/agentic-ai.md 4.1).
+    /// Each report must carry the source id `agents.sources` gives the caller
+    /// and `provenance.model`; the runner sets `provenance.kind` to `agent`
+    /// and `provenance.agent` to the caller's identity, and ingests them as
+    /// any other input (recorded, so a replay is exact).
+    pub fn publish(&self, req: &Request, who: &Identity) -> Response {
+        let digest = crate::mcp::digest(&String::from_utf8_lossy(&req.body));
+        let refuse = |status: u16, what: String, fix: &str| {
+            self.audit_agent(who, "publish", &digest, &format!("refused: {what}"));
+            error(status, &what, fix)
+        };
+        let Some(grant) = self.config.agents.sources.iter().find(|g| g.who == who.name) else {
+            return refuse(403, format!("{} is not an agent source (agents.sources)", who.name), "the site lists each publishing identity and its source id in agents.sources");
+        };
+        let reports = match crate::fabric::decode("api/v1/source", &req.body) {
+            crate::fabric::Input::Reports(r) if !r.is_empty() => r,
+            _ => return refuse(400, "the body is not a report, a list of reports, or JSON lines of reports".into(), ""),
+        };
+        let mut stamped = Vec::new();
+        for (i, r) in reports.into_iter().enumerate() {
+            let src = r.get("track.source_id").and_then(|v| v.as_str()).unwrap_or("");
+            if src != grant.source_id {
+                return refuse(403, format!("report {i}: track.source_id is {src:?}; {} may publish only as {:?}", who.name, grant.source_id), "");
+            }
+            if r.get("provenance.model").and_then(|v| v.as_str()).is_none() {
+                return refuse(400, format!("report {i}: no provenance.model"), "name the model and version that produced the report");
+            }
+            let mut r = r;
+            if let Json::Obj(m) = &mut r {
+                m.insert("provenance.kind".into(), Json::Str("agent".into()));
+                m.insert("provenance.agent".into(), Json::Str(who.name.clone()));
+            }
+            stamped.push(r);
+        }
+        let n = stamped.len();
+        let sent = self.tx.lock().map(|tx| tx.send(Input::Reports(stamped)).is_ok()).unwrap_or(false);
+        if !sent {
+            return error(503, "the service loop has stopped", "");
+        }
+        self.audit_agent(who, "publish", &digest, &format!("accepted {n} reports as {}", grant.source_id));
+        let mut m = BTreeMap::new();
+        m.insert("accepted".into(), Json::Int(n as i64));
+        m.insert("source_id".into(), Json::Str(grant.source_id.clone()));
+        Response::json(202, Json::Obj(m).to_string())
     }
 
     fn read_audit(&self, req: &Request) -> Response {

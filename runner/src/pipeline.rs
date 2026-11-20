@@ -104,11 +104,14 @@ pub struct Pipeline {
     groups: BTreeMap<String, Vec<String>>,
     pub counters: Counters,
     pub last_now_ms: Option<i64>,
+    /// entity -> the provenance of its latest agent-derived report
+    /// (`provenance.kind` = `agent`), carried onto the system tracks it joins.
+    provenance: BTreeMap<String, Json>,
 }
 
 impl Pipeline {
     pub fn new(stages: Vec<Stage>) -> Pipeline {
-        Pipeline { stages, membership: BTreeMap::new(), groups: BTreeMap::new(), counters: Counters::default(), last_now_ms: None }
+        Pipeline { stages, membership: BTreeMap::new(), groups: BTreeMap::new(), counters: Counters::default(), last_now_ms: None, provenance: BTreeMap::new() }
     }
 
     /// Builds the pipeline from a checked config.
@@ -125,6 +128,9 @@ impl Pipeline {
         self.counters.reports_in += 1;
         if let Some(src) = report.get("track.source_id").and_then(|v| v.as_str()) {
             *self.counters.per_source.entry(src.to_string()).or_default() += 1;
+        }
+        if let Some((entity, prov)) = agent_provenance(report) {
+            self.provenance.insert(entity, prov);
         }
         let mut out = Output::default();
         let mut report = report.clone();
@@ -164,7 +170,29 @@ impl Pipeline {
             }
             out.stages.push(StageOutput { function: stage.function.clone(), events: step.events, trace: step.trace });
         }
+        if !self.provenance.is_empty() {
+            self.mark_agent_tracks(&mut out);
+        }
         out
+    }
+
+    /// Adds `agent_provenance` (member -> provenance) to every system track
+    /// of the track stage that has an agent-derived member.
+    fn mark_agent_tracks(&self, out: &mut Output) {
+        let Some(i) = out.stages.iter().rposition(|s| s.function == "fuse" || s.function == "correlate") else { return };
+        for e in out.stages[i].events.iter_mut() {
+            if !matches!(e.get("ev").and_then(|v| v.as_str()), Some("system") | Some("fused")) {
+                continue;
+            }
+            let members: Vec<String> = match e.get("members") {
+                Some(Json::Arr(m)) => m.iter().filter_map(|x| x.as_str().map(str::to_string)).collect(),
+                _ => continue,
+            };
+            let marks: goat_correlator::json::Map = members.iter().filter_map(|m| self.provenance.get(m).map(|p| (m.clone().into(), p.clone()))).collect();
+            if let (Json::Obj(map), false) = (e, marks.is_empty()) {
+                map.insert("agent_provenance".into(), Json::Obj(marks));
+            }
+        }
     }
 
     /// Replaces one function's engine with a fresh one on another pack. The
@@ -195,6 +223,21 @@ impl Pipeline {
         }
         Json::Obj(m)
     }
+}
+
+/// The entity and provenance of an agent-derived report.
+pub fn agent_provenance(r: &Json) -> Option<(String, Json)> {
+    if r.get("provenance.kind").and_then(|v| v.as_str()) != Some("agent") {
+        return None;
+    }
+    let entity = format!("{}/{}", r.get("track.source_id")?.as_str()?, r.get("uid")?.as_str()?);
+    let mut m = BTreeMap::new();
+    for k in ["agent", "model", "inputs"] {
+        if let Some(v) = r.get(&format!("provenance.{k}")) {
+            m.insert(k.to_string().into(), v.clone());
+        }
+    }
+    Some((entity, Json::Obj(m)))
 }
 
 fn ev_name(e: &Json) -> &str {

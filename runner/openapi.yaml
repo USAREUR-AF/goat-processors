@@ -258,3 +258,160 @@ paths:
           content:
             application/json:
               schema: {type: array, items: {type: object}}
+  /v1/why/{track}:
+    get:
+      summary: a plain explanation of one system track, from a model endpoint (role read; CLI why TRACK)
+      description: |
+        The runner sends the track's latest 200 events and trace records,
+        numbered R1..Rn, to the first model endpoint (agents.endpoints)
+        declared for the site's highest data level, or the one named by
+        `endpoint`. An endpoint declared lower is refused, and nothing is
+        sent. Every returned sentence cites records it was sent; a sentence
+        without a valid citation is removed and counted.
+      parameters:
+        - {name: track, in: path, required: true, schema: {type: string}}
+        - {name: endpoint, in: query, required: false, schema: {type: string}}
+      responses:
+        "200":
+          description: the explanation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  track: {type: string}
+                  endpoint: {type: string}
+                  endpoint_kind: {type: string, enum: [local, hosted]}
+                  model: {type: [string, "null"]}
+                  data_level: {type: string}
+                  records_sent: {type: integer}
+                  sentences:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        text: {type: string}
+                        cites: {type: array, items: {type: string}}
+                        records: {type: array, items: {type: object}}
+                  sentences_removed: {type: integer}
+                  provenance: {type: object}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "502": {$ref: "#/components/responses/Error"}
+  /mcp:
+    post:
+      summary: the MCP endpoint (JSON-RPC 2.0, MCP protocol 2025-06-18); CLI mcp bridges stdio to it
+      description: |
+        Methods: initialize, ping, tools/list, tools/call, and notifications
+        (answered 202). Each tool calls the API route of the same name with
+        the caller's identity and role, so a tool can do nothing the caller
+        could not do with the CLI. Action tools (use_pack, stop, start) also
+        need agents.actions to name the caller. A tool whose data is above the
+        caller's level (agents.local_level, agents.clients) is refused. Every
+        tools/call is written to the audit log with the identity, the tool,
+        the SHA-256 of its arguments and the outcome.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        "200":
+          description: the JSON-RPC response
+          content:
+            application/json:
+              schema: {type: object}
+        "202":
+          description: a notification was received
+  /v1/proposals:
+    get:
+      summary: every settings proposal, pending and decided (role read; CLI proposals)
+      responses:
+        "200":
+          description: id, by, via, at_ms, function, pack, previous_pack, reason, state (pending, gating, applied, rejected, gate-failed, reverted), decided_by (an identity, or policy), gate (command, exit, passed, seconds, output_tail)
+          content:
+            application/json:
+              schema: {type: array, items: {type: object}}
+    post:
+      summary: propose a pack for one function (role read; CLI propose FUNCTION PACK --reason TEXT)
+      description: |
+        Nothing changes until the proposal is applied. When agents.auto_approve
+        names the proposer, the function and the pack, the proposal's gate
+        command runs, and the pack is applied if it exits 0; otherwise the
+        proposal waits for a person (state pending, or gate-failed).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [function, pack]
+              properties:
+                function: {type: string}
+                pack: {type: string}
+                reason: {type: string}
+      responses:
+        "202":
+          description: the proposal, with its state (pending or gating)
+          content:
+            application/json:
+              schema: {type: object}
+        "400": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+  /v1/proposals/{id}/approve:
+    post:
+      summary: apply a pending or gate-failed proposal (role operate; CLI proposal approve ID)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: the proposal, applied}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+  /v1/proposals/{id}/reject:
+    post:
+      summary: reject a pending or gate-failed proposal (role operate; CLI proposal reject ID)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: the proposal, rejected}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+  /v1/proposals/{id}/revert:
+    post:
+      summary: restore the pack an applied proposal replaced (role operate; CLI proposal revert ID)
+      description: Refused when the function now runs another pack than the proposal's, since reverting would undo a later change.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: the proposal, reverted}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+  /v1/source:
+    post:
+      summary: publish reports as an agent source (role read; the caller must be listed in agents.sources; MCP tool publish)
+      description: |
+        The body is one shared-model report, a JSON array of reports, or JSON
+        lines. Each report must carry the track.source_id that agents.sources
+        gives the caller, and provenance.model (and may carry
+        provenance.inputs). The runner sets provenance.kind to agent and
+        provenance.agent to the caller's identity, then processes the reports
+        as any other input: they are written to the record file, and a system
+        track with an agent-derived member carries agent_provenance (member ->
+        agent, model, inputs). Every call is audited with the SHA-256 of the body.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {}
+      responses:
+        "202":
+          description: accepted and source_id
+          content:
+            application/json:
+              schema: {type: object}
+        "400": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
