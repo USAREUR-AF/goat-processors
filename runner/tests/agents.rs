@@ -587,3 +587,33 @@ fn a3_agent_as_a_source() {
     assert!(n > 40);
     assert_eq!(&a[..n], &b[..n]);
 }
+
+fn example(name: &str, svc: &Service, args: &[&str]) -> (bool, String) {
+    let out = Command::new("python3")
+        .args(["-I", repo().join("runner/examples").join(name).to_str().unwrap(), "--url", &format!("http://{}/mcp", svc.api)])
+        .args(args)
+        .output()
+        .unwrap();
+    (out.status.success(), format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr)))
+}
+
+#[test]
+fn a8_every_guide_example_runs() {
+    let local = stub_http();
+    let agents = format!("agents:\n  endpoints:\n    - {{name: local, url: \"{local}\", kind: local, data_level: site}}\n  sources:\n    - {{who: local, source_id: agent-example}}\n  auto_approve:\n    - {{who: local, function: quality, packs: [quality-time], gate: [\"true\"]}}\n");
+    let svc = Service::start("agents-a8", &agents);
+    svc.feed(8);
+    // A1: the reference MCP client (read tools).
+    let (ok, out) = example("mcp_client.py", &svc, &[]);
+    assert!(ok && out.contains("tools"), "{out}");
+    // A3: publish as an agent source.
+    let (ok, out) = example("publish_source.py", &svc, &["--source-id", "agent-example", "--model", "example-1", "--demo", "3"]);
+    assert!(ok && out.contains("published 3 reports as agent-example"), "{out}");
+    let (ok, out) = example("publish_source.py", &svc, &["--source-id", "radar-1", "--model", "example-1", "--demo", "1"]);
+    assert!(!ok && out.contains("may publish only as"), "{out}");
+    // A5: propose a pack; inside the policy it applies after the gate.
+    let (ok, out) = example("propose_pack.py", &svc, &["quality", "quality-time", "--reason", "example"]);
+    assert!(ok && out.contains("quality-feed -> quality-time: applied, decided by policy"), "{out}");
+    let (ok, out) = example("propose_pack.py", &svc, &["quality", "quality-edge", "--reason", "example"]);
+    assert!(ok && out.contains(": pending") && out.contains("proposal approve"), "{out}");
+}

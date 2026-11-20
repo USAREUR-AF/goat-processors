@@ -1,6 +1,6 @@
 [package]
 name = "goat-processors"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.80"
 description = "goat-processors runner: runs a declared pipeline of processing functions on the goat fabric"
