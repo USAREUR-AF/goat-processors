@@ -339,14 +339,31 @@ is 1.5 s off and not described looks like noise to the filter, so the
 scale weights that source less. Whether a change within noise counts
 against the rule "no pooled measure gets worse" is proc-coord's call.
 
-Run time, Python, tools/perf large scenario: PERF_TABLE
+Run time, Python engine on correlate 1.0, the tools/perf large scenario
+(18,571 reports), engine calls only. Three repeats, interleaved across the
+variants because the machine was shared (load average 36 to 98 during the
+run). Ratio: the median of the per-repeat ratios to the base.
+
+| Variant | Median, s | Reports per second | Range, s | Ratio to base |
+|---|---|---|---|---|
+| 1.0 `correlate-assign-time` | 195.0 | 95 | 184.1 to 199.1 | 1.00 |
+| + prototype 1 | 133.4 | 139 | 128.9 to 169.8 | 0.67 |
+| + prototype 2 | 204.4 | 91 | 195.0 to 260.7 | 1.11 |
+| + prototypes 1 and 2 | 131.3 | 141 | 113.6 to 145.1 | 0.71 |
+
+Prototype 1 makes the assign method faster. Tracks that no longer flip
+in and out of their system tracks leave fewer near-tie alternatives in the
+window. Prototype 2 alone costs about a tenth: the overdue check runs per
+column per source. Together they are faster than the base. Memory: two
+numbers per source (prototype 1) and the interval ring that `stale_rate`
+already keeps (prototype 2).
 
 ### Verdicts
 
 | Method | Verdict | Evidence | Condition |
 |---|---|---|---|
-| Measurement-noise scale per source | **ADOPT** for the assign method | random-17 0.620 to 0.991, random-28 0.733 to 0.969; random and held-out F1 and GOSPA better beyond noise; held-out swaps 36 to 13 | an option first (`noise_scale nu0= ceiling=`), default in the assign packs that carry `bias`. Not for the confirm method (measured worse) |
-| Track succession | **ADOPT** for the assign method, after `stale_rate` | number-drop 2.3 to 0 s on 1.0; random time to associate and GOSPA better beyond noise | an option (`succession factor=`), using `stale_rate`'s interval state |
+| Measurement-noise scale per source | **ADOPT** for the assign method | random-17 0.620 to 0.991, random-28 0.733 to 0.969; random and held-out F1 and GOSPA better beyond noise; held-out swaps 36 to 13; run time 0.67 of the base | an option first (`noise_scale nu0= ceiling=`), default in the assign packs that carry `bias`. Not for the confirm method (measured worse) |
+| Track succession | **ADOPT** for the assign method, after `stale_rate`, with the noise scale | number-drop 2.3 to 0 s on 1.0; random time to associate and GOSPA better beyond noise; run time with both 0.71 of the base | an option (`succession factor=`), using `stale_rate`'s interval state |
 | Fast covariance intersection | **REJECT** for the correlate output | held-out RMS 122 to 127 m, worse beyond noise; random-28 0.733 to 0.683 in the cost | fuse keeps covariance intersection where errors may be shared, as it specifies today |
 | Cross-covariance in association and fusion | **PARK** | the process-noise term is at most 64 m² in steady flight against 225 to 62,500 m²; no measured weakness points to it | revisit with a scenario of two sensors on one maneuvering object that fails on the association statistic |
 | JPDA and fast variants, MHT, N-scan assignment | **PARK** | the two-tick ranked window is already a pruned MHT; the measured swaps had a different cause | revisit if swaps remain after prototype 1 on a new scenario family |
