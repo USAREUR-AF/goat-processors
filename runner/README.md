@@ -59,7 +59,10 @@ how to troubleshoot it.
 
 **Reports.** Each input delivers reports. A fabric sample or a UDP datagram
 holds one report as a JSON object, a JSON array of reports, or JSON lines.
-Anything else is counted as unreadable and skipped. Reports are passed to the
+Anything else is counted as unreadable and skipped. A report written with
+nested objects (`{"track": {"source_id": "r1"}}`, as a JSON encoder that
+cannot write a member name holding `.` produces it) is read with dotted keys
+(`"track.source_id"`); a dotted key already present wins. Reports are passed to the
 pipeline in the order they arrive.
 
 **Stages.** A report goes through the stages in order. A stage passes it on
@@ -131,6 +134,8 @@ exits 1. The service runs the same check before it starts.
 | `pipeline[].pack` | yes | | a pack name under `packs_dir` (`goat-processors pack ls`), or a path to a pack directory |
 | `outputs.fabric.prefix` | no | `data/processed/<site>/<name>` | key prefix of everything the runner publishes |
 | `outputs.fabric.trace` | no | `false` | also publish every trace record (large) |
+| `outputs.fabric.layout` | no | `per-entity` | `per-entity`: one key per system track and per quality subject, every tick. `batch`: the fixed keys `<prefix>/tracks` and `<prefix>/quality`, each one value holding the whole set (below) |
+| `outputs.fabric.heartbeat_ms` | no | `5000` | with `layout: batch`, the longest time between two publishes of an unchanged set, input-clock milliseconds |
 | `outputs.file.path` | no | | append one JSON line per stage per step; must be under `/var/lib/goat-processors` |
 | `outputs.file.trace` | no | `false` | include the trace in those lines |
 | `record.path` | no | | append every ingest and tick (replay format); under `/var/lib/goat-processors` |
@@ -140,6 +145,7 @@ exits 1. The service runs the same check before it starts.
 | `api.token_file` | no | `/run/goat-processors/api.token` | the token a local caller shows to change anything; the service writes a new one at each start, readable by root only |
 | `api.audit_file` | no | `/var/lib/goat-processors/audit.jsonl` | every change and every refused request, one JSON line each |
 | `api.mesh.listen` | no | | `<ip>:<port>` for callers on other hosts, over mutual TLS |
+| `api.metrics_listen` | no | off | `<mesh ip>:<port>` that serves only `GET /metrics` (the Prometheus text), plain HTTP with no caller check, for an obs host's scraper. `config check` refuses an address that listens on every interface |
 | `api.mesh.tls` | no | the `fabric.tls` files | `root_ca` (signs callers' certificates), `certificate`, `private_key` |
 | `api.mesh.allow[]` | with `api.mesh` | | `{name: <certificate CN>, role: read or operate}`; a CN not listed is refused |
 | `agents.mcp` | no | `true` | serve the MCP endpoint, `POST /mcp` (examples/README.md) |
@@ -174,6 +180,7 @@ identity by source priority.
 | state, pipeline, counters per source | `goat-processors status` |
 | is it running and ticking (exit 0 or 1) | `goat-processors health` |
 | reports per second, processing latency | `goat-processors metrics` |
+| the same for a Prometheus scraper: reports per source, system tracks, system tracks with members from more than one source, source tracks per source, events per function and event, quality events per source, latency quantiles | `GET /v1/metrics/prometheus` (role read), or `GET /metrics` on `api.metrics_listen` |
 | the system tracks now | `goat-processors tracks` |
 | what led to one system track | `goat-processors explain <id>` (the id from `tracks`) |
 | list packs | `goat-processors pack ls` |
@@ -196,6 +203,21 @@ identity by source priority.
 | `<prefix>/events/<function>` | `{stage, now_ms, events}`: every event one function returned for one call | each call with events |
 | `<prefix>/trace/<function>` | `{stage, now_ms, trace}` | with `outputs.fabric.trace: true` |
 
+With `outputs.fabric.layout: batch` the key set is fixed and does not grow
+with the number of tracks:
+
+| Key | Value | When |
+|---|---|---|
+| `<prefix>/tracks` | JSON lines: one system track per line, as above, each with `now_ms` and `track_number`: a number 1 to 65535 that the track keeps while it lives, for formats whose track identifier is a number (ASTERIX I062/040). A new track takes the next free number, wrapping after 65535. An empty value means no system track | on a tick, when the set differs from the last one published, or `heartbeat_ms` after it |
+| `<prefix>/quality` | JSON lines: one quality event per line, each with `now_ms` | the same rule |
+| `<prefix>/events/<function>`, `<prefix>/trace/<function>` | as above | as above |
+
+JSON lines let a reader split the value with newline framing (for example
+`goat-xf-pipe-zenoh --in-frame newline`), and the runner's own fabric input
+reads it as a list of reports. For live data, put the prefix in the volatile
+class, for example `volatile/<slot>/stream/processors/<site>`, so the routers
+route it and never store it.
+
 The events are described in each function's specification under `spec/`.
 
 **Replay files.** `goat-processors replay` and `inputs.file` read any of:
@@ -204,7 +226,7 @@ The events are described in each function's specification under `spec/`.
 |---|---|
 | a vector (`packs/*/vectors/*.json`) | its steps, exactly; the pipeline is the vector's own pack unless `-c` or `--pack` gives one |
 | JSON lines of `{"ingest": <report>}` and `{"tick": <now_ms>}` | these steps, in order (what `record` writes) |
-| JSON lines of reports | each report, with ticks from the input clock |
+| JSON lines of reports | each report, with ticks from the input clock; nested objects read as dotted keys, as on the fabric |
 
 `replay` prints one JSON line per stage per step, `{step, call, now_ms, stage,
 events}`, with `trace` when given `--trace`. `--pack correlate=correlate-gnn`

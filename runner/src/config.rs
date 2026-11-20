@@ -211,11 +211,17 @@ pub struct Api {
     pub audit_file: PathBuf,
     #[serde(default)]
     pub mesh: Option<ApiMesh>,
+    /// An address and port that serves only `GET /metrics` (the Prometheus
+    /// text of `/v1/metrics/prometheus`), plain HTTP and with no caller check,
+    /// for an obs host's scraper. Bind it to the host's mesh address, never
+    /// to every address. Off when absent.
+    #[serde(default)]
+    pub metrics_listen: Option<String>,
 }
 
 impl Default for Api {
     fn default() -> Self {
-        Api { enabled: true, listen: default_api_listen(), token_file: default_token_file(), audit_file: default_audit_file(), mesh: None }
+        Api { enabled: true, listen: default_api_listen(), token_file: default_token_file(), audit_file: default_audit_file(), mesh: None, metrics_listen: None }
     }
 }
 
@@ -345,7 +351,7 @@ pub struct Outputs {
     pub file: Option<FileOutput>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FabricOutput {
     /// Key prefix for everything the runner publishes. Default
@@ -355,6 +361,35 @@ pub struct FabricOutput {
     /// Also publish every trace record. Off by default: the trace is large.
     #[serde(default)]
     pub trace: bool,
+    /// How tracks and quality reach the fabric. `per-entity` (default): one
+    /// key per system track and per quality subject, every tick. `batch`: one
+    /// key `<prefix>/tracks` and one key `<prefix>/quality`, each carrying the
+    /// whole set in one value, published on a tick only when the set changed
+    /// or `heartbeat_ms` has passed since the last publish.
+    #[serde(default)]
+    pub layout: Layout,
+    /// With `layout: batch`, the longest time between two publishes of an
+    /// unchanged set, in input-clock milliseconds. Default 5000.
+    #[serde(default = "default_heartbeat_ms")]
+    pub heartbeat_ms: u64,
+}
+
+fn default_heartbeat_ms() -> u64 {
+    5000
+}
+
+impl Default for FabricOutput {
+    fn default() -> Self {
+        FabricOutput { prefix: None, trace: false, layout: Layout::PerEntity, heartbeat_ms: default_heartbeat_ms() }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Layout {
+    #[default]
+    PerEntity,
+    Batch,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -577,6 +612,15 @@ pub fn check(c: &Config) -> Vec<String> {
                 c.api.listen
             )),
             Ok(_) => {}
+        }
+        if let Some(ml) = &c.api.metrics_listen {
+            match ml.parse::<SocketAddr>() {
+                Err(_) => p.push(format!("api.metrics_listen: {ml:?} is not an address. Write it as `<mesh ip>:9464`.")),
+                Ok(a) if a.ip().is_unspecified() => p.push(format!(
+                    "api.metrics_listen: {ml} listens on every address. The metrics port has no caller check; bind it to this host's mesh address."
+                )),
+                Ok(_) => {}
+            }
         }
         if let Some(m) = &c.api.mesh {
             if m.listen.parse::<SocketAddr>().is_err() {

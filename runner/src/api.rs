@@ -46,6 +46,7 @@ pub enum Ask {
     Start,
     Stop,
     Metrics,
+    Prometheus,
     Tracks,
     Explain(String),
     Propose { function: String, pack: String, reason: String },
@@ -78,6 +79,7 @@ pub const ROUTES: &[(&str, &str, Role, &str)] = &[
     ("POST", "/v1/stop", Role::Operate, "pause: inputs are counted and dropped, no tick is made"),
     ("POST", "/v1/start", Role::Operate, "resume after a stop"),
     ("GET", "/v1/metrics", Role::Read, "reports per second, processing latency, counts per source"),
+    ("GET", "/v1/metrics/prometheus", Role::Read, "the metrics in the Prometheus text format: reports per source, system tracks, multi-source tracks, events, quality per source, latency"),
     ("GET", "/v1/tracks", Role::Read, "the system tracks of the latest tick"),
     ("GET", "/v1/explain/{track}", Role::Read, "the events and trace records behind one system track"),
     ("POST", "/v1/replay", Role::Read, "run a replay file (the body) through a separate copy of the pipeline"),
@@ -234,6 +236,7 @@ impl Server {
             "/v1/stop" => Ask::Stop,
             "/v1/start" => Ask::Start,
             "/v1/metrics" => Ask::Metrics,
+            "/v1/metrics/prometheus" => Ask::Prometheus,
             "/v1/tracks" => Ask::Tracks,
             "/v1/explain/{track}" => Ask::Explain(args[0].clone()),
             "/v1/proposals" if req.method == "GET" => Ask::Proposals,
@@ -455,6 +458,33 @@ pub fn start(c: &Config, tx: Sender<Input>) -> Result<Arc<Server>, String> {
             });
         }
     });
+
+    if let Some(ml) = &c.api.metrics_listen {
+        let listener = TcpListener::bind(ml).map_err(|e| format!("cannot listen for metrics on {ml}: {e}"))?;
+        let s = server.clone();
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let s = s.clone();
+                spawn_limited(&s.clone(), move || {
+                    let mut stream = stream;
+                    stream.set_read_timeout(Some(Duration::from_secs(10))).ok();
+                    // Only GET /metrics; every other request is refused here,
+                    // so this port can never reach a route that reads tracks
+                    // or changes anything.
+                    let resp = match http::read_request(&mut stream) {
+                        Ok(req) if req.method == "GET" && req.path == "/metrics" => {
+                            let mut req = req;
+                            req.path = "/v1/metrics/prometheus".into();
+                            s.handle(&req, Identity { name: "metrics".into(), role: Role::Read, via: "metrics" })
+                        }
+                        Ok(_) => error(404, "this port serves only GET /metrics", "use the API for anything else"),
+                        Err((st, e)) => error(st, &e, ""),
+                    };
+                    let _ = http::write_response(&mut stream, &resp);
+                });
+            }
+        });
+    }
 
     if let Some(m) = &c.api.mesh {
         let tls = m.tls.clone().or_else(|| c.fabric.as_ref().and_then(|f| f.tls.clone())).ok_or("api.mesh has no certificates")?;

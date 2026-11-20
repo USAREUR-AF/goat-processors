@@ -71,7 +71,8 @@ pub fn read(text: &str) -> Result<ReplayFile, String> {
         let v = json::parse(line).map_err(|e| format!("line {}: not JSON ({e})", n + 1))?;
         match step_of(&v) {
             Some(s) => steps.push(s),
-            None if matches!(v, Json::Obj(_)) => steps.push(Step::Ingest(v)),
+            // A bare report reads as on the fabric: nested objects become dotted keys.
+            None if matches!(v, Json::Obj(_)) => steps.push(Step::Ingest(crate::fabric::flatten(v))),
             None => return Err(format!("line {}: not a report, an ingest step or a tick step", n + 1)),
         }
     }
