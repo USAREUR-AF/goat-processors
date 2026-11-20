@@ -16,7 +16,7 @@ the same on every Python version and platform.
 import math
 
 R = 6371008.8
-LAT0, LON0 = 50.0, 10.0          # reference point of every scenario
+LAT0, LON0 = 1.0, 1.0            # notional reference point of every scenario: open ocean (Gulf of Guinea)
 TICK_MS = 1000                   # one tick per second of input time
 STEP_S = 0.1                     # integration step of the truth motion
 

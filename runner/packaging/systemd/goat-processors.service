@@ -1,0 +1,57 @@
+# goat-processors runner. Installed by the goat-processors package.
+# Start:  sudo systemctl enable --now goat-processors
+# Check:  goat-processors doctor
+[Unit]
+Description=goat-processors runner (filter, correlate, fuse, quality on the goat fabric)
+Documentation=file:/usr/share/doc/goat-processors/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=goat-processors
+Group=goat-processors
+# A bad config stops the start here, with what to fix in the journal.
+ExecStartPre=/usr/bin/goat-processors config check -c /etc/goat-processors/runner.yaml
+ExecStart=/usr/bin/goat-processors run -c /etc/goat-processors/runner.yaml
+Restart=on-failure
+RestartSec=5s
+# /run/goat-processors holds status.json, which doctor reads.
+RuntimeDirectory=goat-processors
+RuntimeDirectoryMode=0755
+# /var/lib/goat-processors is the only place the service writes (outputs.file, record).
+StateDirectory=goat-processors
+StateDirectoryMode=0750
+UMask=0027
+
+# Hardening. The service needs the network and nothing else.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RemoveIPC=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+AmbientCapabilities=
+DevicePolicy=closed
+
+[Install]
+WantedBy=multi-user.target

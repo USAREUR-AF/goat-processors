@@ -78,6 +78,16 @@ for each step the input, the events, every trace record and the snapshot.
 [tools/explain/README.md](tools/explain/README.md) lists its options,
 including replaying a benchmark run against its ground truth.
 
+## Run it on a machine
+
+The [runner](runner/README.md) runs the functions as a service. It reads
+shared-model reports from the goat fabric, runs a declared pipeline (filter,
+correlate, fuse, quality) on the Rust engine, and publishes system tracks and
+quality marks. It installs on Ubuntu 24.04 from one `.deb`, is configured by
+one file, and `goat-processors doctor` reports what is wrong.
+[runner/INSTALL.md](runner/INSTALL.md) goes from a fresh machine to a healthy
+runner, step by step; `runner/install.sh` does the same steps in one command.
+
 ## Every decision is observable
 
 A function decides nothing that is not in its trace. Each test is a record of
@@ -135,7 +145,7 @@ which `tools/bench/bench.py report` writes. Pack names are explained in
 | Rules are data | A pack (`packs/<function>-<name>/pack.def`) names fixed, specified tests and their parameters. A pack holds no code and no expressions. |
 | Every decision is traced | Every test is a trace record with its inputs, value, limit and result. `snapshot()` returns the whole state, including each track's filter. |
 | Engines check each other | {{n_engines_word}} engines written apart must reproduce every vector: events, trace and final snapshot, numbers within a relative {{tolerance}}. |
-| Standard library only | No engine or tool depends on a third-party package. |
+| Standard library only | No engine or tool depends on a third-party package. The runner, which connects the engines to the fabric, is the one exception and lists its crates in [`runner/THIRD-PARTY.md`](runner/THIRD-PARTY.md). |
 
 ## Layout
 
@@ -144,8 +154,24 @@ which `tools/bench/bench.py report` writes. Pack names are explained in
 | [`spec/`](spec/) | one specification per function, the shared [vector format](spec/vector-format.md), load vectors |
 | [`packs/`](packs/) | {{n_packs}} rule packs, each with its `pack.def` and its scenario vectors ({{n_vectors}} in all) |
 | [`engines/`](engines/) | one independent engine per language, each with its test runner |
-| [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), the performance harness (`perf/`), this README's generator (`readme/`) |
-| [`docs/`](docs/) | the benchmark results, the [performance](docs/performance.md) baseline and the figures, each written by a script |
+| [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), the performance harness (`perf/`), the research prototypes (`research/`), this README's generator (`readme/`) |
+| [`runner/`](runner/) | the runner: a service for Ubuntu 24.04 that runs a pipeline of the functions on the goat fabric, with its `.deb`, [install guide](runner/INSTALL.md) and [deploy contract](runner/DEPLOY-CONTRACT.md) |
+| [`docs/`](docs/) | the benchmark results, the [performance](docs/performance.md) baseline and the figures, each written by a script; the [methods survey](docs/research/correlation-and-fusion-methods.md) |
+
+## Working with AI agents
+
+An AI agent here is a program, usually driven by a language model, that reads
+data and acts through tools. The processors stay fast and exact, with no model
+inside the engines. The design connects agents at the edges, through the same
+doors a person uses, and gives every agent action the identity it acts for and
+an entry in a log.
+
+{{agentic}}
+
+The runner works with no agent at all, and in the design every agent feature
+stays optional. Each site declares which model its agent features may use, one
+on its own machines or one hosted by a provider, and the highest level of data
+that may be sent to it. {{agentic_design}}
 
 ## Contributing
 

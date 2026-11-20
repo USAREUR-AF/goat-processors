@@ -22,11 +22,11 @@ The charts leave out assign-window (assign-full includes its multi-frame window)
 | [gnn](../README.md#methods-and-packs) | 0.820 | 0.988 | 0.701 | 61 | 81 | 23 | 5.3 | 553.3 | 414.5 |
 | [window](../README.md#methods-and-packs) | 0.934 | 0.988 | 0.887 | 77 | 40 | 17 | 3.5 | 508.5 | 308.1 |
 | [distance](../README.md#methods-and-packs) | 0.807 | 0.996 | 0.678 | 21 | 76 | 14 | 8.2 | 962.4 | 418.1 |
-| [assign](../README.md#methods-and-packs) | 0.715 | 0.997 | 0.558 | 15 | 99 | 130 | 4.3 | 587.4 | 474.7 |
-| [gnn-imm](../README.md#methods-and-packs) | 0.884 | 0.993 | 0.796 | 71 | 55 | 21 | 4.7 | 534.4 | 344.2 |
-| [assign-imm](../README.md#methods-and-packs) | 0.796 | 0.998 | 0.661 | 12 | 54 | 160 | 4.6 | 354.3 | 399.0 |
-| [assign-window](../README.md#methods-and-packs) | 0.698 | 0.994 | 0.538 | 62 | 91 | 229 | 5.0 | 853.3 | 477.0 |
-| [assign-bias](../README.md#methods-and-packs) | 0.906 | 0.999 | 0.830 | 11 | 47 | 64 | 2.5 | 576.3 | 313.0 |
+| [assign](../README.md#methods-and-packs) | 0.715 | 0.997 | 0.557 | 15 | 99 | 131 | 4.3 | 587.2 | 475.0 |
+| [gnn-imm](../README.md#methods-and-packs) | 0.884 | 0.993 | 0.797 | 71 | 55 | 21 | 4.8 | 534.4 | 344.2 |
+| [assign-imm](../README.md#methods-and-packs) | 0.796 | 0.998 | 0.661 | 12 | 54 | 159 | 4.6 | 354.2 | 398.9 |
+| [assign-window](../README.md#methods-and-packs) | 0.698 | 0.994 | 0.538 | 62 | 90 | 231 | 5.0 | 853.2 | 476.9 |
+| [assign-bias](../README.md#methods-and-packs) | 0.906 | 0.999 | 0.829 | 11 | 47 | 65 | 2.5 | 576.3 | 313.2 |
 | [assign-full](../README.md#methods-and-packs) | 0.958 | 0.999 | 0.919 | 10 | 4 | 37 | 0.9 | 88.5 | 247.2 |
 | [gnn-restart](../README.md#methods-and-packs) | 0.851 | 0.990 | 0.746 | 60 | 64 | 18 | 3.2 | 758.1 | 382.6 |
 | [assign-time](../README.md#methods-and-packs) | 0.961 | 0.999 | 0.926 | 9 | 2 | 33 | 0.8 | 87.1 | 244.0 |
@@ -41,14 +41,14 @@ The 21 named scenarios outside the time family.
 | [gnn](../README.md#methods-and-packs) | 0.951 | 0.997 | 0.910 | 3 | 2 | 1 | 2.2 | 40.4 | 94.9 |
 | [window](../README.md#methods-and-packs) | 0.924 | 0.930 | 0.917 | 5 | 6 | 1 | 0.7 | 40.4 | 56.8 |
 | [distance](../README.md#methods-and-packs) | 0.884 | 0.857 | 0.913 | 13 | 2 | 1 | 2.6 | 939.0 | 108.8 |
-| [assign](../README.md#methods-and-packs) | 0.937 | 1.000 | 0.881 | 0 | 2 | 2 | 1.2 | 67.1 | 109.6 |
+| [assign](../README.md#methods-and-packs) | 0.937 | 1.000 | 0.881 | 0 | 2 | 2 | 1.2 | 67.1 | 109.7 |
 | [gnn-imm](../README.md#methods-and-packs) | 0.968 | 0.996 | 0.941 | 3 | 2 | 1 | 2.4 | 9.6 | 69.8 |
-| [assign-imm](../README.md#methods-and-packs) | 0.971 | 1.000 | 0.944 | 0 | 2 | 2 | 1.0 | 18.4 | 72.4 |
+| [assign-imm](../README.md#methods-and-packs) | 0.971 | 1.000 | 0.944 | 0 | 2 | 2 | 1.0 | 18.4 | 72.5 |
 | [assign-window](../README.md#methods-and-packs) | 0.929 | 1.000 | 0.867 | 2 | 2 | 2 | 2.0 | 64.9 | 115.7 |
-| [assign-bias](../README.md#methods-and-packs) | 0.989 | 1.000 | 0.979 | 0 | 1 | 2 | 0.9 | 14.3 | 49.0 |
-| [assign-full](../README.md#methods-and-packs) | 0.997 | 1.000 | 0.994 | 0 | 0 | 0 | 0.4 | 11.6 | 41.4 |
+| [assign-bias](../README.md#methods-and-packs) | 0.990 | 1.000 | 0.979 | 0 | 1 | 2 | 0.9 | 14.1 | 48.9 |
+| [assign-full](../README.md#methods-and-packs) | 0.997 | 1.000 | 0.994 | 0 | 0 | 0 | 0.4 | 11.4 | 41.2 |
 | [gnn-restart](../README.md#methods-and-packs) | 0.956 | 0.997 | 0.919 | 3 | 2 | 1 | 1.3 | 38.3 | 89.6 |
-| [assign-time](../README.md#methods-and-packs) | 0.997 | 1.000 | 0.994 | 0 | 0 | 0 | 0.4 | 11.5 | 41.2 |
+| [assign-time](../README.md#methods-and-packs) | 0.997 | 1.000 | 0.994 | 0 | 0 | 0 | 0.4 | 11.4 | 41.2 |
 | [gnn-time](../README.md#methods-and-packs) | 0.951 | 0.997 | 0.910 | 3 | 2 | 1 | 2.2 | 40.4 | 94.9 |
 
 ## Time quality set, pooled
@@ -63,7 +63,7 @@ The 7 scenarios of the time family, pooled on their own: a sensor whose clock is
 | [assign](../README.md#methods-and-packs) | 0.775 | 1.000 | 0.632 | 0 | 4 | 120 | 2.5 | 121.0 | 214.5 |
 | [gnn-imm](../README.md#methods-and-packs) | 0.968 | 1.000 | 0.939 | 0 | 0 | 0 | 3.5 | 10.0 | 40.1 |
 | [assign-imm](../README.md#methods-and-packs) | 0.881 | 1.000 | 0.787 | 0 | 4 | 21 | 1.8 | 17.8 | 120.0 |
-| [assign-window](../README.md#methods-and-packs) | 0.739 | 1.000 | 0.586 | 0 | 4 | 141 | 4.2 | 117.2 | 235.3 |
+| [assign-window](../README.md#methods-and-packs) | 0.740 | 1.000 | 0.587 | 0 | 4 | 141 | 4.2 | 117.2 | 234.9 |
 | [assign-bias](../README.md#methods-and-packs) | 0.936 | 1.000 | 0.879 | 0 | 1 | 9 | 0.1 | 21.8 | 76.1 |
 | [assign-full](../README.md#methods-and-packs) | 0.932 | 1.000 | 0.873 | 0 | 1 | 15 | 0.1 | 21.6 | 79.2 |
 | [gnn-restart](../README.md#methods-and-packs) | 0.949 | 1.000 | 0.903 | 0 | 3 | 5 | 1.3 | 80.6 | 92.6 |
@@ -193,7 +193,7 @@ The 7 scenarios of the time family, pooled on their own: a sensor whose clock is
 | crossing-90deg | gnn-time | 0.996 | 1.000 | 0.992 | 0 | 0 | 0 | 1.0 | 8.7 | 15.7 |
 | crossing-20deg | gnn | 0.998 | 1.000 | 0.996 | 0 | 0 | 0 | 0.5 | 9.2 | 14.9 |
 | crossing-20deg | window | 0.998 | 1.000 | 0.996 | 0 | 0 | 0 | 0.5 | 9.2 | 14.9 |
-| crossing-20deg | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 22.8 | 20.7 |
+| crossing-20deg | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 22.9 | 20.7 |
 | crossing-20deg | assign | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 9.1 | 12.0 |
 | crossing-20deg | gnn-imm | 0.998 | 1.000 | 0.996 | 0 | 0 | 0 | 0.5 | 9.2 | 14.9 |
 | crossing-20deg | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 9.1 | 12.0 |
@@ -369,25 +369,25 @@ The 7 scenarios of the time family, pooled on their own: a sensor whose clock is
 |---|---|---|---|---|---|---|---|---|---|---|
 | three-sensors | gnn | 0.960 | 1.000 | 0.924 | 0 | 0 | 0 | 1.4 | 89.2 | 140.4 |
 | three-sensors | window | 0.993 | 1.000 | 0.986 | 0 | 0 | 0 | 1.4 | 31.3 | 52.8 |
-| three-sensors | distance | 0.927 | 1.000 | 0.864 | 0 | 0 | 1 | 3.6 | 23.3 | 222.6 |
-| three-sensors | assign | 0.944 | 1.000 | 0.893 | 0 | 0 | 0 | 0.0 | 59.2 | 182.4 |
+| three-sensors | distance | 0.927 | 1.000 | 0.864 | 0 | 0 | 1 | 3.6 | 23.2 | 222.5 |
+| three-sensors | assign | 0.944 | 1.000 | 0.893 | 0 | 0 | 0 | 0.0 | 59.1 | 182.4 |
 | three-sensors | gnn-imm | 0.993 | 1.000 | 0.986 | 0 | 0 | 0 | 1.4 | 8.8 | 29.4 |
-| three-sensors | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.9 | 14.7 |
+| three-sensors | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.9 | 14.6 |
 | three-sensors | assign-window | 0.939 | 1.000 | 0.886 | 0 | 0 | 0 | 0.8 | 56.5 | 186.8 |
-| three-sensors | assign-bias | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.9 | 14.7 |
-| three-sensors | assign-full | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.9 | 14.7 |
+| three-sensors | assign-bias | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.9 | 14.6 |
+| three-sensors | assign-full | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.9 | 14.6 |
 | three-sensors | gnn-restart | 0.960 | 1.000 | 0.924 | 0 | 0 | 0 | 1.4 | 89.2 | 140.4 |
-| three-sensors | assign-time | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.9 | 14.7 |
+| three-sensors | assign-time | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 8.9 | 14.6 |
 | three-sensors | gnn-time | 0.960 | 1.000 | 0.924 | 0 | 0 | 0 | 1.4 | 89.2 | 140.4 |
 | dense-8 | gnn | 0.962 | 1.000 | 0.926 | 0 | 0 | 0 | 0.2 | 40.6 | 228.2 |
 | dense-8 | window | 0.999 | 1.000 | 0.998 | 0 | 0 | 0 | 0.2 | 40.6 | 106.0 |
 | dense-8 | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 15.3 | 39.7 |
-| dense-8 | assign | 0.921 | 1.000 | 0.854 | 0 | 0 | 0 | 0.0 | 99.3 | 330.9 |
+| dense-8 | assign | 0.920 | 1.000 | 0.853 | 0 | 0 | 0 | 0.0 | 99.3 | 333.7 |
 | dense-8 | gnn-imm | 0.999 | 1.000 | 0.998 | 0 | 0 | 0 | 0.2 | 9.8 | 31.0 |
-| dense-8 | assign-imm | 0.985 | 1.000 | 0.970 | 0 | 0 | 0 | 0.0 | 24.5 | 103.1 |
+| dense-8 | assign-imm | 0.984 | 1.000 | 0.969 | 0 | 0 | 0 | 0.0 | 24.7 | 105.8 |
 | dense-8 | assign-window | 0.911 | 1.000 | 0.837 | 0 | 0 | 0 | 1.0 | 97.0 | 352.8 |
-| dense-8 | assign-bias | 0.996 | 1.000 | 0.993 | 0 | 0 | 0 | 0.0 | 15.1 | 45.7 |
-| dense-8 | assign-full | 0.996 | 1.000 | 0.993 | 0 | 0 | 0 | 0.0 | 15.1 | 45.7 |
+| dense-8 | assign-bias | 0.997 | 1.000 | 0.994 | 0 | 0 | 0 | 0.0 | 14.5 | 43.0 |
+| dense-8 | assign-full | 0.997 | 1.000 | 0.994 | 0 | 0 | 0 | 0.0 | 14.5 | 43.0 |
 | dense-8 | gnn-restart | 0.962 | 1.000 | 0.926 | 0 | 0 | 0 | 0.2 | 40.6 | 228.2 |
 | dense-8 | assign-time | 0.997 | 1.000 | 0.994 | 0 | 0 | 0 | 0.0 | 14.5 | 43.0 |
 | dense-8 | gnn-time | 0.962 | 1.000 | 0.926 | 0 | 0 | 0 | 0.2 | 40.6 | 228.2 |
@@ -400,12 +400,12 @@ The 7 scenarios of the time family, pooled on their own: a sensor whose clock is
 | clock-offset-200ms | window | 0.989 | 1.000 | 0.977 | 0 | 0 | 0 | 2.7 | 75.2 | 56.4 |
 | clock-offset-200ms | distance | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 28.0 | 19.0 |
 | clock-offset-200ms | assign | 0.868 | 1.000 | 0.766 | 0 | 0 | 1 | 0.0 | 133.1 | 143.8 |
-| clock-offset-200ms | gnn-imm | 0.989 | 1.000 | 0.977 | 0 | 0 | 0 | 2.7 | 9.7 | 20.2 |
+| clock-offset-200ms | gnn-imm | 0.989 | 1.000 | 0.977 | 0 | 0 | 0 | 2.7 | 9.8 | 20.2 |
 | clock-offset-200ms | assign-imm | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 16.5 | 15.1 |
 | clock-offset-200ms | assign-window | 0.842 | 1.000 | 0.727 | 0 | 0 | 4 | 1.0 | 134.5 | 160.7 |
 | clock-offset-200ms | assign-bias | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 16.5 | 15.1 |
 | clock-offset-200ms | assign-full | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 16.5 | 15.1 |
-| clock-offset-200ms | gnn-restart | 0.965 | 1.000 | 0.932 | 0 | 0 | 0 | 2.7 | 92.7 | 74.1 |
+| clock-offset-200ms | gnn-restart | 0.965 | 1.000 | 0.932 | 0 | 0 | 0 | 2.7 | 92.6 | 74.1 |
 | clock-offset-200ms | assign-time | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 | 0.0 | 16.5 | 15.1 |
 | clock-offset-200ms | gnn-time | 0.989 | 1.000 | 0.977 | 0 | 0 | 0 | 2.7 | 75.2 | 56.4 |
 | clock-drift-10ms-min | gnn | 0.992 | 1.000 | 0.985 | 0 | 0 | 0 | 0.8 | 83.3 | 57.1 |
@@ -426,7 +426,7 @@ The 7 scenarios of the time family, pooled on their own: a sensor whose clock is
 | clock-free-running | assign | 0.904 | 1.000 | 0.825 | 0 | 0 | 5 | 6.4 | 91.8 | 120.8 |
 | clock-free-running | gnn-imm | 0.991 | 1.000 | 0.982 | 0 | 0 | 0 | 3.2 | 10.9 | 18.4 |
 | clock-free-running | assign-imm | 0.998 | 1.000 | 0.995 | 0 | 0 | 0 | 0.4 | 20.6 | 20.0 |
-| clock-free-running | assign-window | 0.863 | 1.000 | 0.759 | 0 | 0 | 19 | 7.4 | 89.6 | 151.1 |
+| clock-free-running | assign-window | 0.869 | 1.000 | 0.768 | 0 | 0 | 19 | 7.4 | 89.7 | 146.5 |
 | clock-free-running | assign-bias | 0.991 | 1.000 | 0.982 | 0 | 0 | 0 | 0.0 | 20.2 | 27.7 |
 | clock-free-running | assign-full | 0.991 | 1.000 | 0.982 | 0 | 0 | 0 | 0.0 | 20.2 | 27.7 |
 | clock-free-running | gnn-restart | 0.991 | 1.000 | 0.982 | 0 | 0 | 0 | 3.2 | 85.0 | 63.0 |
@@ -509,11 +509,11 @@ The 7 scenarios of the time family, pooled on their own: a sensor whose clock is
 | number-swap | 141.0 | 15.8 | 192.5 | 154.0 | 147.9 | 154.0 | 152.5 | 152.8 | 12.3 | 26.8 | 12.3 | 141.0 |
 | number-drop | 94.1 | 94.1 | 6.1 | 91.8 | 94.1 | 91.8 | 166.2 | 91.8 | 71.3 | 94.1 | 71.3 | 94.1 |
 | false-tracks | 560.7 | 560.7 | 555.7 | 555.0 | 560.7 | 555.0 | 550.0 | 555.0 | 555.0 | 560.7 | 555.0 | 560.7 |
-| three-sensors | 140.4 | 52.8 | 222.6 | 182.4 | 29.4 | 14.7 | 186.8 | 14.7 | 14.7 | 140.4 | 14.7 | 140.4 |
-| dense-8 | 228.2 | 106.0 | 39.7 | 330.9 | 31.0 | 103.1 | 352.8 | 45.7 | 45.7 | 228.2 | 43.0 | 228.2 |
+| three-sensors | 140.4 | 52.8 | 222.5 | 182.4 | 29.4 | 14.6 | 186.8 | 14.6 | 14.6 | 140.4 | 14.6 | 140.4 |
+| dense-8 | 228.2 | 106.0 | 39.7 | 333.7 | 31.0 | 105.8 | 352.8 | 43.0 | 43.0 | 228.2 | 43.0 | 228.2 |
 | clock-offset-200ms | 56.4 | 56.4 | 19.0 | 143.8 | 20.2 | 15.1 | 160.7 | 15.1 | 15.1 | 74.1 | 15.1 | 56.4 |
 | clock-drift-10ms-min | 57.1 | 52.1 | 44.5 | 139.0 | 10.0 | 11.8 | 159.6 | 13.3 | 13.3 | 63.4 | 13.0 | 57.1 |
-| clock-free-running | 67.2 | 67.2 | 355.2 | 120.8 | 18.4 | 20.0 | 151.1 | 27.7 | 27.7 | 63.0 | 17.6 | 67.2 |
+| clock-free-running | 67.2 | 67.2 | 355.2 | 120.8 | 18.4 | 20.0 | 146.5 | 27.7 | 27.7 | 63.0 | 17.6 | 67.2 |
 | clock-offset-200ms-undescribed | 47.7 | 56.4 | 18.7 | 383.2 | 11.5 | 350.8 | 382.0 | 28.9 | 28.9 | 86.4 | 28.9 | 47.7 |
 | clock-drift-10ms-min-undescribed | 59.2 | 52.1 | 39.5 | 271.7 | 10.0 | 193.2 | 300.1 | 108.4 | 117.1 | 65.8 | 24.8 | 59.2 |
 | clock-free-running-undescribed | 377.4 | 67.2 | 355.2 | 389.2 | 332.4 | 352.5 | 389.7 | 317.3 | 317.3 | 372.7 | 101.3 | 377.4 |

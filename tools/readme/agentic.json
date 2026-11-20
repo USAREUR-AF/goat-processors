@@ -1,0 +1,89 @@
+{
+  "_about": [
+    "The agent interfaces, one entry each, and their status. tools/readme/make-readme.py writes the README section from this file and site/build.py checks the landing page against it.",
+    "status is one of Built, Written, Designed. Built: the code is on main and every path in tests exists there (CI runs them on every change). Written: the document named in link exists. Designed: decided, not yet in the tree.",
+    "Both scripts refuse a Built entry with no tests or a missing test path, and a Built or Written entry whose link is missing.",
+    "build lists the items of the agent build list (A1 to A9) the entry covers."
+  ],
+  "design_doc": "docs/design/agentic-ai.md",
+  "interfaces": [
+    {
+      "id": "mcp",
+      "name": "MCP server",
+      "lets_you": "connect an AI assistant to a running runner over MCP (Model Context Protocol, the common way an assistant calls a program's tools): it can read tracks and quality marks and propose changes, with the authority of the person it acts for and no more",
+      "build": [
+        "A1",
+        "A2"
+      ],
+      "status": "Designed",
+      "link": null,
+      "tests": []
+    },
+    {
+      "id": "source",
+      "name": "Agent as a source",
+      "lets_you": "have an agent publish tracks or notes on the goat fabric (the network the runner reads and publishes on) under its own name, marked as agent-derived with its model and inputs; the processors take them in like any other source",
+      "build": [
+        "A3"
+      ],
+      "status": "Designed",
+      "link": null,
+      "tests": []
+    },
+    {
+      "id": "adjudicator",
+      "name": "Agent as an adjudicator",
+      "lets_you": "let an agent or an analyst settle a hard case with a hint (\"treat A and B as one object\", \"keep A and B apart\") that the engines record and trace like any other input, so a replay stays exact",
+      "build": [
+        "A4"
+      ],
+      "status": "Designed",
+      "link": null,
+      "tests": []
+    },
+    {
+      "id": "settings",
+      "name": "Settings proposals and site auto-approval",
+      "lets_you": "have an agent propose a pack or config change that a person approves, or that a site rule approves within set bounds once the benchmark passes; every change is logged and can be reverted in one step",
+      "build": [
+        "A5"
+      ],
+      "status": "Designed",
+      "link": null,
+      "tests": []
+    },
+    {
+      "id": "audit",
+      "name": "Audit log",
+      "lets_you": "see every agent call and action afterwards: who it acted for, which tool, a fingerprint (hash) of its inputs, and the result",
+      "build": [
+        "A6"
+      ],
+      "status": "Designed",
+      "link": null,
+      "tests": []
+    },
+    {
+      "id": "explainer",
+      "name": "The \"why?\" explainer",
+      "lets_you": "ask in plain words why two tracks were joined or kept apart, and get an answer in which every sentence cites the trace record it comes from",
+      "build": [
+        "A7"
+      ],
+      "status": "Designed",
+      "link": null,
+      "tests": []
+    },
+    {
+      "id": "guide",
+      "name": "Build-your-own guide",
+      "lets_you": "build your own integration from one runnable example per interface (MCP, source, adjudicator, settings), each run in CI",
+      "build": [
+        "A8"
+      ],
+      "status": "Designed",
+      "link": null,
+      "tests": []
+    }
+  ]
+}

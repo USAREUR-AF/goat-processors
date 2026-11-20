@@ -41,7 +41,7 @@
 <text x="142" y="185.0" font-size="12" text-anchor="end" fill="#0b0b0b">straight-level</text>
 <rect x="150" y="150" width="8.8" height="6" rx="2" fill="#2a78d6"><title>straight-level, gnn: 11</title></rect>
 <rect x="150" y="158" width="8.8" height="6" rx="2" fill="#eb6834"><title>straight-level, window: 11</title></rect>
-<rect x="150" y="166" width="4.5" height="6" rx="2" fill="#1baf7a"><title>straight-level, distance: 6</title></rect>
+<rect x="150" y="166" width="4.6" height="6" rx="2" fill="#1baf7a"><title>straight-level, distance: 6</title></rect>
 <rect x="150" y="174" width="6.1" height="6" rx="2" fill="#eda100"><title>straight-level, assign: 8</title></rect>
 <rect x="150" y="182" width="8.8" height="6" rx="2" fill="#e87ba4"><title>straight-level, gnn-imm: 11</title></rect>
 <rect x="150" y="190" width="6.1" height="6" rx="2" fill="#008300"><title>straight-level, assign-imm: 8</title></rect>
@@ -129,13 +129,13 @@
 <rect x="150" y="846" width="21.8" height="6" rx="2" fill="#6250d6"><title>error-understated, gnn-restart: 28</title></rect>
 <rect x="150" y="854" width="7.3" height="6" rx="2" fill="#e34948"><title>error-understated, assign-time: 9</title></rect>
 <text x="142" y="905.0" font-size="12" text-anchor="end" fill="#0b0b0b">error-absent</text>
-<rect x="150" y="870" width="5.6" height="6" rx="2" fill="#2a78d6"><title>error-absent, gnn: 7</title></rect>
+<rect x="150" y="870" width="5.7" height="6" rx="2" fill="#2a78d6"><title>error-absent, gnn: 7</title></rect>
 <rect x="150" y="878" width="5.6" height="6" rx="2" fill="#eb6834"><title>error-absent, window: 7</title></rect>
 <rect x="150" y="886" width="5.7" height="6" rx="2" fill="#1baf7a"><title>error-absent, distance: 7</title></rect>
 <rect x="150" y="894" width="9.3" height="6" rx="2" fill="#eda100"><title>error-absent, assign: 12</title></rect>
 <rect x="150" y="902" width="5.7" height="6" rx="2" fill="#e87ba4"><title>error-absent, gnn-imm: 7</title></rect>
 <rect x="150" y="910" width="9.0" height="6" rx="2" fill="#008300"><title>error-absent, assign-imm: 12</title></rect>
-<rect x="150" y="918" width="5.6" height="6" rx="2" fill="#6250d6"><title>error-absent, gnn-restart: 7</title></rect>
+<rect x="150" y="918" width="5.7" height="6" rx="2" fill="#6250d6"><title>error-absent, gnn-restart: 7</title></rect>
 <rect x="150" y="926" width="9.0" height="6" rx="2" fill="#e34948"><title>error-absent, assign-time: 12</title></rect>
 <text x="142" y="977.0" font-size="12" text-anchor="end" fill="#0b0b0b">latency-3s</text>
 <rect x="150" y="942" width="5.4" height="6" rx="2" fill="#2a78d6"><title>latency-3s, gnn: 7</title></rect>
@@ -202,22 +202,22 @@
 <rect x="150" y="1430" width="434.8" height="6" rx="2" fill="#e34948"><title>false-tracks, assign-time: 555</title></rect>
 <text x="142" y="1481.0" font-size="12" text-anchor="end" fill="#0b0b0b">three-sensors</text>
 <rect x="150" y="1446" width="110.0" height="6" rx="2" fill="#2a78d6"><title>three-sensors, gnn: 140</title></rect>
-<rect x="150" y="1454" width="41.4" height="6" rx="2" fill="#eb6834"><title>three-sensors, window: 53</title></rect>
-<rect x="150" y="1462" width="174.4" height="6" rx="2" fill="#1baf7a"><title>three-sensors, distance: 223</title></rect>
+<rect x="150" y="1454" width="41.3" height="6" rx="2" fill="#eb6834"><title>three-sensors, window: 53</title></rect>
+<rect x="150" y="1462" width="174.3" height="6" rx="2" fill="#1baf7a"><title>three-sensors, distance: 223</title></rect>
 <rect x="150" y="1470" width="142.9" height="6" rx="2" fill="#eda100"><title>three-sensors, assign: 182</title></rect>
 <rect x="150" y="1478" width="23.0" height="6" rx="2" fill="#e87ba4"><title>three-sensors, gnn-imm: 29</title></rect>
 <rect x="150" y="1486" width="11.5" height="6" rx="2" fill="#008300"><title>three-sensors, assign-imm: 15</title></rect>
 <rect x="150" y="1494" width="110.0" height="6" rx="2" fill="#6250d6"><title>three-sensors, gnn-restart: 140</title></rect>
 <rect x="150" y="1502" width="11.5" height="6" rx="2" fill="#e34948"><title>three-sensors, assign-time: 15</title></rect>
 <text x="142" y="1553.0" font-size="12" text-anchor="end" fill="#0b0b0b">dense-8</text>
-<rect x="150" y="1518" width="178.7" height="6" rx="2" fill="#2a78d6"><title>dense-8, gnn: 228</title></rect>
+<rect x="150" y="1518" width="178.8" height="6" rx="2" fill="#2a78d6"><title>dense-8, gnn: 228</title></rect>
 <rect x="150" y="1526" width="83.1" height="6" rx="2" fill="#eb6834"><title>dense-8, window: 106</title></rect>
 <rect x="150" y="1534" width="31.1" height="6" rx="2" fill="#1baf7a"><title>dense-8, distance: 40</title></rect>
-<rect x="150" y="1542" width="259.2" height="6" rx="2" fill="#eda100"><title>dense-8, assign: 331</title></rect>
+<rect x="150" y="1542" width="261.4" height="6" rx="2" fill="#eda100"><title>dense-8, assign: 334</title></rect>
 <rect x="150" y="1550" width="24.3" height="6" rx="2" fill="#e87ba4"><title>dense-8, gnn-imm: 31</title></rect>
-<rect x="150" y="1558" width="80.7" height="6" rx="2" fill="#008300"><title>dense-8, assign-imm: 103</title></rect>
-<rect x="150" y="1566" width="178.7" height="6" rx="2" fill="#6250d6"><title>dense-8, gnn-restart: 228</title></rect>
-<rect x="150" y="1574" width="33.7" height="6" rx="2" fill="#e34948"><title>dense-8, assign-time: 43</title></rect>
+<rect x="150" y="1558" width="82.9" height="6" rx="2" fill="#008300"><title>dense-8, assign-imm: 106</title></rect>
+<rect x="150" y="1566" width="178.8" height="6" rx="2" fill="#6250d6"><title>dense-8, gnn-restart: 228</title></rect>
+<rect x="150" y="1574" width="33.6" height="6" rx="2" fill="#e34948"><title>dense-8, assign-time: 43</title></rect>
 <text x="142" y="1625.0" font-size="12" text-anchor="end" fill="#0b0b0b">clock-offset-200ms</text>
 <rect x="150" y="1590" width="44.2" height="6" rx="2" fill="#2a78d6"><title>clock-offset-200ms, gnn: 56</title></rect>
 <rect x="150" y="1598" width="44.2" height="6" rx="2" fill="#eb6834"><title>clock-offset-200ms, window: 56</title></rect>
@@ -242,7 +242,7 @@
 <rect x="150" y="1750" width="278.2" height="6" rx="2" fill="#1baf7a"><title>clock-free-running, distance: 355</title></rect>
 <rect x="150" y="1758" width="94.6" height="6" rx="2" fill="#eda100"><title>clock-free-running, assign: 121</title></rect>
 <rect x="150" y="1766" width="14.4" height="6" rx="2" fill="#e87ba4"><title>clock-free-running, gnn-imm: 18</title></rect>
-<rect x="150" y="1774" width="15.7" height="6" rx="2" fill="#008300"><title>clock-free-running, assign-imm: 20</title></rect>
+<rect x="150" y="1774" width="15.6" height="6" rx="2" fill="#008300"><title>clock-free-running, assign-imm: 20</title></rect>
 <rect x="150" y="1782" width="49.4" height="6" rx="2" fill="#6250d6"><title>clock-free-running, gnn-restart: 63</title></rect>
 <rect x="150" y="1790" width="13.8" height="6" rx="2" fill="#e34948"><title>clock-free-running, assign-time: 18</title></rect>
 <text x="142" y="1841.0" font-size="12" text-anchor="end" fill="#0b0b0b">clock-offset-200ms-undescribed</text>
@@ -257,7 +257,7 @@
 <text x="142" y="1913.0" font-size="12" text-anchor="end" fill="#0b0b0b">clock-drift-10ms-min-undescribed</text>
 <rect x="150" y="1878" width="46.4" height="6" rx="2" fill="#2a78d6"><title>clock-drift-10ms-min-undescribed, gnn: 59</title></rect>
 <rect x="150" y="1886" width="40.8" height="6" rx="2" fill="#eb6834"><title>clock-drift-10ms-min-undescribed, window: 52</title></rect>
-<rect x="150" y="1894" width="30.9" height="6" rx="2" fill="#1baf7a"><title>clock-drift-10ms-min-undescribed, distance: 39</title></rect>
+<rect x="150" y="1894" width="30.9" height="6" rx="2" fill="#1baf7a"><title>clock-drift-10ms-min-undescribed, distance: 40</title></rect>
 <rect x="150" y="1902" width="212.8" height="6" rx="2" fill="#eda100"><title>clock-drift-10ms-min-undescribed, assign: 272</title></rect>
 <rect x="150" y="1910" width="7.9" height="6" rx="2" fill="#e87ba4"><title>clock-drift-10ms-min-undescribed, gnn-imm: 10</title></rect>
 <rect x="150" y="1918" width="151.4" height="6" rx="2" fill="#008300"><title>clock-drift-10ms-min-undescribed, assign-imm: 193</title></rect>
