@@ -1,5 +1,5 @@
 # goat-processors runner configuration.
-# Check it after every edit:   goat-processors config check
+# Check it after every edit:   sudo goat-processors config check
 # Every key is explained in /usr/share/doc/goat-processors/README.md, Configure.
 
 # This runner's name and its site. Letters, digits, - and _ only.
@@ -16,11 +16,11 @@ tick_ms: 1000
 # (only for replaying old data).
 clock: wall
 
-# The goat fabric (Zenoh). Replace the router address with your site's.
+# The goat fabric (Zenoh). Replace CHANGE-ME with your router's name: tls/router.site-a:7447
 fabric:
   mode: client
   connect:
-    - tls/CHANGE-ME-router:7447
+    - tls/CHANGE-ME:7447
   tls:
     root_ca: /etc/goat-processors/tls/ca.pem
     certificate: /etc/goat-processors/tls/runner.pem

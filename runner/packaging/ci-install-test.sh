@@ -115,6 +115,14 @@ goat-processors doctor
 goat-processors doctor -o json | python3 -c 'import json,sys; f=json.load(sys.stdin); bad=[x for x in f if x["level"]!="ok"]; print(bad); sys.exit(1 if any(x["level"]=="fail" for x in bad) else 0)'
 python3 -c 'import json; s=json.load(open("/run/goat-processors/status.json")); c=s["counters"]; print(c); assert c["reports_in"] >= 24 and c["per_source"]["adsb"] >= 12 and s["fabric_routers"] == 1'
 
+say "a key the service cannot read: doctor names it, install.sh repairs it"
+chgrp root /etc/goat-processors/tls/runner.key
+systemctl restart goat-processors
+if goat-processors doctor > "$work/doctor.txt"; then cat "$work/doctor.txt"; echo "doctor passed with an unreadable key"; exit 1; fi
+grep -q "the service user goat-processors cannot read /etc/goat-processors/tls/runner.key" "$work/doctor.txt" || { cat "$work/doctor.txt"; exit 1; }
+sh "$here/../install.sh" --deb "$deb" --allow-unsigned --site ci --router localhost:7447 \
+  --ca "$certs/ca.pem" --cert "$certs/runner.pem" --key "$certs/runner.key" | grep "group goat-processors, mode 0640 set"
+
 say "the service runs hardened"
 systemd-analyze security goat-processors --no-pager | tail -1
 

@@ -32,3 +32,8 @@ python3 $VIZ/scripts/pdfgate.py build install-card.html -o install-card.pdf --pa
 | 2 | one table row held two unrelated facts (where the tracks are; where the doctor fixes are) | split into two rows |
 | 2 | spare space at the foot of the page | print type raised from 10.5 px to 11 px |
 | 3 | the one-command line broke between `--ca` and its file: the callout paragraph was capped at 40em | the cap lifted inside the callout |
+| 4 (cold read by proc-show) | `journalctl` without `sudo` shows nothing to a normal user | `sudo` on every `journalctl` |
+| 4 | the card said four release files; the release has five | five, with `install-card.pdf` named |
+| 4 | "edit the CHANGE-ME lines" led to replacing only part of the router address | "replace each word CHANGE-ME", keep `tls/` and the port; the placeholder is now `tls/CHANGE-ME:7447` |
+| 4 | the private key's copy stayed in the home directory | step 5 ends with `rm runner.key` |
+| 4 | two cells left one word alone at 680 px | reworded |

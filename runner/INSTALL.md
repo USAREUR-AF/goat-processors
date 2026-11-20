@@ -7,8 +7,9 @@ if you do not see it. It takes about fifteen minutes.
 
 [README.md](README.md) explains how the runner works and every config key.
 A one-page version of these steps, to print and keep at the machine, is
-[docs/install-card.pdf](docs/install-card.pdf); the package installs it in
-`/usr/share/doc/goat-processors/`, and each release carries it.
+the file `install-card.pdf`. It is one of the release files (step 2), the
+package installs it in `/usr/share/doc/goat-processors/`, and in the
+repository it is `runner/docs/install-card.pdf`.
 
 ## Words used here
 
@@ -18,11 +19,16 @@ A one-page version of these steps, to print and keep at the machine, is
 | fabric | the goat data network (Zenoh). Programs publish values under keys and receive the keys they subscribe to |
 | router | the fabric server at your site that the runner connects to. You need its name and port, for example `router.site-a:7447` |
 | certificate authority (CA) | the site's authority that issues certificates. The router and the runner each show a certificate it signed (mutual TLS) |
-| release | the files of one version: the package (`.deb`), its signature (`.sigstore.json`) and a checksum list (`SHA256SUMS`) |
+| release | the files of one version: the package (`.deb`), its signature (`.sigstore.json`), the installer `install.sh`, the printable `install-card.pdf`, and a checksum list (`SHA256SUMS`) |
 | package, `.deb` | the file Ubuntu installs software from, with `apt` |
 | signature | proof that the release was built by the goat-processors release workflow and not changed since. `cosign` checks it |
 | service | a program systemd (the Ubuntu service manager) keeps running, and starts at boot |
 | doctor | `goat-processors doctor`: checks the machine and the service and says what is wrong. It changes nothing |
+| journal | the system log. `sudo journalctl -u goat-processors` shows the runner's part of it. It needs `sudo`: without it, a normal user sees `-- No entries --` |
+| goatcore | the goat project's core repository, `USAREUR-AF/goatcore` on GitHub. It holds the project's design documents, including the operating-system guidance this page points to. Ask the site's goat administrator for access |
+| host class | the kind of machine a host is (for example an x86 server or an ARM edge board). goatcore gives each host class its own operating-system and disk-encryption setup |
+| goatbuilder | goat's tool that builds and installs whole hosts. It will install runners by itself; until then, this page and `install.sh` do |
+| Fieldkit | goat's family of small, offline browser tools for operators. "Fieldkit Processors" is the runner's visual UI, not in this release (step 10) |
 
 In the commands below, `$` is the prompt: type what follows it. Lines without
 `$` are what you should see.
@@ -60,7 +66,8 @@ with SSH as a user who may use `sudo`.
   ```
 
   Get `install.sh` with the release files (step 2). goatbuilder will later
-  install runners through the same contract ([DEPLOY-CONTRACT.md](DEPLOY-CONTRACT.md));
+  install runners through the same contract (`DEPLOY-CONTRACT.md`, installed
+  in `/usr/share/doc/goat-processors/` and in the repository's `runner/`);
   until then this script is how a site does it in one command.
 
 ## 1. Log in to the machine
@@ -89,16 +96,18 @@ machine is on.
 
 ## 2. Get the release
 
-Make a directory and download the four files of the release (replace
-`0.1.0` and `amd64` with yours):
+Make a directory and download the five files of the release (replace
+`0.1.0` and `amd64` with yours). Keep this shell open until step 4: the
+names `V` and `A` set here are used in steps 3 and 4, and a new shell
+forgets them. In a new shell, type the `V=… A=…` line again first.
 
 ```
 $ mkdir ~/goat-processors && cd ~/goat-processors
 $ V=0.1.0 A=amd64
 $ B=https://github.com/USAREUR-AF/goat-processors/releases/download/runner-v$V
-$ for f in goat-processors_${V}_$A.deb goat-processors_${V}_$A.deb.sigstore.json install.sh SHA256SUMS; do curl -fLO $B/$f; done
+$ for f in goat-processors_${V}_$A.deb goat-processors_${V}_$A.deb.sigstore.json install.sh install-card.pdf SHA256SUMS; do curl -fLO $B/$f; done
 $ ls
-goat-processors_0.1.0_amd64.deb  goat-processors_0.1.0_amd64.deb.sigstore.json  install.sh  SHA256SUMS
+goat-processors_0.1.0_amd64.deb  goat-processors_0.1.0_amd64.deb.sigstore.json  install-card.pdf  install.sh  SHA256SUMS
 ```
 
 **If not:** if `curl` reports 404, check the version on the releases page.
@@ -115,7 +124,11 @@ First the checksum: it proves the files are complete.
 $ sha256sum -c --ignore-missing SHA256SUMS
 goat-processors_0.1.0_amd64.deb: OK
 install.sh: OK
+install-card.pdf: OK
 ```
+
+(On an `arm64` machine the amd64 line is not shown: `--ignore-missing`
+skips the files you did not download.)
 
 Then the signature: it proves the release workflow built them. Install
 `cosign`, the signature checker, once (use `arm64` in both names on an ARM
@@ -138,7 +151,7 @@ it still fails, tell the goat-processors maintainers.
 
 ```
 $ sudo apt install ./goat-processors_${V}_$A.deb
-...
+...    (if apt asks "Do you want to continue? [Y/n]", type Y)
 goat-processors: edit /etc/goat-processors/runner.yaml, then run
   sudo goat-processors config check && sudo systemctl enable --now goat-processors
 $ goat-processors version
@@ -178,6 +191,12 @@ are the names the config file uses.
 for example `sudo install -m 0640 -g goat-processors site-ca.crt /etc/goat-processors/tls/ca.pem`.
 Each file must be PEM: its first line starts with `-----BEGIN`.
 
+Then remove the copy of the private key from your home directory:
+
+```
+$ rm ~/goat-processors/runner.key
+```
+
 ## 6. Edit the config file
 
 The runner has one config file. Open it:
@@ -186,12 +205,13 @@ The runner has one config file. Open it:
 $ sudo nano /etc/goat-processors/runner.yaml
 ```
 
-Change the two lines that hold `CHANGE-ME`:
+Change the two lines that hold `CHANGE-ME`. In each, replace the word
+`CHANGE-ME` itself with your value:
 
 | Line | Set it to |
 |---|---|
 | `site: CHANGE-ME` | your site name, for example `site: site-a` |
-| `- tls/CHANGE-ME-router:7447` | your router, for example `- tls/router.site-a:7447` |
+| `- tls/CHANGE-ME:7447` | your router's name, for example `- tls/router.site-a:7447`. Keep `tls/` before it and the port after it |
 
 Leave the rest as it is for a first install. Save with `Ctrl+O`, `Enter`,
 and leave with `Ctrl+X`. Then check the file:
@@ -218,10 +238,11 @@ active
 
 `enable` makes it start at every boot; `--now` starts it now.
 
-**If not:** `failed` or `activating` means it stopped. Its log says why:
+**If not:** `failed` means it stopped; `activating` means it failed and
+systemd is restarting it. Its log says why (the log needs `sudo`):
 
 ```
-$ journalctl -u goat-processors -n 30 --no-pager
+$ sudo journalctl -u goat-processors -n 30 --no-pager
 ```
 
 A config problem appears there exactly as in step 6.
@@ -235,9 +256,9 @@ $ sudo goat-processors doctor
 ok    config                     /etc/goat-processors/runner.yaml is valid
 ok    pack                       correlate pack correlate-assign-time loads from ...
 ok    pack                       quality pack quality-feed loads from ...
-ok    certificates: root_ca      /etc/goat-processors/tls/ca.pem is present
-ok    certificates: certificate  /etc/goat-processors/tls/runner.pem is present
-ok    certificates: private_key  /etc/goat-processors/tls/runner.key is present
+ok    certificates: root_ca      /etc/goat-processors/tls/ca.pem is readable by the service and parses
+ok    certificates: certificate  /etc/goat-processors/tls/runner.pem is readable by the service and parses
+ok    certificates: private_key  /etc/goat-processors/tls/runner.key is readable by the service and parses
 ok    fabric                     tls/router.site-a:7447: TCP port open (the TLS handshake is tested by the service)
 ok    service                    systemd reports the service active
 ok    service                    ticking; status written 412 ms ago
@@ -272,8 +293,12 @@ the site can subscribe to `data/processed/site-a/**` to see them.
 To see the pipeline work without the fabric, replay a test case:
 
 ```
-$ goat-processors replay /usr/share/goat-processors/packs/correlate-assign-time/vectors/56-assign-time-offset-fit.json | head -3
+$ goat-processors replay /usr/share/goat-processors/packs/correlate-assign-time/vectors/56-assign-time-offset-fit.json 2>/dev/null | head -3
+{"call":"ingest","events":[{"entity":"adsb/A1","ev":"new"}],"stage":"correlate","step":0}
+...
 ```
+
+(`2>/dev/null` hides the one-line summary replay prints at the end.)
 
 Each line is one step: the report or tick that went in, and the events that
 came out.
@@ -292,4 +317,4 @@ the status file in step 9 are the view of the runner.
 | apply a config change | `sudo goat-processors config check && sudo systemctl restart goat-processors` |
 | stop | `sudo systemctl stop goat-processors` |
 | remove (keeps the config and certificates) | `sudo apt remove goat-processors` |
-| remove everything but the certificates | `sudo apt purge goat-processors` |
+| remove everything but the certificates | `sudo apt purge goat-processors`. After a purge and a new install, run doctor: the package sets the certificates' group again, and doctor says if the service cannot read them |

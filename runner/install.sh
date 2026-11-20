@@ -82,6 +82,8 @@ fi
 installed=$(dpkg-query -W -f '${Status} ${Version}' goat-processors 2>/dev/null || true)
 if [ "$installed" = "install ok installed $RELEASE" ]; then
   skip "goat-processors $RELEASE is installed"
+  step 3 "check the release signature"
+  printf '   skipped: the release is already installed\n'
 else
   work=$(mktemp -d)
   trap 'rm -rf "$work"' EXIT
@@ -112,7 +114,7 @@ else
   if [ -f "$debfile.sigstore.json" ]; then
     bundle=$debfile.sigstore.json
     command -v cosign >/dev/null || fail "cosign, the signature checker, is not installed" \
-      "install it: see INSTALL.md, step 2 (one command), or check on another machine and use --deb"
+      "install it as INSTALL.md, step 3, shows (two commands), or check on another machine and use --deb"
     cosign verify-blob "$debfile" --bundle "$bundle" \
       --certificate-identity-regexp "^https://github.com/$REPO/$WORKFLOW@refs/tags/runner-v" \
       --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null 2>&1 \
@@ -146,8 +148,16 @@ for pair in "ca:$ca:ca.pem:0640" "cert:$cert:runner.pem:0640" "key:$key:runner.k
     skip "$tls/$dst is in place"
   else
     printf '   not given: --%s (the config may not use TLS; doctor will say)\n' "$what"
+    continue
+  fi
+  # The service reads each file through its group. A purge and reinstall can
+  # leave a file with the old, now unknown group; this sets it every time.
+  if [ "$(stat -c '%U:%G %a' "$tls/$dst")" != "root:goat-processors 640" ]; then
+    chown root:goat-processors "$tls/$dst" && chmod "$mode" "$tls/$dst"
+    ok "$tls/$dst: owner root, group goat-processors, mode $mode set"
   fi
 done
+chown root:goat-processors "$tls" && chmod 0750 "$tls"
 
 step 6 "write the config file $CONFIG"
 if [ -n "$config" ]; then
@@ -155,10 +165,10 @@ if [ -n "$config" ]; then
   if cmp -s "$config" "$CONFIG"; then skip "$CONFIG is $config"; else
     install -m 0640 -o root -g goat-processors "$config" "$CONFIG"; ok "installed $config"
   fi
-elif grep -q CHANGE-ME "$CONFIG"; then
+elif grep -v '^[[:space:]]*#' "$CONFIG" | grep -q CHANGE-ME; then
   [ -n "$site" ] || fail "the config still has CHANGE-ME values and --site is not given" "add --site SITE and --router HOST:PORT, or edit $CONFIG by hand (INSTALL.md, step 6)"
   [ -n "$router" ] || fail "--router is not given" "add --router HOST:PORT, the fabric router this runner connects to"
-  sed -i -e "s/^site: CHANGE-ME/site: $site/" -e "s#tls/CHANGE-ME-router:7447#tls/$router#" "$CONFIG"
+  sed -i -e "s/^site: CHANGE-ME/site: $site/" -e "s#tls/CHANGE-ME:7447#tls/$router#" "$CONFIG"
   [ -z "$name" ] || sed -i "s/^name: .*/name: $name/" "$CONFIG"
   ok "site $site, router tls/$router"
 else

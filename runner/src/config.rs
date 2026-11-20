@@ -220,7 +220,7 @@ pub fn parse(text: &str) -> Result<Config, Vec<String>> {
         .lines()
         .enumerate()
         .filter(|(_, l)| !l.trim_start().starts_with('#') && l.contains(PLACEHOLDER))
-        .map(|(n, l)| format!("line {}: `{}` still holds the placeholder {PLACEHOLDER}. Replace it with this site's value (INSTALL.md, step Configure).", n + 1, l.trim()))
+        .map(|(n, l)| format!("line {}: `{}` still holds the placeholder {PLACEHOLDER}. Replace it with this site's value (INSTALL.md, step 6).", n + 1, l.trim()))
         .collect();
     problems.extend(check(&config));
     if problems.is_empty() {

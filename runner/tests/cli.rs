@@ -28,7 +28,7 @@ fn shipped_with(site: &str, router: &str) -> String {
     std::fs::read_to_string(repo().join("runner/config/runner.yaml"))
         .unwrap()
         .replace("site: CHANGE-ME", &format!("site: {site}"))
-        .replace("tls/CHANGE-ME-router:7447", router)
+        .replace("tls/CHANGE-ME:7447", router)
         .replace("/usr/share/goat-processors/packs", repo().join("packs").to_str().unwrap())
 }
 

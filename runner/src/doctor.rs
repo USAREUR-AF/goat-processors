@@ -74,26 +74,121 @@ fn certificate_checks(c: &Config) -> Vec<Finding> {
         }
         return out;
     };
+    let user = service_user();
     for (what, path, marker) in [
         ("root_ca", &tls.root_ca, "-----BEGIN CERTIFICATE-----"),
         ("certificate", &tls.certificate, "-----BEGIN CERTIFICATE-----"),
         ("private_key", &tls.private_key, "PRIVATE KEY-----"),
     ] {
         let check = format!("certificates: {what}");
-        match std::fs::read_to_string(path) {
-            Err(e) => out.push(f(&check, Level::Fail, format!("{} cannot be read ({e})", path.display()), format!("place the PEM file at {} (INSTALL.md, step Certificates) and make it readable by the goat-processors user", path.display()))),
-            Ok(text) if !text.contains(marker) => out.push(f(&check, Level::Fail, format!("{} is not a PEM file", path.display()), "copy the PEM form of the file, which starts with -----BEGIN")),
-            Ok(_) => {
-                out.push(f(&check, Level::Ok, format!("{} is present", path.display()), ""));
-                if what == "private_key" {
-                    out.extend(key_mode(path));
-                } else {
-                    out.extend(expiry(&check, path));
+        let place = format!(
+            "sudo install -m 0640 -g {SERVICE} <the file> {} (INSTALL.md, step 5)",
+            path.display()
+        );
+        let text = match std::fs::read_to_string(path) {
+            Err(e) => {
+                out.push(f(&check, Level::Fail, format!("{} cannot be read ({e})", path.display()), place));
+                continue;
+            }
+            Ok(t) => t,
+        };
+        if !text.contains(marker) {
+            out.push(f(&check, Level::Fail, format!("{} is not a PEM file", path.display()), "copy the PEM form of the file, whose first line starts with -----BEGIN"));
+            continue;
+        }
+        // The service reads the file as its own user, not as whoever runs doctor.
+        if let Some(u) = &user {
+            if let Err(why) = readable_by(path, u) {
+                out.push(f(&check, Level::Fail, format!("the service user {SERVICE} cannot read {}: {why}", path.display()), place));
+                continue;
+            }
+        }
+        match parses(what, path) {
+            Some(false) => {
+                out.push(f(&check, Level::Fail, format!("{} does not parse (openssl cannot read it)", path.display()), "ask the site's certificate authority for the file again, in PEM form"));
+                continue;
+            }
+            _ => {}
+        }
+        let detail = if user.is_some() { format!("{} is readable by the service and parses", path.display()) } else { format!("{} is present", path.display()) };
+        out.push(f(&check, Level::Ok, detail, ""));
+        if what == "private_key" {
+            out.extend(key_mode(path));
+        } else {
+            out.extend(expiry(&check, path));
+        }
+    }
+    out
+}
+
+/// The service user's uid, primary gid and every group it is in, from
+/// /etc/passwd and /etc/group. None when the user does not exist (not installed).
+pub struct User {
+    uid: u32,
+    gids: Vec<u32>,
+}
+
+fn service_user() -> Option<User> {
+    let passwd = std::fs::read_to_string("/etc/passwd").ok()?;
+    let line = passwd.lines().find(|l| l.split(':').next() == Some(SERVICE))?;
+    let fields: Vec<&str> = line.split(':').collect();
+    let uid = fields.get(2)?.parse().ok()?;
+    let mut gids = vec![fields.get(3)?.parse().ok()?];
+    if let Ok(group) = std::fs::read_to_string("/etc/group") {
+        for l in group.lines() {
+            let g: Vec<&str> = l.split(':').collect();
+            if g.len() >= 4 && g[3].split(',').any(|m| m == SERVICE) {
+                if let Ok(id) = g[2].parse() {
+                    gids.push(id);
                 }
             }
         }
     }
-    out
+    Some(User { uid, gids })
+}
+
+/// Whether `user` may read `path`: execute on every directory above it, read on the file.
+#[cfg(unix)]
+fn readable_by(path: &Path, user: &User) -> Result<(), String> {
+    use std::os::unix::fs::MetadataExt;
+    let allowed = |m: &std::fs::Metadata, bit: u32| -> bool {
+        let mode = m.mode();
+        if user.uid == 0 {
+            return true;
+        }
+        if m.uid() == user.uid {
+            mode & (bit << 6) != 0
+        } else if user.gids.contains(&m.gid()) {
+            mode & (bit << 3) != 0
+        } else {
+            mode & bit != 0
+        }
+    };
+    let mut dirs: Vec<&Path> = path.ancestors().skip(1).filter(|p| !p.as_os_str().is_empty()).collect();
+    dirs.reverse();
+    for d in dirs {
+        let m = std::fs::metadata(d).map_err(|e| format!("{}: {e}", d.display()))?;
+        if !allowed(&m, 0o1) {
+            return Err(format!("the directory {} is closed to it (owner {}, group {}, mode {:o})", d.display(), m.uid(), m.gid(), m.mode() & 0o777));
+        }
+    }
+    let m = std::fs::metadata(path).map_err(|e| e.to_string())?;
+    if !allowed(&m, 0o4) {
+        return Err(format!("owner {}, group {}, mode {:o}; it needs group {SERVICE} and mode 0640", m.uid(), m.gid(), m.mode() & 0o777));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn readable_by(_: &Path, _: &User) -> Result<(), String> {
+    Ok(())
+}
+
+/// Whether openssl reads the file as a certificate or a private key. None without openssl.
+fn parses(what: &str, path: &Path) -> Option<bool> {
+    let args: &[&str] = if what == "private_key" { &["pkey", "-noout", "-in"] } else { &["x509", "-noout", "-in"] };
+    let out = Command::new("openssl").args(args).arg(path).output().ok()?;
+    Some(out.status.success())
 }
 
 #[cfg(unix)]
@@ -154,20 +249,22 @@ fn service_checks(c: Option<&Config>) -> Vec<Finding> {
         let state = String::from_utf8_lossy(&o.stdout).trim().to_string();
         if state == "active" {
             out.push(f("service", Level::Ok, "systemd reports the service active", ""));
+        } else if state == "activating" {
+            out.push(f("service", Level::Fail, "systemd reports the service activating: it failed and systemd is restarting it", format!("sudo journalctl -u {SERVICE} -n 50 shows why it failed")));
         } else if !state.is_empty() {
-            out.push(f("service", Level::Fail, format!("systemd reports the service {state}"), format!("sudo systemctl enable --now {SERVICE}; then journalctl -u {SERVICE} -n 50 shows why it stopped")));
+            out.push(f("service", Level::Fail, format!("systemd reports the service {state}"), format!("sudo journalctl -u {SERVICE} -n 50 shows why it stopped; after the fix, sudo systemctl restart {SERVICE}")));
         }
     }
     let Some(c) = c else { return out };
     let Some(st) = read_status(&c.status_file) else {
-        out.push(f("service", Level::Fail, format!("no status at {}", c.status_file.display()), format!("the service writes it after its first tick; check journalctl -u {SERVICE} -n 50")));
+        out.push(f("service", Level::Fail, format!("no status at {}", c.status_file.display()), format!("the service writes it after its first tick; check sudo journalctl -u {SERVICE} -n 50")));
         return out;
     };
     let int = |k: &str| st.get(k).and_then(|v| v.as_i64());
     let age = int("written_ms").map(|w| crate::service::wall_ms() - w);
     let limit = 3 * c.tick_ms + 5000;
     match age {
-        Some(a) if c.clock == config::Clock::Wall && a > limit => out.push(f("service", Level::Fail, format!("the status is {} s old: the service is not ticking", a / 1000), format!("sudo systemctl restart {SERVICE}; journalctl -u {SERVICE} -n 50"))),
+        Some(a) if c.clock == config::Clock::Wall && a > limit => out.push(f("service", Level::Fail, format!("the status is {} s old: the service is not ticking", a / 1000), format!("sudo systemctl restart {SERVICE}; sudo journalctl -u {SERVICE} -n 50"))),
         Some(a) => out.push(f("service", Level::Ok, format!("ticking; status written {} ms ago", a.max(0)), "")),
         None => out.push(f("service", Level::Fail, "the status file has no written_ms", "the status file is damaged; restart the service")),
     }
@@ -175,7 +272,7 @@ fn service_checks(c: Option<&Config>) -> Vec<Finding> {
     let cnt = |k: &str| counters.and_then(|m| m.get(k)).and_then(|v| v.as_i64()).unwrap_or(0);
     if c.fabric.is_some() && c.outputs.fabric.is_some() {
         match int("fabric_routers") {
-            Some(0) => out.push(f("fabric", Level::Fail, "the service is connected to no router", "check the certificates and fabric.connect; journalctl shows the handshake error")),
+            Some(0) => out.push(f("fabric", Level::Fail, "the service is connected to no router", format!("check fabric.connect and the certificate lines above (readable by the service, signed by the router's CA); sudo journalctl -u {SERVICE} -n 50 shows the TLS error"))),
             Some(n) => out.push(f("fabric", Level::Ok, format!("the service is connected to {n} router(s)"), "")),
             None => {}
         }
@@ -189,7 +286,7 @@ fn service_checks(c: Option<&Config>) -> Vec<Finding> {
     for (k, why) in [("unreadable", "inputs that were not a report"), ("output_errors", "outputs that could not be written or published")] {
         let n = cnt(k);
         if n > 0 {
-            out.push(f("service", Level::Warn, format!("{n} {why}"), format!("journalctl -u {SERVICE} names the first ones")));
+            out.push(f("service", Level::Warn, format!("{n} {why}"), format!("sudo journalctl -u {SERVICE} names the first ones")));
         }
     }
     let pipeline_now: Vec<(String, String)> = match st.get("pipeline") {

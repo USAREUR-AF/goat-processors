@@ -151,7 +151,7 @@ identity by source priority.
 | stop | `sudo systemctl stop goat-processors` |
 | apply an edited config | `sudo goat-processors config check && sudo systemctl restart goat-processors` |
 | is it healthy | `goat-processors doctor` (`-o json` for scripts) |
-| its log | `journalctl -u goat-processors -f` |
+| its log (needs `sudo`) | `sudo journalctl -u goat-processors -f` |
 | counters (reports in, per source, ticks) | `cat /run/goat-processors/status.json` |
 | list packs | `goat-processors pack ls` |
 | check the program against its test cases | `goat-processors selftest` |
@@ -201,21 +201,25 @@ access to home directories or devices, and may open only network sockets.
 
 ## Troubleshoot
 
-Run `goat-processors doctor` first. Each line is `ok`, `warn` or `FAIL`, and
+Run `sudo goat-processors doctor` first (`sudo`, so that it can read the config and the certificates). Each line is `ok`, `warn` or `FAIL`, and
 each FAIL is followed by its fix. Doctor changes nothing.
 
 | Doctor says | Meaning | Fix |
 |---|---|---|
 | `config` FAIL | the config file has a problem; the line says which | edit the file as it says, then `sudo goat-processors config check` |
 | `config` FAIL: cannot read the file (permission denied) | doctor ran as a user who cannot read the config | `sudo goat-processors doctor` |
-| `certificates: …` FAIL | a certificate file is missing, is not PEM, or has expired | place the files the site CA issued (INSTALL.md, step 5) |
+| `certificates: …` FAIL: cannot be read, or is not PEM | the file is missing or is not in PEM form | place the files the site CA issued (INSTALL.md, step 5) |
+| `certificates: …` FAIL: the service user cannot read | the file or its directory has the wrong group or mode, for example after a purge and reinstall | `sudo install -m 0640 -g goat-processors <file> /etc/goat-processors/tls/<name>` (INSTALL.md, step 5), or run `install.sh` again |
+| `certificates: …` FAIL: does not parse, or has expired | the file is damaged, or its validity has ended | ask the site's CA for the file again |
 | `fabric` FAIL: does not resolve | the router's name is unknown on this host | correct `fabric.connect`; check DNS or `/etc/hosts` |
 | `fabric` FAIL: no TCP connection | nothing answers at the router's port | check the router runs, the mesh is up, and no firewall blocks the port |
-| `fabric` FAIL: connected to no router | TCP works but the TLS handshake fails | check that the certificate is signed by the router's CA and has not expired; `journalctl -u goat-processors` shows the TLS error |
-| `service` FAIL: systemd reports the service failed | it stopped | `journalctl -u goat-processors -n 50` says why; a config problem is printed there by the check that runs before start |
+| `fabric` FAIL: connected to no router | TCP works but the TLS handshake fails. The journal then says `Unable to connect to any of [tls/…]`, which can also mean the service cannot read its own key | check the certificate lines of doctor; check that the certificate is signed by the router's CA; `sudo journalctl -u goat-processors -n 50` shows the TLS error |
+| `service` FAIL: systemd reports the service failed | it stopped | `sudo journalctl -u goat-processors -n 50` says why; a config problem is printed there by the check that runs before start |
+| `service` FAIL: systemd reports the service activating | it failed and systemd is restarting it every 5 s | `sudo journalctl -u goat-processors -n 50` says why |
+| `service` FAIL: no status at /run/goat-processors/status.json | the service has not completed a tick since it started: it is not running, or is failing at start | `sudo journalctl -u goat-processors -n 50`; then `sudo systemctl restart goat-processors` |
 | `service` FAIL: the status is old | the service is not ticking | `sudo systemctl restart goat-processors` |
 | `input` warn: no report read yet | nothing arrives on the input keys | compare `inputs.fabric.keys` with the keys the translators publish |
-| `service` warn: unreadable inputs | samples on the input keys are not reports | see the first ones in the journal; correct the key expression or the publisher |
+| `service` warn: unreadable inputs | samples on the input keys are not reports | see the first ones with `sudo journalctl -u goat-processors`; correct the key expression or the publisher |
 | `service` warn: the running pipeline differs | the config was edited but not applied | `sudo systemctl restart goat-processors` |
 
 ## Build from source
