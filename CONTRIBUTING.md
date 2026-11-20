@@ -70,8 +70,13 @@ to `main`:
 
 - `vectors-current` installs the Rust toolchain and runs every generator with
   `--rust-only`: the Rust engine recomputes every vector, every hand-stated
-  decision is checked again, and the committed files must be byte-identical
-  to what the generators write.
+  decision is checked again, and `tools/vectors_match.py` compares the
+  committed files with what the generators write, as `spec/vector-format.md`
+  compares vectors. Not byte for byte: the platform's library functions
+  (`sin`, `cos`, `atan2`, `hypot`, `pow`, `exp`, `ln`) may differ in the last
+  bit between machines (`spec/correlate.md`, Floats), and that comparison
+  absorbs exactly that. Commit vectors the generators wrote; never edit one
+  by hand.
 - One job per engine runs that engine's own test on every scenario vector and
   every load vector, so all seven engines are checked against every vector.
 
