@@ -11,16 +11,26 @@ func Record(stage string, a, b any, test string, value, limit any, pass bool) Ob
 
 // Skipped is a test record of a test that could not be run (Tests: "skipped").
 func Skipped(stage, a, b, test string) Obj {
-	r := Record(stage, a, b, test, nil, nil, true)
-	r["skipped"] = true
-	return r
+	// One literal per shape, so that the map is made at its full size.
+	return Obj{"stage": stage, "a": a, "b": b, "test": test, "value": nil, "limit": nil, "pass": true, "skipped": true}
 }
 
 // Time is the filter record of a report with a time error above 0.
 func Time(key string, te, varEast, varNorth float64) Obj {
-	r := Record("filter", key, nil, "time", te, nil, true)
-	r["var_east"], r["var_north"] = varEast, varNorth
-	return r
+	return Obj{"stage": "filter", "a": key, "b": nil, "test": "time", "value": te, "limit": nil,
+		"pass": true, "var_east": varEast, "var_north": varNorth}
+}
+
+// Bias is the record of stage bias for one pair (correlate-assign.md
+// Sensor bias, Update step 4), with the pair's state after the update;
+// timeOffsetMs is added when not nil.
+func Bias(a, b string, d2, gate float64, pass bool, east, north, variance float64, pairs int64, timeOffsetMs any) Obj {
+	if timeOffsetMs != nil {
+		return Obj{"stage": "bias", "a": a, "b": b, "test": "offset", "value": d2, "limit": gate, "pass": pass,
+			"east": east, "north": north, "var": variance, "pairs": pairs, "time_offset_ms": timeOffsetMs}
+	}
+	return Obj{"stage": "bias", "a": a, "b": b, "test": "offset", "value": d2, "limit": gate, "pass": pass,
+		"east": east, "north": north, "var": variance, "pairs": pairs}
 }
 
 // Restart is the filter record of the restart test.

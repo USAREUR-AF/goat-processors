@@ -100,12 +100,11 @@ func (m *Method) updateBias(now int64, rows map[string]bool) []Obj {
 				}
 
 				// 4. Trace, with the state after step 3.
-				rec := trace.Record("bias", x, y, "offset", d2, p.BiasGate, accepted)
-				rec["east"], rec["north"], rec["var"], rec["pairs"] = st.OEast, st.ONorth, st.Var, st.Pairs
+				var tau any
 				if p.HasTimeOffset {
-					rec["time_offset_ms"] = st.Tau * 1000
+					tau = st.Tau * 1000
 				}
-				out = append(out, rec)
+				out = append(out, trace.Bias(x, y, d2, p.BiasGate, accepted, st.OEast, st.ONorth, st.Var, st.Pairs, tau))
 			}
 		}
 	}

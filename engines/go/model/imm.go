@@ -70,7 +70,7 @@ type IMMStep struct {
 // Update applies one report dt seconds after the last: mixing,
 // predict and update, likelihood, mode probabilities, combination
 // (steps 1 to 5).
-func (s IMM) Update(p FilterParams, m Maneuver, dt float64, z Measurement) IMMStep {
+func (s *IMM) Update(p FilterParams, m Maneuver, dt float64, z Measurement) IMMStep {
 	models, mu := s.Models, s.Mode
 	q := [2]float64{p.AccelVar, m.Var}
 	tr := m.Switching(dt)
@@ -117,7 +117,7 @@ func (s IMM) Update(p FilterParams, m Maneuver, dt float64, z Measurement) IMMSt
 }
 
 // Predict is the combined prediction dt seconds ahead (Prediction).
-func (s IMM) Predict(p FilterParams, m Maneuver, dt float64) Model {
+func (s *IMM) Predict(p FilterParams, m Maneuver, dt float64) Model {
 	q := [2]float64{p.AccelVar, m.Var}
 	var pr [2]Model
 	for j := 0; j < 2; j++ {

@@ -32,7 +32,7 @@ func (g *Engine) updateFilter(e *Entity, t int64, z model.Measurement) []Obj {
 		return nil
 	}
 	s := e.IMM.Update(p.FilterParams, p.Maneuver, dt, z)
-	e.IMM = &s.IMM
+	*e.IMM = s.IMM // in place: the entity owns its models
 	e.East, e.North = s.Combined.East, s.Combined.North
 	names := model.ModelNames
 	return []Obj{

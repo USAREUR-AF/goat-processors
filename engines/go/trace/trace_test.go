@@ -23,6 +23,8 @@ func TestShapes(t *testing.T) {
 		{Record("gate", "a", "b", "distance", 1.5, 2.0, true), `{"a":"a","b":"b","limit":2,"pass":true,"stage":"gate","test":"distance","value":1.5}`},
 		{Skipped("confirm", "a", "b", "course"), `{"a":"a","b":"b","limit":null,"pass":true,"skipped":true,"stage":"confirm","test":"course","value":null}`},
 		{Time("s/1", 200, 1, 2), `{"a":"s/1","b":null,"limit":null,"pass":true,"stage":"filter","test":"time","value":200,"var_east":1,"var_north":2}`},
+		{Bias("a", "b", 1, 9, true, 2, 3, 4, 5, nil), `{"a":"a","b":"b","east":2,"limit":9,"north":3,"pairs":5,"pass":true,"stage":"bias","test":"offset","value":1,"var":4}`},
+		{Bias("a", "b", 1, 9, false, 2, 3, 4, 5, 200.0), `{"a":"a","b":"b","east":2,"limit":9,"north":3,"pairs":5,"pass":false,"stage":"bias","test":"offset","time_offset_ms":200,"value":1,"var":4}`},
 		{Restart("s/1", 3, 9.21, true), `{"a":"s/1","b":null,"limit":9.21,"pass":true,"stage":"filter","test":"restart","value":3}`},
 		{Model("s/1", "quiet", "mode", 0.5), `{"a":"s/1","b":"quiet","limit":null,"pass":true,"stage":"filter","test":"mode","value":0.5}`},
 		{Assign("s/1", "alone", "cost", nil, false), `{"a":"s/1","b":"alone","limit":null,"pass":false,"stage":"assign","test":"cost","value":null}`},

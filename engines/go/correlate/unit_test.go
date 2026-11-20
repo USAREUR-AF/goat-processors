@@ -107,7 +107,9 @@ func pairOf(a, b *Entity, be, bn model.Axis) Pair { return Pair{A: a, B: b, BE: 
 func TestTestKinds(t *testing.T) {
 	kinds := DefaultTests()
 	ent := func(e, n, ce float64, last map[string]any) *Entity {
-		return &Entity{Key: "k", East: model.Axis{P: e}, North: model.Axis{P: n}, Ce: ce, REast: 1, RNorth: 1, Last: last}
+		en := &Entity{Key: "k", East: model.Axis{P: e}, North: model.Axis{P: n}, Ce: ce, REast: 1, RNorth: 1}
+		en.setLast(last)
+		return en
 	}
 	a := ent(0, 0, 10, map[string]any{"course": 10.0, "speed_ms": 20.0, "hae": 100.0, "type": "a-f-G-U", "k": "x"})
 	b := ent(0, 0, 30, map[string]any{"course": 350.0, "speed_ms": 10.0, "hae": 160.0, "type": "a-h-G", "k": "x"})
@@ -146,6 +148,8 @@ func TestTestKinds(t *testing.T) {
 	delete(b.Last, "hae")
 	b.Last["speed_ms"] = 0.0
 	a.Last["speed_ms"] = 0.0
+	a.setLast(a.Last)
+	b.setLast(b.Last)
 	if o := run("altitude", map[string]float64{"max_m": 60}, ""); !o.Skipped {
 		t.Errorf("altitude without hae %+v", o)
 	}

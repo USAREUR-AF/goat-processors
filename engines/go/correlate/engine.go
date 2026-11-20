@@ -30,13 +30,45 @@ type Entity struct {
 	TimeVarEast  float64        // timing variance (v_e*ts)², 0 when the time error is 0
 	TimeVarNorth float64        // timing variance (v_n*ts)², 0 when the time error is 0
 	Last         map[string]any // the last accepted report
+	lastNums     [3]reportNum   // its course, speed_ms and hae, each read once when first asked (num)
 
 	// method confirm (Association)
 	Group        string
 	HoldFailures int64
 }
 
-func (e *Entity) num(key string) (float64, bool) { return model.ToFloat(e.Last[key]) }
+// reportNum is one number of the last report: its value, whether the report
+// holds a number there, and whether it has been read yet.
+type reportNum struct {
+	v        float64
+	ok, read bool
+}
+
+// numKeys are the report numbers the tests and the output read, cached in
+// lastNums at each accepted report.
+var numKeys = [3]string{"course", "speed_ms", "hae"}
+
+// setLast keeps the last accepted report.
+func (e *Entity) setLast(report map[string]any) {
+	e.Last = report
+	e.lastNums = [3]reportNum{}
+}
+
+// num reads a number of the last report; course, speed_ms and hae are
+// parsed once per report.
+func (e *Entity) num(key string) (float64, bool) {
+	for i, k := range numKeys {
+		if k == key {
+			n := &e.lastNums[i]
+			if !n.read {
+				n.v, n.ok = model.ToFloat(e.Last[k])
+				n.read = true
+			}
+			return n.v, n.ok
+		}
+	}
+	return model.ToFloat(e.Last[key])
+}
 
 // Engine is one correlator (spec: What the correlator does).
 type Engine struct {
@@ -109,7 +141,8 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 		g.startFilter(e, z)
 		g.method.restarted(key)
 	}
-	e.LastTime, e.Ce, e.Last = t, ce, report
+	e.LastTime, e.Ce = t, ce
+	e.setLast(report)
 	e.REast, e.RNorth = z.REast, z.RNorth
 	e.HasTime, e.TimeVarEast, e.TimeVarNorth = te > 0, varE, varN
 	return g.method.ingested(e, events, &trace), trace
