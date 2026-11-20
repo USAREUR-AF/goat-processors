@@ -184,6 +184,21 @@ the final snapshot. `TestLoadVectors` (`TestFuseLoadVectors`) parses each
 `expect_error` says. A failure prints the path of the first mismatch, for
 example `steps[2].trace[0].value: got ..., want ...`.
 
+## Tests and coverage
+
+`go test ./...` runs, besides the vectors: unit tests in every package;
+`proptest/` (determinism, order independence where the specifications say
+order does not matter, snapshot then restore for filter, fuse and quality,
+and seeded fuzzing of every pack.def parser, the JSON reader and the
+engines on arbitrary report values). Coverage is go's own:
+
+```
+go test -coverpkg=./... -coverprofile=cover.out ./...
+go tool cover -func=cover.out | tail -1
+```
+
+CI fails below 97.7 % of statements (`REFACTOR.md`).
+
 ## Run the runner
 
 ```

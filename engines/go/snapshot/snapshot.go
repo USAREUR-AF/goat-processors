@@ -55,7 +55,8 @@ func OptString(p *string) any {
 // read returns a zero value.
 type Decoder struct{ Err error }
 
-func (d *Decoder) fail(what string, v any) {
+// Fail records that what holds an unexpected value v.
+func (d *Decoder) Fail(what string, v any) {
 	if d.Err == nil {
 		d.Err = fmt.Errorf("snapshot: %s: unexpected %T %v", what, v, v)
 	}
@@ -65,7 +66,7 @@ func (d *Decoder) fail(what string, v any) {
 func (d *Decoder) Object(what string, v any) Obj {
 	o, ok := v.(map[string]any)
 	if !ok {
-		d.fail(what, v)
+		d.Fail(what, v)
 	}
 	return o
 }
@@ -74,7 +75,7 @@ func (d *Decoder) Object(what string, v any) Obj {
 func (d *Decoder) List(what string, v any) []any {
 	l, ok := v.([]any)
 	if !ok {
-		d.fail(what, v)
+		d.Fail(what, v)
 	}
 	return l
 }
@@ -83,7 +84,7 @@ func (d *Decoder) List(what string, v any) []any {
 func (d *Decoder) Float(what string, v any) float64 {
 	f, ok := model.ToFloat(v)
 	if !ok {
-		d.fail(what, v)
+		d.Fail(what, v)
 	}
 	return f
 }
@@ -93,13 +94,13 @@ func (d *Decoder) Int(what string, v any) int64 {
 	if n, ok := v.(json.Number); ok {
 		i, err := n.Int64()
 		if err != nil {
-			d.fail(what, v)
+			d.Fail(what, v)
 		}
 		return i
 	}
 	i, ok := v.(int64)
 	if !ok {
-		d.fail(what, v)
+		d.Fail(what, v)
 	}
 	return i
 }
@@ -108,7 +109,7 @@ func (d *Decoder) Int(what string, v any) int64 {
 func (d *Decoder) String(what string, v any) string {
 	s, ok := v.(string)
 	if !ok {
-		d.fail(what, v)
+		d.Fail(what, v)
 	}
 	return s
 }
@@ -117,7 +118,7 @@ func (d *Decoder) String(what string, v any) string {
 func (d *Decoder) Bool(what string, v any) bool {
 	b, ok := v.(bool)
 	if !ok {
-		d.fail(what, v)
+		d.Fail(what, v)
 	}
 	return b
 }
@@ -153,7 +154,7 @@ func (d *Decoder) OptString(what string, v any) *string {
 func (d *Decoder) Axis(what string, v any) model.Axis {
 	l := d.List(what, v)
 	if len(l) != 5 {
-		d.fail(what, v)
+		d.Fail(what, v)
 		return model.Axis{}
 	}
 	return model.Axis{P: d.Float(what, l[0]), V: d.Float(what, l[1]), PP: d.Float(what, l[2]),
@@ -173,7 +174,7 @@ func (d *Decoder) Ref(v any) *model.Frame {
 	}
 	l := d.List("ref", v)
 	if len(l) != 2 {
-		d.fail("ref", v)
+		d.Fail("ref", v)
 		return nil
 	}
 	return &model.Frame{Lat0: d.Float("ref", l[0]), Lon0: d.Float("ref", l[1])}

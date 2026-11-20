@@ -34,40 +34,49 @@ var functions = map[string]func(dir string) (model.Engine, error){
 	"quality":   func(dir string) (model.Engine, error) { return quality.Load(dir) },
 }
 
-func fail(format string, a ...any) {
-	fmt.Fprintf(os.Stderr, "runner: "+format+"\n", a...)
-	os.Exit(2)
-}
+// writer is what the counters and diagnostics are written to.
+type writer interface{ Write([]byte) (int, error) }
 
-func main() {
-	function := flag.String("function", "", "correlate, filter, fuse or quality")
-	packDir := flag.String("pack", "", "pack directory")
-	stepsPath := flag.String("steps", "", "steps file")
-	eventsPath := flag.String("events", "", "events file to write")
-	withTrace := flag.Bool("trace", false, "include each step's trace")
-	flag.Parse()
+func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
+
+// run is the runner on its arguments; it returns the exit status.
+func run(args []string, stdout, stderr writer) int {
+	fail := func(format string, a ...any) int {
+		fmt.Fprintf(stderr, "runner: "+format+"\n", a...)
+		return 2
+	}
+	fs := flag.NewFlagSet("runner", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	function := fs.String("function", "", "correlate, filter, fuse or quality")
+	packDir := fs.String("pack", "", "pack directory")
+	stepsPath := fs.String("steps", "", "steps file")
+	eventsPath := fs.String("events", "", "events file to write")
+	withTrace := fs.Bool("trace", false, "include each step's trace")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 
 	load, ok := functions[*function]
 	if !ok {
-		fail("unknown function %q", *function)
+		return fail("unknown function %q", *function)
 	}
 	if *packDir == "" || *stepsPath == "" {
-		fail("--pack and --steps are required")
+		return fail("--pack and --steps are required")
 	}
 
 	t0 := time.Now()
 	doc, err := io.ReadObject(*stepsPath)
 	if err != nil {
-		fail("steps file: %v", err)
+		return fail("steps file: %v", err)
 	}
 	steps, err := io.ParseSteps(doc)
 	if err != nil {
-		fail("steps file: %v", err)
+		return fail("steps file: %v", err)
 	}
 	t1 := time.Now()
 	g, err := load(*packDir)
 	if err != nil {
-		fail("pack: %v", err)
+		return fail("pack: %v", err)
 	}
 	t2 := time.Now()
 	results, snap := io.Run(g, steps)
@@ -83,7 +92,7 @@ func main() {
 	}
 	if *eventsPath != "" {
 		if err := io.WriteEvents(*eventsPath, results, snap, *withTrace); err != nil {
-			fail("events file: %v", err)
+			return fail("events file: %v", err)
 		}
 	}
 	counters, _ := json.Marshal(model.Obj{
@@ -92,5 +101,6 @@ func main() {
 		"events": nEvents, "trace_records": nTrace,
 		"parse_ns": t1.Sub(t0).Nanoseconds(), "load_ns": t2.Sub(t1).Nanoseconds(), "run_ns": t3.Sub(t2).Nanoseconds(),
 	})
-	fmt.Println(string(counters))
+	fmt.Fprintln(stdout, string(counters))
+	return 0
 }
