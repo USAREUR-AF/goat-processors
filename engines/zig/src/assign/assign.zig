@@ -104,10 +104,10 @@ pub fn isRetiring(eng: *Engine, key: []const u8) bool {
 // ---- Assignment of one source -------------------------------------------------
 
 // "Fused estimate", one axis: inverse-variance weights of the members' predictions.
-const FusedAxis = struct { p: f64, v: f64, pp: f64, vv: f64 };
-const Fused = struct { east: FusedAxis, north: FusedAxis };
+pub const FusedAxis = struct { p: f64, v: f64, pp: f64, vv: f64 };
+pub const Fused = struct { east: FusedAxis, north: FusedAxis };
 
-fn fuseAxis(axes: []const kalman.Axis) FusedAxis {
+pub fn fuseAxis(axes: []const kalman.Axis) FusedAxis {
     var ipp: f64 = 0;
     var ivv: f64 = 0;
     var sp: f64 = 0;
@@ -148,11 +148,15 @@ fn fused(eng: *Engine, members: []const []const u8, t_ms: i64, frame_of: ?[]cons
 // `pp_a` is A's filter `pp` plus A's timing variance (0.6).
 fn cost(eng: *Engine, a_key: []const u8, members: []const []const u8) !f64 {
     const a = eng.entities.get(a_key).?;
-    const m = try fused(eng, members, a.last_time_ms, a.source);
-    const pp_a_east = a.filter.east.pp + a.time_var_east;
-    const pp_a_north = a.filter.north.pp + a.time_var_north;
-    const de = a.filter.east.p - m.east.p;
-    const dn = a.filter.north.p - m.north.p;
+    return costOf(a.filter, a.time_var_east, a.time_var_north, try fused(eng, members, a.last_time_ms, a.source));
+}
+
+// The Cost formula, pure: A's filter with its timing variance against the fused estimate.
+pub fn costOf(a: kalman.Filter, time_var_east: f64, time_var_north: f64, m: Fused) f64 {
+    const pp_a_east = a.east.pp + time_var_east;
+    const pp_a_north = a.north.pp + time_var_north;
+    const de = a.east.p - m.east.p;
+    const dn = a.north.p - m.north.p;
     return de * de / (pp_a_east + m.east.pp) + dn * dn / (pp_a_north + m.north.pp);
 }
 
@@ -449,7 +453,8 @@ fn updateBias(eng: *Engine, res: *Result, bp: pack_mod.Bias, rows: []const []con
                 const es, const et = if (lessKey({}, ex.source, ey.source)) .{ ex, ey } else .{ ey, ex };
                 const key = try bias_mod.pairKey(a, es.source, et.source);
                 // 2 and 3.
-                const o = try bias_mod.update(a, &st.bias, bp, eng.pack.time_offset, key, es.predictedTo(now_ms, eng.pack), et.predictedTo(now_ms, eng.pack));
+                const o = bias_mod.update(st.bias.get(bp, key), bp, eng.pack.time_offset, es.predictedTo(now_ms, eng.pack), et.predictedTo(now_ms, eng.pack));
+                if (o.accepted) try st.bias.store(a, key, o.after);
                 // 4. Trace, with the state after step 3.
                 var rec = try eng.object(.{
                     .{ "stage", "bias" },
@@ -496,4 +501,17 @@ fn systemEvent(eng: *Engine, s: System, now_ms: i64) !json.Value {
     }
     if (top) |b| try ev.object.put("hae", .{ .float = b.hae });
     return ev;
+}
+
+test "the fused estimate weights by inverse variance; the cost is d2" {
+    const x = kalman.Axis{ .p = 0, .v = 0, .pp = 1, .pv = 0, .vv = 1 };
+    var y = x;
+    y.p = 10;
+    y.pp = 3;
+    const f = fuseAxis(&.{ x, y });
+    try std.testing.expectEqual(@as(f64, 0.75), f.pp);
+    try std.testing.expectEqual(@as(f64, 2.5), f.p);
+    const m = Fused{ .east = f, .north = fuseAxis(&.{ x, x }) };
+    const c = costOf(.{ .east = x, .north = x }, 0.25, 0, m);
+    try std.testing.expectEqual(@as(f64, 2.5 * 2.5 / 2.0), c);
 }

@@ -52,6 +52,21 @@ pub const State = struct {
     pub fn get(self: *const State, b: pack_mod.Bias, key: []const u8) Pair {
         return self.pairs.get(key) orelse Pair.initial(b);
     }
+
+    // The state of pair "<first>|<second>", looked up without building the key
+    // in the engine's arena when it fits a stack buffer.
+    pub fn getPair(self: *const State, alloc: Allocator, b: pack_mod.Bias, first: []const u8, second: []const u8) !Pair {
+        var buf: [512]u8 = undefined;
+        const key = std.fmt.bufPrint(&buf, "{s}|{s}", .{ first, second }) catch try pairKey(alloc, first, second);
+        return self.get(b, key);
+    }
+
+    // Stores a pair's state after an accepted update (step 3).
+    pub fn store(self: *State, alloc: Allocator, key: []const u8, pair: Pair) !void {
+        const gop = try self.pairs.getOrPut(key);
+        if (!gop.found_existing) gop.key_ptr.* = try alloc.dupe(u8, key);
+        gop.value_ptr.* = pair;
+    }
 };
 
 pub fn pairKey(alloc: Allocator, first: []const u8, second: []const u8) ![]const u8 {
@@ -65,8 +80,7 @@ pub fn pairKey(alloc: Allocator, first: []const u8, second: []const u8) ![]const
 pub fn moveInto(alloc: Allocator, st: *const State, b: pack_mod.Bias, time_offset: ?pack_mod.TimeOffset, a_src: []const u8, b_src: []const u8, b_pred: kalman.Filter) !kalman.Filter {
     if (std.mem.eql(u8, a_src, b_src)) return b_pred;
     const b_first = lessKey(b_src, a_src);
-    const key = if (b_first) try pairKey(alloc, b_src, a_src) else try pairKey(alloc, a_src, b_src);
-    const pair = st.get(b, key);
+    const pair = if (b_first) try st.getPair(alloc, b, b_src, a_src) else try st.getPair(alloc, b, a_src, b_src);
     var o_east = pair.east;
     var o_north = pair.north;
     if (time_offset != null) {
@@ -88,10 +102,10 @@ pub fn moveInto(alloc: Allocator, st: *const State, b: pack_mod.Bias, time_offse
 
 pub const Outcome = struct { d2: f64, accepted: bool, after: Pair };
 
-// "Update", steps 1 to 3 for one pair: `es` and `et` are the predictions to
-// `now_ms` (not moved) of the entities of the first and the second source.
-pub fn update(alloc: Allocator, st: *State, b: pack_mod.Bias, time_offset: ?pack_mod.TimeOffset, key: []const u8, es: kalman.Filter, et: kalman.Filter) !Outcome {
-    const before = st.get(b, key);
+// "Update", steps 1 to 3 for one pair, from its state `before`: `es` and `et`
+// are the predictions to `now_ms` (not moved) of the entities of the first and
+// the second source. Pure: an accepted `after` is stored by the caller.
+pub fn update(before: Pair, b: pack_mod.Bias, time_offset: ?pack_mod.TimeOffset, es: kalman.Filter, et: kalman.Filter) Outcome {
 
     // 1. Per axis the observed offset `y` and its variance `r`.
     const y_e = et.east.p - es.east.p;
@@ -99,7 +113,7 @@ pub fn update(alloc: Allocator, st: *State, b: pack_mod.Bias, time_offset: ?pack
     const r_e = es.east.pp + et.east.pp;
     const r_n = es.north.pp + et.north.pp;
 
-    if (time_offset) |t| return updateWithTime(alloc, st, b, t, key, before, es, et, y_e, y_n, r_e, r_n);
+    if (time_offset) |t| return updateWithTime(b, t, before, es, et, y_e, y_n, r_e, r_n);
 
     // 2. d² of the observed offset against the pair's state.
     const de = y_e - before.east;
@@ -116,20 +130,14 @@ pub fn update(alloc: Allocator, st: *State, b: pack_mod.Bias, time_offset: ?pack
     after.east = before.east + ((1.0 / r_e) / after.weight_east) * (y_e - before.east);
     after.weight_north = before.weight_north + 1.0 / r_n;
     after.north = before.north + ((1.0 / r_n) / after.weight_north) * (y_n - before.north);
-    const gop = try st.pairs.getOrPut(key);
-    if (!gop.found_existing) gop.key_ptr.* = try alloc.dupe(u8, key);
-    gop.value_ptr.* = after;
     return .{ .d2 = d2, .accepted = true, .after = after };
 }
 
 // "Time offset": steps 2 and 3 of the update with the fit of `y = o - v*tau`.
 // `y_e`, `y_n`, `r_e`, `r_n` are step 1's.
 fn updateWithTime(
-    alloc: Allocator,
-    st: *State,
     b: pack_mod.Bias,
     t: pack_mod.TimeOffset,
-    key: []const u8,
     before: Pair,
     es: kalman.Filter,
     et: kalman.Filter,
@@ -137,7 +145,7 @@ fn updateWithTime(
     y_n: f64,
     r_e: f64,
     r_n: f64,
-) !Outcome {
+) Outcome {
     // Per axis the object's velocity, the mean of the two predictions.
     const v_e = (es.east.v + et.east.v) / 2.0;
     const v_n = (es.north.v + et.north.v) / 2.0;
@@ -188,9 +196,38 @@ fn updateWithTime(
     // The weight sum `w` of each axis is `S1` and `S2`.
     after.weight_east = sm[0];
     after.weight_north = sm[1];
-
-    const gop = try st.pairs.getOrPut(key);
-    if (!gop.found_existing) gop.key_ptr.* = try alloc.dupe(u8, key);
-    gop.value_ptr.* = after;
     return .{ .d2 = d2, .accepted = true, .after = after };
+}
+
+test "an accepted update moves the offset toward the observation; a rejected one keeps it" {
+    const b = pack_mod.Bias{ .sigma_m = 100, .floor_m = 5, .gate = 9 };
+    const ax = kalman.Axis{ .p = 0, .v = 0, .pp = 25, .pv = 0, .vv = 1 };
+    var bx = ax;
+    bx.p = 30;
+    const o = update(Pair.initial(b), b, null, .{ .east = ax, .north = ax }, .{ .east = bx, .north = ax });
+    try std.testing.expect(o.accepted);
+    try std.testing.expect(o.after.east > 0 and o.after.east <= 30);
+    try std.testing.expectEqual(@as(i64, 1), o.after.pairs);
+    bx.p = 100000;
+    const r = update(o.after, b, null, .{ .east = ax, .north = ax }, .{ .east = bx, .north = ax });
+    try std.testing.expect(!r.accepted);
+    try std.testing.expectEqual(o.after.east, r.after.east);
+    const t = update(Pair.initial(b), b, .{ .sigma_ms = 100 }, .{ .east = ax, .north = ax }, .{ .east = ax, .north = ax });
+    try std.testing.expect(t.accepted);
+}
+
+test "moving into A's frame adds or subtracts the offset by source order" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const b = pack_mod.Bias{ .sigma_m = 10, .floor_m = 1, .gate = 9 };
+    var st = State.init(a);
+    var p = Pair.initial(b);
+    p.east = 5;
+    try st.store(a, "S|T", p);
+    const ax = kalman.Axis{ .p = 0, .v = 0, .pp = 1, .pv = 0, .vv = 1 };
+    const f = kalman.Filter{ .east = ax, .north = ax };
+    try std.testing.expectEqual(@as(f64, 5), (try moveInto(a, &st, b, null, "T", "S", f)).east.p);
+    try std.testing.expectEqual(@as(f64, -5), (try moveInto(a, &st, b, null, "S", "T", f)).east.p);
+    try std.testing.expectEqual(@as(f64, 0), (try moveInto(a, &st, b, null, "S", "S", f)).east.p);
 }

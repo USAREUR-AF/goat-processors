@@ -12,6 +12,7 @@ const reports = @import("../model/report.zig"); // correlate's typed key readers
 const qpack = @import("pack.zig");
 const measures = @import("measures.zig");
 const rules = @import("rules.zig");
+const samples = @import("samples.zig");
 const record = @import("../trace/record.zig");
 const common = @import("../snapshot/common.zig");
 const snapshot_quality = @import("../snapshot/quality.zig");
@@ -115,6 +116,8 @@ pub const Engine = struct {
         // 1. Each other source's latest time: the greatest `last` of its entities.
         var sources = std.ArrayList([]const u8).init(self.alloc());
         var latest = std.ArrayList(i64).init(self.alloc());
+        defer sources.deinit();
+        defer latest.deinit();
         for (self.entities.values()) |e| {
             if (std.mem.eql(u8, e.source, report_source)) continue;
             for (sources.items, latest.items) |s, *l| {
@@ -127,16 +130,7 @@ pub const Engine = struct {
                 try latest.append(e.last_time_ms);
             }
         }
-        // 3. With no other source, there is no input clock.
-        const n = latest.items.len;
-        if (n == 0) return null;
-        // 2. The median: sorted ascending, the middle value for an odd count,
-        // `(a + b) / 2` in binary64 for an even count.
-        std.mem.sort(i64, latest.items, {}, std.sort.asc(i64));
-        if (n % 2 == 1) return .{ .int = latest.items[n / 2] };
-        const a: f64 = @floatFromInt(latest.items[n / 2 - 1]);
-        const b: f64 = @floatFromInt(latest.items[n / 2]);
-        return .{ .float = (a + b) / 2.0 };
+        return samples.median(latest.items);
     }
 
     // Spec "Input clock": the source latest, the greatest `last` among the
@@ -198,10 +192,15 @@ pub const Engine = struct {
         try self.sampleTrace(&res, key, "order", order.name(), try self.list(.{ t, last }));
 
         // correlate.md "Track estimate": the velocity measurement.
-        var vel: ?[2]f64 = null;
-        if (course != null and speed_ms != null) {
-            vel = .{ speed_ms.? * @sin(frame.rad(course.?)), speed_ms.? * @cos(frame.rad(course.?)) };
-        }
+        const meas = kalman.Measurement{
+            .east = pos.east,
+            .north = pos.north,
+            .r_east = ce * ce,
+            .r_north = ce * ce,
+            .vel = kalman.velocityOf(course, speed_ms),
+            .r_vel = f.vel_sigma_ms * f.vel_sigma_ms,
+        };
+        const vel = meas.vel;
 
         // "Input clock": built before the report is applied.
         const clock = try self.inputClock(source_id.?);
@@ -264,22 +263,18 @@ pub const Engine = struct {
         var predicted: kalman.Filter = undefined;
         if (order == .advance) {
             const e = existing.?;
-            const dt = @as(f64, @floatFromInt(t - last.?)) / 1000.0;
+            const dt = kalman.seconds(last.?, t);
             // `nis`: predict to `t`, then the innovation against predicted plus reported variance.
             predicted = e.filter.predict(dt, f.accel_var);
-            const r = ce * ce;
-            const de = pos.east - predicted.east.p;
-            const dn = pos.north - predicted.north.p;
-            const se = predicted.east.pp + r;
-            const sn = predicted.north.pp + r;
-            rec.nis = de * de / se + dn * dn / sn;
-            try self.sampleTrace(&res, key, "nis", rec.nis.?, try self.list(.{ de, dn, se, sn }));
+            const n = samples.nis(predicted, pos, ce * ce);
+            rec.nis = n.value;
+            try self.sampleTrace(&res, key, "nis", n.value, try self.list(.{ n.de, n.dn, n.se, n.sn }));
 
             // `speed_err`: speed implied by the move from `last_pos`, against `speed_ms`.
             if (speed_ms) |sp| {
-                const implied = std.math.hypot(pos.east - e.last_pos.east, pos.north - e.last_pos.north) / dt;
-                rec.speed_err = @abs(implied - sp);
-                try self.sampleTrace(&res, key, "speed_err", rec.speed_err.?, try self.list(.{ implied, sp }));
+                const se = samples.speedError(e.last_pos, pos, dt, sp);
+                rec.speed_err = se.value;
+                try self.sampleTrace(&res, key, "speed_err", se.value, try self.list(.{ se.implied, sp }));
             }
         }
 
@@ -292,10 +287,7 @@ pub const Engine = struct {
                     .source = try self.alloc().dupe(u8, source_id.?),
                     .last_time_ms = t,
                     .last_pos = pos,
-                    .filter = .{
-                        .east = kalman.Axis.init(pos.east, if (vel) |v| v[0] else null, ce, f.vel_sigma_ms, f.unknown_vel_ms),
-                        .north = kalman.Axis.init(pos.north, if (vel) |v| v[1] else null, ce, f.vel_sigma_ms, f.unknown_vel_ms),
-                    },
+                    .filter = kalman.Filter.first(meas, f.vel_sigma_ms, f.unknown_vel_ms),
                     .window = window,
                 });
                 try res.events.append(try self.object(.{ .{ "ev", "new" }, .{ "entity", key } }));
@@ -303,15 +295,7 @@ pub const Engine = struct {
             .advance => {
                 const e = existing.?;
                 // correlate.md "Track estimate", steps 2 and 3 from the prediction above.
-                var flt = predicted;
-                flt.east = flt.east.updatePosition(pos.east, ce * ce);
-                flt.north = flt.north.updatePosition(pos.north, ce * ce);
-                if (vel) |v| {
-                    const r = f.vel_sigma_ms * f.vel_sigma_ms;
-                    flt.east = flt.east.updateVelocity(v[0], r);
-                    flt.north = flt.north.updateVelocity(v[1], r);
-                }
-                e.filter = flt;
+                e.filter = predicted.update(meas).filter;
                 e.last_time_ms = t;
                 e.last_pos = pos;
                 try e.window.append(rec);

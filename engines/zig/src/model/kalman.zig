@@ -1,5 +1,17 @@
-// Spec "Track estimate": a constant-velocity Kalman filter per axis.
+// Spec "Track estimate": a constant-velocity Kalman filter per axis. Every
+// function here is pure: it returns a new state and changes nothing.
 const std = @import("std");
+const frame = @import("frame.zig");
+
+pub const Velocity = struct { east: f64, north: f64 };
+
+// Spec "Track estimate", the velocity measurement: from `course` (degrees from
+// north) and `speed_ms`, both present; null otherwise.
+pub fn velocityOf(course: ?f64, speed_ms: ?f64) ?Velocity {
+    const c = course orelse return null;
+    const sp = speed_ms orelse return null;
+    return .{ .east = sp * @sin(frame.rad(c)), .north = sp * @cos(frame.rad(c)) };
+}
 
 pub const Axis = struct {
     p: f64,
@@ -74,7 +86,7 @@ pub const Measurement = struct {
     // ce² plus the timing term (v*ts)² of that axis.
     r_east: f64,
     r_north: f64,
-    vel: ?struct { east: f64, north: f64 } = null,
+    vel: ?Velocity = null,
     r_vel: f64, // vel_sigma_ms²
 };
 
@@ -87,6 +99,17 @@ fn term(y: f64, s: f64) f64 {
 pub const Filter = struct {
     east: Axis,
     north: Axis,
+
+    // A first report: per axis the position, the velocity when measured, and
+    // `pp` the measurement variance of that axis.
+    pub fn first(m: Measurement, vel_sigma_ms: f64, unknown_vel_ms: f64) Filter {
+        const ve: ?f64 = if (m.vel) |v| v.east else null;
+        const vn: ?f64 = if (m.vel) |v| v.north else null;
+        return .{
+            .east = Axis.initWithVariance(m.east, ve, m.r_east, vel_sigma_ms, unknown_vel_ms),
+            .north = Axis.initWithVariance(m.north, vn, m.r_north, vel_sigma_ms, unknown_vel_ms),
+        };
+    }
 
     pub fn predict(f: Filter, dt: f64, q: f64) Filter {
         return .{ .east = f.east.predict(dt, q), .north = f.north.predict(dt, q) };
@@ -111,3 +134,32 @@ pub const Filter = struct {
         return .{ .filter = out, .g = g };
     }
 };
+
+// dt in seconds from `from_ms` to `to_ms`.
+pub fn seconds(from_ms: i64, to_ms: i64) f64 {
+    return @as(f64, @floatFromInt(to_ms - from_ms)) / 1000.0;
+}
+
+test "predict then update moves toward the measurement and shrinks the variance" {
+    const a = Axis.init(0, null, 10, 1, 100);
+    try std.testing.expectEqual(@as(f64, 100), a.pp);
+    try std.testing.expectEqual(@as(f64, 10000), a.vv);
+    const p = a.predict(1, 0);
+    try std.testing.expectEqual(@as(f64, 10100), p.pp);
+    const u = p.updatePosition(50, 100);
+    try std.testing.expect(u.p > 0 and u.p < 50);
+    try std.testing.expect(u.pp < p.pp);
+    const f = Filter{ .east = a, .north = a };
+    const m = Measurement{ .east = 1, .north = 2, .r_east = 100, .r_north = 100, .vel = .{ .east = 1, .north = 0 }, .r_vel = 1 };
+    const r = f.predict(1, 0.1).update(m);
+    try std.testing.expect(r.g > 0);
+    try std.testing.expect(r.filter.east.v > 0);
+}
+
+test "velocity measurement needs course and speed" {
+    try std.testing.expect(velocityOf(null, 3) == null);
+    try std.testing.expect(velocityOf(90, null) == null);
+    const v = velocityOf(90, 2).?;
+    try std.testing.expectApproxEqAbs(@as(f64, 2), v.east, 1e-12);
+    try std.testing.expectApproxEqAbs(@as(f64, 0), v.north, 1e-12);
+}

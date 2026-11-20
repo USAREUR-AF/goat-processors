@@ -10,6 +10,7 @@ const report_mod = @import("../model/report.zig");
 const record = @import("../trace/record.zig");
 const snapshot_common = @import("../snapshot/common.zig");
 const entity_mod = @import("entity.zig");
+const estimate = @import("estimate.zig");
 const pair_tests = @import("tests.zig");
 const assign = @import("../assign/assign.zig");
 const bias_mod = @import("../assign/bias.zig");
@@ -110,72 +111,60 @@ pub const Engine = struct {
         var res = Result.init(self.alloc());
 
         // Spec "Reports": required keys, in the order of the table.
-        const source = entity_mod.stringOf(report, "track.source_id");
-        const uid = entity_mod.stringOf(report, "uid");
-        const time_ms = entity_mod.integerOf(report, "time_ms");
-        const lat = entity_mod.numberOf(report, "lat");
-        const lon = entity_mod.numberOf(report, "lon");
-        const missing: ?[]const u8 = if (source == null) "track.source_id" else if (uid == null) "uid" else if (time_ms == null) "time_ms" else if (lat == null) "lat" else if (lon == null) "lon" else null;
-        if (missing) |k| {
-            const reason = try std.fmt.allocPrint(self.alloc(), "missing:{s}", .{k});
-            try res.events.append(try self.object(.{ .{ "ev", "reject" }, .{ "reason", reason } }));
-            return res;
-        }
+        const req = switch (report_mod.required(report)) {
+            .ok => |x| x,
+            .missing => |k| {
+                const reason = try std.fmt.allocPrint(self.alloc(), "missing:{s}", .{k});
+                try res.events.append(try self.object(.{ .{ "ev", "reject" }, .{ "reason", reason } }));
+                return res;
+            },
+        };
+        const time_ms = req.time_ms;
 
-        const key = try std.fmt.allocPrint(self.alloc(), "{s}/{s}", .{ source.?, uid.? });
+        const key = try std.fmt.allocPrint(self.alloc(), "{s}/{s}", .{ req.source, req.uid });
         // correlate-assign.md "Window": after the required keys, before out-of-order.
         if (self.pack.method == .assign and assign.isRetiring(self, key)) {
             try res.events.append(try self.object(.{ .{ "ev", "reject" }, .{ "entity", key }, .{ "reason", "retiring" } }));
             return res;
         }
         if (self.entities.get(key)) |existing| {
-            if (time_ms.? < existing.last_time_ms) {
+            if (time_ms < existing.last_time_ms) {
                 try res.events.append(try self.object(.{ .{ "ev", "reject" }, .{ "entity", key }, .{ "reason", "out-of-order" } }));
                 return res;
             }
         }
 
         // Spec "Frame": the first accepted report fixes the reference.
-        if (self.ref == null) self.ref = .{ .lat0 = lat.?, .lon0 = lon.? };
+        if (self.ref == null) self.ref = .{ .lat0 = req.lat, .lon0 = req.lon };
         const stored = (try report_mod.cloneValue(self.alloc(), .{ .object = report })).object;
-        const pos = self.ref.?.toPlane(lat.?, lon.?);
+        const pos = self.ref.?.toPlane(req.lat, req.lon);
         const f = self.pack.filter;
         const ce = entity_mod.ceOf(stored) orelse f.default_ce_m;
 
         // Spec "Track estimate": velocity measurement.
-        var meas = kalman.Measurement{ .east = pos.east, .north = pos.north, .r_east = 0, .r_north = 0, .r_vel = f.vel_sigma_ms * f.vel_sigma_ms };
-        if (entity_mod.numberOf(stored, "course")) |course| {
-            if (entity_mod.numberOf(stored, "speed_ms")) |speed| {
-                meas.vel = .{ .east = speed * @sin(frame.rad(course)), .north = speed * @cos(frame.rad(course)) };
-            }
-        }
-        const ve: ?f64 = if (meas.vel) |v| v.east else null;
-        const vn: ?f64 = if (meas.vel) |v| v.north else null;
+        const measured = kalman.velocityOf(entity_mod.numberOf(stored, "course"), entity_mod.numberOf(stored, "speed_ms"));
 
         // correlate.md 0.8 "Reports", Time quality: the report's time error and state.
-        const tq = entity_mod.timeQualityOf(stored, source.?, self.pack.time_default);
+        const tq = entity_mod.timeQualityOf(stored, req.source, self.pack.time_default);
         const te = tq.error_ms;
 
         // A later report's entity is predicted to the report's time once: the
         // velocity of the measurement variance and the Restart test read it.
         const existing: ?Entity = self.entities.get(key);
-        const pred: ?kalman.Filter = if (existing) |e| e.predictedTo(time_ms.?, self.pack) else null;
+        const pred: ?kalman.Filter = if (existing) |e| e.predictedTo(time_ms, self.pack) else null;
 
-        // correlate.md 0.8 "Track estimate", Measurement variance. With `te` 0,
-        // r_east = r_north = ce². Otherwise, with ts = te / 1000 and (v_e, v_n) the
-        // prediction's velocity (the first report: the measured velocity, or 0),
-        // r = ce² + (v*ts)² per axis, and (v*ts)² is the timing variance.
-        var time_var_east: f64 = 0;
-        var time_var_north: f64 = 0;
-        if (te > 0) {
-            const ts = te / 1000.0;
-            const v_e = if (pred) |pf| pf.east.v else (ve orelse 0.0);
-            const v_n = if (pred) |pf| pf.north.v else (vn orelse 0.0);
-            time_var_east = (v_e * ts) * (v_e * ts);
-            time_var_north = (v_n * ts) * (v_n * ts);
-        }
-        meas.r_east = if (te > 0) ce * ce + time_var_east else ce * ce;
-        meas.r_north = if (te > 0) ce * ce + time_var_north else ce * ce;
+        // correlate.md 0.8 "Track estimate", Measurement variance.
+        const variance = estimate.measurementVariance(ce, te, pred, measured);
+        const time_var_east = variance.time_var_east;
+        const time_var_north = variance.time_var_north;
+        const meas = kalman.Measurement{
+            .east = pos.east,
+            .north = pos.north,
+            .r_east = variance.r_east,
+            .r_north = variance.r_north,
+            .vel = measured,
+            .r_vel = f.vel_sigma_ms * f.vel_sigma_ms,
+        };
         if (te > 0) {
             // The `time` record, before any other record of the report.
             try res.trace.append(try self.object(.{
@@ -193,10 +182,7 @@ pub const Engine = struct {
 
         // Spec "Track estimate", first report (also a restart): per axis `pp = r`;
         // one filter, or both models with the long-run mode probabilities.
-        const first = kalman.Filter{
-            .east = kalman.Axis.initWithVariance(pos.east, ve, meas.r_east, f.vel_sigma_ms, f.unknown_vel_ms),
-            .north = kalman.Axis.initWithVariance(pos.north, vn, meas.r_north, f.vel_sigma_ms, f.unknown_vel_ms),
-        };
+        const first = kalman.Filter.first(meas, f.vel_sigma_ms, f.unknown_vel_ms);
         const first_imm: ?imm.State = if (self.pack.maneuver) |m| imm.init(m, first) else null;
 
         const gop = try self.entities.getOrPut(key);
@@ -204,7 +190,7 @@ pub const Engine = struct {
             gop.value_ptr.* = .{
                 .key = key,
                 .source = entity_mod.stringOf(stored, "track.source_id").?,
-                .last_time_ms = time_ms.?,
+                .last_time_ms = time_ms,
                 .report = stored,
                 .filter = first,
                 .imm = first_imm,
@@ -225,10 +211,7 @@ pub const Engine = struct {
             // the `time` record and before any other record of the report.
             var restart = false;
             if (self.pack.restart) |rs| {
-                const pf = pred.?;
-                const de = pos.east - pf.east.p;
-                const dn = pos.north - pf.north.p;
-                const d2 = de * de / (pf.east.pp + meas.r_east) + dn * dn / (pf.north.pp + meas.r_north);
+                const d2 = estimate.restartD2(pos, pred.?, meas.r_east, meas.r_north);
                 const pass = d2 < rs.gate;
                 try res.trace.append(try self.object(.{
                     .{ "stage", "filter" },
@@ -241,7 +224,7 @@ pub const Engine = struct {
                 }));
                 restart = !pass;
             }
-            const dt = @as(f64, @floatFromInt(time_ms.? - e.last_time_ms)) / 1000.0;
+            const dt = kalman.seconds(e.last_time_ms, time_ms);
             if (restart) {
                 // The filter starts again from this report as a first report. The
                 // entity keeps its key, group, pair counts and hold failure count.
@@ -259,7 +242,7 @@ pub const Engine = struct {
                 // Spec "Track estimate", later reports: predict, position update, velocity update.
                 e.filter = e.filter.predict(dt, f.accel_var).update(meas).filter;
             }
-            e.last_time_ms = time_ms.?;
+            e.last_time_ms = time_ms;
             e.report = stored;
             // The entity keeps this report's measurement variance and timing
             // variance (also after a restart).

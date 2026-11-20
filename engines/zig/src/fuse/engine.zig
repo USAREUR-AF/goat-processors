@@ -161,13 +161,15 @@ pub const Engine = struct {
         const f = self.pack.filter;
         const ce = reports.ceOf(stored) orelse f.default_ce_m;
 
-        // correlate.md "Track estimate": velocity measurement.
-        var vel: ?struct { e: f64, n: f64 } = null;
-        if (reports.numberOf(stored, "course")) |course| {
-            if (reports.numberOf(stored, "speed_ms")) |speed| {
-                vel = .{ .e = speed * @sin(frame.rad(course)), .n = speed * @cos(frame.rad(course)) };
-            }
-        }
+        // correlate.md "Track estimate": the measurement, with `r = ce²`.
+        const meas = kalman.Measurement{
+            .east = pos.east,
+            .north = pos.north,
+            .r_east = ce * ce,
+            .r_north = ce * ce,
+            .vel = kalman.velocityOf(reports.numberOf(stored, "course"), reports.numberOf(stored, "speed_ms")),
+            .r_vel = f.vel_sigma_ms * f.vel_sigma_ms,
+        };
 
         const gop = try self.entities.getOrPut(key);
         if (!gop.found_existing) {
@@ -177,10 +179,7 @@ pub const Engine = struct {
                 .source = reports.stringOf(stored, "track.source_id").?,
                 .last_time_ms = time_ms.?,
                 .report = stored,
-                .filter = .{
-                    .east = kalman.Axis.init(pos.east, if (vel) |v| v.e else null, ce, f.vel_sigma_ms, f.unknown_vel_ms),
-                    .north = kalman.Axis.init(pos.north, if (vel) |v| v.n else null, ce, f.vel_sigma_ms, f.unknown_vel_ms),
-                },
+                .filter = kalman.Filter.first(meas, f.vel_sigma_ms, f.unknown_vel_ms),
                 .group = group,
             };
             try res.events.append(try object(a, .{ .{ "ev", "new" }, .{ "entity", key }, .{ "group", group } }));
@@ -189,15 +188,7 @@ pub const Engine = struct {
 
         // Later report: predict, position update, velocity update.
         const e = gop.value_ptr;
-        var flt = e.predictedTo(time_ms.?, f.accel_var);
-        flt.east = flt.east.updatePosition(pos.east, ce * ce);
-        flt.north = flt.north.updatePosition(pos.north, ce * ce);
-        if (vel) |v| {
-            const r = f.vel_sigma_ms * f.vel_sigma_ms;
-            flt.east = flt.east.updateVelocity(v.e, r);
-            flt.north = flt.north.updateVelocity(v.n, r);
-        }
-        e.filter = flt;
+        e.filter = e.predictedTo(time_ms.?, f.accel_var).update(meas).filter;
         e.last_time_ms = time_ms.?;
         e.report = stored;
 

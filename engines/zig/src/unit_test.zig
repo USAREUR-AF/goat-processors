@@ -19,6 +19,7 @@ pub const correlate = struct {
     pub const tests = @import("correlate/tests.zig");
     pub const engine = @import("correlate/engine.zig");
     pub const confirm = @import("correlate/confirm.zig");
+    pub const estimate = @import("correlate/estimate.zig");
 };
 pub const assign = struct {
     pub const assign = @import("assign/assign.zig");
@@ -43,6 +44,7 @@ pub const quality = struct {
     pub const measures = @import("quality/measures.zig");
     pub const engine = @import("quality/engine.zig");
     pub const rules = @import("quality/rules.zig");
+    pub const samples = @import("quality/samples.zig");
 };
 pub const trace = struct {
     pub const record = @import("trace/record.zig");
