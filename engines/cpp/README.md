@@ -33,6 +33,20 @@ One directory per module, the same module names in every engine: `model`,
 | `test/` | the vector runners and the unit, property and fuzz tests |
 | `runner/` | `build` and `run`, the runner contract of `tools/perf/README.md` |
 
+### Files
+
+| Module | Files (`.hpp` declares, `.cpp` implements) |
+|---|---|
+| `model` | `json` (the JSON value, reader, writer; `JsonObject`), `report` (Reports, Time quality), `frame` (Frame), `estimate` (Track estimate), `pack_text` (PackError, pack.def reading, `time_default`), `output.hpp` (`Output`) |
+| `filter` | `pack`, `geometry`, `conditions`, `engine` |
+| `correlate` | `pack`, `engine` (ingest, tick, snapshot), `core` (what the methods share), `method.hpp` and `methods.cpp` (the method table), `confirm` (method confirm), `entity.hpp`, `motion.hpp` with `two_model.cpp` and `measurement.cpp` (the filter math), `tests` (the test kinds), `common.hpp` (internal helpers) |
+| `assign` | `assign` (method assign: Window, Assignment of one source, Snapshot), `membership`, `ranking`, `cost`, `bias` |
+| `fuse` | `pack`, `entity.hpp`, `kinematics`, `attributes`, `engine` |
+| `quality` | `pack`, `entity.hpp`, `input_clock`, `measures` (the measure table), `rules` (Rules, Forwarding), `engine`, `common.hpp` (internal helpers) |
+| `trace` | `trace.hpp` |
+| `snapshot` | `snapshot` |
+| `io` | `function` (the entry point by function name), `files`, `runner.cpp` (the runner's `main`) |
+
 ### Entry point
 
 Every function has the same shape: load the pack, then ingest one report at a
