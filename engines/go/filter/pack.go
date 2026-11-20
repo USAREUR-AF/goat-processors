@@ -4,11 +4,11 @@ package filter
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"goat-correlator/engines/go/io"
 )
 
 // Condition is one `when` line of a rule (spec: Pack, Conditions).
@@ -26,6 +26,8 @@ type Condition struct {
 	Eq                string   // key form eq
 	Min, Max          *float64 // key form range, speed, altitude; nil = no bound
 	MinMs             int64    // interval
+
+	eval func(c Condition, r *report, states map[string]*State) result // from the conditions table
 }
 
 // Vertex is one polygon vertex, in degrees.
@@ -48,11 +50,11 @@ type Pack struct {
 
 // LoadPack reads <dir>/pack.def.
 func LoadPack(dir string) (*Pack, error) {
-	b, err := os.ReadFile(filepath.Join(dir, "pack.def"))
+	text, err := io.ReadPackDef(dir)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePack(string(b))
+	return ParsePack(text)
 }
 
 // Value grammars (spec: Pack, Values).
@@ -139,24 +141,6 @@ func nonEmpty(name, s string) (string, error) {
 	return s, nil
 }
 
-// Parameter sets, exactly (spec: Pack). For key, speed and altitude the
-// allowed combinations are listed; for the others, the single set.
-var paramSets = map[string][][]string{
-	"circle":      {{"lat", "lon", "radius_m"}},
-	"polygon":     {{"vertices"}},
-	"near":        {{"reference", "radius_m", "max_age_ms"}},
-	"env":         {{"in"}},
-	"affiliation": {{"in"}},
-	"source":      {{"in"}},
-	"uid":         {{"in"}},
-	"key":         {{"name", "eq"}, {"name", "in"}, {"name", "min"}, {"name", "max"}, {"name", "min", "max"}},
-	"has":         {{"name"}},
-	"speed":       {{"min"}, {"max"}, {"min", "max"}},
-	"altitude":    {{"min"}, {"max"}, {"min", "max"}},
-	"interval":    {{"min_ms"}},
-	"order":       {{}},
-}
-
 // matchesSet reports whether the given parameter names are exactly one of the sets.
 func matchesSet(params map[string]string, sets [][]string) bool {
 	for _, set := range sets {
@@ -188,7 +172,7 @@ func parseWhen(args []string) (Condition, error) {
 		return c, fmt.Errorf("when without a condition")
 	}
 	c.Name = args[0]
-	sets, ok := paramSets[c.Name]
+	kind, ok := conditions[c.Name]
 	if !ok {
 		return c, fmt.Errorf("unknown condition %q", c.Name)
 	}
@@ -205,7 +189,8 @@ func parseWhen(args []string) (Condition, error) {
 		}
 		params[k] = v
 	}
-	if !matchesSet(params, sets) {
+	c.eval = kind.eval
+	if !matchesSet(params, kind.sets) {
 		return c, fmt.Errorf("condition %s: wrong parameters", c.Name)
 	}
 

@@ -54,3 +54,14 @@ engine reads them.
 | Lateness max or min over equal values, one integer and one binary64 | Entity measures, Source measures | the first in window (or key) order, in its own type |
 | A source forgotten that never had a rule evaluated | Tick, step 3 | still gives its `forget` event |
 | A tick that runs with no entities | Tick | gives no events but sets `last_tick` |
+
+## Found by the refactor's fuzzing (for proc-coord; behavior unchanged)
+
+The refactor of 2026-11-20 (`REFACTOR.md`) changes no output byte, so it
+fixes neither of these: each would be a behavior change, and both need a
+reading of the specification first.
+
+| Point | Section | This engine |
+|---|---|---|
+| A report `lon` (or a pack or reference longitude difference) of 1e17 degrees or more, or infinite in magnitude | `correlate.md` Frame (wrap into (-180, 180]); `filter.md` Geometry ("adds or subtracts 360 until") | the wrap subtracts 360 at a time as written, and from about 1e17 on `x - 360` rounds back to `x`: the call never returns. Every function is affected (correlate, fuse and quality through the frame, filter through Geometry). A reduction such as `math.Mod` ends, but can differ in the last bits from repeated subtraction for large finite angles, so it is a behavior change: no specification bounds `lat` or `lon` in a report |
+| A report whose numbers are so large that a computed output is not finite (for example `speed_ms` of 1e308, so a predicted position overflows) | `vector-format.md`; every Events, Trace and Snapshot section | the engine computes and returns the infinite or NaN value; JSON cannot carry it, so the runner cannot write that events file and exits 2. No specification says what an engine outputs then |

@@ -3,7 +3,8 @@ package filter
 import (
 	"encoding/json"
 
-	correlator "goat-correlator/engines/go"
+	"goat-correlator/engines/go/model"
+	"goat-correlator/engines/go/snapshot"
 )
 
 // Conditions (spec/filter.md: Conditions). Each condition gives true, false
@@ -37,70 +38,74 @@ func (r result) passes(negated bool) bool {
 	return (r.truth == isTrue) != negated
 }
 
-// evaluate runs one condition against the report and the state before it.
-func (g *Engine) evaluate(c Condition, r *report) result {
-	switch c.Name {
-	case "circle":
+// conditionKind is one row of the conditions table: the parameter sets it
+// accepts (exactly one of them; spec: Pack) and its evaluation against the
+// report and the entities' state before it (read only).
+type conditionKind struct {
+	sets [][]string
+	eval func(c Condition, r *report, states map[string]*State) result
+}
+
+// conditions is the Conditions table; adding a condition is one row (and,
+// for a new parameter, its reading in parseWhen).
+var conditions = map[string]conditionKind{
+	"circle": {[][]string{{"lat", "lon", "radius_m"}}, func(c Condition, r *report, _ map[string]*State) result {
 		d := distance(r.lat, r.lon, c.Lat, c.Lon)
 		return result{of(d <= c.RadiusM), d, c.RadiusM}
-
-	case "polygon":
+	}},
+	"polygon": {[][]string{{"vertices"}}, func(c Condition, r *report, _ map[string]*State) result {
 		where := polygonTest(c.Vertices, r.lat, r.lon)
 		return result{of(where != outside), where, nil}
-
-	case "near":
-		return g.near(c, r)
-
-	case "env":
+	}},
+	"near": {[][]string{{"reference", "radius_m", "max_age_ms"}}, near},
+	"env": {[][]string{{"in"}}, func(c Condition, r *report, _ map[string]*State) result {
 		env, ok := r.environment()
 		return inList(env, ok, c.In)
-
-	case "affiliation":
+	}},
+	"affiliation": {[][]string{{"in"}}, func(c Condition, r *report, _ map[string]*State) result {
 		aff, ok := r.affiliation()
 		return inList(aff, ok, c.In)
-
-	case "source":
+	}},
+	"source": {[][]string{{"in"}}, func(c Condition, r *report, _ map[string]*State) result {
 		return inList(r.source, true, c.In)
-
-	case "uid":
+	}},
+	"uid": {[][]string{{"in"}}, func(c Condition, r *report, _ map[string]*State) result {
 		return inList(r.uid, true, c.In)
-
-	case "key":
-		return keyCondition(c, r)
-
-	case "has":
+	}},
+	"key": {[][]string{{"name", "eq"}, {"name", "in"}, {"name", "min"}, {"name", "max"}, {"name", "min", "max"}},
+		func(c Condition, r *report, _ map[string]*State) result { return keyCondition(c, r) }},
+	"has": {[][]string{{"name"}}, func(c Condition, r *report, _ map[string]*State) result {
 		_, present := r.values[c.KeyName]
 		return result{of(present), present, nil}
-
-	case "speed":
+	}},
+	"speed": {[][]string{{"min"}, {"max"}, {"min", "max"}}, func(c Condition, r *report, _ map[string]*State) result {
 		return rangeOf(r.values["speed_ms"], c)
-
-	case "altitude":
+	}},
+	"altitude": {[][]string{{"min"}, {"max"}, {"min", "max"}}, func(c Condition, r *report, _ map[string]*State) result {
 		return rangeOf(r.values["hae"], c)
-
-	case "interval":
-		s := g.entities[r.key]
+	}},
+	"interval": {[][]string{{"min_ms"}}, func(c Condition, r *report, states map[string]*State) result {
+		s := states[r.key]
 		if s == nil || s.KeptMs == nil {
 			return result{isFalse, nil, c.MinMs}
 		}
 		gap := r.timeMs - *s.KeptMs
 		return result{of(gap < c.MinMs), gap, c.MinMs}
-
-	case "order":
-		s := g.entities[r.key]
+	}},
+	"order": {[][]string{{}}, func(c Condition, r *report, states map[string]*State) result {
+		s := states[r.key]
 		if s == nil || s.KeptMs == nil {
 			return result{isFalse, r.timeMs, nil}
 		}
 		return result{of(r.timeMs < *s.KeptMs), r.timeMs, *s.KeptMs}
-	}
-	panic("unknown condition " + c.Name) // ParsePack admits no other name
+	}},
 }
 
 // near: the distance from the report to the reference predicted to the
 // report's time; unknown (value null) when the reference has no state or is stale.
-func (g *Engine) near(c Condition, r *report) result {
-	ref := g.entities[c.Reference]
-	if ref == nil || g.stale(ref, r.timeMs, c.MaxAgeMs) {
+func near(c Condition, r *report, states map[string]*State) result {
+	ref := states[c.Reference]
+	if ref == nil || stale(ref, r.timeMs, c.MaxAgeMs) {
 		return result{unknown, nil, c.RadiusM}
 	}
 	lat, lon := predict(ref, r.timeMs)
@@ -109,7 +114,7 @@ func (g *Engine) near(c Condition, r *report) result {
 }
 
 // stale: abs(time_ms - ref.time_ms) > max_age_ms, or time_ms >= ref.stale_ms.
-func (g *Engine) stale(ref *State, t, maxAge int64) bool {
+func stale(ref *State, t, maxAge int64) bool {
 	age := t - ref.TimeMs
 	if age < 0 {
 		age = -age
@@ -145,13 +150,13 @@ func inList(v string, present bool, items []string) result {
 
 // rangeLimit is [min, max], null for an omitted bound.
 func rangeLimit(c Condition) []any {
-	return []any{floatOrNull(c.Min), floatOrNull(c.Max)}
+	return []any{snapshot.OptFloat(c.Min), snapshot.OptFloat(c.Max)}
 }
 
 // rangeOf: min <= value <= max, inclusive; unknown when the value is absent
 // or not a number (true and false are not numbers).
 func rangeOf(v any, c Condition) result {
-	f, isNum := correlator.ToFloat(v)
+	f, isNum := model.ToFloat(v)
 	if v == nil || !isNum {
 		return result{unknown, v, rangeLimit(c)}
 	}
@@ -194,7 +199,7 @@ func keyEqual(v any, t string) bool {
 	case bool:
 		return (x && t == "true") || (!x && t == "false")
 	case json.Number, float64, int, int64:
-		f, _ := correlator.ToFloat(x)
+		f, _ := model.ToFloat(x)
 		p, err := parseNumber(t) // only a pack number can equal a number
 		return err == nil && p == f
 	}

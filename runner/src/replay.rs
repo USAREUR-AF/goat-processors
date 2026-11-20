@@ -152,7 +152,7 @@ pub fn output_lines(step: usize, call: &Step, out: &Output, trace: bool) -> Vec<
         .iter()
         .map(|s| {
             let mut m = BTreeMap::new();
-            m.insert("step".to_string(), Json::Int(step as i64));
+            m.insert("step".into(), Json::Int(step as i64));
             match call {
                 Step::Ingest(_) => m.insert("call".into(), Json::Str("ingest".into())),
                 Step::Tick(t) => {
@@ -187,7 +187,7 @@ pub fn run(p: &mut Pipeline, file: &ReplayFile, tick_ms: i64, packs_dir: &std::p
             Step::Tick(t) => p.tick(*t),
             Step::Pack { function, pack } => {
                 let mut m = BTreeMap::new();
-                m.insert("step".to_string(), Json::Int(n as i64));
+                m.insert("step".into(), Json::Int(n as i64));
                 m.insert("call".into(), Json::Str("pack".into()));
                 m.insert("stage".into(), Json::Str(function.clone()));
                 m.insert("pack".into(), Json::Str(pack.clone()));
