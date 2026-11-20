@@ -113,3 +113,32 @@ impl Engine {
         (clock, source_latest)
     }
 }
+
+/// Spec Samples, `nis`: the report's plane position `z` against the entity's
+/// prediction, with `r = ce²`: per axis `d = z - p` and `s = pp + r`, and
+/// `value = de²/se + dn²/sn`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct Nis {
+    pub(super) value: f64,
+    pub(super) de: f64,
+    pub(super) dn: f64,
+    pub(super) se: f64,
+    pub(super) sn: f64,
+}
+
+/// `Nis` of a report. Pure.
+pub(super) fn nis((e, n): (f64, f64), (pe, pn): (&Axis, &Axis), ce: f64) -> Nis {
+    let r = ce * ce;
+    let de = e - pe.p;
+    let dn = n - pn.p;
+    let se = pe.pp + r;
+    let sn = pn.pp + r;
+    Nis { value: de * de / se + dn * dn / sn, de, dn, se, sn }
+}
+
+/// Spec Samples, `speed_err`: `(implied, |implied - speed|)`, the implied
+/// speed from the last position to this one over `dt` seconds. Pure.
+pub(super) fn speed_err((e, n): (f64, f64), (lpe, lpn): (f64, f64), dt: f64, speed: f64) -> (f64, f64) {
+    let implied = (e - lpe).hypot(n - lpn) / dt;
+    (implied, (implied - speed).abs())
+}

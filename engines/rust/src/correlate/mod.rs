@@ -8,13 +8,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::model::report;
-use crate::model::{deg, obj, rad, Axis, Frame, Json, Measurement, Model, TwoModel};
+use crate::model::{deg, measurement_variance, obj, velocity, Axis, Frame, Json, Measurement, MeasurementVariance, Model};
 use crate::trace::record;
 
 mod confirm;
 mod entity;
 pub mod pack;
 mod pair_tests;
+mod restart;
 
 pub(crate) use entity::{report_ce, Entity};
 
@@ -118,36 +119,24 @@ impl Engine {
         // Track estimate.
         let f = self.pack.filter.clone();
         let ce = report_ce(fields).unwrap_or(f.default_ce_m);
-        let course = fields.get("course").and_then(Json::as_f64);
-        let speed = fields.get("speed_ms").and_then(Json::as_f64);
-        let vel = match (course, speed) {
-            (Some(c), Some(s)) => Some((s * rad(c).sin(), s * rad(c).cos())),
-            _ => None,
-        };
+        let vel = velocity(fields.get("course").and_then(Json::as_f64), fields.get("speed_ms").and_then(Json::as_f64));
 
         // Reports, Time quality: `te`, from the report, else the pack's
         // `time_default` for the source, else 0. The time state is resolved
         // with it but not used by correlate in this version.
-        let time = report::time_quality(fields, source, &self.pack.time_default);
-        let te = time.error_ms;
+        let te = report::time_quality(fields, source, &self.pack.time_default).error_ms;
 
-        // Track estimate, Measurement variance. With `te` 0, r = ce² on both
-        // axes. Otherwise the velocity comes from the entity's prediction to
-        // this report's time (for its first report: the measured velocity, or
-        // 0), `ts = te / 1000`, and r = ce² + (v*ts)² per axis.
-        let (r, time_var) = if te == 0.0 {
-            ((ce * ce, ce * ce), None)
-        } else {
-            let (v_e, v_n) = match self.entities.get(&key) {
-                Some(e) => {
-                    let (pe, pn) = e.predict(time_ms, &self.pack);
-                    (pe.v, pn.v)
-                }
-                None => vel.unwrap_or((0.0, 0.0)),
-            };
-            let ts = te / 1000.0;
-            let (de, dn) = (v_e * ts, v_n * ts);
-            let (var_e, var_n) = (de * de, dn * dn);
+        // Track estimate, Measurement variance: the velocity is the entity's
+        // prediction to this report's time (for its first report: the
+        // measured velocity, or 0).
+        let variance = measurement_variance(ce, te, || match self.entities.get(&key) {
+            Some(e) => {
+                let (pe, pn) = e.predict(time_ms, &self.pack);
+                (pe.v, pn.v)
+            }
+            None => vel.unwrap_or((0.0, 0.0)),
+        });
+        if let Some((var_e, var_n)) = variance.time_var {
             out.trace.push(obj(vec![
                 ("stage", "filter".into()),
                 ("a", key.as_str().into()),
@@ -159,22 +148,15 @@ impl Engine {
                 ("var_east", var_e.into()),
                 ("var_north", var_n.into()),
             ]));
-            ((ce * ce + var_e, ce * ce + var_n), Some((var_e, var_n)))
-        };
-        let (r_east, r_north) = r;
+        }
+        let MeasurementVariance { r, time_var } = variance;
 
         let meas = Measurement { pos: (ze, zn), r_pos: r, vel, r_vel: f.vel_sigma_ms * f.vel_sigma_ms };
         let maneuver = self.pack.maneuver.clone();
 
-        // Track estimate, first report (pp = that axis's measurement
-        // variance); Two-model filter, first report. Also the filter a
-        // Restart starts again from.
-        let first_filter = || {
-            let east = Axis::first_with_variance(ze, vel.map(|v| v.0), r_east, f.vel_sigma_ms, f.unknown_vel_ms);
-            let north = Axis::first_with_variance(zn, vel.map(|v| v.1), r_north, f.vel_sigma_ms, f.unknown_vel_ms);
-            let imm = maneuver.as_ref().map(|m| TwoModel::first(Model { east, north }, m.p_enter, m.p_leave));
-            (east, north, imm)
-        };
+        // Track estimate, first report; Two-model filter, first report. Also
+        // the filter a Restart starts again from.
+        let first_filter = || entity::first_filter(&meas, &f, maneuver.as_ref());
 
         match self.entities.get(&key) {
             None => {
@@ -202,19 +184,8 @@ impl Engine {
                 // report against the entity predicted to its time.
                 let mut restart = false;
                 if let Some(g) = self.pack.restart {
-                    // The entity's own prediction: no timing variance added.
-                    let (pe, pn) = e.predict(time_ms, &self.pack);
-                    let d2 = (ze - pe.p) * (ze - pe.p) / (pe.pp + r_east) + (zn - pn.p) * (zn - pn.p) / (pn.pp + r_north);
-                    let pass = d2 < g;
-                    out.trace.push(obj(vec![
-                        ("stage", "filter".into()),
-                        ("a", key.as_str().into()),
-                        ("b", Json::Null),
-                        ("test", "restart".into()),
-                        ("value", d2.into()),
-                        ("limit", g.into()),
-                        ("pass", pass.into()),
-                    ]));
+                    let (value, pass) = restart::test(e.predict(time_ms, &self.pack), (ze, zn), r, g);
+                    out.trace.push(restart::record(&key, value, g, pass));
                     restart = !pass;
                 }
 
@@ -228,25 +199,14 @@ impl Engine {
                     e.imm = imm;
                 } else {
                     let dt = (time_ms - e.last_time_ms) as f64 / 1000.0;
-                    match (&e.imm, &maneuver) {
-                        (Some(two), Some(m)) => {
-                            // Two-model filter, later reports, steps 1 to 5.
-                            let (next, mode) = two.step(dt, [f.accel_var, m.accel_var], m.p_enter, m.p_leave, &meas);
-                            let combined = next.combined();
-                            e.east = combined.east;
-                            e.north = combined.north;
-                            e.imm = Some(next);
-                            for (test, values) in [("likelihood", mode.lambda), ("mode", mode.mu)] {
-                                for (model, value) in ["quiet", "maneuver"].into_iter().zip(values) {
-                                    out.trace.push(record("filter", &key, model, test, value.into(), Json::Null, true, false));
-                                }
+                    let (next, mode) = entity::later_filter(e, dt, &meas, &f, maneuver.as_ref());
+                    (e.east, e.north, e.imm) = next;
+                    // Two-model filter: `likelihood` and `mode` per model.
+                    if let Some(mode) = mode {
+                        for (test, values) in [("likelihood", mode.lambda), ("mode", mode.mu)] {
+                            for (model, value) in ["quiet", "maneuver"].into_iter().zip(values) {
+                                out.trace.push(record("filter", &key, model, test, value.into(), Json::Null, true, false));
                             }
-                        }
-                        _ => {
-                            // Track estimate, later reports, steps 1 to 3.
-                            let (next, _) = Model { east: e.east, north: e.north }.step(dt, f.accel_var, &meas);
-                            e.east = next.east;
-                            e.north = next.north;
                         }
                     }
                 }

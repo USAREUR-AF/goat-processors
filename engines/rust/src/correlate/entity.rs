@@ -3,9 +3,9 @@
 
 use std::collections::BTreeMap;
 
-use super::pack::Pack;
+use super::pack::{FilterParams, Maneuver, Pack};
 use crate::model::report;
-use crate::model::{Axis, Json, TwoModel};
+use crate::model::{Axis, Json, Measurement, ModeUpdate, Model, TwoModel};
 
 #[derive(Debug, Clone)]
 pub(crate) struct Entity {
@@ -89,4 +89,37 @@ impl Entity {
 /// A report's `ce`; absent when not a number or 0 or below (spec: Reports).
 pub(crate) fn report_ce(report: &BTreeMap<String, Json>) -> Option<f64> {
     report::optional_f64(report, "ce")
+}
+
+/// Track estimate, first report (`pp` = that axis's measurement variance);
+/// Two-model filter, first report: both models that filter. Also the filter
+/// a Restart starts again from.
+pub(crate) fn first_filter(m: &Measurement, f: &FilterParams, maneuver: Option<&Maneuver>) -> (Axis, Axis, Option<TwoModel>) {
+    let east = Axis::first_with_variance(m.pos.0, m.vel.map(|v| v.0), m.r_pos.0, f.vel_sigma_ms, f.unknown_vel_ms);
+    let north = Axis::first_with_variance(m.pos.1, m.vel.map(|v| v.1), m.r_pos.1, f.vel_sigma_ms, f.unknown_vel_ms);
+    let imm = maneuver.map(|mv| TwoModel::first(Model { east, north }, mv.p_enter, mv.p_leave));
+    (east, north, imm)
+}
+
+/// Track estimate, later reports, steps 1 to 3; with two models, Two-model
+/// filter steps 1 to 5 and the mode update for the trace. Returns the new
+/// filter; never changes the entity.
+pub(crate) fn later_filter(
+    e: &Entity,
+    dt: f64,
+    m: &Measurement,
+    f: &FilterParams,
+    maneuver: Option<&Maneuver>,
+) -> ((Axis, Axis, Option<TwoModel>), Option<ModeUpdate>) {
+    match (&e.imm, maneuver) {
+        (Some(two), Some(mv)) => {
+            let (next, mode) = two.step(dt, [f.accel_var, mv.accel_var], mv.p_enter, mv.p_leave, m);
+            let combined = next.combined();
+            ((combined.east, combined.north, Some(next)), Some(mode))
+        }
+        _ => {
+            let (next, _) = Model { east: e.east, north: e.north }.step(dt, f.accel_var, m);
+            ((next.east, next.north, e.imm), None)
+        }
+    }
 }

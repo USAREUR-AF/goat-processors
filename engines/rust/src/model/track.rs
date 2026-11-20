@@ -149,3 +149,45 @@ impl Model {
         Model { east: Axis::blend(w1, &m1.east, w2, &m2.east), north: Axis::blend(w1, &m1.north, w2, &m2.north) }
     }
 }
+
+/// correlate.md Track estimate: the velocity measurement `(ve, vn) =
+/// (s * sin(c), s * cos(c))` from `course` (degrees) and `speed_ms`, when a
+/// report has both.
+pub fn velocity(course: Option<f64>, speed_ms: Option<f64>) -> Option<(f64, f64)> {
+    match (course, speed_ms) {
+        (Some(c), Some(s)) => Some((s * super::rad(c).sin(), s * super::rad(c).cos())),
+        _ => None,
+    }
+}
+
+/// correlate.md Track estimate, Measurement variance, for one report.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MeasurementVariance {
+    /// `(r_east, r_north)`.
+    pub r: (f64, f64),
+    /// The timing variance `((v_e*ts)², (v_n*ts)²)`; `None` when the time
+    /// error is 0.
+    pub time_var: Option<(f64, f64)>,
+}
+
+/// With time error `te_ms` 0, `r = ce²` on both axes. Otherwise
+/// `ts = te / 1000` and `r = ce² + (v*ts)²` per axis, `v` the velocity
+/// `(v_e, v_n)` the caller found (the entity's prediction to the report's
+/// time; for a first report the measured velocity, or 0).
+pub fn measurement_variance(ce: f64, te_ms: f64, v: impl FnOnce() -> (f64, f64)) -> MeasurementVariance {
+    if te_ms == 0.0 {
+        return MeasurementVariance { r: (ce * ce, ce * ce), time_var: None };
+    }
+    let (v_e, v_n) = v();
+    let ts = te_ms / 1000.0;
+    let (de, dn) = (v_e * ts, v_n * ts);
+    let (var_e, var_n) = (de * de, dn * dn);
+    MeasurementVariance { r: (ce * ce + var_e, ce * ce + var_n), time_var: Some((var_e, var_n)) }
+}
+
+/// `d² = sum over east, north of (z - p)² / (pp + r)`: a position `z` against
+/// a prediction, with the measurement variance `r` per axis (the form of
+/// correlate.md Restart, Tests and correlate-assign.md Cost).
+pub fn d2(z: (f64, f64), (pe, pn): (&Axis, &Axis), r: (f64, f64)) -> f64 {
+    (z.0 - pe.p) * (z.0 - pe.p) / (pe.pp + r.0) + (z.1 - pn.p) * (z.1 - pn.p) / (pn.pp + r.1)
+}

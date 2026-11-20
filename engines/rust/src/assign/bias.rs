@@ -3,6 +3,7 @@
 
 use std::collections::BTreeSet;
 
+use crate::correlate::pack::Bias;
 use crate::correlate::Engine;
 use crate::model::{obj, Axis, Json};
 
@@ -57,40 +58,51 @@ fn bias_key(first: &str, second: &str) -> String {
     format!("{}|{}", first, second)
 }
 
-impl Engine {
-    /// A pair's state; with none stored, `o = 0`, `w = 0`, `var = s²`, `n = 0`.
-    pub(crate) fn pair_bias(&self, key: &str) -> PairBias {
-        let s = self.pack.bias.as_ref().expect("bias state needs the bias directive").sigma_m;
-        self.bias.get(key).cloned().unwrap_or(PairBias {
+impl PairBias {
+    /// A pair with no stored state: `o = 0`, `w = 0`, `var = s²`, `n = 0`.
+    pub(crate) fn initial(sigma_m: f64) -> PairBias {
+        PairBias {
             east: 0.0,
             weight_east: 0.0,
             north: 0.0,
             weight_north: 0.0,
-            var: s * s,
+            var: sigma_m * sigma_m,
             pairs: 0,
             tau: 0.0,
             sums: [0.0; 8],
-        })
+        }
+    }
+}
+
+/// Moving B into A's frame with the pair's `state`: B's prediction
+/// `(east, north)` becomes `p + o` when B's source is first in key order
+/// (`b_first`), else `p - o`, with `pp + var` on each axis. With `timed`
+/// (`time_offset`), `o - v*tau` takes the place of `o`, `v` B's predicted
+/// velocity on that axis. Pure.
+pub(crate) fn move_into_frame(state: &PairBias, b_first: bool, timed: bool, (east, north): (Axis, Axis)) -> (Axis, Axis) {
+    let moved = |axis: Axis, o: f64| {
+        let o = state.offset(o, axis.v, timed);
+        Axis { p: if b_first { axis.p + o } else { axis.p - o }, pp: axis.pp + state.var, ..axis }
+    };
+    (moved(east, state.east), moved(north, state.north))
+}
+
+impl Engine {
+    /// A pair's state; with none stored, `PairBias::initial`.
+    pub(crate) fn pair_bias(&self, key: &str) -> PairBias {
+        let s = self.pack.bias.as_ref().expect("bias state needs the bias directive").sigma_m;
+        self.bias.get(key).cloned().unwrap_or_else(|| PairBias::initial(s))
     }
 
-    /// Moving B into A's frame: B's prediction `(east, north)` becomes `p + o`
-    /// (pair `"<b_src>|<a_src>"`, when `b_src` is first) or `p - o` (pair
-    /// `"<a_src>|<b_src>"`, when `a_src` is first), with `pp + var` on each
-    /// axis. With `time_offset`, `o - v*tau` takes the place of `o`, with `v`
-    /// B's predicted velocity on that axis. Two entities of one source, or a
-    /// pack without `bias`, move nothing.
-    pub(crate) fn move_into_frame(&self, a_src: &str, b_src: &str, (east, north): (Axis, Axis)) -> (Axis, Axis) {
+    /// `move_into_frame` with the stored state of A's and B's sources. Two
+    /// entities of one source, or a pack without `bias`, move nothing.
+    pub(crate) fn move_into_frame(&self, a_src: &str, b_src: &str, prediction: (Axis, Axis)) -> (Axis, Axis) {
         if self.pack.bias.is_none() || a_src == b_src {
-            return (east, north);
+            return prediction;
         }
-        let timed = self.pack.time_offset.is_some();
         let b_first = b_src < a_src;
         let state = if b_first { self.pair_bias(&bias_key(b_src, a_src)) } else { self.pair_bias(&bias_key(a_src, b_src)) };
-        let moved = |axis: Axis, o: f64| {
-            let o = state.offset(o, axis.v, timed);
-            Axis { p: if b_first { axis.p + o } else { axis.p - o }, pp: axis.pp + state.var, ..axis }
-        };
-        (moved(east, state.east), moved(north, state.north))
+        move_into_frame(&state, b_first, self.pack.time_offset.is_some(), prediction)
     }
 
     /// Sensor bias, Update: after the commit, for each committed system track
@@ -100,7 +112,6 @@ impl Engine {
     pub(crate) fn update_bias(&mut self, now_ms: i64, rows: &BTreeSet<String>, trace: &mut Vec<Json>) {
         let Some(params) = self.pack.bias.clone() else { return };
         let time_offset = self.pack.time_offset;
-        let (s2, f2) = (params.sigma_m * params.sigma_m, params.floor_m * params.floor_m);
         let mut pairs: Vec<(String, String)> = Vec::new();
         for members in self.committed.systems.values() {
             let live: Vec<&String> = members.iter().filter(|m| !self.retiring.contains(*m)).collect();
@@ -125,33 +136,9 @@ impl Engine {
             // Time offset: per axis `v = (v_ES + v_ET) / 2`.
             let (v_e, v_n) = ((s_e.v + t_e.v) / 2.0, (s_n.v + t_n.v) / 2.0);
 
-            // 2. d² against the pair's state; with `time_offset`, `o - v*tau`
-            // takes the place of `o`.
-            let mut st = self.pair_bias(&key);
-            let timed = time_offset.is_some();
-            let (o_e, o_n) = (st.offset(st.east, v_e, timed), st.offset(st.north, v_n, timed));
-            let d2 = (y_e - o_e) * (y_e - o_e) / (st.var + r_e) + (y_n - o_n) * (y_n - o_n) / (st.var + r_n);
-
-            // 3. Accepted below the gate: count, variance, then the offset.
-            let accepted = d2 < params.gate;
+            // 2 and 3.
+            let (st, d2, accepted) = update_pair(self.pair_bias(&key), &params, time_offset, (y_e, y_n), (r_e, r_n), (v_e, v_n));
             if accepted {
-                st.pairs += 1;
-                st.var = s2 / (st.pairs + 1) as f64;
-                if st.var < f2 {
-                    st.var = f2;
-                }
-                match time_offset {
-                    // Without `time_offset`: the weighted running mean per axis.
-                    None => {
-                        st.weight_east += 1.0 / r_e;
-                        st.east += ((1.0 / r_e) / st.weight_east) * (y_e - st.east);
-                        st.weight_north += 1.0 / r_n;
-                        st.north += ((1.0 / r_n) / st.weight_north) * (y_n - st.north);
-                    }
-                    // Time offset: the weighted least-squares fit of
-                    // `y = o - v*tau` with priors.
-                    Some(t) => fit_time_offset(&mut st, params.sigma_m, t, (v_e, v_n), (y_e, y_n), (r_e, r_n)),
-                }
                 self.bias.insert(key, st.clone());
             }
 
@@ -176,6 +163,47 @@ impl Engine {
             trace.push(obj(rec));
         }
     }
+}
+
+/// Sensor bias, Update, steps 2 and 3 for one pair with offset `y`, its
+/// variance `r` and velocity `v` per axis `(east, north)`: `d²` against the
+/// pair's state `st` (with `time_offset`, `o - v*tau` in place of `o`); when
+/// `d²` is below the gate, the count, the variance, then the offset. Returns
+/// the state after step 3, `d²` and whether the pair was accepted. Pure.
+pub(crate) fn update_pair(
+    mut st: PairBias,
+    params: &Bias,
+    time_offset: Option<f64>,
+    (y_e, y_n): (f64, f64),
+    (r_e, r_n): (f64, f64),
+    (v_e, v_n): (f64, f64),
+) -> (PairBias, f64, bool) {
+    let (s2, f2) = (params.sigma_m * params.sigma_m, params.floor_m * params.floor_m);
+    let timed = time_offset.is_some();
+    let (o_e, o_n) = (st.offset(st.east, v_e, timed), st.offset(st.north, v_n, timed));
+    let d2 = (y_e - o_e) * (y_e - o_e) / (st.var + r_e) + (y_n - o_n) * (y_n - o_n) / (st.var + r_n);
+
+    let accepted = d2 < params.gate;
+    if accepted {
+        st.pairs += 1;
+        st.var = s2 / (st.pairs + 1) as f64;
+        if st.var < f2 {
+            st.var = f2;
+        }
+        match time_offset {
+            // Without `time_offset`: the weighted running mean per axis.
+            None => {
+                st.weight_east += 1.0 / r_e;
+                st.east += ((1.0 / r_e) / st.weight_east) * (y_e - st.east);
+                st.weight_north += 1.0 / r_n;
+                st.north += ((1.0 / r_n) / st.weight_north) * (y_n - st.north);
+            }
+            // Time offset: the weighted least-squares fit of
+            // `y = o - v*tau` with priors.
+            Some(t) => fit_time_offset(&mut st, params.sigma_m, t, (v_e, v_n), (y_e, y_n), (r_e, r_n)),
+        }
+    }
+    (st, d2, accepted)
 }
 
 /// Sensor bias, Time offset, for an accepted pair: add this pair to the sums

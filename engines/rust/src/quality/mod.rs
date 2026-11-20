@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::model::{rad, Axis, Frame};
+use crate::model::{velocity, Axis, Frame};
 use crate::model::{obj, Json};
 use crate::model::pack::TimeState;
 use crate::model::report::{time_error_ms, time_state};
@@ -42,8 +42,8 @@ struct Entity {
 }
 
 /// Spec Rules: per rule, per subject.
-#[derive(Debug, Clone, Copy, Default)]
-struct RuleState {
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub(crate) struct RuleState {
     count: u64,
     active: bool,
 }
@@ -121,10 +121,7 @@ impl Engine {
         let hae = optional_number(fields, "hae");
         let received_ms = fields.get("received_ms").and_then(Json::as_i64);
         // correlate.md, Track estimate: the velocity measurement.
-        let vel = match (course, speed_ms) {
-            (Some(c), Some(s)) => Some((s * rad(c).sin(), s * rad(c).cos())),
-            _ => None,
-        };
+        let vel = velocity(course, speed_ms);
 
         // Frame and filter: the reference is the first accepted report.
         let frame = *self.frame.get_or_insert(Frame { lat0: lat, lon0: lon });
@@ -205,20 +202,15 @@ impl Engine {
             let dt = (t - entity.last_time_ms) as f64 / 1000.0;
             let pe = entity.east.predict(dt, f.accel_var);
             let pn = entity.north.predict(dt, f.accel_var);
-            let r = ce * ce;
-            let de = e - pe.p;
-            let dn = n - pn.p;
-            let se = pe.pp + r;
-            let sn = pn.pp + r;
-            let value = de * de / se + dn * dn / sn;
-            nis = Some(value);
-            out.trace.push(sample("nis", Json::Num(value), vec![Json::Num(de), Json::Num(dn), Json::Num(se), Json::Num(sn)]));
+            let n_is = samples::nis((e, n), (&pe, &pn), ce);
+            nis = Some(n_is.value);
+            let inputs = [n_is.de, n_is.dn, n_is.se, n_is.sn].map(Json::Num).to_vec();
+            out.trace.push(sample("nis", Json::Num(n_is.value), inputs));
             predicted = Some((pe, pn));
 
             if let Some(speed) = speed_ms {
                 let (lpe, lpn) = entity.last_pos;
-                let implied = (e - lpe).hypot(n - lpn) / dt;
-                let value = (implied - speed).abs();
+                let (implied, value) = samples::speed_err((e, n), (lpe, lpn), dt, speed);
                 speed_err = Some(value);
                 out.trace.push(sample("speed_err", Json::Num(value), vec![Json::Num(implied), Json::Num(speed)]));
             }
@@ -316,7 +308,7 @@ impl Engine {
         let mut entity_measures: BTreeMap<String, Measures> = BTreeMap::new();
         let keys: Vec<String> = self.entities.keys().cloned().collect();
         for key in &keys {
-            let m = self.entity_measures(&self.entities[key], now_ms);
+            let m = measures::entity_measures(&self.entities[key], now_ms, self.pack.window.min_samples);
             out.events.push(quality_event(Scope::Entity, key, &m));
             self.evaluate_rules(Scope::Entity, key, &m, &mut out);
             entity_measures.insert(key.clone(), m);

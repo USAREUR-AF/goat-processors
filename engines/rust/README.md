@@ -49,9 +49,9 @@ five calls. `Function::NAME` is the name the runner's `--function` takes.
 | Reports | `src/model/report.rs` (required keys, reject, optional keys); `src/correlate/mod.rs` (`ingest`: out-of-order, the reference) |
 | Reports, Time quality | `src/model/report.rs` (`time_quality`) |
 | Frame | `src/model/frame.rs` |
-| Track estimate | `src/model/track.rs` (the per-axis steps); `src/correlate/entity.rs` (an entity's prediction); `src/correlate/mod.rs` (Measurement variance, first and later reports) |
+| Track estimate | `src/model/track.rs` (the per-axis steps, velocity, Measurement variance, `d²`); `src/correlate/entity.rs` (an entity's prediction, first and later reports) |
 | Two-model filter | `src/model/two_model.rs` |
-| Restart | `src/correlate/mod.rs` |
+| Restart | `src/correlate/restart.rs` |
 | Tests | `src/correlate/pair_tests.rs` |
 | Association | `src/correlate/confirm.rs` |
 | Events | `src/correlate/confirm.rs`; `src/trace.rs` |

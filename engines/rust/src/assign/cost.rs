@@ -11,44 +11,55 @@ use crate::correlate::Engine;
 use crate::model::{Axis, Json};
 use crate::trace::{record, StepResult};
 
+/// The inverse-variance fused estimate of `predictions`, per axis, in the
+/// order given: `pp = 1 / sum 1/pp`, `p = pp * sum p/pp`, and the same for
+/// `v` with `vv`. `pv` is not defined by the spec and is left 0. Pure.
+pub(crate) fn inverse_variance(predictions: impl IntoIterator<Item = (Axis, Axis)>) -> (Axis, Axis) {
+    // Per axis: sum 1/pp, sum p/pp, sum 1/vv, sum v/vv.
+    let mut sums = [[0.0f64; 4]; 2];
+    for (pe, pn) in predictions {
+        for (s, a) in sums.iter_mut().zip([pe, pn]) {
+            s[0] += 1.0 / a.pp;
+            s[1] += a.p / a.pp;
+            s[2] += 1.0 / a.vv;
+            s[3] += a.v / a.vv;
+        }
+    }
+    let axis = |s: [f64; 4]| {
+        let pp = 1.0 / s[0];
+        let vv = 1.0 / s[2];
+        Axis { p: pp * s[1], v: vv * s[3], pp, pv: 0.0, vv }
+    };
+    (axis(sums[0]), axis(sums[1]))
+}
+
+/// Cost `d²` of A's filter `(east, north)` with its timing variance against
+/// the fused estimate of the others: per axis `(p_a - p)² / (pp_a + pp)`,
+/// `pp_a` A's `pp` plus its timing variance. Pure.
+pub(crate) fn cost((east, north): (&Axis, &Axis), (var_e, var_n): (f64, f64), (fe, fn_): (Axis, Axis)) -> f64 {
+    let (pp_ae, pp_an) = (east.pp + var_e, north.pp + var_n);
+    (east.p - fe.p).powi(2) / (pp_ae + fe.pp) + (north.p - fn_.p).powi(2) / (pp_an + fn_.pp)
+}
+
 impl Engine {
-    /// Fused estimate of `members` at time `t`, per axis (spec: Fused estimate).
-    /// With `seen_by`, A's source (Cost), each member's prediction gets its
-    /// timing variance added to `pp` and is then moved into A's frame (with
-    /// `bias`); for output (`None`) neither applies. `pv` of the result is not
-    /// defined by the spec and is left 0.
+    /// Fused estimate of `members` at time `t` (spec: Fused estimate). With
+    /// `seen_by`, A's source (Cost), each member's prediction gets its timing
+    /// variance added to `pp` and is then moved into A's frame (with `bias`);
+    /// for output (`None`) neither applies.
     pub(crate) fn fused<'a>(&self, members: impl IntoIterator<Item = &'a String>, t: i64, seen_by: Option<&str>) -> (Axis, Axis) {
-        // Per axis: sum 1/pp, sum p/pp, sum 1/vv, sum v/vv.
-        let mut sums = [[0.0f64; 4]; 2];
-        for m in members {
+        inverse_variance(members.into_iter().map(|m| {
             let e = &self.entities[m];
-            let (pe, pn) = match seen_by {
+            match seen_by {
                 Some(a_src) => self.move_into_frame(a_src, &e.source, e.predict_for_comparison(t, &self.pack)),
                 None => e.predict(t, &self.pack),
-            };
-            for (s, a) in sums.iter_mut().zip([pe, pn]) {
-                s[0] += 1.0 / a.pp;
-                s[1] += a.p / a.pp;
-                s[2] += 1.0 / a.vv;
-                s[3] += a.v / a.vv;
             }
-        }
-        let axis = |s: [f64; 4]| {
-            let pp = 1.0 / s[0];
-            let vv = 1.0 / s[2];
-            Axis { p: pp * s[1], v: vv * s[3], pp, pv: 0.0, vv }
-        };
-        (axis(sums[0]), axis(sums[1]))
+        }))
     }
 
-    /// Cost `d²` of entity A against the set `others`, predicted to A's time;
-    /// `pp_a` is A's filter `pp` plus A's timing variance.
+    /// Cost of entity A against the set `others`, predicted to A's time.
     pub(crate) fn assign_cost(&self, a: &str, others: &[String]) -> f64 {
         let ea = &self.entities[a];
-        let (fe, fn_) = self.fused(others, ea.last_time_ms, Some(&ea.source));
-        let (var_e, var_n) = ea.timing_variance();
-        let (pp_ae, pp_an) = (ea.east.pp + var_e, ea.north.pp + var_n);
-        (ea.east.p - fe.p).powi(2) / (pp_ae + fe.pp) + (ea.north.p - fn_.p).powi(2) / (pp_an + fn_.pp)
+        cost((&ea.east, &ea.north), ea.timing_variance(), self.fused(others, ea.last_time_ms, Some(&ea.source)))
     }
 
     /// Assignment of one source, steps 1 and 2, against `membership`; gate and

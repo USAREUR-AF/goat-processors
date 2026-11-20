@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::model::{deg, rad, Axis, Frame};
+use crate::model::{deg, velocity, Axis, Frame};
 use crate::model::{obj, Json};
 pub use crate::trace::StepResult;
 
@@ -113,10 +113,7 @@ impl Engine {
         // Track estimate: first report, or predict and update.
         let f = &self.pack.filter;
         let ce = report.get("ce").and_then(Json::as_f64).unwrap_or(f.default_ce_m);
-        let vel = match (report.get("course").and_then(Json::as_f64), report.get("speed_ms").and_then(Json::as_f64)) {
-            (Some(c), Some(s)) => Some((s * rad(c).sin(), s * rad(c).cos())),
-            _ => None,
-        };
+        let vel = velocity(report.get("course").and_then(Json::as_f64), report.get("speed_ms").and_then(Json::as_f64));
 
         match self.entities.get_mut(&key) {
             None => {
