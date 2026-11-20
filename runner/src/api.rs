@@ -314,7 +314,8 @@ impl Server {
     /// An agent publishes reports as its source (docs/design/agentic-ai.md 4.1).
     /// Each report must carry the source id `agents.sources` gives the caller
     /// and `provenance.model`; the runner sets `provenance.kind` to `agent`
-    /// and `provenance.agent` to the caller's identity, and ingests them as
+    /// and `provenance.agent` to the caller's identity and `provenance.checked`
+    /// to true (a report from any other input never carries it), and ingests them as
     /// any other input (recorded, so a replay is exact).
     pub fn publish(&self, req: &Request, who: &Identity) -> Response {
         let digest = crate::mcp::digest(&String::from_utf8_lossy(&req.body));
@@ -342,11 +343,12 @@ impl Server {
             if let Json::Obj(m) = &mut r {
                 m.insert("provenance.kind".into(), Json::Str("agent".into()));
                 m.insert("provenance.agent".into(), Json::Str(who.name.clone()));
+                m.insert("provenance.checked".into(), Json::Bool(true));
             }
             stamped.push(r);
         }
         let n = stamped.len();
-        let sent = self.tx.lock().map(|tx| tx.send(Input::Reports(stamped)).is_ok()).unwrap_or(false);
+        let sent = self.tx.lock().map(|tx| tx.send(Input::Checked(stamped)).is_ok()).unwrap_or(false);
         if !sent {
             return error(503, "the service loop has stopped", "");
         }

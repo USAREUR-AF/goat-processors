@@ -912,8 +912,18 @@ pub fn run(c: Config) -> Result<(), String> {
             Err(RecvTimeoutError::Timeout)
         };
         match got {
-            Ok(Input::Reports(reports)) => {
-                for rep in reports {
+            Ok(input @ (Input::Reports(_) | Input::Checked(_))) => {
+                let (reports, checked) = match input {
+                    Input::Checked(r) => (r, true),
+                    Input::Reports(r) => (r, false),
+                    _ => unreachable!(),
+                };
+                for mut rep in reports {
+                    if !checked {
+                        if let Json::Obj(m) = &mut rep {
+                            m.remove("provenance.checked");
+                        }
+                    }
                     if r.paused {
                         r.dropped_paused += 1;
                         continue;

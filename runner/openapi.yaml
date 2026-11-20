@@ -411,11 +411,12 @@ paths:
         The body is one shared-model report, a JSON array of reports, or JSON
         lines. Each report must carry the track.source_id that agents.sources
         gives the caller, and provenance.model (and may carry
-        provenance.inputs). The runner sets provenance.kind to agent and
-        provenance.agent to the caller's identity, then processes the reports
+        provenance.inputs). The runner sets provenance.kind to agent,
+        provenance.agent to the caller's identity and provenance.checked to
+        true (it removes provenance.checked from reports on any other input), then processes the reports
         as any other input: they are written to the record file, and a system
         track with an agent-derived member carries agent_provenance (member ->
-        agent, model, inputs). Every call is audited with the SHA-256 of the body.
+        agent, model, inputs, checked). Every call is audited with the SHA-256 of the body.
       requestBody:
         required: true
         content:

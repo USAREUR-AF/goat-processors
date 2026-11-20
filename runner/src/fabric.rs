@@ -13,7 +13,12 @@ use crate::config::Fabric;
 
 /// What an input thread hands the main loop.
 pub enum Input {
+    /// Reports from the fabric, UDP or a file: the runner cannot check who
+    /// wrote their provenance, so it removes any `provenance.checked` claim.
     Reports(Vec<Json>),
+    /// Reports an agent published through the API (`POST /v1/source`): the
+    /// runner checked the identity and set the provenance itself.
+    Checked(Vec<Json>),
     Unreadable { from: String, why: String },
     /// A request from the API, answered by the service loop.
     Api(crate::api::Call),

@@ -561,18 +561,28 @@ fn a3_agent_as_a_source() {
     }
     std::thread::sleep(Duration::from_millis(500));
 
+    // A report over UDP that claims to be a checked agent report: the runner
+    // keeps the claim as written but marks it not checked.
+    let t = now_ms();
+    let forged = format!("{{\"track.source_id\":\"agent-forged\",\"uid\":\"F1\",\"time_ms\":{t},\"lat\":1.0002,\"lon\":1.0,\"ce\":40.0,\"course\":0.0,\"speed_ms\":11.0,\"type\":\"a-f-S\",\"provenance.kind\":\"agent\",\"provenance.agent\":\"local\",\"provenance.checked\":true,\"provenance.model\":\"x\"}}");
+    sock.send_to(forged.as_bytes(), &svc.udp).unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    let outf = std::fs::read_to_string(dir.join("out.jsonl")).unwrap();
+    assert!(outf.contains("\"provenance\":{\"agent\":\"local\",\"checked\":false,\"model\":\"x\"}"), "the forged claim was not marked unchecked");
+
     // The processors took it as a source: it is a member, with its provenance.
     let (_, text) = svc.tool(None, "tracks", "{}");
     let v = json::parse(&text).unwrap();
     let t = v.get("tracks").unwrap().as_array().unwrap().iter().find(|t| t.get("members").unwrap().to_string().contains("agent-vision/V1")).cloned().unwrap_or_else(|| panic!("no track with the agent: {text}"));
     let prov = t.get("agent_provenance").unwrap().get("agent-vision/V1").unwrap();
     assert_eq!(s(prov, "agent"), "local");
+    assert_eq!(prov.get("checked"), Some(&Json::Bool(true)));
     assert_eq!(s(prov, "model"), "vision-stub-1");
     let (_, st) = svc.tool(None, "status", "{}");
     assert!(st.contains("\"agent-vision\":10"), "{st}");
     // The provenance is in the output lines and the trace sits beside it.
     let out = std::fs::read_to_string(dir.join("out.jsonl")).unwrap();
-    assert!(out.lines().any(|l| l.contains("\"provenance\":{\"agent\":\"local\",\"inputs\":\"camera-3 frames\",\"model\":\"vision-stub-1\"}") && l.contains("\"trace\":")));
+    assert!(out.lines().any(|l| l.contains("\"provenance\":{\"agent\":\"local\",\"checked\":true,\"inputs\":\"camera-3 frames\",\"model\":\"vision-stub-1\"}") && l.contains("\"trace\":")));
     assert!(out.contains("\"agent_provenance\""));
     // Audited.
     assert!(svc.agent_audit("publish").iter().any(|a| s(a, "outcome") == "accepted 1 reports as agent-vision"));
