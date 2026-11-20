@@ -111,12 +111,12 @@ void decide_attribute(const Group& g, const Attribute& attr, const std::vector<s
         j["time_ms"] = static_cast<long long>(c.entity->last_time_ms);
         auto r = rank(sources, c.entity->source);
         j["rank"] = r ? Json(static_cast<long long>(*r)) : Json();
-        list.push(j);
+        list.push(std::move(j));
     }
-    rec["candidates"] = list;
+    rec["candidates"] = std::move(list);
     rec["winner"] = winner ? Json(winner->entity->key) : Json();
     rec["value"] = winner ? *winner->value : Json();
-    out.trace.push(rec);
+    out.trace.push(std::move(rec));
 }
 
 } // namespace corr::fuse

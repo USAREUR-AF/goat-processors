@@ -35,7 +35,7 @@ void ConfirmMethod::leave_group(Entity& e, const char* reason, Output& out) {
     ev["group"] = group_name(g);
     ev["entity"] = e.key;
     ev["reason"] = reason;
-    out.events.push(ev);
+    out.events.push(std::move(ev));
     if (members.size() == 1) {
         std::string last = *members.begin();
         Entity& rest = entities_.at(last);
@@ -44,7 +44,7 @@ void ConfirmMethod::leave_group(Entity& e, const char* reason, Output& out) {
         Json d = event("dissolve");
         d["group"] = group_name(g);
         d["entity"] = last;
-        out.events.push(d);
+        out.events.push(std::move(d));
         groups_.erase(g);
     }
 }
@@ -92,7 +92,7 @@ void ConfirmMethod::associate(Entity& a, Output& out) {
         rec["value"] = static_cast<long long>(count);
         rec["limit"] = static_cast<long long>(pack_.confirm_count);
         rec["pass"] = count >= pack_.confirm_count;
-        out.trace.push(rec);
+        out.trace.push(std::move(rec));
         if (count >= pack_.confirm_count) reached.push_back(b.key);
     }
 
@@ -109,7 +109,7 @@ void ConfirmMethod::associate(Entity& a, Output& out) {
         rec["value"] = v;
         rec["limit"] = Json();
         rec["pass"] = true;
-        out.trace.push(rec);
+        out.trace.push(std::move(rec));
         if (chosen.empty() || v < best) { chosen = bk; best = v; }
     }
     if (chosen.empty()) return;
@@ -122,7 +122,7 @@ void ConfirmMethod::associate(Entity& a, Output& out) {
         Json ev = event("join");
         ev["group"] = group_name(a.group);
         ev["entity"] = a.key;
-        out.events.push(ev);
+        out.events.push(std::move(ev));
     } else {
         int g = next_group_++;
         groups_[g] = {a.key, b.key};
@@ -131,8 +131,8 @@ void ConfirmMethod::associate(Entity& a, Output& out) {
         ev["group"] = group_name(g);
         Json members = Json::make_array();
         for (const auto& m : groups_[g]) members.push(m);
-        ev["members"] = members;
-        out.events.push(ev);
+        ev["members"] = std::move(members);
+        out.events.push(std::move(ev));
     }
 }
 
@@ -153,7 +153,7 @@ Output ConfirmMethod::tick(std::int64_t now_ms) {
         entities_.erase(k);
         Json ev = event("drop");
         ev["entity"] = k;
-        out.events.push(ev);
+        out.events.push(std::move(ev));
     }
 
     // 2. Fused output, groups in creation order.
@@ -181,13 +181,13 @@ Output ConfirmMethod::tick(std::int64_t now_ms) {
         ev["primary"] = primary->key;
         Json members = Json::make_array();
         for (const auto& m : kv.second) members.push(m);
-        ev["members"] = members;
+        ev["members"] = std::move(members);
         ev["lat"] = pos.first;
         ev["lon"] = pos.second;
         ev["course"] = course_of(ve, vn);
         ev["speed_ms"] = std::hypot(ve, vn);
         if (auto hae = number_at(primary->last, "hae")) ev["hae"] = *hae;
-        out.events.push(ev);
+        out.events.push(std::move(ev));
     }
     return out;
 }

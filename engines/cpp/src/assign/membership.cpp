@@ -19,12 +19,12 @@ void leave_system(Membership& m, const std::string& key, const char* reason, Jso
     ev["system"] = system_label(s);
     ev["entity"] = key;
     ev["reason"] = reason;
-    events.push(ev);
+    events.push(std::move(ev));
     if (members.empty()) {
         m.systems.erase(s);
         Json end = event("end");
         end["system"] = system_label(s);
-        events.push(end);
+        events.push(std::move(end));
     }
 }
 

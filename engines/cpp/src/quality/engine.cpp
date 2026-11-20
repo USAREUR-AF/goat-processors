@@ -37,7 +37,7 @@ Output Engine::ingest(const Json& r) {
         if (!ok) {
             Json ev = event("reject");
             ev["reason"] = std::string("missing:") + key;
-            out.events.push(ev);
+            out.events.push(std::move(ev));
             return out;
         }
     }
@@ -146,7 +146,7 @@ Output Engine::ingest(const Json& r) {
         it = entities_.emplace(key, std::move(e)).first;
         Json ev = event("new");
         ev["entity"] = key;
-        out.events.push(ev);
+        out.events.push(std::move(ev));
     } else if (advance) {
         // The filter is updated from the prediction that gave nis.
         it->second.filter = filter_correct(predicted, pack_.filter, z, vel, ce);
@@ -168,7 +168,7 @@ Output Engine::tick(std::int64_t now_ms) {
     if (last_tick_ && now_ms < *last_tick_) {
         Json ev = event("reject");
         ev["reason"] = "tick-out-of-order";
-        out.events.push(ev);
+        out.events.push(std::move(ev));
         return out;
     }
     last_tick_ = now_ms;
@@ -207,7 +207,7 @@ Output Engine::tick(std::int64_t now_ms) {
         ev["scope"] = "entity";
         ev["subject"] = key;
         ev["measures"] = m;
-        out.events.push(ev);
+        out.events.push(std::move(ev));
         evaluate_rules(Scope::Entity, key, m, out);
         measures.emplace(key, std::move(m));
     }
@@ -222,7 +222,7 @@ Output Engine::tick(std::int64_t now_ms) {
         ev["scope"] = "source";
         ev["subject"] = s;
         ev["measures"] = m;
-        out.events.push(ev);
+        out.events.push(std::move(ev));
         evaluate_rules(Scope::Source, s, m, out);
     }
     return out;

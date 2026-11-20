@@ -13,25 +13,29 @@ namespace {
 
 // A statistic is null when fewer than k records hold its sample.
 template <typename F>
-Json stat(const WindowSamples& s, const std::vector<Json>& xs, F compute) {
+Json stat(const WindowSamples& s, const std::vector<Sample>& xs, F compute) {
     return xs.size() < s.k ? Json() : compute(xs);
 }
 
-Json last_of(const std::vector<Json>& xs) { return xs.back(); }
+Json last_of(const std::vector<Sample>& xs) { return xs.back().json(); }
 
-Json mean_of(const std::vector<Json>& xs) {
-    std::vector<double> ds;
-    for (const Json& x : xs) ds.push_back(x.number);
-    return Json(mean(ds));
+// "Entity measures": a mean is s / n, s from 0.0 adding each sample in order.
+Json mean_of(const std::vector<Sample>& xs) {
+    double s = 0.0;
+    for (const Sample& x : xs) s += x.number;
+    return Json(s / static_cast<double>(xs.size()));
 }
 
-// The largest (or smallest) sample, kept as written (integer or binary64).
-Json largest(const std::vector<Json>& xs) {
-    return *std::max_element(xs.begin(), xs.end(), [](const Json& a, const Json& b) { return a.number < b.number; });
+// The largest (or smallest) sample, kept as written (integer or binary64);
+// the first of equal ones.
+Json largest(const std::vector<Sample>& xs) {
+    return std::max_element(xs.begin(), xs.end(), [](const Sample& a, const Sample& b) { return a.number < b.number; })
+        ->json();
 }
 
-Json smallest(const std::vector<Json>& xs) {
-    return *std::min_element(xs.begin(), xs.end(), [](const Json& a, const Json& b) { return a.number < b.number; });
+Json smallest(const std::vector<Sample>& xs) {
+    return std::min_element(xs.begin(), xs.end(), [](const Sample& a, const Sample& b) { return a.number < b.number; })
+        ->json();
 }
 
 // A fraction of the window's records, null below k records.
@@ -83,14 +87,18 @@ WindowSamples window_samples(const Entity& e, std::int64_t now_ms, std::int64_t 
     s.k = static_cast<size_t>(min_samples);
     s.reports = static_cast<std::int64_t>(e.window.size());
     s.age = now_ms - e.last;
+    for (auto* v : {&s.intervals, &s.latencies, &s.lateness, &s.nis, &s.speed_err, &s.time_errors, &s.time_states})
+        v->reserve(e.window.size());
     for (const Record& r : e.window) {
-        if (r.interval) s.intervals.push_back(static_cast<long long>(*r.interval));
-        if (r.latency) s.latencies.push_back(static_cast<long long>(*r.latency));
-        if (!r.lateness.is_null()) s.lateness.push_back(r.lateness);
-        if (r.nis) s.nis.push_back(*r.nis);
-        if (r.speed_err) s.speed_err.push_back(*r.speed_err);
-        if (r.time_error) s.time_errors.push_back(*r.time_error);
-        if (r.time_state) s.time_states.push_back(static_cast<long long>(time_state_code(*r.time_state)));
+        if (r.interval) s.intervals.push_back(Sample::of_int(*r.interval));
+        if (r.latency) s.latencies.push_back(Sample::of_int(*r.latency));
+        if (!r.lateness.is_null())
+            s.lateness.push_back(r.lateness.is_int ? Sample::of_int(r.lateness.integer)
+                                                   : Sample::of_double(r.lateness.number));
+        if (r.nis) s.nis.push_back(Sample::of_double(*r.nis));
+        if (r.speed_err) s.speed_err.push_back(Sample::of_double(*r.speed_err));
+        if (r.time_error) s.time_errors.push_back(Sample::of_double(*r.time_error));
+        if (r.time_state) s.time_states.push_back(Sample::of_int(time_state_code(*r.time_state)));
         if (r.order == "out-of-order") ++s.out_of_order;
         if (r.order == "duplicate") ++s.duplicate;
         if (r.source_out_of_order) ++s.source_out_of_order;

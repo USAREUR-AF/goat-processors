@@ -63,7 +63,7 @@ Kinematics covariance_intersection(const Group& g, const std::vector<Predicted>&
         rec["group"] = name_or_null(g.name);
         rec["member"] = members[k].entity->key;
         rec["value"] = w;
-        out.trace.push(rec);
+        out.trace.push(std::move(rec));
 
         // "Fold": w = 1 keeps X, w = 0 takes Y, otherwise per axis.
         if (w == 1) continue;

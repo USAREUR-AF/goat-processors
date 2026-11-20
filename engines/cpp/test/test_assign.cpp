@@ -1,5 +1,8 @@
 // Unit tests of src/assign: ranking, memberships, cost, bias.
+#include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <functional>
 #include <limits>
 #include <string>
 
@@ -8,6 +11,7 @@
 #include "assign/membership.hpp"
 #include "assign/ranking.hpp"
 #include "check.hpp"
+#include "random.hpp"
 
 using corr::Json;
 namespace cc = corr::correlate;
@@ -114,4 +118,63 @@ TEST(assign, bias_update_pair) {
     corr::Filter moved = cc::move_into_frame(t, u.state, true, false);
     CHECK_EQ(moved.east.p, 50 + u.state.o[0]);
     CHECK_EQ(cc::move_into_frame(t, u.state, false, false).east.pp, 100 + u.state.var);
+}
+
+// The ranking against its definition (every assignment, its total the sorted
+// entries added from 0, all sorted, the first k), on seeded random matrices
+// with forbidden entries, negative entries, ties and signed zeros.
+TEST(assign, ranking_matches_definition_on_random_matrices) {
+    support::Random rnd(42);
+    const double values[] = {0.0, -0.0, 1.0, 1.0, 2.5, -3.0, 1e16, 1e-9, 7.25};
+    for (int round = 0; round < 400; ++round) {
+        const size_t n = rnd.below(round % 2 ? 8 : 6), columns = rnd.below(5), k = 1 + rnd.below(round % 3 ? 3 : 8);
+        std::vector<std::vector<double>> entries(n, std::vector<double>(columns + 1));
+        for (auto& row : entries)
+            for (double& v : row)
+                v = rnd.chance(0.25) ? INF : rnd.chance(0.5) ? values[rnd.below(9)] : (rnd.unit() - 0.4) * 100;
+        // The definition.
+        std::vector<cc::RankedAssignment> all;
+        std::vector<size_t> choice(n);
+        std::vector<bool> used(columns);
+        std::function<void(size_t)> visit = [&](size_t i) {
+            if (i == n) {
+                std::vector<double> vs;
+                for (size_t r = 0; r < n; ++r) vs.push_back(entries[r][choice[r]]);
+                std::sort(vs.begin(), vs.end());
+                double t = 0;
+                for (double v : vs) t = t + v;
+                all.push_back({choice, t});
+                return;
+            }
+            for (size_t j = 0; j <= columns; ++j) {
+                if (entries[i][j] == INF || (j < columns && used[j])) continue;
+                choice[i] = j;
+                if (j < columns) used[j] = true;
+                visit(i + 1);
+                if (j < columns) used[j] = false;
+            }
+        };
+        visit(0);
+        std::sort(all.begin(), all.end(), [](const cc::RankedAssignment& x, const cc::RankedAssignment& y) {
+            return x.total != y.total ? x.total < y.total : x.choice < y.choice;
+        });
+        if (all.size() > k) all.resize(k);
+        auto got = cc::rank_assignments(entries, columns, k);
+        CHECK_EQ(got.size(), all.size());
+        for (size_t r = 0; r < all.size(); ++r) {
+            CHECK(got[r].choice == all[r].choice);
+            CHECK(std::memcmp(&got[r].total, &all[r].total, sizeof(double)) == 0);   // the same bits
+        }
+    }
+}
+
+// A NaN entry takes the definition's path (each leaf's entries sorted).
+TEST(assign, ranking_with_nan_entries) {
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    std::vector<std::vector<double>> entries = {{nan, 1}, {2, 3}};
+    auto r = cc::rank_assignments(entries, 1, 5);
+    CHECK_EQ(r.size(), size_t{3});
+    size_t finite = 0;
+    for (const auto& a : r) finite += std::isfinite(a.total);
+    CHECK_EQ(finite, size_t{2});   // (alone, 0) and (alone, alone) avoid the NaN
 }

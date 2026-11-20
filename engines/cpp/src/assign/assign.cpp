@@ -125,7 +125,7 @@ std::vector<RankedAssignment> AssignMethod::rank_source(const std::vector<std::s
             Json rec = trace_record("assign", rows[i], j < ncol ? system_label(columns[j]) : "alone", "cost",
                                     v == INF ? Json() : Json(v), v != INF);
             if (windowed) rec["h"] = h;
-            out.trace.push(rec);
+            out.trace.push(std::move(rec));
         }
     }
 
@@ -145,7 +145,7 @@ void AssignMethod::apply_assignment(const std::vector<std::string>& rows, const 
         Json choice = Json::make_array();
         choice.push(key);
         choice.push(j < ncol ? system_label(columns[j]) : "alone");
-        rec.choices.push(choice);
+        rec.choices.push(std::move(choice));
 
         int current = m.system_of(key);
         if (j < ncol && current == columns[j]) continue;                        // stays
@@ -163,7 +163,7 @@ void AssignMethod::apply_assignment(const std::vector<std::string>& rows, const 
         m.systems[target].insert(key);
         ev["system"] = system_label(target);
         ev["entity"] = key;
-        rec.events.push(ev);
+        rec.events.push(std::move(ev));
     }
     rec.cost = rec.cost + r.total;
 }
@@ -191,7 +191,7 @@ Output AssignMethod::tick(std::int64_t now_ms) {
             if (rec.membership.system_of(key)) leave_system(rec.membership, key, "stale", rec.events);
             Json drop = event("drop");
             drop["entity"] = key;
-            rec.events.push(drop);
+            rec.events.push(std::move(drop));
         }
         for (const std::string& key : restarted_) {   // std::set: key order
             if (stale_set.count(key)) continue;
@@ -237,7 +237,7 @@ Output AssignMethod::tick(std::int64_t now_ms) {
                         rec["h"] = static_cast<int>(h);
                         rec["r"] = static_cast<int>(r);
                     }
-                    out.trace.push(rec);
+                    out.trace.push(std::move(rec));
                 }
                 Candidate c{histories_[h], 0, static_cast<int>(h), static_cast<int>(r)};
                 apply_assignment(rows, columns, ranked[r], c.history.records.back());
@@ -261,7 +261,7 @@ Output AssignMethod::tick(std::int64_t now_ms) {
                 Json rec = trace_record("history", candidates[c].h, candidates[c].r, "total",
                                         candidates[c].total, c < keep);
                 rec["limit"] = limit;
-                out.trace.push(rec);
+                out.trace.push(std::move(rec));
             }
         histories_.clear();
         for (size_t c = 0; c < keep; ++c) histories_.push_back(std::move(candidates[c].history));
@@ -284,7 +284,7 @@ Output AssignMethod::tick(std::int64_t now_ms) {
         histories_ = std::move(kept);
 
         for (const Json& ev : committed.events.array) {
-            out.events.push(ev);
+            out.events.push(ev);   // ev is read below
             if (ev.find("ev")->string == "drop") {
                 const std::string& key = ev.find("entity")->string;
                 entities_.erase(key);
@@ -326,13 +326,13 @@ void AssignMethod::system_output(std::int64_t now_ms, const Membership& reported
 
         Json ev = event("system");
         ev["system"] = system_label(kv.first);
-        ev["members"] = names;
+        ev["members"] = std::move(names);
         ev["lat"] = pos.first;
         ev["lon"] = pos.second;
         ev["course"] = course_of(ve, vn);
         ev["speed_ms"] = std::hypot(ve, vn);
         if (latest_hae) ev["hae"] = *number_at(latest_hae->last, "hae");
-        out.events.push(ev);
+        out.events.push(std::move(ev));
     }
     if (pack_.window <= 1) return;
     const History& best = histories_[0];
@@ -342,8 +342,8 @@ void AssignMethod::system_output(std::int64_t now_ms, const Membership& reported
         ev["system"] = system_label(kv.first);
         Json names = Json::make_array();
         for (const std::string& key : kv.second) names.push(key);
-        ev["members"] = names;
-        out.events.push(ev);
+        ev["members"] = std::move(names);
+        out.events.push(std::move(ev));
     }
 }
 
@@ -410,10 +410,10 @@ Json AssignMethod::snapshot() const {
             rj["events"] = r.events;
             rj["systems"] = membership_systems_json(r.membership);
             rj["next_system"] = r.membership.next_system;
-            records.push(rj);
+            records.push(std::move(rj));
         }
         hj["records"] = records;
-        histories.push(hj);
+        histories.push(std::move(hj));
     }
     s["histories"] = histories;
     return s;

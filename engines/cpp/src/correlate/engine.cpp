@@ -37,7 +37,7 @@ Output Engine::ingest(const Json& r) {
     if (auto missing = report::missing_required(r)) {
         Json ev = event("reject");
         ev["reason"] = "missing:" + *missing;
-        out.events.push(ev);
+        out.events.push(std::move(ev));
         return out;
     }
     const std::string source = r.find("track.source_id")->string;
@@ -51,7 +51,7 @@ Output Engine::ingest(const Json& r) {
         Json ev = event("reject");
         ev["entity"] = key;
         ev["reason"] = reason;
-        out.events.push(ev);
+        out.events.push(std::move(ev));
         return out;
     }
 
@@ -60,7 +60,7 @@ Output Engine::ingest(const Json& r) {
         Json ev = event("reject");
         ev["entity"] = key;
         ev["reason"] = "out-of-order";
-        out.events.push(ev);
+        out.events.push(std::move(ev));
         return out;
     }
 
@@ -96,7 +96,7 @@ Output Engine::ingest(const Json& r) {
         Json rec = filter_record(key, "time", nullptr, te);
         rec["var_east"] = mv.timing.east;
         rec["var_north"] = mv.timing.north;
-        out.trace.push(rec);
+        out.trace.push(std::move(rec));
     }
 
     if (first) {
@@ -107,7 +107,7 @@ Output Engine::ingest(const Json& r) {
         it = c.entities_.emplace(key, std::move(e)).first;
         Json ev = event("new");
         ev["entity"] = key;
-        out.events.push(ev);
+        out.events.push(std::move(ev));
     } else if (c.restart_test(it->second, time_ms, z, mv.r, out)) {
         double dt = static_cast<double>(time_ms - it->second.last_time_ms) / 1000;
         const TrackUpdate u = update_track(it->second, c.motion_, z, vel, mv.r, dt);

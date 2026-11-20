@@ -15,10 +15,21 @@
 
 namespace corr::quality {
 
-// "Samples": the samples of one entity's window, in window order, as numbers
-// (integer or binary64), and its counts.
+// One sample as written: an integer, or a binary64. `number` is its value
+// as a binary64 either way (as Json holds it).
+struct Sample {
+    double number = 0;
+    bool is_int = false;
+    long long integer = 0;
+
+    static Sample of_int(long long v) { return {static_cast<double>(v), true, v}; }
+    static Sample of_double(double v) { return {v, false, 0}; }
+    Json json() const { return is_int ? Json(integer) : Json(number); }
+};
+
+// "Samples": the samples of one entity's window, in window order, and its counts.
 struct WindowSamples {
-    std::vector<Json> intervals, latencies, lateness, nis, speed_err, time_errors, time_states;
+    std::vector<Sample> intervals, latencies, lateness, nis, speed_err, time_errors, time_states;
     std::int64_t out_of_order = 0, duplicate = 0, source_out_of_order = 0;
     std::int64_t no_ce = 0, no_vel = 0, no_hae = 0, no_time = 0;
     std::int64_t reports = 0;   // records in the window

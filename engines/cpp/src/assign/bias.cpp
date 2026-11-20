@@ -164,7 +164,7 @@ void AssignMethod::bias_update(std::int64_t now_ms, const std::set<std::string>&
                 rec["var"] = st.var;
                 rec["pairs"] = static_cast<long long>(st.n);
                 if (timed) rec["time_offset_ms"] = st.tau * 1000;
-                out.trace.push(rec);
+                out.trace.push(std::move(rec));
             }
         }
     }

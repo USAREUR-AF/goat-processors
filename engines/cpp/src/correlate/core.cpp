@@ -43,7 +43,7 @@ bool Core::restart_test(const Entity& e, std::int64_t time_ms, const Point& z, c
     rec["value"] = v;
     rec["limit"] = g;
     rec["pass"] = v < g;
-    out.trace.push(rec);
+    out.trace.push(std::move(rec));
     return v < g;
 }
 
@@ -92,13 +92,13 @@ bool Core::run_stage(const char* stage, const std::vector<TestSpec>& tests, cons
         rec["a"] = a.key;
         rec["b"] = b.key;
         rec["test"] = t.name;
-        rec["value"] = r.value;
-        rec["limit"] = r.limit;
+        rec["value"] = std::move(r.value);
+        rec["limit"] = std::move(r.limit);
         rec["pass"] = r.pass;
         if (r.skipped) rec["skipped"] = true;
         if (extra)
             for (const auto& kv : extra->object) rec[kv.first] = kv.second;
-        out.trace.push(rec);
+        out.trace.push(std::move(rec));
         if (!r.pass) return false;
     }
     return true;

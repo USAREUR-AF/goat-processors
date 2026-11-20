@@ -87,6 +87,10 @@ struct Reader {
         expect('"');
         std::string out;
         while (true) {
+            // The bytes up to the next quote or backslash, as they are.
+            const size_t run = i;
+            while (i < s.size() && s[i] != '"' && s[i] != '\\') ++i;
+            out.append(s, run, i - run);
             if (i >= s.size()) fail("unterminated string");
             char c = s[i++];
             if (c == '"') return out;
@@ -124,17 +128,20 @@ struct Reader {
             if (s[i] == '.' || s[i] == 'e' || s[i] == 'E') integral = false;
             ++i;
         }
-        std::string text = s.substr(start, i - start);
+        // The token is s[start, i); the conversions read it in place and must
+        // end exactly at its end.
+        const char* first = s.c_str() + start;
+        const char* last = s.c_str() + i;
         char* end = nullptr;
         if (integral) {
             errno = 0;
-            long long v = std::strtoll(text.c_str(), &end, 10);
-            if (*end != '\0') fail("bad number");
+            long long v = std::strtoll(first, &end, 10);
+            if (end != last) fail("bad number");
             if (errno != ERANGE) return Json(v);
             // Outside int64: kept as a number that is not an integer.
         }
-        double d = std::strtod(text.c_str(), &end);
-        if (*end != '\0') fail("bad number");
+        double d = std::strtod(first, &end);
+        if (end != last) fail("bad number");
         return Json(d);
     }
     Json value() {

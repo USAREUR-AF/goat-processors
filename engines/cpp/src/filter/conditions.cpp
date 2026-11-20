@@ -25,7 +25,6 @@ bool in_list(const std::string& v, const std::vector<std::string>& items) {
 }
 
 Json opt_json(const std::optional<double>& v) { return v ? Json(*v) : Json(); }
-Json opt_json(const std::optional<std::int64_t>& v) { return v ? Json(static_cast<long long>(*v)) : Json(); }
 
 // Ranges: `[min, max]`, an omitted bound null; both bounds inclusive.
 Json range_limit(const Condition& c) {

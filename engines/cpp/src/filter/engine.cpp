@@ -33,7 +33,7 @@ Output Engine::ingest(const Json& r) {
         Json ev = Json::make_object();
         ev["ev"] = "reject";
         ev["reason"] = "missing:" + *missing;
-        out.events.push(ev);
+        out.events.push(std::move(ev));
         return out;
     }
     const std::string key = r.find("track.source_id")->string + "/" + r.find("uid")->string;
@@ -61,11 +61,11 @@ Output Engine::ingest(const Json& r) {
             rec["entity"] = key;
             rec["test"] = c.test;
             rec["negated"] = c.negated;
-            rec["value"] = e.value;
-            rec["limit"] = e.limit;
+            rec["value"] = std::move(e.value);
+            rec["limit"] = std::move(e.limit);
             rec["pass"] = pass;
             if (e.result == Result::Unknown) rec["unknown"] = true;
-            out.trace.push(rec);
+            out.trace.push(std::move(rec));
 
             if (!pass) {
                 matches = false;
@@ -82,7 +82,7 @@ Output Engine::ingest(const Json& r) {
     // 3. Event.
     Json ev = event(keep ? "keep" : "drop", key);
     ev["rule"] = decided_by;
-    out.events.push(ev);
+    out.events.push(std::move(ev));
 
     // 4. State, after the decision.
     auto take_report = [&](EntityState& s) {
@@ -119,7 +119,7 @@ Output Engine::tick(std::int64_t now_ms) {
         rec["value"] = static_cast<long long>(age);
         rec["limit"] = static_cast<long long>(pack_.forget_ms);
         rec["pass"] = forget;
-        out.trace.push(rec);
+        out.trace.push(std::move(rec));
 
         if (forget) {
             out.events.push(event("forget", it->first));

@@ -63,7 +63,7 @@ Output Engine::ingest(const Json& r) {
     if (auto missing = missing_required(r)) {
         Json ev = event("reject");
         ev["reason"] = "missing:" + *missing;
-        out.events.push(ev);
+        out.events.push(std::move(ev));
         return out;
     }
     const std::string source = r.find("track.source_id")->string;
@@ -78,7 +78,7 @@ Output Engine::ingest(const Json& r) {
         ev["entity"] = key;
         ev["time_ms"] = static_cast<long long>(time_ms);
         ev["last_time_ms"] = static_cast<long long>(it->second.last_time_ms);
-        out.events.push(ev);
+        out.events.push(std::move(ev));
         return out;
     }
 
@@ -106,7 +106,7 @@ Output Engine::ingest(const Json& r) {
         Json ev = event("new");
         ev["entity"] = key;
         ev["group"] = name_or_null(group);
-        out.events.push(ev);
+        out.events.push(std::move(ev));
         return out;
     }
 
@@ -123,7 +123,7 @@ Output Engine::ingest(const Json& r) {
         ev["entity"] = key;
         ev["from"] = name_or_null(e.group);
         ev["to"] = name_or_null(group);
-        out.events.push(ev);
+        out.events.push(std::move(ev));
         e.group = group;
     }
     return out;
@@ -154,7 +154,7 @@ Json Engine::fused_event(const Group& g, const Kinematics& k, Json attributes) c
     ev["group"] = name_or_null(g.name);
     Json members = Json::make_array();
     for (const Entity* e : g.members) members.push(e->key);
-    ev["members"] = members;
+    ev["members"] = std::move(members);
     ev["from"] = k.from ? Json(k.from->key) : Json();
 
     auto pos = to_degrees(ref_->first, ref_->second, k.f.east.p, k.f.north.p);
@@ -204,7 +204,7 @@ Output Engine::tick(std::int64_t now_ms) {
         Json ev = event("drop");
         ev["entity"] = e.key;
         ev["group"] = name_or_null(e.group);
-        out.events.push(ev);
+        out.events.push(std::move(ev));
         it = entities_.erase(it);
     }
 
@@ -229,11 +229,11 @@ Output Engine::tick(std::int64_t now_ms) {
             j["time_ms"] = static_cast<long long>(m.entity->last_time_ms);
             auto r = rank(pack_.sources, m.entity->source);
             j["rank"] = r ? Json(static_cast<long long>(*r)) : Json();
-            list.push(j);
+            list.push(std::move(j));
         }
-        rec["candidates"] = list;
+        rec["candidates"] = std::move(list);
         rec["winner"] = k.from ? Json(k.from->key) : Json();
-        out.trace.push(rec);
+        out.trace.push(std::move(rec));
 
         // 2.3 Decide every attribute, in pack order; Trace record 3.
         Json attributes = Json::make_object();

@@ -96,13 +96,13 @@ void Engine::forget_subject(Scope scope, const std::string& subject, Output& out
             ev["action"] = action_name(rule.action);
             ev["reason"] = "forget";
             ev["value"] = nullptr;
-            out.events.push(ev);
+            out.events.push(std::move(ev));
         }
         rule_states_[i].erase(s);
     }
     Json ev = event("forget");
     ev[scope == Scope::Entity ? "entity" : "source"] = subject;
-    out.events.push(ev);
+    out.events.push(std::move(ev));
 }
 
 // ---- Forwarding (spec "Rules", Actions; "Forwarding") ---------------------
@@ -136,7 +136,7 @@ Json forward(const std::vector<const Rule*>& acting, const Json& report, const s
         downgrade = downgrade || rule->action == Action::Downgrade;
         mark = mark || rule->action == Action::Mark;
     }
-    ev["rules"] = names;
+    ev["rules"] = std::move(names);
     if (drop) {
         ev["withheld"] = true;
         return ev;
@@ -165,9 +165,9 @@ Json forward(const std::vector<const Rule*>& acting, const Json& report, const s
                                     [&](const Json& m) { return m.string == rule->name; });
             if (!held) marks.push(rule->name);
         }
-        fwd["quality.marks"] = marks;
+        fwd["quality.marks"] = std::move(marks);
     }
-    ev["report"] = fwd;
+    ev["report"] = std::move(fwd);
     return ev;
 }
 
