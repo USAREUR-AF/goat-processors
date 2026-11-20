@@ -1,0 +1,4 @@
+#!/bin/sh
+# tools/perf/README.md "Runner contract": runs the built runner; never builds.
+here=$(cd "$(dirname "$0")" && pwd)
+exec "$here/../../../build/cpp-runner/goat_runner" "$@"

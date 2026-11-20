@@ -54,7 +54,15 @@ jobs:
         with:
           go-version-file: engines/go/go.mod
           cache: false
-      - run: go test -v ./...
+      # Vectors, unit, property and fuzz tests, with statement coverage of
+      # every package (go's own -coverpkg); the floor is max(baseline 97.7 %
+      # measured on the pre-refactor engine, 80 %): engines/go/REFACTOR.md.
+      - run: go test -v -coverpkg=./... -coverprofile=cover.out ./...
+        working-directory: engines/go
+      - run: |
+          total=$(go tool cover -func=cover.out | awk '/^total:/ {sub("%", "", $3); print $3}')
+          echo "statement coverage ${total}% (floor 97.7%)"
+          awk -v t="$total" 'BEGIN { exit !(t + 0 >= 97.7) }'
         working-directory: engines/go
   java:
     runs-on: ubuntu-latest
@@ -66,6 +74,7 @@ jobs:
           distribution: temurin
           java-version: "17"
       - run: engines/java/build.sh
+      - run: engines/java/coverage.sh
   cpp:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -75,6 +84,13 @@ jobs:
           cmake -S engines/cpp -B "$RUNNER_TEMP/cpp"
           cmake --build "$RUNNER_TEMP/cpp"
           ctest --test-dir "$RUNNER_TEMP/cpp" --output-on-failure
+      # Line coverage with gcc's own --coverage and gcov; the floor is
+      # max(baseline 96.7 %, 80 %) (engines/cpp/REFACTOR.md).
+      - run: |
+          cmake -S engines/cpp -B "$RUNNER_TEMP/cpp-cov" -DGOAT_COVERAGE=ON
+          cmake --build "$RUNNER_TEMP/cpp-cov"
+          ctest --test-dir "$RUNNER_TEMP/cpp-cov" --output-on-failure
+          python3 -I engines/cpp/coverage.py "$RUNNER_TEMP/cpp-cov" --floor 96.7
   erlang:
     runs-on: ubuntu-latest
     timeout-minutes: 10

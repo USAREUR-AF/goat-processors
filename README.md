@@ -70,12 +70,12 @@ and time quality, where sensor clocks are wrong).
 | [`distance`](packs/correlate-distance/pack.def) | `confirm` | pairs two tracks closer than 200 m, for feeds that report no error; tracks of one source may pair; the output follows the latest report | `gnn`: plain distance, for sources with no error estimate | 0.884 / 0.807 / 0.937 |
 | [`assign`](packs/correlate-assign/pack.def) | `assign` | at each tick, places each source's tracks into one output track per object by the least total cost, and combines the members' positions weighted by their uncertainty | the base of the assignment packs | 0.937 / 0.715 / 0.775 |
 | [`assign-imm`](packs/correlate-assign-imm/pack.def) | `assign` | as assign, with a second motion model for turning or accelerating targets | `assign`: the two-model filter | 0.971 / 0.796 / 0.881 |
-| [`assign-window`](packs/correlate-assign-window/pack.def) | `assign` | as assign, keeping up to three candidate histories over two ticks before committing | `assign`: a multi-frame window | 0.929 / 0.698 / 0.739 |
-| [`assign-bias`](packs/correlate-assign-bias/pack.def) | `assign` | as assign-imm, estimating a position offset for each pair of sensors | `assign-imm`: sensor bias estimation, so a sensor off by a few hundred meters still joins | 0.989 / 0.906 / 0.936 |
+| [`assign-window`](packs/correlate-assign-window/pack.def) | `assign` | as assign, keeping up to three candidate histories over two ticks before committing | `assign`: a multi-frame window | 0.929 / 0.698 / 0.740 |
+| [`assign-bias`](packs/correlate-assign-bias/pack.def) | `assign` | as assign-imm, estimating a position offset for each pair of sensors | `assign-imm`: sensor bias estimation, so a sensor off by a few hundred meters still joins | 0.990 / 0.906 / 0.936 |
 | [`assign-full`](packs/correlate-assign-full/pack.def) | `assign` | as assign-bias, with filter restart, the two-tick window with a margin, and a 20 s stale time | `assign-bias`: every option of assign 0.5 together | 0.997 / 0.958 / 0.932 |
 | [`assign-time`](packs/correlate-assign-time/pack.def) | `assign` | as assign-full, also fitting a clock offset for each pair of sources | `assign-full`: clock offset: a lag along the track that grows with speed is read as a clock error, not a position bias | 0.997 / 0.961 / 0.996 |
 
-**Default: `assign-time`.** It has the highest F1 of every pack on all 3 benchmark sets: named 0.997, random 0.961, time 0.996 (equal with `window`). It keeps one output track per object and combines its members, with the lowest position error of every pack (GOSPA, a mean position error that also charges missed and false tracks: 244 m on the random set). Its weak point is identity swaps (an object's output track changing to another): 33 on the random set, against 14 to 23 for the per-report packs, so the `confirm` method stays selectable.
+**Default: `assign-time`.** It has the highest F1 of every pack on all 3 benchmark sets: named 0.997 (equal with `assign-full`), random 0.961, time 0.996 (equal with `window`). It keeps one output track per object and combines its members, with the lowest position error of every pack (GOSPA, a mean position error that also charges missed and false tracks: 244 m on the random set). Its weak point is identity swaps (an object's output track changing to another): 33 on the random set, against 14 to 23 for the per-report packs, so the `confirm` method stays selectable.
 
 ## Quick start
 
@@ -102,6 +102,16 @@ uncertainty ellipse, the groups as they form and dissolve, a step slider, and
 for each step the input, the events, every trace record and the snapshot.
 [tools/explain/README.md](tools/explain/README.md) lists its options,
 including replaying a benchmark run against its ground truth.
+
+## Run it on a machine
+
+The [runner](runner/README.md) runs the functions as a service. It reads
+shared-model reports from the goat fabric, runs a declared pipeline (filter,
+correlate, fuse, quality) on the Rust engine, and publishes system tracks and
+quality marks. It installs on Ubuntu 24.04 from one `.deb`, is configured by
+one file, and `goat-processors doctor` reports what is wrong.
+[runner/INSTALL.md](runner/INSTALL.md) goes from a fresh machine to a healthy
+runner, step by step; `runner/install.sh` does the same steps in one command.
 
 ## Every decision is observable
 
@@ -147,9 +157,9 @@ the vector is changed only through the specification.
 |---|---|---:|---|
 | Python | [`engines/python`](engines/python) | 2,565 | `cd engines/python && PYTHONPATH=src python3 -m unittest discover -s tests` |
 | Rust | [`engines/rust`](engines/rust) | 5,289 | `cd engines/rust && cargo test` |
-| Go | [`engines/go`](engines/go) | 2,421 | `cd engines/go && go test ./...` |
-| Java | [`engines/java`](engines/java) | 4,431 | `engines/java/build.sh` |
-| C++ | [`engines/cpp`](engines/cpp) | 4,735 | `cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir build/cpp` |
+| Go | [`engines/go`](engines/go) | 75 | `cd engines/go && go test ./...` |
+| Java | [`engines/java`](engines/java) | 5,476 | `engines/java/build.sh` |
+| C++ | [`engines/cpp`](engines/cpp) | 5,762 | `cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir build/cpp` |
 | Erlang | [`engines/erlang`](engines/erlang) | 3,318 | `engines/erlang/run_tests` |
 | Zig | [`engines/zig`](engines/zig) | 5,580 | `cd engines/zig && zig build test` |
 
@@ -175,18 +185,18 @@ which `tools/bench/bench.py report` writes. Pack names are explained in
 
 | Pack | F1, 21 named | F1, 50 random | F1, 7 time | False merges | Missed merges | Identity swaps | GOSPA, m |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [`gnn`](#methods-and-packs) | 0.951 | 0.820 | 0.959 | 61 | 81 | 23 | 415 |
+| [`gnn`](#methods-and-packs) | 0.951 | 0.820 | 0.959 | 61 | 81 | 23 | 414 |
 | [`window`](#methods-and-packs) | 0.924 | 0.934 | 0.996 | 77 | 40 | 17 | 308 |
 | [`distance`](#methods-and-packs) | 0.884 | 0.807 | 0.937 | 21 | 76 | 14 | 418 |
-| [`assign`](#methods-and-packs) | 0.937 | 0.715 | 0.775 | 15 | 99 | 130 | 475 |
+| [`assign`](#methods-and-packs) | 0.937 | 0.715 | 0.775 | 15 | 99 | 131 | 475 |
 | [`gnn-imm`](#methods-and-packs) | 0.968 | 0.884 | 0.968 | 71 | 55 | 21 | 344 |
-| [`assign-imm`](#methods-and-packs) | 0.971 | 0.796 | 0.881 | 12 | 54 | 160 | 399 |
-| [`assign-window`](#methods-and-packs) | 0.929 | 0.698 | 0.739 | 62 | 91 | 229 | 477 |
-| [`assign-bias`](#methods-and-packs) | 0.989 | 0.906 | 0.936 | 11 | 47 | 64 | 313 |
+| [`assign-imm`](#methods-and-packs) | 0.971 | 0.796 | 0.881 | 12 | 54 | 159 | 399 |
+| [`assign-window`](#methods-and-packs) | 0.929 | 0.698 | 0.740 | 62 | 90 | 231 | 477 |
+| [`assign-bias`](#methods-and-packs) | 0.990 | 0.906 | 0.936 | 11 | 47 | 65 | 313 |
 | [`assign-full`](#methods-and-packs) | 0.997 | 0.958 | 0.932 | 10 | 4 | 37 | 247 |
 | [`gnn-restart`](#methods-and-packs) | 0.956 | 0.851 | 0.949 | 60 | 64 | 18 | 383 |
 | [`assign-time`](#methods-and-packs) | 0.997 | 0.961 | 0.996 | 9 | 2 | 33 | 244 |
-| [`gnn-time`](#methods-and-packs) | 0.951 | 0.820 | 0.959 | 61 | 81 | 23 | 415 |
+| [`gnn-time`](#methods-and-packs) | 0.951 | 0.820 | 0.959 | 61 | 81 | 23 | 414 |
 
 False merges, missed merges, identity swaps and GOSPA are for the 50 random scenarios.
 
@@ -203,7 +213,7 @@ False merges, missed merges, identity swaps and GOSPA are for the 50 random scen
 | Rules are data | A pack (`packs/<function>-<name>/pack.def`) names fixed, specified tests and their parameters. A pack holds no code and no expressions. |
 | Every decision is traced | Every test is a trace record with its inputs, value, limit and result. `snapshot()` returns the whole state, including each track's filter. |
 | Engines check each other | Seven engines written apart must reproduce every vector: events, trace and final snapshot, numbers within a relative 1e-6. |
-| Standard library only | No engine or tool depends on a third-party package. |
+| Standard library only | No engine or tool depends on a third-party package. The runner, which connects the engines to the fabric, is the one exception and lists its crates in [`runner/THIRD-PARTY.md`](runner/THIRD-PARTY.md). |
 
 ## Layout
 
@@ -212,8 +222,36 @@ False merges, missed merges, identity swaps and GOSPA are for the 50 random scen
 | [`spec/`](spec/) | one specification per function, the shared [vector format](spec/vector-format.md), load vectors |
 | [`packs/`](packs/) | 24 rule packs, each with its `pack.def` and its scenario vectors (121 in all) |
 | [`engines/`](engines/) | one independent engine per language, each with its test runner |
-| [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), the performance harness (`perf/`), this README's generator (`readme/`) |
-| [`docs/`](docs/) | the benchmark results, the [performance](docs/performance.md) baseline and the figures, each written by a script |
+| [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), the performance harness (`perf/`), the research prototypes (`research/`), this README's generator (`readme/`) |
+| [`runner/`](runner/) | the runner: a service for Ubuntu 24.04 that runs a pipeline of the functions on the goat fabric, with its `.deb`, [install guide](runner/INSTALL.md) and [deploy contract](runner/DEPLOY-CONTRACT.md) |
+| [`docs/`](docs/) | the benchmark results, the [performance](docs/performance.md) baseline and the figures, each written by a script; the [methods survey](docs/research/correlation-and-fusion-methods.md) |
+
+## Working with AI agents
+
+An AI agent here is a program, usually driven by a language model, that reads
+data and acts through tools. The processors stay fast and exact, with no model
+inside the engines. The design connects agents at the edges, through the same
+doors a person uses, and gives every agent action the identity it acts for and
+an entry in a log.
+
+None of these interfaces is built yet. A row says Built only when its code and its tests are on main.
+
+| Interface | What it lets you build | Status |
+|---|---|---|
+| MCP server | Connect an AI assistant to a running runner over MCP (Model Context Protocol, the common way an assistant calls a program's tools): it can read tracks and quality marks and propose changes, with the authority of the person it acts for and no more | Designed |
+| Agent as a source | Have an agent publish tracks or notes on the goat fabric (the network the runner reads and publishes on) under its own name, marked as agent-derived with its model and inputs; the processors take them in like any other source | Designed |
+| Agent as an adjudicator | Let an agent or an analyst settle a hard case with a hint ("treat A and B as one object", "keep A and B apart") that the engines record and trace like any other input, so a replay stays exact | Designed |
+| Settings proposals and site auto-approval | Have an agent propose a pack or config change that a person approves, or that a site rule approves within set bounds once the benchmark passes; every change is logged and can be reverted in one step | Designed |
+| Audit log | See every agent call and action afterwards: who it acted for, which tool, a fingerprint (hash) of its inputs, and the result | Designed |
+| The "why?" explainer | Ask in plain words why two tracks were joined or kept apart, and get an answer in which every sentence cites the trace record it comes from | Designed |
+| Build-your-own guide | Build your own integration from one runnable example per interface (MCP, source, adjudicator, settings), each run in CI | Designed |
+
+Built: the code and its tests are on main. Written: the document exists. Designed: decided, not yet in the tree.
+
+The runner works with no agent at all, and in the design every agent feature
+stays optional. Each site declares which model its agent features may use, one
+on its own machines or one hosted by a provider, and the highest level of data
+that may be sent to it. The design document, `docs/design/agentic-ai.md`, is not written yet.
 
 ## Contributing
 

@@ -1,0 +1,410 @@
+package goat.fuse;
+
+import goat.trace.Fields;
+import goat.io.LoadError;
+import goat.io.Processor;
+import goat.model.Axis;
+import goat.model.Frame;
+import goat.model.KeyOrder;
+import goat.model.Report;
+import goat.model.TrackEstimate;
+import goat.snapshot.Snapshots;
+import goat.trace.Result;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.TreeMap;
+
+/**
+ * The fuse engine: load_pack, ingest, tick, snapshot (spec/fuse.md). The filter, the frame and
+ * the inverse-variance estimate are the correlate engine's own (correlate.md, Frame and Track
+ * estimate; correlate-assign.md, fused estimate), which fuse.md cites unchanged.
+ */
+public final class Fuse implements Processor {
+
+    /** One entity: its filter and its last normalized report. */
+    static final class Entity {
+        final String key, source;
+        long lastTime;
+        Axis east, north;
+        /** The last normalized report (Reports). Every later value fuse reads comes from here. */
+        Map<String, Object> report;
+        /** The `fuse.group` of the last accepted report, or null (Groups). */
+        String group;
+
+        Entity(String key, String source) {
+            this.key = key;
+            this.source = source;
+        }
+
+        Object hae() {
+            return report.get("hae");
+        }
+    }
+
+    /** A member's filter predicted to the tick time (On each tick, step 2.1). */
+    static final class Member {
+        final Entity e;
+        final Axis east, north;
+
+        Member(Entity e, Axis east, Axis north) {
+            this.e = e;
+            this.east = east;
+            this.north = north;
+        }
+
+        /** Kinematics: position variance `var = ppe + ppn`. */
+        double var() {
+            return east.pp + north.pp;
+        }
+    }
+
+    /** One group at a tick: its name (null for an unnamed group) and its members in key order. */
+    static final class Group {
+        final String name;
+        final List<Entity> members = new ArrayList<>();
+
+        Group(String name) {
+            this.name = name;
+        }
+    }
+
+    private final FusePack pack;
+    private Double lat0, lon0;
+    private final TreeMap<String, Entity> entities = new TreeMap<>(KeyOrder.KEY_ORDER);
+
+    public Fuse(FusePack pack) {
+        this.pack = pack;
+    }
+
+    public static Fuse load(java.nio.file.Path dir) throws LoadError {
+        return new Fuse(FusePack.load(dir));
+    }
+
+    public static Fuse fromText(String packDef) throws LoadError {
+        return new Fuse(FusePack.parse(packDef));
+    }
+
+    // ================================================================ ingest
+
+    @Override
+    public Result ingest(Map<String, Object> report) {
+        Result res = new Result();
+
+        // Reports: a missing required key rejects the report.
+        String missing = Report.missingKey(report);
+        if (missing != null) {
+            res.events.add(ev("reject", "reason", "missing:" + missing));
+            return res;
+        }
+        String source = (String) report.get("track.source_id");
+        String key = Report.entityKey(report);
+        long time = (Long) report.get("time_ms");
+
+        // Reports: a report earlier than its entity's last accepted report is ignored.
+        Entity a = entities.get(key);
+        if (a != null && time < a.lastTime) {
+            res.events.add(ev("stale-report", "entity", key, "time_ms", time, "last_time_ms", a.lastTime));
+            return res;
+        }
+
+        Map<String, Object> norm = normalize(report);
+
+        // correlate.md, Frame: the first accepted report sets the reference.
+        double lat = ((Number) norm.get("lat")).doubleValue();
+        double lon = ((Number) norm.get("lon")).doubleValue();
+        if (lat0 == null) {
+            lat0 = lat;
+            lon0 = lon;
+        }
+        double[] en = Frame.toPlane(lat0, lon0, lat, lon);
+
+        // correlate.md, Track estimate: measurements from the normalized report.
+        double ce = norm.containsKey("ce") ? ((Number) norm.get("ce")).doubleValue() : pack.defaultCe;
+        boolean hasVel = norm.containsKey("course") && norm.containsKey("speed_ms");
+        double ve = 0, vn = 0;
+        if (hasVel) {
+            double sp = ((Number) norm.get("speed_ms")).doubleValue();
+            double c = Frame.rad(((Number) norm.get("course")).doubleValue());
+            ve = sp * Math.sin(c);
+            vn = sp * Math.cos(c);
+        }
+
+        String group = (String) norm.get("fuse.group");
+        if (a == null) {
+            // First report.
+            a = new Entity(key, source);
+            double vv = hasVel ? pack.velSigma * pack.velSigma : pack.unknownVel * pack.unknownVel;
+            a.east = new Axis(en[0], ve, ce * ce, 0, vv);
+            a.north = new Axis(en[1], vn, ce * ce, 0, vv);
+            a.lastTime = time;
+            a.report = norm;
+            a.group = group;
+            entities.put(key, a);
+            res.events.add(ev("new", "entity", key, "group", group));
+            return res;
+        }
+
+        // Later reports: predict, position update, velocity update (dt may be 0).
+        double dt = (time - a.lastTime) / 1000.0;
+        Axis[] axes = {a.east, a.north};
+        double[] zv = {ve, vn};
+        for (int k = 0; k < 2; k++)
+            axes[k] = TrackEstimate.predictAndUpdate(axes[k], dt, pack.accelVar, en[k], ce * ce, hasVel, zv[k],
+                    pack.velSigma * pack.velSigma);
+        a.east = axes[0];
+        a.north = axes[1];
+        a.lastTime = time;
+        a.report = norm;
+
+        // Groups: a move is applied when the report is accepted, after the filter update.
+        if (!Objects.equals(a.group, group)) {
+            res.events.add(ev("move", "entity", key, "from", a.group, "to", group));
+            a.group = group;
+        }
+        return res;
+    }
+
+    /**
+     * Reports, the normalized report: every key removed that is null, or that correlate.md
+     * Reports treats as absent (an optional key of the wrong type, a ce of 0 or below), or an
+     * unusable `fuse.group` (not a string, or the empty string).
+     */
+    static Map<String, Object> normalize(Map<String, Object> report) {
+        Map<String, Object> n = Report.present(report);
+        Object g = n.get("fuse.group");
+        if (g != null && !(g instanceof String && !((String) g).isEmpty())) n.remove("fuse.group");
+        return n;
+    }
+
+    // ================================================================ tick
+
+    @Override
+    public Result tick(long now) {
+        Result res = new Result();
+
+        // Step 1, staleness, entities in key order.
+        for (Entity e : new ArrayList<>(entities.values())) {
+            Object reportStale = e.report.get("stale_ms");
+            boolean stale = now - e.lastTime > pack.staleMs
+                    || (reportStale != null && now >= (Long) reportStale);
+            if (stale) {
+                entities.remove(e.key);
+                res.events.add(ev("drop", "entity", e.key, "group", e.group));
+            }
+        }
+
+        // Step 2, fused output, groups in output order.
+        for (Group g : groupsInOutputOrder()) fuseGroup(g, now, res);
+        return res;
+    }
+
+    /**
+     * Groups, output order: named groups in byte order of their name, then the unnamed groups
+     * (one member each) in key order of that member. Members are in key order.
+     */
+    private List<Group> groupsInOutputOrder() {
+        TreeMap<String, Group> named = new TreeMap<>(KeyOrder.KEY_ORDER);
+        List<Group> unnamed = new ArrayList<>();
+        for (Entity e : entities.values()) {
+            if (e.group == null) {
+                Group g = new Group(null);
+                g.members.add(e);
+                unnamed.add(g);
+            } else {
+                named.computeIfAbsent(e.group, Group::new).members.add(e);
+            }
+        }
+        List<Group> out = new ArrayList<>(named.values());
+        out.addAll(unnamed);
+        return out;
+    }
+
+    /** On each tick, step 2, for one group. */
+    private void fuseGroup(Group g, long now, Result res) {
+        // 2.1 Predict every member's filter to now_ms.
+        List<Member> members = new ArrayList<>();
+        for (Entity e : g.members) {
+            double dt = (now - e.lastTime) / 1000.0;
+            Axis east = e.east.predict(dt, pack.accelVar), north = e.north.predict(dt, pack.accelVar);
+            members.add(new Member(e, east, north));
+        }
+
+        // 2.2 Combine by the pack's kinematics method.
+        Kinematics.Estimate est = Kinematics.TABLE.get(pack.kinematics).combine(g, members, this, res);
+        Axis[] fused = est.fused;
+        Member from = est.from;
+        res.trace.add(kinematicsRecord(g, members, from));
+
+        // 2.3 Decide every attribute, in pack order.
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        for (FusePack.Attribute at : pack.attributes) decideAttribute(g, at, attributes, res);
+
+        // 2.4 The fused event.
+        res.events.add(fusedEvent(g, fused, from, attributes));
+    }
+
+    // ================================================================ kinematics
+
+    /** Kinematics, rank: the index of the source among the pack's source lines, or null. */
+    private Long rank(Entity e) {
+        int i = pack.sources.indexOf(e.source);
+        return i < 0 ? null : (long) i;
+    }
+
+    /** Rank for comparison: an unlisted source ranks after every listed one. */
+    long rankOrder(Entity e) {
+        Long r = rank(e);
+        return r == null ? pack.sources.size() : r;
+    }
+
+    /** Trace 2, the kinematics record. */
+    private Map<String, Object> kinematicsRecord(Group g, List<Member> members, Member from) {
+        List<Object> cands = new ArrayList<>();
+        for (Member m : members)
+            cands.add(rec("member", m.e.key, "var", m.var(), "time_ms", m.e.lastTime, "rank", rank(m.e)));
+        return rec("stage", "kinematics", "group", g.name, "method", pack.kinematics,
+                "candidates", cands, "winner", from == null ? null : from.e.key);
+    }
+
+    // ================================================================ attributes
+
+    /** Attributes: decide one attribute line for a group; trace record 3. */
+    private void decideAttribute(Group g, FusePack.Attribute at, Map<String, Object> out, Result res) {
+        boolean numeric = at.rule.equals("max") || at.rule.equals("min");
+        List<Entity> cands = new ArrayList<>();
+        for (Entity e : g.members) {
+            Object v = e.report.get(at.key);
+            boolean usable = v instanceof Number || (!numeric && (v instanceof String || v instanceof Boolean));
+            if (usable) cands.add(e);
+        }
+
+        Entity win = cands.isEmpty() ? null : at.rule.equals("majority") ? majority(cands, at.key) : null;
+        if (!cands.isEmpty() && !at.rule.equals("majority")) {
+            for (Entity c : cands) {
+                if (win == null) { win = c; continue; }
+                boolean better;
+                switch (at.rule) {
+                    case "priority": better = rankOrder(c) < rankOrder(win); break;
+                    case "latest": better = c.lastTime > win.lastTime; break;
+                    case "max": better = compare(c.report.get(at.key), win.report.get(at.key)) > 0; break;
+                    case "min": better = compare(c.report.get(at.key), win.report.get(at.key)) < 0; break;
+                    default: throw new IllegalStateException(at.rule);
+                }
+                if (better) win = c;
+            }
+        }
+
+        List<Object> trace = new ArrayList<>();
+        for (Entity c : cands)
+            trace.add(rec("member", c.key, "value", c.report.get(at.key), "time_ms", c.lastTime, "rank", rank(c)));
+        Object value = win == null ? null : win.report.get(at.key);
+        res.trace.add(rec("stage", "attribute", "group", g.name, "key", at.key, "rule", at.rule,
+                "candidates", trace, "winner", win == null ? null : win.key, "value", value));
+        if (win != null) out.put(at.key, rec("value", value, "from", win.key));
+    }
+
+    /**
+     * `majority`: the value held by the most candidates; between equal counts, the value whose
+     * first holder in key order comes first. The winner is that first holder.
+     */
+    private static Entity majority(List<Entity> cands, String key) {
+        Entity win = null;
+        int best = 0;
+        for (int i = 0; i < cands.size(); i++) {
+            Object v = cands.get(i).report.get(key);
+            boolean firstHolder = true;
+            for (int j = 0; j < i; j++)
+                if (majorityEqual(cands.get(j).report.get(key), v)) { firstHolder = false; break; }
+            if (!firstHolder) continue;
+            int count = 0;
+            for (Entity c : cands) if (majorityEqual(c.report.get(key), v)) count++;
+            if (count > best) { best = count; win = cands.get(i); }
+        }
+        return win;
+    }
+
+    /** Attributes, equality for `majority`: same string bytes, same number value, same boolean. */
+    static boolean majorityEqual(Object x, Object y) {
+        if (x instanceof String && y instanceof String) return x.equals(y);
+        if (x instanceof Boolean && y instanceof Boolean) return x.equals(y);
+        if (x instanceof Number && y instanceof Number) return compare(x, y) == 0;
+        return false;
+    }
+
+    /** Numbers by value; two integers exactly, otherwise as binary64 (an open point above 2^53). */
+    static int compare(Object x, Object y) {
+        if (x instanceof Long && y instanceof Long) return Long.compare((Long) x, (Long) y);
+        double a = ((Number) x).doubleValue(), b = ((Number) y).doubleValue();
+        return a < b ? -1 : a > b ? 1 : 0;
+    }
+
+    // ================================================================ fused event
+
+    /** Fused event, with Height. */
+    private Map<String, Object> fusedEvent(Group g, Axis[] f, Member from, Map<String, Object> attributes) {
+        double[] ll = Frame.toDegrees(lat0, lon0, f[0].p, f[1].p);
+        double course = Frame.deg(Math.atan2(f[0].v, f[1].v));
+        if (course < 0) course += 360;
+        if (course >= 360) course -= 360;
+        List<Object> keys = new ArrayList<>();
+        for (Entity e : g.members) keys.add(e.key);
+
+        Map<String, Object> m = ev("fused", "group", g.name, "members", keys,
+                "from", from == null ? null : from.e.key,
+                "lat", ll[0], "lon", ll[1], "course", course,
+                "speed_ms", Math.hypot(f[0].v, f[1].v),
+                "ce", Math.sqrt((f[0].pp + f[1].pp) / 2));
+        Entity height = heightFrom(g, from);
+        if (height != null) {
+            m.put("hae", height.hae());
+            m.put("hae_from", height.key);
+        }
+        m.put("attributes", attributes);
+        return m;
+    }
+
+    /**
+     * Height: for best, priority, latest the member the kinematics came from, when it has hae;
+     * for inverse_variance and covariance_intersection the member with hae and the greatest
+     * last_time_ms, ties to key order.
+     */
+    private static Entity heightFrom(Group g, Member from) {
+        if (from != null) return from.e.hae() != null ? from.e : null;
+        Entity win = null;
+        for (Entity e : g.members)
+            if (e.hae() != null && (win == null || e.lastTime > win.lastTime)) win = e;
+        return win;
+    }
+
+    // ================================================================ snapshot
+
+    @Override
+    public Map<String, Object> snapshot() {
+        Map<String, Object> ents = new LinkedHashMap<>();
+        for (Entity e : entities.values()) {
+            Map<String, Object> filter = rec("east", e.east.toList(), "north", e.north.toList());
+            ents.put(e.key, rec("last_time_ms", e.lastTime, "group", e.group, "filter", filter,
+                    "report", new LinkedHashMap<>(e.report)));
+        }
+        return rec("ref", Snapshots.ref(lat0, lon0), "entities", ents);
+    }
+
+    // ================================================================ helpers
+
+    private static Map<String, Object> ev(String name, Object... kv) {
+        Map<String, Object> m = new Fields();
+        m.put("ev", name);
+        m.putAll(rec(kv));
+        return m;
+    }
+
+    private static Map<String, Object> rec(Object... kv) {
+        Map<String, Object> m = new Fields();
+        for (int k = 0; k < kv.length; k += 2) m.put((String) kv[k], kv[k + 1]);
+        return m;
+    }
+}

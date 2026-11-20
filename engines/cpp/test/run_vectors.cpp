@@ -1,19 +1,21 @@
-// Runs every correlate scenario vector (packs/correlate-*/vectors/*.json) and every load vector
-// (spec/correlate-load-vectors/*.json) with the comparison of spec/vector-format.md.
-// Usage: run_vectors [repo_root]
+// Runs every scenario vector of one function (packs/<fn>-*/vectors/*.json)
+// and every load vector of it (spec/<fn>-load-vectors/*.json) with the
+// comparison of spec/vector-format.md, printing PASS or FAIL per vector and,
+// for a failure, the path of the first mismatch.
+//
+// Built once per function (VECTOR_FUNCTION): run_vectors (correlate),
+// run_filter_vectors, run_fuse_vectors, run_quality_vectors.
+// Usage: <runner> [repo_root]
 
 #include <algorithm>
-#include <cmath>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
-#include <sstream>
 #include <string>
 #include <vector>
 
-#include "engine.hpp"
-#include "json.hpp"
-#include "pack.hpp"
+#include "io/function.hpp"
+#include "model/json.hpp"
+#include "model/pack_text.hpp"
 #include "vector_support.hpp"
 
 namespace fs = std::filesystem;
@@ -24,20 +26,22 @@ using vectors::read_file;
 
 namespace {
 
+const std::string kFunction = VECTOR_FUNCTION;
+
 // One scenario vector: each step's events and trace, then the snapshot.
 std::string run_scenario(const fs::path& root, const Json& v) {
-    corr::Engine engine(corr::load_pack((root / "packs" / v.find("pack")->string).string()));
+    auto engine = corr::io::load(kFunction, (root / "packs" / v.find("pack")->string).string());
     const auto& steps = v.find("steps")->array;
     for (size_t i = 0; i < steps.size(); ++i) {
         const Json& step = steps[i];
-        corr::Output out = step.has("ingest") ? engine.ingest(*step.find("ingest"))
-                                              : engine.tick(step.find("tick")->integer);
+        corr::Output out = step.has("ingest") ? engine->ingest(*step.find("ingest"))
+                                              : engine->tick(step.find("tick")->integer);
         std::string at = "steps[" + std::to_string(i) + "]";
         std::string m = mismatch(out.events, *step.find("expect"), at + ".expect");
         if (m.empty()) m = mismatch(out.trace, *step.find("trace"), at + ".trace");
         if (!m.empty()) return m;
     }
-    return mismatch(engine.snapshot(), *v.find("snapshot"), "snapshot");
+    return mismatch(engine->snapshot(), *v.find("snapshot"), "snapshot");
 }
 
 // One load vector: parsing must fail exactly when expect_error is true.
@@ -45,7 +49,7 @@ std::string run_load(const Json& v) {
     bool want_error = v.find("expect_error")->boolean;
     std::string error;
     try {
-        corr::parse_pack(v.find("pack_def")->string);
+        corr::io::parse(kFunction, v.find("pack_def")->string);
     } catch (const corr::PackError& e) {
         error = e.what();
     }
@@ -59,8 +63,14 @@ std::string run_load(const Json& v) {
 int main(int argc, char** argv) {
     fs::path root = argc > 1 ? fs::path(argv[1]) : fs::path(CORR_REPO_ROOT);
     int total = 0, failed = 0;
-    auto report = [&](const std::string& label, const std::string& m) {
+    auto report = [&](const std::string& label, const fs::path& file, auto&& check) {
         ++total;
+        std::string m;
+        try {
+            m = check(corr::parse_json(read_file(file)));
+        } catch (const std::exception& e) {
+            m = std::string("exception: ") + e.what();
+        }
         if (m.empty()) {
             std::cout << "PASS " << label << "\n";
         } else {
@@ -71,31 +81,16 @@ int main(int argc, char** argv) {
 
     std::vector<fs::path> packs;
     for (const auto& e : fs::directory_iterator(root / "packs"))
-        if (e.is_directory() && e.path().filename().string().rfind("correlate-", 0) == 0)
+        if (e.is_directory() && e.path().filename().string().rfind(kFunction + "-", 0) == 0)
             packs.push_back(e.path());
     std::sort(packs.begin(), packs.end());
-    for (const auto& pack : packs) {
-        for (const auto& f : json_files(pack / "vectors")) {
-            std::string label = "scenario " + pack.filename().string() + "/" + f.filename().string();
-            std::string m;
-            try {
-                m = run_scenario(root, corr::parse_json(read_file(f)));
-            } catch (const std::exception& e) {
-                m = std::string("exception: ") + e.what();
-            }
-            report(label, m);
-        }
-    }
-    for (const auto& f : json_files(root / "spec" / "correlate-load-vectors")) {
-        std::string m;
-        try {
-            m = run_load(corr::parse_json(read_file(f)));
-        } catch (const std::exception& e) {
-            m = std::string("exception: ") + e.what();
-        }
-        report("load " + f.filename().string(), m);
-    }
+    for (const auto& pack : packs)
+        for (const auto& f : json_files(pack / "vectors"))
+            report("scenario " + pack.filename().string() + "/" + f.filename().string(), f,
+                   [&](const Json& v) { return run_scenario(root, v); });
+    for (const auto& f : json_files(root / "spec" / (kFunction + "-load-vectors")))
+        report("load " + f.filename().string(), f, run_load);
 
-    std::cout << (total - failed) << "/" << total << " vectors pass\n";
+    std::cout << (total - failed) << "/" << total << " " << kFunction << " vectors pass\n";
     return failed == 0 && total > 0 ? 0 : 1;
 }
