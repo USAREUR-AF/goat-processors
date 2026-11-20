@@ -115,6 +115,16 @@ goat-processors doctor
 goat-processors doctor -o json | python3 -c 'import json,sys; f=json.load(sys.stdin); bad=[x for x in f if x["level"]!="ok"]; print(bad); sys.exit(1 if any(x["level"]=="fail" for x in bad) else 0)'
 python3 -c 'import json; s=json.load(open("/run/goat-processors/status.json")); c=s["counters"]; print(c); assert c["reports_in"] >= 24 and c["per_source"]["adsb"] >= 12 and s["fabric_routers"] == 1'
 
+say "the API and its verbs: read without sudo, change with sudo (root reads the token)"
+su -s /bin/sh nobody -c 'goat-processors status' | grep -q "ci at ci\|processors-1 at ci"
+su -s /bin/sh nobody -c 'goat-processors tracks' | grep -q "adsb/T1 radar-1/T1"
+goat-processors health
+if su -s /bin/sh nobody -c 'goat-processors stop' 2>/dev/null; then echo "a user without sudo stopped the service"; exit 1; fi
+goat-processors stop | grep -q paused
+if goat-processors health; then echo "health passed while stopped"; exit 1; fi
+goat-processors start | grep -q running
+goat-processors audit | grep -q '"path":"/v1/stop"'
+
 say "a key the service cannot read: doctor names it, install.sh repairs it"
 chgrp root /etc/goat-processors/tls/runner.key
 systemctl restart goat-processors

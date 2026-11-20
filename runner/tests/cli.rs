@@ -105,7 +105,7 @@ fn selftest_replays_every_vector() {
 fn doctor_reports_a_missing_service() {
     let d = tmp("doctor");
     let cfg = shipped_with("site-a", "tcp/127.0.0.1:1").replace("  tls:\n    root_ca: /etc/goat-processors/tls/ca.pem\n    certificate: /etc/goat-processors/tls/runner.pem\n    private_key: /etc/goat-processors/tls/runner.key\n", "")
-        + &format!("status_file: {}\n", d.join("status.json").display());
+        + &format!("status_file: {}\napi:\n  enabled: false\n", d.join("status.json").display());
     std::fs::write(d.join("r.yaml"), cfg).unwrap();
     let out = bin().args(["doctor", "-o", "json", "-c"]).arg(d.join("r.yaml")).output().unwrap();
     assert_eq!(out.status.code(), Some(1));
@@ -163,7 +163,7 @@ fn service_record_replays_to_the_same_output() {
     let d = tmp("service-file");
     let scen = scenario(&d);
     let cfg = format!(
-        "name: t\nsite: s\npacks_dir: {}\ntick_ms: 1000\nclock: input\ninputs:\n  file:\n    path: {}\n    speed: 0\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: fuse, pack: fuse-independent}}\n  - {{function: quality, pack: quality-feed}}\noutputs:\n  file:\n    path: {}\n    trace: true\nrecord:\n  path: {}\nstatus_file: {}\n",
+        "name: t\nsite: s\npacks_dir: {}\ntick_ms: 1000\nclock: input\ninputs:\n  file:\n    path: {}\n    speed: 0\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: fuse, pack: fuse-independent}}\n  - {{function: quality, pack: quality-feed}}\noutputs:\n  file:\n    path: {}\n    trace: true\nrecord:\n  path: {}\nstatus_file: {}\napi:\n  enabled: false\n",
         repo().join("packs").display(),
         scen.display(),
         d.join("out.jsonl").display(),
@@ -209,7 +209,7 @@ fn service_reads_and_publishes_on_the_fabric() {
     let got = z.declare_subscriber("data/processed/**").with(zenoh::handlers::FifoChannel::new(10_000)).wait().unwrap();
 
     let cfg = format!(
-        "name: t\nsite: s\npacks_dir: {}\ntick_ms: 200\nfabric:\n  mode: peer\n  connect: [\"tcp/127.0.0.1:{port}\"]\ninputs:\n  fabric:\n    keys: [\"data/entity/track/**\"]\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: quality, pack: quality-feed}}\noutputs:\n  fabric: {{}}\nstatus_file: {}\n",
+        "name: t\nsite: s\npacks_dir: {}\ntick_ms: 200\nfabric:\n  mode: peer\n  connect: [\"tcp/127.0.0.1:{port}\"]\ninputs:\n  fabric:\n    keys: [\"data/entity/track/**\"]\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: quality, pack: quality-feed}}\noutputs:\n  fabric: {{}}\nstatus_file: {}\napi:\n  enabled: false\n",
         repo().join("packs").display(),
         d.join("status.json").display()
     );

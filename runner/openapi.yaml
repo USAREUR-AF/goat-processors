@@ -1,0 +1,260 @@
+openapi: 3.1.0
+info:
+  title: goat-processors runner API
+  version: "1"
+  description: |
+    The runner's HTTP API. The local listener (api.listen, default
+    127.0.0.1:8470) is plain HTTP on the loopback interface. A caller that
+    shows the token from api.token_file (readable by root only) has the role
+    `operate`; any other local caller has the role `read`. The mesh listener
+    (api.mesh.listen) requires a client certificate signed by the site CA; the
+    role of each certificate's common name is set in api.mesh.allow, and a name
+    not listed is refused. Every change, and every refused request, is written
+    to the audit log (api.audit_file). Each CLI verb is one of these routes
+    (`goat-processors --help`). Errors are `{"error": text, "fix": text}`.
+servers:
+  - url: http://127.0.0.1:8470
+components:
+  securitySchemes:
+    localToken:
+      type: http
+      scheme: bearer
+      description: the content of api.token_file; gives the role operate on the local listener
+    meshCertificate:
+      type: mutualTLS
+      description: a client certificate whose common name is in api.mesh.allow
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: {type: string}
+        fix: {type: string}
+    Stage:
+      type: object
+      properties:
+        function: {type: string, enum: [filter, correlate, fuse, quality]}
+        pack: {type: string, description: the pack the stage runs now}
+        configured_pack: {type: string, description: the pack the config file names}
+        as_configured: {type: boolean}
+    Status:
+      type: object
+      description: also written to status_file after every tick (runner/DEPLOY-CONTRACT.md)
+      properties:
+        name: {type: string}
+        site: {type: string}
+        version: {type: string}
+        state: {type: string, enum: [running, paused]}
+        clock: {type: string, enum: [wall, input]}
+        tick_ms: {type: integer}
+        last_tick_ms: {type: [integer, "null"]}
+        pipeline: {type: array, items: {type: object}}
+        counters: {type: object}
+        output_prefix: {type: string}
+        fabric_routers: {type: [integer, "null"]}
+    Track:
+      type: object
+      description: one system track event of the latest tick (spec/correlate-assign.md Events, `system`; or spec/fuse.md `fused`)
+      additionalProperties: true
+  responses:
+    Error:
+      description: an error, with what to do
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+security:
+  - {}
+  - localToken: []
+  - meshCertificate: []
+paths:
+  /v1/status:
+    get:
+      summary: the service's state, pipeline and counters (role read; CLI status)
+      responses:
+        "200":
+          description: the status
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Status"}
+  /v1/health:
+    get:
+      summary: whether the service runs and ticks (role read; CLI health)
+      responses:
+        "200":
+          description: healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  healthy: {type: boolean}
+                  detail: {type: string}
+        "503":
+          description: not healthy (paused, no tick yet, or the last tick is older than 3 ticks and 2 s)
+  /v1/pipeline:
+    get:
+      summary: the running pipeline (role read; CLI pipeline)
+      responses:
+        "200":
+          description: one entry per stage, in order
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/Stage"}}
+  /v1/pipeline/{function}:
+    put:
+      summary: select the pack of one function (role operate; CLI pack use FUNCTION PACK)
+      description: |
+        The function's engine restarts empty on the new pack; the other stages
+        keep their state. The change is written to the record file, so a
+        replay of the record makes it at the same step. It lasts until the
+        service restarts; to keep it, edit the config file.
+      parameters:
+        - {name: function, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pack]
+              properties:
+                pack: {type: string, description: a pack directory name under packs_dir}
+      responses:
+        "200":
+          description: the pipeline after the change
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/Stage"}}
+        "400": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
+        "409":
+          description: the pack does not load, is not a pack of that function, or the function is not in the pipeline
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /v1/packs:
+    get:
+      summary: every installed pack (role read)
+      responses:
+        "200":
+          description: function and pack name of each
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    function: {type: string}
+                    pack: {type: string}
+  /v1/stop:
+    post:
+      summary: pause processing (role operate; CLI stop)
+      description: Reports that arrive while paused are counted (counters.dropped_paused) and dropped; no tick is made.
+      responses:
+        "200":
+          description: the status after the change
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Status"}
+        "403": {$ref: "#/components/responses/Error"}
+  /v1/start:
+    post:
+      summary: resume processing after a stop (role operate; CLI start)
+      responses:
+        "200":
+          description: the status after the change
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Status"}
+        "403": {$ref: "#/components/responses/Error"}
+  /v1/metrics:
+    get:
+      summary: reports per second, processing latency, counts per source (role read; CLI metrics)
+      responses:
+        "200":
+          description: |
+            reports_per_second over the last 10 s; processing_us (time to run
+            one report through every stage) and report_age_ms (wall clock
+            minus the report's time_ms at ingest, wall clock only) as p50,
+            p99, max and samples over the latest 2048 reports; the counters.
+          content:
+            application/json:
+              schema: {type: object}
+  /v1/tracks:
+    get:
+      summary: the system tracks of the latest tick that made tracks (role read; CLI tracks)
+      responses:
+        "200":
+          description: now_ms of that tick and its tracks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  now_ms: {type: [integer, "null"]}
+                  tracks: {type: array, items: {$ref: "#/components/schemas/Track"}}
+  /v1/explain/{track}:
+    get:
+      summary: the events and trace records behind one system track (role read; CLI explain TRACK)
+      description: |
+        Among the recent steps the service keeps (up to 200 000 trace
+        records), every event and trace record that names the track or one of
+        its members, each with its step, now_ms and stage. At most the latest
+        1000 of each; `truncated` says when more existed.
+      parameters:
+        - {name: track, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: the explanation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  track: {$ref: "#/components/schemas/Track"}
+                  names: {type: array, items: {type: string}}
+                  from_step: {type: [integer, "null"]}
+                  events: {type: array, items: {type: object}}
+                  trace: {type: array, items: {type: object}}
+                  truncated: {type: boolean}
+        "404": {$ref: "#/components/responses/Error"}
+  /v1/replay:
+    post:
+      summary: run a replay file through a separate copy of the configured pipeline (role read; CLI replay FILE --api)
+      description: The live pipeline is not touched. The body is a vector, JSON lines of reports, or JSON lines of steps (runner/README.md, Replay files), at most 16 MiB.
+      parameters:
+        - {name: trace, in: query, required: false, schema: {type: boolean}}
+      requestBody:
+        required: true
+        content:
+          application/x-ndjson:
+            schema: {type: string}
+      responses:
+        "200":
+          description: one JSON line per stage per step, as goat-processors replay prints
+          content:
+            application/x-ndjson:
+              schema: {type: string}
+        "400": {$ref: "#/components/responses/Error"}
+  /v1/audit:
+    get:
+      summary: the latest audit lines (role operate; CLI audit)
+      parameters:
+        - {name: limit, in: query, required: false, schema: {type: integer, default: 100, maximum: 10000}}
+      responses:
+        "200":
+          description: time_ms, who, via (local or mesh), role, method, path, body (when JSON and small), status
+          content:
+            application/json:
+              schema: {type: array, items: {type: object}}
+        "403": {$ref: "#/components/responses/Error"}
+  /v1/routes:
+    get:
+      summary: every route with the role it needs (role read)
+      responses:
+        "200":
+          description: method, path, role, does
+          content:
+            application/json:
+              schema: {type: array, items: {type: object}}

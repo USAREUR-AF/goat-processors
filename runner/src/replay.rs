@@ -5,7 +5,7 @@
 //! | Form | How it is read |
 //! |---|---|
 //! | a vector (one JSON object with `steps`) | its steps, in order; the pipeline is the vector's `pack` unless one is given |
-//! | JSON lines, each `{"ingest": <report>}` or `{"tick": <now_ms>}` | these steps, in order (the form `record` writes) |
+//! | JSON lines, each `{"ingest": <report>}`, `{"tick": <now_ms>}` or `{"pack": {"function", "pack"}}` | these steps, in order (the form `record` writes) |
 //! | JSON lines, each a report | each report, with ticks from the input clock |
 //!
 //! Blank lines and lines starting with `#` are skipped. The forms may be mixed
@@ -22,6 +22,8 @@ use crate::pipeline::{Output, Pipeline};
 pub enum Step {
     Ingest(Json),
     Tick(i64),
+    /// An operator selected another pack for one function (API, `pack use`).
+    Pack { function: String, pack: String },
 }
 
 impl Step {
@@ -30,6 +32,9 @@ impl Step {
         match self {
             Step::Ingest(r) => format!("{{\"ingest\":{r}}}"),
             Step::Tick(t) => format!("{{\"tick\":{t}}}"),
+            Step::Pack { function, pack } => {
+                format!("{{\"pack\":{{\"function\":{},\"pack\":{}}}}}", Json::Str(function.clone()), Json::Str(pack.clone()))
+            }
         }
     }
 }
@@ -80,6 +85,11 @@ fn step_of(v: &Json) -> Option<Step> {
     let m = v.as_object()?;
     if let Some(r) = m.get("ingest") {
         return Some(Step::Ingest(r.clone()));
+    }
+    if let Some(Json::Obj(p)) = m.get("pack") {
+        let function = p.get("function")?.as_str()?.to_string();
+        let pack = p.get("pack")?.as_str()?.to_string();
+        return Some(Step::Pack { function, pack });
     }
     if let Some(t) = m.get("tick") {
         return t.as_i64().map(Step::Tick).filter(|_| matches!(t, Json::Int(_)));
@@ -149,6 +159,7 @@ pub fn output_lines(step: usize, call: &Step, out: &Output, trace: bool) -> Vec<
                     m.insert("now_ms".into(), Json::Int(*t));
                     m.insert("call".into(), Json::Str("tick".into()))
                 }
+                Step::Pack { .. } => m.insert("call".into(), Json::Str("pack".into())),
             };
             m.insert("stage".into(), Json::Str(s.function.clone()));
             m.insert("events".into(), Json::Arr(s.events.clone()));
@@ -162,13 +173,26 @@ pub fn output_lines(step: usize, call: &Step, out: &Output, trace: bool) -> Vec<
 
 /// Runs a replay file through a pipeline. `on_line` gets every output line.
 /// With `tick_ms`, a file without ticks is ticked by the input clock.
-pub fn run(p: &mut Pipeline, file: &ReplayFile, tick_ms: i64, trace: bool, mut on_line: impl FnMut(String)) {
+pub fn run(p: &mut Pipeline, file: &ReplayFile, tick_ms: i64, packs_dir: &std::path::Path, trace: bool, mut on_line: impl FnMut(String)) {
     let mut clock = (!file.has_ticks).then(|| InputClock::new(tick_ms));
     let mut n = 0usize;
     let mut call = |p: &mut Pipeline, step: Step, on_line: &mut dyn FnMut(String)| {
         let out = match &step {
             Step::Ingest(r) => p.ingest(r),
             Step::Tick(t) => p.tick(*t),
+            Step::Pack { function, pack } => {
+                let mut m = BTreeMap::new();
+                m.insert("step".to_string(), Json::Int(n as i64));
+                m.insert("call".into(), Json::Str("pack".into()));
+                m.insert("stage".into(), Json::Str(function.clone()));
+                m.insert("pack".into(), Json::Str(pack.clone()));
+                if let Err(e) = p.use_pack(function, pack, packs_dir) {
+                    m.insert("error".into(), Json::Str(e));
+                }
+                on_line(Json::Obj(m).to_string());
+                n += 1;
+                return;
+            }
         };
         for l in output_lines(n, &step, &out, trace) {
             on_line(l);

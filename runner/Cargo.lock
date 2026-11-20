@@ -674,11 +674,14 @@ dependencies = [
 
 [[package]]
 name = "goat-processors"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "goat_correlator",
+ "rustls",
+ "rustls-pki-types",
  "serde",
  "serde_norway",
+ "x509-parser",
  "zenoh",
 ]
 

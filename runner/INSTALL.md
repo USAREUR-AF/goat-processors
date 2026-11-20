@@ -50,7 +50,7 @@ with SSH as a user who may use `sudo`.
 | the router's name and port | `router.site-a:7447` | the site's fabric administrator |
 | the site name to use | `site-a` | the site's fabric administrator |
 | three certificate files, PEM | `ca.pem`, `runner.pem`, `runner.key` | the site's certificate authority, issued for this runner |
-| the release version | `0.1.0` | the [releases page](https://github.com/USAREUR-AF/goat-processors/releases) (tags `runner-v…`) |
+| the release version | `0.2.0` | the [releases page](https://github.com/USAREUR-AF/goat-processors/releases) (tags `runner-v…`) |
 
 ## Two ways
 
@@ -97,24 +97,24 @@ machine is on.
 ## 2. Get the release
 
 Make a directory and download the five files of the release (replace
-`0.1.0` and `amd64` with yours). Keep this shell open until step 4: the
+`0.2.0` and `amd64` with yours). Keep this shell open until step 4: the
 names `V` and `A` set here are used in steps 3 and 4, and a new shell
 forgets them. In a new shell, type the `V=… A=…` line again first.
 
 ```
 $ mkdir ~/goat-processors && cd ~/goat-processors
-$ V=0.1.0 A=amd64
+$ V=0.2.0 A=amd64
 $ B=https://github.com/USAREUR-AF/goat-processors/releases/download/runner-v$V
 $ for f in goat-processors_${V}_$A.deb goat-processors_${V}_$A.deb.sigstore.json install.sh install-card.pdf SHA256SUMS; do curl -fLO $B/$f; done
 $ ls
-goat-processors_0.1.0_amd64.deb  goat-processors_0.1.0_amd64.deb.sigstore.json  install-card.pdf  install.sh  SHA256SUMS
+goat-processors_0.2.0_amd64.deb  goat-processors_0.2.0_amd64.deb.sigstore.json  install-card.pdf  install.sh  SHA256SUMS
 ```
 
 **If not:** if `curl` reports 404, check the version on the releases page.
 If the machine has no internet access, download the files on another
 computer and copy them over with `scp`. If the repository is private to
 you, download with the GitHub command-line tool on a computer where you are
-signed in: `gh release download runner-v0.1.0 -R USAREUR-AF/goat-processors`.
+signed in: `gh release download runner-v0.2.0 -R USAREUR-AF/goat-processors`.
 
 ## 3. Check the release signature
 
@@ -122,7 +122,7 @@ First the checksum: it proves the files are complete.
 
 ```
 $ sha256sum -c --ignore-missing SHA256SUMS
-goat-processors_0.1.0_amd64.deb: OK
+goat-processors_0.2.0_amd64.deb: OK
 install.sh: OK
 install-card.pdf: OK
 ```
@@ -155,7 +155,7 @@ $ sudo apt install ./goat-processors_${V}_$A.deb
 goat-processors: edit /etc/goat-processors/runner.yaml, then run
   sudo goat-processors config check && sudo systemctl enable --now goat-processors
 $ goat-processors version
-goat-processors 0.1.0
+goat-processors 0.2.0
 $ goat-processors selftest
 121 of 121 vectors under /usr/share/goat-processors/packs replay exactly
 ```
@@ -279,16 +279,36 @@ again.
 
 ## 9. See it work
 
-The runner's counters, rewritten every second:
+The runner's state, pipeline and counters:
 
 ```
-$ cat /run/goat-processors/status.json
+$ goat-processors status
+processors-1 at site-a: running (version 0.2.0, clock wall, tick 1000 ms)
+pipeline: correlate = correlate-assign-time, quality = quality-feed
+reports in 1840, passed 1840, ticks 95, published 2210, unreadable 0, dropped while stopped 0
+  adsb                     920
+  radar-1                  920
+output prefix data/processed/site-a/processors-1, fabric routers 1
 ```
 
-`reports_in` grows as reports arrive, `per_source` counts them by source,
-and `published` counts what the runner published. The system tracks are on
-the fabric under `data/processed/<site>/<name>/tracks/`. Any fabric tool at
-the site can subscribe to `data/processed/site-a/**` to see them.
+`reports in` grows as reports arrive, and the lines below it count them by
+source. The system tracks it publishes, as of the latest tick:
+
+```
+$ goat-processors tracks
+1 system tracks at now_ms 1795164251800
+id                 lat          lon   course    speed  members
+s1             1.00031      1.00000        0     11.0  adsb/T1 radar-1/T1
+```
+
+`members` are the source tracks the runner judged to be one object. To see
+why, with every test it ran: `goat-processors explain s1`. The same tracks
+are on the fabric under `data/processed/<site>/<name>/tracks/`; any fabric
+tool at the site can subscribe to `data/processed/site-a/**` to see them.
+
+These commands read; they need no `sudo`. The commands that change the
+running service (`pack use`, `stop`, `start`) need `sudo`. README.md,
+Operate, lists them all.
 
 To see the pipeline work without the fabric, replay a test case:
 

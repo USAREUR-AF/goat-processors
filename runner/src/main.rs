@@ -1,8 +1,10 @@
 //! goat-processors: the runner and its command line.
 
+mod api;
 mod config;
 mod doctor;
 mod fabric;
+mod http;
 mod pipeline;
 mod replay;
 mod selftest;
@@ -27,6 +29,21 @@ usage:
   goat-processors pack ls        [-c CONFIG | --packs-dir DIR] [-o json]
   goat-processors version
 
+The running service, through its API (each verb is one API route; -o json prints the API's reply):
+  goat-processors status                       state, pipeline and counters        GET  /v1/status
+  goat-processors health                       exit 0 when running and ticking     GET  /v1/health
+  goat-processors pipeline                     each function and its running pack  GET  /v1/pipeline
+  goat-processors pack use FUNCTION PACK       select a function's pack (sudo)     PUT  /v1/pipeline/FUNCTION
+  goat-processors stop                         pause processing (sudo)             POST /v1/stop
+  goat-processors start                        resume processing (sudo)            POST /v1/start
+  goat-processors metrics                      rate, latency, counts per source    GET  /v1/metrics
+  goat-processors tracks                       the system tracks of the last tick  GET  /v1/tracks
+  goat-processors explain TRACK                what led to one system track        GET  /v1/explain/TRACK
+  goat-processors replay FILE --api            run a file on a copy of the running pipeline  POST /v1/replay
+  goat-processors audit                        the latest audit lines (sudo)       GET  /v1/audit
+  options: [-c CONFIG] [--api HOST:PORT] [-o json]. The API address and the token file come from
+  CONFIG's api section. Changing anything needs the token, which only root can read: use sudo.
+
 CONFIG defaults to /etc/goat-processors/runner.yaml.";
 
 struct Args {
@@ -39,10 +56,12 @@ struct Args {
     trace: bool,
     snapshot: bool,
     out: Option<PathBuf>,
+    api: Option<String>,
+    use_api: bool,
 }
 
 fn parse_args(argv: Vec<String>) -> Result<Args, String> {
-    let mut a = Args { rest: vec![], config: None, output: None, packs: vec![], packs_dir: None, tick_ms: None, trace: false, snapshot: false, out: None };
+    let mut a = Args { rest: vec![], config: None, output: None, packs: vec![], packs_dir: None, tick_ms: None, trace: false, snapshot: false, out: None, api: None, use_api: false };
     let mut it = argv.into_iter();
     while let Some(x) = it.next() {
         let mut val = |name: &str| it.next().ok_or(format!("{name} needs a value"));
@@ -59,6 +78,15 @@ fn parse_args(argv: Vec<String>) -> Result<Args, String> {
             "--trace" => a.trace = true,
             "--snapshot" => a.snapshot = true,
             "--out" => a.out = Some(val(&x)?.into()),
+            "--api" => {
+                a.use_api = true;
+                // An address may follow: HOST:PORT.
+                if let Some(next) = it.clone().next() {
+                    if next.contains(':') && !next.starts_with('-') {
+                        a.api = it.next();
+                    }
+                }
+            }
             "-h" | "--help" => a.rest.push("help".into()),
             _ if x.starts_with('-') && x.len() > 1 => return Err(format!("unknown option {x}")),
             _ => a.rest.push(x),
@@ -90,9 +118,29 @@ fn main() -> ExitCode {
         ["config", "check"] => cmd_config_check(&a, None),
         ["config", "check", path] => cmd_config_check(&a, Some(path)),
         ["doctor"] => cmd_doctor(&a),
+        ["replay", file] if a.use_api => {
+            let body = std::fs::read(file).map_err(|e| format!("cannot read {file}: {e}"));
+            match body {
+                Ok(b) => api_verb(&a, "POST", format!("/v1/replay{}", if a.trace { "?trace=true" } else { "" }), Some(b), None),
+                Err(e) => Err(e),
+            }
+        }
         ["replay", file] => cmd_replay(&a, file),
         ["pack", "ls"] => cmd_pack_ls(&a),
         ["selftest"] => cmd_selftest(&a),
+        ["status"] => api_verb(&a, "GET", "/v1/status".into(), None, Some(show_status)),
+        ["health"] => api_verb(&a, "GET", "/v1/health".into(), None, Some(show_kv)),
+        ["pipeline"] => api_verb(&a, "GET", "/v1/pipeline".into(), None, Some(show_pipeline)),
+        ["pack", "use", function, pack] => {
+            let body = format!("{{\"pack\":{}}}", goat_correlator::json::Json::Str(pack.to_string()));
+            api_verb(&a, "PUT", format!("/v1/pipeline/{}", http::encode(function)), Some(body.into_bytes()), Some(show_pipeline))
+        }
+        ["stop"] => api_verb(&a, "POST", "/v1/stop".into(), None, Some(show_status)),
+        ["start"] => api_verb(&a, "POST", "/v1/start".into(), None, Some(show_status)),
+        ["metrics"] => api_verb(&a, "GET", "/v1/metrics".into(), None, Some(show_kv)),
+        ["tracks"] => api_verb(&a, "GET", "/v1/tracks".into(), None, Some(show_tracks)),
+        ["explain", track] => api_verb(&a, "GET", format!("/v1/explain/{}", http::encode(track)), None, Some(show_explain)),
+        ["audit"] => api_verb(&a, "GET", "/v1/audit".into(), None, Some(show_lines)),
         ["version"] | ["--version"] => {
             println!("goat-processors {}", env!("CARGO_PKG_VERSION"));
             Ok(ExitCode::SUCCESS)
@@ -197,7 +245,7 @@ fn cmd_replay(a: &Args, file: &str) -> Result<ExitCode, String> {
         None => Box::new(std::io::stdout().lock()),
     };
     let mut err = None;
-    replay::run(&mut p, &rf, tick_ms, a.trace, |line| {
+    replay::run(&mut p, &rf, tick_ms, &dir, a.trace, |line| {
         if err.is_none() {
             if let Err(e) = writeln!(sink, "{line}") {
                 err = Some(e);
@@ -282,4 +330,132 @@ fn cmd_selftest(a: &Args) -> Result<ExitCode, String> {
         return Err(format!("no vectors under {}; check --packs-dir", dir.display()));
     }
     Ok(if failed.is_empty() { ExitCode::SUCCESS } else { ExitCode::from(1) })
+}
+
+use goat_correlator::json::Json;
+
+/// The API address and the token, from the config when it can be read.
+fn api_target(a: &Args) -> (String, Option<String>) {
+    let c = config::load(&config_path(a)).ok();
+    let api = c.as_ref().map(|c| c.api.clone()).unwrap_or_default();
+    let addr = a.api.clone().unwrap_or(api.listen);
+    (addr, api::read_token(&api.token_file))
+}
+
+/// Calls one API route. `show` formats a success for a person; None prints the reply as it is.
+fn api_verb(a: &Args, method: &str, path: String, body: Option<Vec<u8>>, show: Option<fn(&Json) -> String>) -> Result<ExitCode, String> {
+    let (addr, token) = api_target(a);
+    let (status, raw) = http::call(&addr, method, &path, token.as_deref(), body.as_deref())?;
+    let text = String::from_utf8_lossy(&raw).to_string();
+    if a.output.as_deref() == Some("json") || show.is_none() {
+        print!("{text}");
+        if !text.ends_with('\n') {
+            println!();
+        }
+    } else if let Ok(v) = goat_correlator::json::parse(&text) {
+        if (200..300).contains(&status) {
+            print!("{}", show.map(|f| f(&v)).unwrap_or_default());
+        } else {
+            let field = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
+            if status == 503 && path == "/v1/health" {
+                print!("{}", show.map(|f| f(&v)).unwrap_or_default());
+            } else {
+                eprintln!("error: {} (HTTP {status})", field("error"));
+                if !field("fix").is_empty() {
+                    eprintln!("fix: {}", field("fix"));
+                }
+            }
+        }
+    }
+    Ok(if (200..300).contains(&status) { ExitCode::SUCCESS } else { ExitCode::from(1) })
+}
+
+fn s_of(v: &Json, k: &str) -> String {
+    match v.get(k) {
+        Some(Json::Str(s)) => s.clone(),
+        Some(Json::Null) | None => "-".into(),
+        Some(x) => x.to_string(),
+    }
+}
+
+fn show_kv(v: &Json) -> String {
+    let mut out = String::new();
+    if let Some(m) = v.as_object() {
+        for (k, x) in m {
+            out.push_str(&format!("{k:<20} {}\n", match x { Json::Str(s) => s.clone(), _ => x.to_string() }));
+        }
+    }
+    out
+}
+
+fn show_status(v: &Json) -> String {
+    let mut out = format!(
+        "{} at {}: {} (version {}, clock {}, tick {} ms)\n",
+        s_of(v, "name"), s_of(v, "site"), s_of(v, "state"), s_of(v, "version"), s_of(v, "clock"), s_of(v, "tick_ms")
+    );
+    if let Some(Json::Arr(p)) = v.get("pipeline") {
+        out.push_str(&format!("pipeline: {}\n", p.iter().map(|s| format!("{} = {}", s_of(s, "function"), s_of(s, "pack"))).collect::<Vec<_>>().join(", ")));
+    }
+    if let Some(c) = v.get("counters") {
+        out.push_str(&format!(
+            "reports in {}, passed {}, ticks {}, published {}, unreadable {}, dropped while stopped {}\n",
+            s_of(c, "reports_in"), s_of(c, "reports_out"), s_of(c, "ticks"), s_of(c, "published"), s_of(c, "unreadable"), s_of(c, "dropped_paused")
+        ));
+        if let Some(Json::Obj(ps)) = c.get("per_source") {
+            for (k, n) in ps {
+                out.push_str(&format!("  {k:<24} {n}\n"));
+            }
+        }
+    }
+    out.push_str(&format!("output prefix {}, fabric routers {}\n", s_of(v, "output_prefix"), s_of(v, "fabric_routers")));
+    out
+}
+
+fn show_pipeline(v: &Json) -> String {
+    let mut out = String::new();
+    for s in v.as_array().cloned().unwrap_or_default() {
+        let note = if matches!(s.get("as_configured"), Some(Json::Bool(false))) { format!("  (config file: {})", s_of(&s, "configured_pack")) } else { String::new() };
+        out.push_str(&format!("{:<10} {}{}\n", s_of(&s, "function"), s_of(&s, "pack"), note));
+    }
+    out
+}
+
+fn show_tracks(v: &Json) -> String {
+    let list = v.get("tracks").and_then(|t| t.as_array()).cloned().unwrap_or_default();
+    let mut out = format!("{} system tracks at now_ms {}\n", list.len(), s_of(v, "now_ms"));
+    if !list.is_empty() {
+        out.push_str(&format!("{:<10} {:>11} {:>12} {:>8} {:>8}  members\n", "id", "lat", "lon", "course", "speed"));
+    }
+    for t in list {
+        let id = t.get("system").or_else(|| t.get("group")).and_then(|x| x.as_str()).unwrap_or("-");
+        let num = |k: &str, d: usize| t.get(k).and_then(|x| x.as_f64()).map(|x| format!("{x:.d$}")).unwrap_or("-".into());
+        let members = t.get("members").and_then(|m| m.as_array()).map(|m| m.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>().join(" ")).unwrap_or_default();
+        out.push_str(&format!("{:<10} {:>11} {:>12} {:>8} {:>8}  {}\n", id, num("lat", 5), num("lon", 5), num("course", 0), num("speed_ms", 1), members));
+    }
+    out
+}
+
+fn show_explain(v: &Json) -> String {
+    let t = v.get("track").cloned().unwrap_or(Json::Null);
+    let id = t.get("system").or_else(|| t.get("group")).and_then(|x| x.as_str()).unwrap_or("-").to_string();
+    let mut out = format!("system track {id}: members {}\n", s_of(&t, "members"));
+    let events = v.get("events").and_then(|e| e.as_array()).cloned().unwrap_or_default();
+    let trace = v.get("trace").and_then(|e| e.as_array()).cloned().unwrap_or_default();
+    out.push_str(&format!("{} events and {} trace records name it or its members, from step {}\n\n", events.len(), trace.len(), s_of(v, "from_step")));
+    out.push_str("events (step, stage, event):\n");
+    for e in events.iter().rev().take(20).collect::<Vec<_>>().into_iter().rev() {
+        out.push_str(&format!("  {:>6} {:<9} {}\n", s_of(e, "step"), s_of(e, "stage"), e.get("event").map(|x| x.to_string()).unwrap_or_default()));
+    }
+    out.push_str("latest trace records (step, stage, record):\n");
+    for r in trace.iter().rev().take(20).collect::<Vec<_>>().into_iter().rev() {
+        out.push_str(&format!("  {:>6} {:<9} {}\n", s_of(r, "step"), s_of(r, "stage"), r.get("record").map(|x| x.to_string()).unwrap_or_default()));
+    }
+    if events.len() > 20 || trace.len() > 20 {
+        out.push_str("(the 20 latest of each; -o json gives all)\n");
+    }
+    out
+}
+
+fn show_lines(v: &Json) -> String {
+    v.as_array().cloned().unwrap_or_default().iter().map(|x| format!("{x}\n")).collect()
 }

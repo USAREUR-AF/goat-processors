@@ -158,6 +158,21 @@ which `tools/bench/bench.py report` writes. Pack names are explained in
 | [`runner/`](runner/) | the runner: a service for Ubuntu 24.04 that runs a pipeline of the functions on the goat fabric, with its `.deb`, [install guide](runner/INSTALL.md) and [deploy contract](runner/DEPLOY-CONTRACT.md) |
 | [`docs/`](docs/) | the benchmark results, the [performance](docs/performance.md) baseline and the figures, each written by a script; the [methods survey](docs/research/correlation-and-fusion-methods.md) |
 
+## Working with AI agents
+
+An AI agent here is a program, usually driven by a language model, that reads
+data and acts through tools. The processors stay fast and exact, with no model
+inside the engines. The design connects agents at the edges, through the same
+doors a person uses, and gives every agent action the identity it acts for and
+an entry in a log.
+
+{{agentic}}
+
+The runner works with no agent at all, and in the design every agent feature
+stays optional. Each site declares which model its agent features may use, one
+on its own machines or one hosted by a provider, and the highest level of data
+that may be sent to it. {{agentic_design}}
+
 ## Contributing
 
 [CONTRIBUTING.md](CONTRIBUTING.md) explains how to add a function, a pack or

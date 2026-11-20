@@ -289,6 +289,18 @@ fn service_checks(c: Option<&Config>) -> Vec<Finding> {
             out.push(f("service", Level::Warn, format!("{n} {why}"), format!("sudo journalctl -u {SERVICE} names the first ones")));
         }
     }
+    if c.api.enabled {
+        match crate::http::call(&c.api.listen, "GET", "/v1/health", None, None) {
+            Ok((200, _)) => out.push(f("api", Level::Ok, format!("the API answers on {}", c.api.listen), "")),
+            Ok((503, b)) => {
+                let detail = json::parse(&String::from_utf8_lossy(&b)).ok().and_then(|v| v.get("detail").and_then(|d| d.as_str()).map(str::to_string)).unwrap_or_default();
+                let fix = if detail.starts_with("paused") { "sudo goat-processors start".to_string() } else { format!("sudo journalctl -u {SERVICE} -n 50") };
+                out.push(f("api", Level::Fail, format!("the API says the service is not healthy: {detail}"), fix));
+            }
+            Ok((code, _)) => out.push(f("api", Level::Warn, format!("the API answered {code} on /v1/health"), format!("sudo journalctl -u {SERVICE} -n 50"))),
+            Err(e) => out.push(f("api", Level::Fail, format!("the API does not answer on {}: {e}", c.api.listen), format!("sudo systemctl restart {SERVICE}; sudo journalctl -u {SERVICE} -n 50"))),
+        }
+    }
     let pipeline_now: Vec<(String, String)> = match st.get("pipeline") {
         Some(Json::Arr(v)) => v.iter().filter_map(|s| Some((s.get("function")?.as_str()?.to_string(), s.get("pack")?.as_str()?.to_string()))).collect(),
         _ => vec![],

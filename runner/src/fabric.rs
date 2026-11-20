@@ -15,6 +15,10 @@ use crate::config::Fabric;
 pub enum Input {
     Reports(Vec<Json>),
     Unreadable { from: String, why: String },
+    /// A request from the API, answered by the service loop.
+    Api(crate::api::Call),
+    /// A file input has played to its end.
+    Ended,
 }
 
 /// The Zenoh config for a fabric section.

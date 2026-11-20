@@ -41,7 +41,9 @@ how to troubleshoot it.
 | `.deb` for Ubuntu 24.04, amd64 and arm64; systemd unit with its own user and hardening | Built in CI |
 | `install.sh` and [INSTALL.md](INSTALL.md) | Written. CI runs `install.sh` on a fresh Ubuntu 24.04 VM against a mutual-TLS router |
 | Signed release (cosign, keyless) | Written: `.github/workflows/runner-release.yml`, run by a tag `runner-v<version>` |
-| HTTP API, the rest of the CLI verbs (`status`, `tracks`, `explain`, `pack use`, `start`, `stop`) | Designed |
+| HTTP API ([openapi.yaml](openapi.yaml)): local with a root-only token, mesh with mutual TLS and an allow list; audit log | Built. Tested: every route, both roles, refusals audited, mTLS allow list |
+| CLI verbs on the API: `status`, `health`, `pipeline`, `pack use`, `stop`, `start`, `metrics`, `tracks`, `explain`, `replay --api`, `audit` | Built. Tested: each verb against a running service |
+| Agent interfaces (MCP server, model endpoint, agent as a source or adjudicator, settings proposals) | Not started; built on this API next |
 | Visual UI (Fieldkit Processors) | Designed |
 | Container image | Designed |
 
@@ -132,6 +134,13 @@ exits 1. The service runs the same check before it starts.
 | `outputs.file.trace` | no | `false` | include the trace in those lines |
 | `record.path` | no | | append every ingest and tick (replay format); under `/var/lib/goat-processors` |
 | `status_file` | no | `/run/goat-processors/status.json` | the status the service writes after each tick, read by `doctor` |
+| `api.enabled` | no | `true` | serve the API |
+| `api.listen` | no | `127.0.0.1:8470` | the local listener; a loopback address only (it is plain HTTP) |
+| `api.token_file` | no | `/run/goat-processors/api.token` | the token a local caller shows to change anything; the service writes a new one at each start, readable by root only |
+| `api.audit_file` | no | `/var/lib/goat-processors/audit.jsonl` | every change and every refused request, one JSON line each |
+| `api.mesh.listen` | no | | `<ip>:<port>` for callers on other hosts, over mutual TLS |
+| `api.mesh.tls` | no | the `fabric.tls` files | `root_ca` (signs callers' certificates), `certificate`, `private_key` |
+| `api.mesh.allow[]` | with `api.mesh` | | `{name: <certificate CN>, role: read or operate}`; a CN not listed is refused |
 
 The config check refuses an input key expression that also matches the output
 prefix, since the runner would then read what it publishes. It also refuses
@@ -152,8 +161,15 @@ identity by source priority.
 | apply an edited config | `sudo goat-processors config check && sudo systemctl restart goat-processors` |
 | is it healthy | `goat-processors doctor` (`-o json` for scripts) |
 | its log (needs `sudo`) | `sudo journalctl -u goat-processors -f` |
-| counters (reports in, per source, ticks) | `cat /run/goat-processors/status.json` |
+| state, pipeline, counters per source | `goat-processors status` |
+| is it running and ticking (exit 0 or 1) | `goat-processors health` |
+| reports per second, processing latency | `goat-processors metrics` |
+| the system tracks now | `goat-processors tracks` |
+| what led to one system track | `goat-processors explain <id>` (the id from `tracks`) |
 | list packs | `goat-processors pack ls` |
+| run another pack for one function, now | `sudo goat-processors pack use <function> <pack>` |
+| pause, and resume, processing | `sudo goat-processors stop`, `sudo goat-processors start` |
+| who changed what | `sudo goat-processors audit` |
 | check the program against its test cases | `goat-processors selftest` |
 | run a file through a pipeline, offline | `goat-processors replay FILE -c /etc/goat-processors/runner.yaml` |
 
@@ -199,6 +215,25 @@ only except `/var/lib/goat-processors` and `/run/goat-processors`, has no
 access to home directories or devices, and may open only network sockets.
 `systemd-analyze security goat-processors` lists every setting.
 
+## The API, and who may use it
+
+Every verb in the table above that reads or changes the running service is
+one route of the runner's HTTP API ([openapi.yaml](openapi.yaml) documents
+each). Programs call the API; people use the verbs, which print the same
+answer as a table, or as the API's JSON with `-o json`.
+
+| Caller | How it is identified | Role |
+|---|---|---|
+| a command on this host, run with `sudo` | it shows the token in `api.token_file`, which only root can read | `operate`: every route |
+| a command on this host, without `sudo` | no token | `read`: every route that changes nothing |
+| a program on another host | its client certificate, over mutual TLS on `api.mesh.listen` | the role `api.mesh.allow` gives its certificate's name; a name not listed is refused |
+
+`operate` adds `pack use`, `stop`, `start` and `audit`. Each change, and each
+refused request, is written to `api.audit_file` with who made it.
+`pack use` takes effect at once and is written to the record file, so a
+replay of the record makes the same change at the same step. It lasts until
+the service restarts; to keep it, write the pack in the config file.
+
 ## Troubleshoot
 
 Run `sudo goat-processors doctor` first (`sudo`, so that it can read the config and the certificates). Each line is `ok`, `warn` or `FAIL`, and
@@ -220,7 +255,9 @@ each FAIL is followed by its fix. Doctor changes nothing.
 | `service` FAIL: the status is old | the service is not ticking | `sudo systemctl restart goat-processors` |
 | `input` warn: no report read yet | nothing arrives on the input keys | compare `inputs.fabric.keys` with the keys the translators publish |
 | `service` warn: unreadable inputs | samples on the input keys are not reports | see the first ones with `sudo journalctl -u goat-processors`; correct the key expression or the publisher |
-| `service` warn: the running pipeline differs | the config was edited but not applied | `sudo systemctl restart goat-processors` |
+| `service` warn: the running pipeline differs | the config was edited but not applied, or an operator ran `pack use` | to keep the running packs, write them in the config; to return to the config, `sudo systemctl restart goat-processors` |
+| `api` FAIL: the API does not answer | the service is not running, or failed to open its API port | `sudo journalctl -u goat-processors -n 50`; another program may hold port 8470 (`api.listen`) |
+| `api` FAIL: not healthy: paused | an operator ran `goat-processors stop` | `sudo goat-processors start` |
 
 ## Build from source
 

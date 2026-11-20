@@ -167,6 +167,26 @@ impl Pipeline {
         out
     }
 
+    /// Replaces one function's engine with a fresh one on another pack. The
+    /// function's state starts empty; the other stages keep theirs. When the
+    /// function is correlate, the membership behind `fuse.group` starts empty too.
+    pub fn use_pack(&mut self, function: &str, pack: &str, packs_dir: &Path) -> Result<(), String> {
+        let i = self.stages.iter().position(|s| s.function == function).ok_or_else(|| format!("the pipeline has no {function} stage"))?;
+        if !pack.starts_with(&format!("{function}-")) {
+            return Err(format!("{pack:?} is not a {function} pack"));
+        }
+        if pack.contains('/') || pack.contains("..") {
+            return Err(format!("{pack:?} is not a pack name"));
+        }
+        let engine = load_stage(function, &packs_dir.join(pack))?;
+        self.stages[i] = Stage { function: function.to_string(), pack: pack.to_string(), engine };
+        if function == "correlate" {
+            self.membership.clear();
+            self.groups.clear();
+        }
+        Ok(())
+    }
+
     /// Every stage's snapshot, by function.
     pub fn snapshot(&self) -> Json {
         let mut m = BTreeMap::new();

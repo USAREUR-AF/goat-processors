@@ -3,7 +3,7 @@
 This is what a deployment tool (goatbuilder, processing lane, build target
 type `goat-processors`, host class) does to install a runner and to decide
 that the install worked. `install.sh` follows the same contract by hand.
-Status: Written, for release `runner-v0.1.0` and later `0.x` releases.
+Status: Written, for release `runner-v0.1.0` and later `0.x` releases. `runner-v0.2.0` adds the HTTP API (`runner/openapi.yaml`); every step below is unchanged.
 
 ## Inputs
 
@@ -50,6 +50,8 @@ changes nothing (step 6 restarts the service only when the config changed).
 | `goat-processors config check -o json` | `{"file", "valid", "problems": [string]}`; exit 1 when not valid |
 | `goat-processors doctor -o json` | `[{"check", "level": "ok"/"warn"/"fail", "detail", "fix"}]`; exit 1 when any `fail` |
 | `goat-processors selftest -o json` | `{"packs_dir", "vectors", "passed", "failed": [string]}`; exit 1 on any failure |
+| `GET http://127.0.0.1:8470/v1/health` (0.2.0 and later) | 200 `{"healthy": true}` when running and ticking; 503 with `detail` otherwise |
+| `goat-processors status -o json` (0.2.0 and later) | the same object as the status file, from the running service |
 | `/run/goat-processors/status.json` | `name`, `site`, `version`, `state`, `pipeline`, `counters` (`reports_in`, `reports_out`, `ticks`, `per_source`, `published`, `unreadable`, `output_errors`, `stopped`), `fabric_routers`, `last_tick_ms`, `written_ms` |
 
 ## What the runner publishes
