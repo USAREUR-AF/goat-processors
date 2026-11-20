@@ -67,3 +67,9 @@ target_link_libraries(run_quality_vectors PRIVATE quality)
 target_compile_definitions(run_quality_vectors PRIVATE CORR_REPO_ROOT="${CORR_REPO_ROOT}")
 target_compile_options(run_quality_vectors PRIVATE -Wall -Wextra)
 add_test(NAME quality_vectors COMMAND run_quality_vectors "${CORR_REPO_ROOT}")
+
+# tools/perf/README.md "Runner contract": the command-line runner
+# (runner/build, runner/run).
+add_executable(goat_runner runner/main.cpp)
+target_link_libraries(goat_runner PRIVATE correlator filter fuse quality)
+target_compile_options(goat_runner PRIVATE -Wall -Wextra ${CORR_FLOAT_FLAGS})
