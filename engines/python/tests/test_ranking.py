@@ -5,7 +5,7 @@ import itertools
 import random
 import unittest
 
-from goat_core.ranking import INF, assignment_total, min_cost_assignment, ranked_assignments
+from goat_core.ranking import INF, _first_assignment, assignment_total, min_cost_assignment, ranked_assignments
 
 
 def brute(matrix, c):
@@ -71,6 +71,22 @@ class Ranking(unittest.TestCase):
 
     def test_no_rows(self):
         self.assertEqual(ranked_assignments([], 0, 3), [[]])
+
+    def test_infeasible_and_first(self):
+        self.assertEqual(ranked_assignments([[INF]], 0, 2), [])
+        self.assertEqual(_first_assignment([[2.0, 1.0, 5.0]], 2), [1])
+
+    def test_dense_forbidden(self):
+        """Mostly forbidden entries: the bound meets rows with no column left."""
+        rng = random.Random(13)
+        for _ in range(300):
+            n, c = rng.randint(2, 5), rng.randint(1, 4)
+            m = [[INF if rng.random() < 0.6 else float(rng.randint(0, 9)) for _ in range(c)]
+                 + [rng.choice([3.0, 9.0]) if j == i else INF for j in range(n)] for i in range(n)]
+            want = brute(m, c)
+            got = ranked_assignments(m, c, 4)
+            self.assertEqual([(assignment_total(m, g), [j if j < c else c for j in g]) for g in got],
+                             [(w[0], w[1]) for w in want[:4]])
 
 
 if __name__ == "__main__":

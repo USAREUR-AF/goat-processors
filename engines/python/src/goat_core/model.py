@@ -17,22 +17,34 @@ OPTIONAL = MappingProxyType({"hae": "num", "ce": "num", "course": "num", "speed_
                              "time_state": "str"})
 
 
+def _is_str(v):
+    return isinstance(v, str)
+
+
+def _is_int(v):
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _is_num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+KIND_CHECK = MappingProxyType({"str": _is_str, "int": _is_int, "num": _is_num})
+_REQUIRED_CHECKS = tuple((k, KIND_CHECK[kind]) for k, kind in REQUIRED)
+_OPTIONAL_CHECKS = MappingProxyType({k: KIND_CHECK[kind] for k, kind in OPTIONAL.items()})
+
+
 def is_kind(v, kind):
     """Reports: a value of the kind "str", "int" or "num" (an int is a num;
     a boolean and null are neither)."""
-    if isinstance(v, bool) or v is None:
-        return False
-    if kind == "str":
-        return isinstance(v, str)
-    if kind == "int":
-        return isinstance(v, int)
-    return isinstance(v, (int, float))
+    return KIND_CHECK[kind](v)
 
 
 def missing_key(report):
     """Reports: the first required key that is missing, in the table's order, or None."""
-    for k, kind in REQUIRED:
-        if not is_kind(report.get(k), kind):
+    get = report.get
+    for k, check in _REQUIRED_CHECKS:
+        if not check(get(k)):
             return k
     return None
 
@@ -41,17 +53,20 @@ def normalize(report):
     """Reports: a copy without the null keys and the optional keys of the
     wrong type (and a ce of 0 or below, a bad time_error_ms or time_state)."""
     out = {}
+    checks = _OPTIONAL_CHECKS
     for k, v in report.items():
         if v is None:
             continue
-        if k in OPTIONAL and not is_kind(v, OPTIONAL[k]):
-            continue
-        if k == "ce" and v <= 0:
-            continue
-        if k == "time_error_ms" and (v < 0 or not math.isfinite(v)):
-            continue
-        if k == "time_state" and v not in TIME_STATES:
-            continue
+        check = checks.get(k)
+        if check is not None:
+            if not check(v):
+                continue
+            if k == "ce" and v <= 0:
+                continue
+            if k == "time_error_ms" and (v < 0 or not math.isfinite(v)):
+                continue
+            if k == "time_state" and v not in TIME_STATES:
+                continue
         out[k] = v
     return out
 

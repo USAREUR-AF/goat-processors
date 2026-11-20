@@ -53,8 +53,11 @@ def fuse_kinematics(group, method, candidates, winner):
             "candidates": candidates, "winner": winner}
 
 
-def fuse_candidate(member, var, time_ms, rank):
-    return {"member": member, "var": var, "time_ms": time_ms, "rank": rank}
+def fuse_candidates(ents, var, ranks):
+    """The candidates of a kinematics record: each member (an entity) with
+    its position variance var[key] and rank ranks.get(source)."""
+    return [{"member": e.key, "var": var[e.key], "time_ms": e.last_time_ms, "rank": ranks.get(e.source)}
+            for e in ents]
 
 
 def fuse_attribute(group, key, rule, candidates, winner, value):
@@ -63,8 +66,10 @@ def fuse_attribute(group, key, rule, candidates, winner, value):
             "candidates": candidates, "winner": winner, "value": value}
 
 
-def fuse_attribute_candidate(member, value, time_ms, rank):
-    return {"member": member, "value": value, "time_ms": time_ms, "rank": rank}
+def fuse_attribute_candidates(ents, key, ranks):
+    """The candidates of an attribute record: each member with its value of key."""
+    return [{"member": e.key, "value": e.report[key], "time_ms": e.last_time_ms, "rank": ranks.get(e.source)}
+            for e in ents]
 
 
 def quality_sample(entity, sample, value, inputs):

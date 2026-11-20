@@ -4,6 +4,8 @@ drop or alert. The per-entity filter is correlate's (estimate.py)."""
 
 import math
 import re
+from functools import partial, reduce
+from operator import add, is_not, itemgetter
 from types import MappingProxyType
 from typing import Callable, NamedTuple
 
@@ -198,13 +200,15 @@ class _Entity:
         self.east = None
         self.north = None
         self.window = []
+        self.version = 0   # changes with the window
+        self.known = None  # (version, window_measures of that version): a memo, not state
 
 
 def _mean(xs):
-    s = 0.0
-    for x in xs:
-        s += x
-    return s / len(xs)
+    """The sum from 0.0, left to right (reduce makes the same binary64
+    additions as the loop; the builtin sum does not: it compensates), over
+    the count."""
+    return reduce(add, xs, 0.0) / len(xs)
 
 
 def _median(xs):
@@ -226,22 +230,34 @@ def input_clock(entities, source):
     return clock, src_latest
 
 
-class Window:
-    """The samples of one entity's window, for its measures: `values(name)`
-    is the list of the samples' non-null `name`, in window order, built once."""
+_not_none = partial(is_not, None)
 
-    __slots__ = ("records", "age", "k", "_values")
+
+class Window:
+    """The samples of one entity's window, for its measures: `column(name)`
+    is every sample's `name` and `values(name)` the non-null ones, in window
+    order, each built once."""
+
+    __slots__ = ("records", "age", "k", "_values", "_columns")
 
     def __init__(self, records, age, k):
         self.records = records
         self.age = age
         self.k = k
         self._values = {}
+        self._columns = {}
+
+    def column(self, name):
+        xs = self._columns.get(name)
+        if xs is None:
+            xs = list(map(itemgetter(name), self.records))
+            self._columns[name] = xs
+        return xs
 
     def values(self, name):
         xs = self._values.get(name)
         if xs is None:
-            xs = [r[name] for r in self.records if r[name] is not None]
+            xs = list(filter(_not_none, self.column(name)))
             self._values[name] = xs
         return xs
 
@@ -256,9 +272,12 @@ class Window:
 class Measure(NamedTuple):
     """One entity measure: compute(window) gives its value (None when it has
     too few samples); `aggregate` (sum, mean, max or min) is how a source
-    combines it over its entities."""
+    combines it over its entities. `uses_age`: it reads the window's age
+    (the tick's time), not only its samples; the others are computed again
+    only when the window changes."""
     aggregate: str
     compute: Callable
+    uses_age: bool = False
 
 
 def _last(xs):
@@ -280,17 +299,17 @@ def _time_state(reduce):
     return compute
 
 
-def _count(pred):
-    """A measure that counts the window's samples for which pred holds."""
+def _count(name, value):
+    """A measure that counts the window's samples whose `name` is `value`."""
     def compute(w):
-        return sum(1 for x in w.records if pred(x))
+        return w.column(name).count(value)
     return compute
 
 
-def _fraction(pred):
-    """The fraction of the window's samples for which pred holds, with min_samples of them."""
+def _fraction(name, value):
+    """The fraction of the window's samples whose `name` is `value`, with min_samples of them."""
     def compute(w):
-        return sum(1 for x in w.records if pred(x)) / len(w.records) if len(w.records) >= w.k else None
+        return w.column(name).count(value) / len(w.records) if len(w.records) >= w.k else None
     return compute
 
 
@@ -301,7 +320,7 @@ MEASURES = MappingProxyType({
     "interval_last": Measure("mean", _windowed("interval", _last)),
     "interval_mean": Measure("mean", _windowed("interval", _mean)),
     "interval_max": Measure("max", _windowed("interval", max)),
-    "age": Measure("min", lambda w: w.age),
+    "age": Measure("min", lambda w: w.age, uses_age=True),
     "latency_mean": Measure("mean", _windowed("latency", _mean)),
     "latency_max": Measure("max", _windowed("latency", max)),
     "lateness_mean": Measure("mean", _windowed("lateness", _mean)),
@@ -309,17 +328,18 @@ MEASURES = MappingProxyType({
     "lateness_min": Measure("min", _windowed("lateness", min)),
     "nis_mean": Measure("mean", _windowed("nis", _mean)),
     "speed_err_mean": Measure("mean", _windowed("speed_err", _mean)),
-    "out_of_order": Measure("sum", _count(lambda x: x["order"] == "out-of-order")),
-    "duplicate": Measure("sum", _count(lambda x: x["order"] == "duplicate")),
-    "source_out_of_order": Measure("sum", _count(lambda x: x["source_out_of_order"])),
-    "missing_ce": Measure("mean", _fraction(lambda x: not x["ce"])),
-    "missing_vel": Measure("mean", _fraction(lambda x: not x["vel"])),
-    "missing_hae": Measure("mean", _fraction(lambda x: not x["hae"])),
+    # (order is a string, the flags are booleans, time_state a string or null)
+    "out_of_order": Measure("sum", _count("order", "out-of-order")),
+    "duplicate": Measure("sum", _count("order", "duplicate")),
+    "source_out_of_order": Measure("sum", _count("source_out_of_order", True)),
+    "missing_ce": Measure("mean", _fraction("ce", False)),
+    "missing_vel": Measure("mean", _fraction("vel", False)),
+    "missing_hae": Measure("mean", _fraction("hae", False)),
     "time_error_mean": Measure("mean", _windowed("time_error", _mean)),
     "time_error_max": Measure("max", _windowed("time_error", max)),
     "time_state_last": Measure("max", _time_state(_last)),
     "time_state_worst": Measure("max", _time_state(max)),
-    "missing_time": Measure("mean", _fraction(lambda x: x["time_state"] is None)),
+    "missing_time": Measure("mean", _fraction("time_state", None)),
 })
 
 
@@ -333,10 +353,20 @@ def extend_measures(measures, name, measure):
     return MappingProxyType(out)
 
 
-def entity_measures(measures, records, age, k):
-    """Entity measures of one entity's window `records`, with k = min_samples."""
+def entity_measures(measures, records, age, k, known=None):
+    """Entity measures of one entity's window `records`, with k = min_samples.
+    `known`: the values of the measures that do not use the age, from the
+    same records and k (window_measures), when the caller has them."""
     w = Window(records, age, k)
-    return {name: m.compute(w) for name, m in measures.items()}
+    if known is None:
+        return {name: m.compute(w) for name, m in measures.items()}
+    return {name: (m.compute(w) if m.uses_age else known[name]) for name, m in measures.items()}
+
+
+def window_measures(measures, records, k):
+    """The measures that do not use the age, of one window."""
+    w = Window(records, None, k)
+    return {name: m.compute(w) for name, m in measures.items() if not m.uses_age}
 
 
 def source_measures(measures, ms):
@@ -511,6 +541,7 @@ class Engine:
             ent.last_time_ms = t
             ent.last_pos = [e, n]
         ent.window.append(rec)
+        ent.version += 1
 
         # Actions on the forwarded report.
         applied, marks, factors, withheld = [], [], [], False
@@ -597,11 +628,23 @@ class Engine:
                 self._forget_subject("source", s, events)
         start = now_ms - self.pack.window_ms
         for ent in self.entities.values():
-            ent.window = [x for x in ent.window if x["wt"] > start]
+            # Window: the samples with wt above start. wt never decreases
+            # along a window (it is the entity's latest time), so they are a
+            # suffix: drop the prefix at or before start.
+            w = ent.window
+            i = 0
+            while i < len(w) and w[i]["wt"] <= start:
+                i += 1
+            if i:
+                ent.window = w[i:]
+                ent.version += 1
         by_source = {}
         for k in sorted(self.entities):
             ent = self.entities[k]
-            m = entity_measures(self.pack.measures, ent.window, now_ms - ent.last_time_ms, self.pack.min_samples)
+            if ent.known is None or ent.known[0] != ent.version:
+                ent.known = (ent.version, window_measures(self.pack.measures, ent.window, self.pack.min_samples))
+            m = entity_measures(self.pack.measures, ent.window, now_ms - ent.last_time_ms,
+                                self.pack.min_samples, ent.known[1])
             by_source.setdefault(ent.source, []).append(m)
             events.append({"ev": "quality", "scope": "entity", "subject": k, "measures": m})
             self._evaluate("entity", k, m, events, trace)

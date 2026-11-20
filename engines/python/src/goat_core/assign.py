@@ -82,6 +82,40 @@ class AssignEngine(Correlator):
         self.histories = [_History([])]
         self.reported = set()
         self.bias = {}
+        # During a tick no filter and (until the bias update) no bias
+        # changes: each prediction and pair test value is computed once per
+        # tick. None outside a tick. A memo, not state: never in snapshot().
+        self._memo = None
+
+    def _predict(self, ent, t):
+        memo = self._memo
+        if memo is None:
+            return Correlator._predict(self, ent, t)
+        key = ("p", ent.key, t)
+        pr = memo.get(key)
+        if pr is None:
+            pr = memo[key] = Correlator._predict(self, ent, t)
+        return pr
+
+    def _d2(self, a, b):
+        memo = self._memo
+        if memo is None:
+            return Correlator._d2(self, a, b)
+        key = ("d2", a.key, b.key)
+        v = memo.get(key)
+        if v is None:
+            v = memo[key] = Correlator._d2(self, a, b)
+        return v
+
+    def _dist(self, a, b):
+        memo = self._memo
+        if memo is None:
+            return Correlator._dist(self, a, b)
+        key = ("dist", a.key, b.key)
+        v = memo.get(key)
+        if v is None:
+            v = memo[key] = Correlator._dist(self, a, b)
+        return v
 
     def ingest(self, report):
         events, trace = [], []
@@ -202,6 +236,13 @@ class AssignEngine(Correlator):
         return h.records[-1].members if h.records else self.committed
 
     def tick(self, now_ms):
+        self._memo = {}
+        try:
+            return self._tick(now_ms)
+        finally:
+            self._memo = None
+
+    def _tick(self, now_ms):
         events, trace = [], []
         window, k_max = self.pack.window, self.pack.hypotheses
         multi = window > 1
@@ -288,6 +329,9 @@ class AssignEngine(Correlator):
                 ent.system = self.committed.system_of(key)
 
         if self.pack.bias is not None:
+            # the bias changes here: the pair values computed before it are
+            # not valid after it (predictions are)
+            self._memo = {k: v for k, v in self._memo.items() if k[0] == "p"}
             self._bias_update(now_ms, tick_rows, trace)
 
         # Output: committed system tracks (with a margin, the best history's

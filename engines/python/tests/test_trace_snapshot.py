@@ -30,6 +30,12 @@ class Trace(unittest.TestCase):
                          ["stage", "group", "method", "candidates", "winner"])
         self.assertEqual(list(trace.fuse_attribute("g", "k", "max", [], None, None)),
                          ["stage", "group", "key", "rule", "candidates", "winner", "value"])
+        class E:
+            key, source, last_time_ms, report = "m", "s", 5, {"k": 1}
+        self.assertEqual(list(trace.fuse_candidates([E()], {"m": 2.0}, {"s": 0})[0]),
+                         ["member", "var", "time_ms", "rank"])
+        self.assertEqual(trace.fuse_attribute_candidates([E()], "k", {})[0],
+                         {"member": "m", "value": 1, "time_ms": 5, "rank": None})
         self.assertEqual(list(trace.quality_sample("e", "nis", 1.0, [])),
                          ["stage", "entity", "sample", "value", "inputs"])
         self.assertEqual(list(trace.quality_rule("r", "s", "m", 1, 2, True, 0, False)),

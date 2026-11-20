@@ -119,8 +119,12 @@ def _group_of(report):
 def _usable(v, rule):
     """Attributes: a value the rule can use (a number; a string or boolean
     too unless the rule takes numbers only)."""
+    return _usable_value(v, ATTRIBUTE_RULES[rule].numbers_only)
+
+
+def _usable_value(v, numbers_only):
     if isinstance(v, (bool, str)):
-        return not ATTRIBUTE_RULES[rule].numbers_only
+        return not numbers_only
     return isinstance(v, (int, float))
 
 
@@ -307,6 +311,7 @@ class Engine:
         self.pack = pack
         self.ref = None
         self.entities = {}
+        self.ranks = {src: i for i, src in enumerate(pack.sources)}  # from the pack, not state
 
     def _to_plane(self, lat, lon):
         return to_plane(self.ref, lat, lon)
@@ -315,11 +320,11 @@ class Engine:
         return to_deg(self.ref, east, north)
 
     def _rank(self, ent):
-        s = self.pack.sources
-        return s.index(ent.source) if ent.source in s else None
+        """Pack: a source's rank is its line's place among the source lines."""
+        return self.ranks.get(ent.source)
 
     def _rank_key(self, ent):
-        r = self._rank(ent)
+        r = self.ranks.get(ent.source)
         return (len(self.pack.sources) if r is None else r, ent.key)
 
     # operations --------------------------------------------------------
@@ -377,17 +382,17 @@ class Engine:
         return [(g, named[g]) for g in sorted(named)] + alone
 
     def _attribute(self, g, members, key, rule, trace):
+        numbers_only = ATTRIBUTE_RULES[rule].numbers_only
         cands = []
+        entities = self.entities
         for m in members:
-            ent = self.entities[m]
+            ent = entities[m]
             v = ent.report.get(key)
-            if v is not None and _usable(v, rule):
+            if v is not None and _usable_value(v, numbers_only):
                 cands.append(ent)
         win = attribute_winner(cands, key, rule, self._rank_key)
         trace.append(_trace.fuse_attribute(
-            g, key, rule,
-            [_trace.fuse_attribute_candidate(e.key, e.report[key], e.last_time_ms, self._rank(e))
-             for e in cands],
+            g, key, rule, _trace.fuse_attribute_candidates(cands, key, self.ranks),
             win.key if win else None, win.report[key] if win else None))
         return win
 
@@ -416,7 +421,7 @@ class Engine:
                 trace.append(_trace.fuse_intersect(g, m, w))
             trace.append(_trace.fuse_kinematics(
                 g, method,
-                [_trace.fuse_candidate(e.key, var[e.key], e.last_time_ms, self._rank(e)) for e in ents],
+                _trace.fuse_candidates(ents, var, self.ranks),
                 src.key if src else None))
             east, north = est
             lat, lon = self._to_deg(east[0], north[0])

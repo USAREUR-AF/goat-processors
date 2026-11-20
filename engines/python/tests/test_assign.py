@@ -101,6 +101,17 @@ class Tracks(unittest.TestCase):
         _, trace = eng.ingest(rep("b", "1", 0, 48.0, 11.0))
         self.assertEqual(trace, [])  # time error 0: no record
 
+    def test_pair_values_outside_a_tick_and_distance_gate(self):
+        eng = correlate.make_engine(correlate.parse_pack(PACK + "gate distance max_m=5000\n"))
+        eng.ingest(rep("a", "1", 0, 48.0, 11.0))
+        eng.ingest(rep("b", "1", 0, 48.0001, 11.0))
+        a, b = eng.entities["a/1"], eng.entities["b/1"]
+        d2, dist = eng._d2(b, a), eng._dist(b, a)  # no tick: computed directly
+        events, trace = eng.tick(0)
+        self.assertIn(dist, [r["value"] for r in trace if r["test"] == "distance"])
+        self.assertIn(d2, [r["value"] for r in trace if r["test"] == "mahalanobis"])
+        self.assertIsNone(eng._memo)
+
     def test_pair_key(self):
         self.assertEqual(correlate.ConfirmEngine._pair("b", "a"), "a|b")
         self.assertEqual(correlate.ConfirmEngine._pair("a", "b"), "a|b")
