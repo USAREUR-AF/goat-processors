@@ -77,11 +77,45 @@ pub struct Agents {
     /// Which identities may call which MCP action tools.
     #[serde(default)]
     pub actions: Vec<ActionGrant>,
+    /// Proposals an identity may have applied without a person, within bounds,
+    /// once a gate passes.
+    #[serde(default)]
+    pub auto_approve: Vec<AutoApprove>,
+    /// Where pending and decided proposals are kept.
+    #[serde(default = "default_proposals_file")]
+    pub proposals_file: PathBuf,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AutoApprove {
+    /// The proposing identity.
+    pub who: String,
+    /// The function whose pack it may change.
+    pub function: String,
+    /// The packs it may select: the bounds.
+    pub packs: Vec<String>,
+    /// A command that must exit 0 before the change applies, for example
+    /// `[goat-processors, selftest]` or the site's benchmark gate. It runs
+    /// with the proposal in GOAT_PROPOSAL_FUNCTION and GOAT_PROPOSAL_PACK.
+    pub gate: Vec<String>,
+    /// Seconds the gate may run.
+    #[serde(default = "default_gate_s")]
+    pub gate_timeout_s: u64,
 }
 
 impl Default for Agents {
     fn default() -> Self {
-        Agents { mcp: true, data_levels: default_levels(), local_level: None, clients: vec![], endpoints: vec![], actions: vec![] }
+        Agents {
+            mcp: true,
+            data_levels: default_levels(),
+            local_level: None,
+            clients: vec![],
+            endpoints: vec![],
+            actions: vec![],
+            auto_approve: vec![],
+            proposals_file: default_proposals_file(),
+        }
     }
 }
 
@@ -339,6 +373,12 @@ fn default_mode() -> String {
 fn default_speed() -> f64 {
     1.0
 }
+fn default_proposals_file() -> PathBuf {
+    PathBuf::from("/var/lib/goat-processors/proposals.json")
+}
+fn default_gate_s() -> u64 {
+    600
+}
 fn default_levels() -> Vec<String> {
     vec!["public".into(), "site".into()]
 }
@@ -571,10 +611,23 @@ pub fn check(c: &Config) -> Vec<String> {
             p.push(format!("agents.endpoints[{i}].url: {:?} is not an http or https URL.", e.url));
         }
     }
+    for (i, r) in ag.auto_approve.iter().enumerate() {
+        if !FUNCTIONS.contains(&r.function.as_str()) {
+            p.push(format!("agents.auto_approve[{i}].function: {:?} is not a function. Use filter, correlate, fuse or quality.", r.function));
+        }
+        if r.gate.is_empty() {
+            p.push(format!("agents.auto_approve[{i}].gate: empty. Name the command that must pass, for example [goat-processors, selftest]."));
+        }
+        for pk in &r.packs {
+            if !pk.starts_with(&format!("{}-", r.function)) {
+                p.push(format!("agents.auto_approve[{i}].packs: {pk:?} is not a {} pack.", r.function));
+            }
+        }
+    }
     for (i, g) in ag.actions.iter().enumerate() {
         for a in &g.actions {
-            if !["use_pack", "stop", "start", "approve"].contains(&a.as_str()) {
-                p.push(format!("agents.actions[{i}].actions: {a:?} is not an action tool. Use use_pack, stop, start or approve."));
+            if !["use_pack", "stop", "start", "approve", "reject", "revert"].contains(&a.as_str()) {
+                p.push(format!("agents.actions[{i}].actions: {a:?} is not an action tool. Use use_pack, stop, start, approve, reject or revert."));
             }
         }
     }
