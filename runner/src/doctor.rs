@@ -310,7 +310,7 @@ pub fn to_json(findings: &[Finding]) -> Json {
             .iter()
             .map(|x| {
                 let mut m = BTreeMap::new();
-                m.insert("check".to_string(), Json::Str(x.check.clone()));
+                m.insert("check".into(), Json::Str(x.check.clone()));
                 m.insert("level".into(), Json::Str(x.level.name().to_lowercase()));
                 m.insert("detail".into(), Json::Str(x.detail.clone()));
                 m.insert("fix".into(), Json::Str(x.fix.clone()));

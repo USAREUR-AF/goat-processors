@@ -248,7 +248,7 @@ fn cmd_pack_ls(a: &Args) -> Result<ExitCode, String> {
             .iter()
             .map(|(f, n, u)| {
                 let mut m = std::collections::BTreeMap::new();
-                m.insert("function".to_string(), Json::Str(f.clone()));
+                m.insert("function".into(), Json::Str(f.clone()));
                 m.insert("pack".into(), Json::Str(n.clone()));
                 m.insert("in_use".into(), Json::Bool(*u));
                 Json::Obj(m)

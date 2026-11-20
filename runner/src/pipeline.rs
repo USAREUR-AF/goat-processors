@@ -171,7 +171,7 @@ impl Pipeline {
     pub fn snapshot(&self) -> Json {
         let mut m = BTreeMap::new();
         for s in &self.stages {
-            m.insert(s.function.clone(), s.engine.snapshot());
+            m.insert(s.function.clone().into(), s.engine.snapshot());
         }
         Json::Obj(m)
     }

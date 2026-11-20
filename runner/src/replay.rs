@@ -142,7 +142,7 @@ pub fn output_lines(step: usize, call: &Step, out: &Output, trace: bool) -> Vec<
         .iter()
         .map(|s| {
             let mut m = BTreeMap::new();
-            m.insert("step".to_string(), Json::Int(step as i64));
+            m.insert("step".into(), Json::Int(step as i64));
             match call {
                 Step::Ingest(_) => m.insert("call".into(), Json::Str("ingest".into())),
                 Step::Tick(t) => {

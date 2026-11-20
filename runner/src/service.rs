@@ -106,11 +106,11 @@ impl Sinks {
 
 fn line_obj(stage: &str, now: Option<i64>, list: Json, key: &str) -> Json {
     let mut m = BTreeMap::new();
-    m.insert("stage".to_string(), Json::Str(stage.into()));
+    m.insert("stage".into(), Json::Str(stage.into()));
     if let Some(t) = now {
         m.insert("now_ms".into(), Json::Int(t));
     }
-    m.insert(key.into(), list);
+    m.insert(key.to_string().into(), list);
     Json::Obj(m)
 }
 
@@ -164,7 +164,7 @@ fn spawn_file(path: &std::path::Path, speed: f64, tx: Sender<Input>) -> Result<(
 fn status(c: &Config, p: &Pipeline, started_ms: i64, sinks: &Sinks, unreadable: u64, fabric_routers: Option<usize>) -> Json {
     let mut m = BTreeMap::new();
     let s = |v: &str| Json::Str(v.into());
-    m.insert("name".to_string(), s(&c.name));
+    m.insert("name".into(), s(&c.name));
     m.insert("site".into(), s(&c.site));
     m.insert("version".into(), s(env!("CARGO_PKG_VERSION")));
     m.insert("state".into(), s("running"));
@@ -181,7 +181,7 @@ fn status(c: &Config, p: &Pipeline, started_ms: i64, sinks: &Sinks, unreadable: 
                 .iter()
                 .map(|st| {
                     let mut o = BTreeMap::new();
-                    o.insert("function".to_string(), s(&st.function));
+                    o.insert("function".into(), s(&st.function));
                     o.insert("pack".into(), s(&st.pack));
                     Json::Obj(o)
                 })
@@ -190,14 +190,14 @@ fn status(c: &Config, p: &Pipeline, started_ms: i64, sinks: &Sinks, unreadable: 
     );
     let k = &p.counters;
     let mut cnt = BTreeMap::new();
-    cnt.insert("reports_in".to_string(), Json::Int(k.reports_in as i64));
+    cnt.insert("reports_in".into(), Json::Int(k.reports_in as i64));
     cnt.insert("reports_out".into(), Json::Int(k.reports_out as i64));
     cnt.insert("ticks".into(), Json::Int(k.ticks as i64));
     cnt.insert("unreadable".into(), Json::Int(unreadable as i64));
     cnt.insert("published".into(), Json::Int(sinks.published as i64));
     cnt.insert("output_errors".into(), Json::Int(sinks.errors as i64));
-    cnt.insert("stopped".into(), Json::Obj(k.stopped.iter().map(|(a, b)| (a.clone(), Json::Int(*b as i64))).collect()));
-    cnt.insert("per_source".into(), Json::Obj(k.per_source.iter().map(|(a, b)| (a.clone(), Json::Int(*b as i64))).collect()));
+    cnt.insert("stopped".into(), Json::Obj(k.stopped.iter().map(|(a, b)| (a.clone().into(), Json::Int(*b as i64))).collect()));
+    cnt.insert("per_source".into(), Json::Obj(k.per_source.iter().map(|(a, b)| (a.clone().into(), Json::Int(*b as i64))).collect()));
     m.insert("counters".into(), Json::Obj(cnt));
     m.insert("output_prefix".into(), s(&sinks.prefix));
     m.insert("fabric_routers".into(), fabric_routers.map(|n| Json::Int(n as i64)).unwrap_or(Json::Null));
