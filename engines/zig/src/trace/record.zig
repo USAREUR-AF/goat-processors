@@ -38,12 +38,38 @@ pub fn toValue(x: anytype) json.Value {
     @compileError("unsupported value type " ++ @typeName(T));
 }
 
-// `fields` is a tuple of .{ name, value } pairs, kept in that order.
+// `fields` is a tuple of .{ name, value } pairs, kept in that order; the
+// names are known at compile time and different from each other.
+//
+// The entries are appended with their hashes computed at compile time,
+// instead of a `put` per field that hashes the name and looks for it; the
+// hash index is built only above the hash map's eight-entry linear scan, as
+// `put` would have built it.
 pub fn object(a: Allocator, fields: anytype) Allocator.Error!json.Value {
+    const Fields = @TypeOf(fields);
+    comptime {
+        const fs = @typeInfo(Fields).Struct.fields;
+        for (fs, 0..) |x, i| for (fs[0..i]) |y| {
+            if (std.mem.eql(u8, nameOf(x.type), nameOf(y.type))) @compileError("repeated field name " ++ nameOf(x.type));
+        };
+    }
     var m = json.ObjectMap.init(a);
-    try m.ensureTotalCapacity(fields.len);
-    inline for (fields) |kv| m.putAssumeCapacity(kv[0], toValue(kv[1]));
+    try m.unmanaged.entries.ensureTotalCapacity(a, fields.len);
+    inline for (fields) |kv| {
+        const name = comptime nameOf(@TypeOf(kv));
+        const h = comptime (std.array_hash_map.StringContext{}).hash(name);
+        m.unmanaged.entries.appendAssumeCapacity(.{ .key = name, .value = toValue(kv[1]), .hash = h });
+    }
+    if (fields.len > 8) try m.reIndex();
     return .{ .object = m };
+}
+
+// The name of a `.{ name, value }` pair: its first field, a string known at compile time.
+fn nameOf(comptime Pair: type) []const u8 {
+    const f = @typeInfo(Pair).Struct.fields[0];
+    if (!f.is_comptime) @compileError("a field name must be known at compile time");
+    const p: *const f.type = @ptrCast(@alignCast(f.default_value.?));
+    return p.*;
 }
 
 // `items` is a tuple of values, kept in that order.
@@ -66,6 +92,23 @@ pub fn floatList(a: Allocator, items: []const f64) Allocator.Error!json.Value {
     try arr.ensureTotalCapacity(items.len);
     for (items) |x| arr.appendAssumeCapacity(.{ .float = x });
     return .{ .array = arr };
+}
+
+test "objects built by append look up like objects built by put, above and below eight fields" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var small = (try object(a, .{ .{ "a", 1 }, .{ "b", 2 } })).object;
+    try std.testing.expectEqual(@as(i64, 2), small.get("b").?.integer);
+    try small.put("c", .{ .integer = 3 });
+    try small.put("a", .{ .integer = 9 });
+    try std.testing.expectEqual(@as(i64, 9), small.get("a").?.integer);
+    try std.testing.expectEqualStrings("a", small.keys()[0]);
+    var big = (try object(a, .{ .{ "k1", 1 }, .{ "k2", 2 }, .{ "k3", 3 }, .{ "k4", 4 }, .{ "k5", 5 }, .{ "k6", 6 }, .{ "k7", 7 }, .{ "k8", 8 }, .{ "k9", 9 }, .{ "k10", 10 } })).object;
+    for (big.keys(), 0..) |k, i| try std.testing.expectEqual(@as(i64, @intCast(i + 1)), big.get(k).?.integer);
+    try big.put("k11", .{ .integer = 11 });
+    try std.testing.expectEqual(@as(i64, 11), big.get("k11").?.integer);
+    try std.testing.expect(big.get("k12") == null);
 }
 
 test "object keeps field order and converts values" {
