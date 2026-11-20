@@ -17,13 +17,13 @@ say() { printf '\n### %s\n' "$*"; }
 say "certificates"
 cd "$certs"
 openssl ecparam -name prime256v1 -genkey -noout -out ca.key
-openssl req -x509 -new -key ca.key -sha256 -days 2 -subj "/CN=ci-ca" -out ca.pem \
+openssl req -x509 -new -key ca.key -sha256 -days 30 -subj "/CN=ci-ca" -out ca.pem \
   -addext basicConstraints=critical,CA:TRUE -addext keyUsage=critical,keyCertSign,cRLSign
 for who in router runner; do
   openssl ecparam -name prime256v1 -genkey -noout -out "$who.key"
   openssl req -new -key "$who.key" -subj "/CN=$who" -out "$who.csr"
   printf 'subjectAltName=DNS:localhost,IP:127.0.0.1\nextendedKeyUsage=serverAuth,clientAuth\nbasicConstraints=CA:FALSE\n' > "$who.ext"
-  openssl x509 -req -in "$who.csr" -CA ca.pem -CAkey ca.key -CAcreateserial -days 2 -sha256 -extfile "$who.ext" -out "$who.pem"
+  openssl x509 -req -in "$who.csr" -CA ca.pem -CAkey ca.key -CAcreateserial -days 30 -sha256 -extfile "$who.ext" -out "$who.pem"
 done
 chmod 0644 ./*.pem ./*.key
 cd - >/dev/null
@@ -79,7 +79,7 @@ kill $sse || true
 
 say "what the runner published"
 python3 - "$work/out.sse" <<'PY'
-import json, sys
+import base64, json, sys
 seen = {}
 joined = False
 for line in open(sys.argv[1]):
@@ -91,10 +91,14 @@ for line in open(sys.argv[1]):
         continue
     key, value = d.get("key", ""), d.get("value")
     if isinstance(value, str):
+        # The REST interface gives JSON as text, other encodings as base64.
         try:
             value = json.loads(value)
         except ValueError:
-            pass
+            try:
+                value = json.loads(base64.b64decode(value))
+            except ValueError:
+                pass
     kind = "/".join(key.split("/")[4:5])
     seen[kind] = seen.get(kind, 0) + 1
     if kind == "tracks" and isinstance(value, dict) and value.get("members") == ["adsb/T1", "radar-1/T1"]:

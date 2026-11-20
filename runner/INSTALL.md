@@ -46,7 +46,7 @@ with SSH as a user who may use `sudo`.
 ## Two ways
 
 - **Step by step**, below. You see and check each step.
-- **One script**, `install.sh`, which does steps 3 to 8 for you. It is
+- **One script**, `install.sh`, which does steps 1 to 8 for you on the machine (step 2 downloads the release when no `.deb` is next to it). It is
   idempotent: it can be run again at any time, and skips each step that is
   already done. It prints each step, stops at the first failure with the
   fix, and ends by running doctor:

@@ -219,8 +219,9 @@ fn service_reads_and_publishes_on_the_fabric() {
     // Two sources report one object near the wall clock, every 200 ms.
     let deadline = Instant::now() + Duration::from_secs(30);
     let mut keys = std::collections::BTreeSet::new();
+    let mut joined = false;
     let mut i = 0;
-    while Instant::now() < deadline && !(keys.iter().any(|k: &String| k.contains("/tracks/")) && keys.iter().any(|k| k.contains("/quality/"))) {
+    while Instant::now() < deadline && !(joined && keys.iter().any(|k: &String| k.contains("/quality/"))) {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
         for (src, dlat) in [("radar-1", 0.0), ("adsb", 0.0001)] {
             let r = format!("{{\"track.source_id\":\"{src}\",\"uid\":\"T1\",\"time_ms\":{now},\"lat\":{},\"lon\":1.0,\"ce\":30.0,\"type\":\"a-f-A\"}}", 1.0 + dlat + i as f64 * 1e-5);
@@ -229,12 +230,20 @@ fn service_reads_and_publishes_on_the_fabric() {
         i += 1;
         std::thread::sleep(Duration::from_millis(200));
         while let Ok(Some(s)) = got.try_recv() {
-            keys.insert(s.key_expr().as_str().to_string());
+            let key = s.key_expr().as_str().to_string();
+            if key.contains("/tracks/") {
+                let v = json::parse(&String::from_utf8_lossy(&s.payload().to_bytes())).unwrap();
+                joined |= v.get("members").map(|m| m.to_string()) == Some("[\"adsb/T1\",\"radar-1/T1\"]".into());
+                assert_eq!(s.encoding(), &zenoh::bytes::Encoding::APPLICATION_JSON);
+            }
+            keys.insert(key);
         }
     }
+    // One more tick, so the status file has counted every report.
+    std::thread::sleep(Duration::from_millis(500));
     child.kill().unwrap();
     child.wait().unwrap();
-    assert!(keys.iter().any(|k| k.starts_with("data/processed/s/t/tracks/")), "{keys:?}");
+    assert!(joined, "no system track joined the two sources: {keys:?}");
     assert!(keys.iter().any(|k| k.starts_with("data/processed/s/t/quality/entity/")), "{keys:?}");
     assert!(keys.contains("data/processed/s/t/events/correlate"), "{keys:?}");
     let st = json::parse(&std::fs::read_to_string(d.join("status.json")).unwrap()).unwrap();

@@ -77,7 +77,7 @@ impl Session {
     }
 
     pub fn put(&self, key: &str, value: &Json) -> Result<(), String> {
-        self.session.put(key, value.to_string()).wait().map_err(|e| format!("publish {key}: {e}"))
+        self.session.put(key, value.to_string()).encoding(zenoh::bytes::Encoding::APPLICATION_JSON).wait().map_err(|e| format!("publish {key}: {e}"))
     }
 }
 

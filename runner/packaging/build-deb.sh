@@ -3,10 +3,12 @@
 #   runner/packaging/build-deb.sh <arch: amd64|arm64> <path to the release binary> <output dir>
 # Run from the repository root. Needs dpkg-deb.
 set -eu
+umask 022
 arch=$1 bin=$2 out=$3
 case "$arch" in amd64|arm64) ;; *) echo "arch must be amd64 or arm64" >&2; exit 2 ;; esac
 version=$(sed -n 's/^version = "\(.*\)"/\1/p' runner/Cargo.toml | head -1)
 root=$(mktemp -d)
+chmod 0755 "$root"
 trap 'rm -rf "$root"' EXIT
 
 install -D -m 0755 "$bin" "$root/usr/bin/goat-processors"
