@@ -62,7 +62,7 @@ class Scenario(unittest.TestCase):
 
 
 class Runner(unittest.TestCase):
-    """run_python.py is the reference of the runner contract (README.md)."""
+    """run_python.py implements the runner contract (README.md)."""
 
     def run_on(self, function, vector_path, *extra):
         v = load_json(vector_path)

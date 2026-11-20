@@ -7,6 +7,17 @@ contribution keeps three things true: every engine passes every vector, every
 decision is in the trace, and every engine is written from the specification
 alone.
 
+The specification and the hand-stated decisions are the reference; every
+vector is computed by the Rust engine and accepted only when all seven
+engines agree. Each generator, `tools/make-<function>-vectors.py`, states its
+scenarios' decisions by hand, runs the Rust engine's runner
+(`engines/rust/runner/run`) to compute each vector, refuses a vector whose
+events break those decisions, and writes it only when every engine's runner
+gives the same events, trace and snapshot (`tools/consensus.py`, with the
+comparison of `spec/vector-format.md`). Load vectors state their expected
+result by hand; the generator writes them only when every engine's own vector
+test command passes.
+
 The words used below (pack, vector, trace record, track, tick) are defined in
 the README, [Words used here](README.md#words-used-here); the correlate methods
 and packs are in [Methods and packs](README.md#methods-and-packs).
@@ -15,7 +26,7 @@ and packs are in [Methods and packs](README.md#methods-and-packs).
 
 | Check | Command |
 |---|---|
-| your function's vectors are what its generator writes | `python3 -I tools/make-<function>-vectors.py && git diff --exit-code -- packs spec` |
+| your function's vectors are what its generator writes, and all seven engines agree on them | `python3 -I tools/make-<function>-vectors.py && git diff --exit-code -- packs spec` (needs the seven toolchains of the README's conformance table) |
 | the engines you changed pass every vector | the command for that engine in the README's conformance table |
 | the replay viewer still replays every vector | `python3 -I tools/explain/test_explain.py` |
 | the README and the figures are current | `python3 -I tools/readme/make-readme.py && python3 -I docs/figures/make-figures.py && git diff --exit-code` |
@@ -33,11 +44,11 @@ on every merge.
 | Step | Files |
 |---|---|
 | 1. Write the specification: operations, events, trace records, snapshot, pack grammar, load errors, and an open-points list | `spec/<function>.md`, one row in `spec/README.md` |
-| 2. Write the Python engine. It is the reference: its numbers go into the vectors | `engines/python/src/goat_<function>/`, a runner in `engines/python/tests/` that reads only `packs/<function>-*` |
-| 3. Write the scenarios, each with its decisions stated by hand. The generator runs the Python engine and refuses to write a vector whose events differ from the stated decisions | `tools/make-<function>-vectors.py` |
-| 4. Write the packs and generate the vectors and load vectors | `packs/<function>-<name>/pack.def`, `packs/<function>-<name>/vectors/`, `spec/<function>-load-vectors/` |
-| 5. Add one step to the `vectors-current` job | `.github/workflows/conformance.yml` |
-| 6. Build the six other engines from steps 1 and 4 only (see the clean-room rule) | a new module and a runner in each `engines/<language>/` |
+| 2. Write the scenarios, each with its decisions stated by hand, and the packs | `tools/make-<function>-vectors.py` (using `tools/consensus.py`), `packs/<function>-<name>/pack.def` |
+| 3. Build the Rust engine for the function from step 1, with its runner (the runner contract of `tools/perf/README.md`) | `engines/rust/` |
+| 4. Compute the vectors and load vectors with the Rust engine: `python3 -I tools/make-<function>-vectors.py --rust-only`. The generator refuses a vector whose events differ from the stated decisions | `packs/<function>-<name>/vectors/`, `spec/<function>-load-vectors/` |
+| 5. Build the six other engines from the specification, the packs and the vectors only (see the clean-room rule), each with its runner and its vector test | a new module, a runner and a test in each `engines/<language>/` |
+| 6. Run the generator without `--rust-only`: it writes a vector only when all seven engines agree, and prints each disagreement as engine, step, field, expected and got. Add one step to the `vectors-current` job | `.github/workflows/conformance.yml` |
 | 7. Register the Python module so the replay viewer can show the function step by step | the `ENGINES` table in `tools/explain/explain.py` |
 | 8. Regenerate the README and the figures | `python3 -I tools/readme/make-readme.py`, `python3 -I docs/figures/make-figures.py` |
 
@@ -51,6 +62,22 @@ A function follows the rules every function shares:
   snapshot.
 - Each engine's runner for a function reads only that function's packs,
   `packs/<function>-*`.
+
+## Continuous integration
+
+`.github/workflows/conformance.yml` runs on every pull request and every push
+to `main`:
+
+- `vectors-current` installs the Rust toolchain and runs every generator with
+  `--rust-only`: the Rust engine recomputes every vector, every hand-stated
+  decision is checked again, and the committed files must be byte-identical
+  to what the generators write.
+- One job per engine runs that engine's own test on every scenario vector and
+  every load vector, so all seven engines are checked against every vector.
+
+Together they repeat the consensus rule on every change: the vectors are what
+the Rust engine computes from the hand-stated scenarios, and every engine
+agrees with them.
 
 ## Add a pack
 
@@ -88,6 +115,7 @@ using only that language's standard library.
 
 Every engine is written from the specification and the vectors, so that
 seven engines agreeing is evidence that the specification is complete.
+No engine is the reference: a vector is accepted only when all seven agree.
 
 - An engine is written from `spec/`, the packs and the vectors only. Never read
   another engine's source or a vector generator while writing one.

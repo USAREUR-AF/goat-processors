@@ -166,6 +166,13 @@ def function_status():
     return out
 
 
+# The report keys the figure lists first, in the shared model's reading order
+# (identity, time, position, uncertainty); the rest follow sorted. Vector files
+# are written with sorted keys, so file order says nothing.
+REPORT_KEY_ORDER = ["track.source_id", "uid", "time_ms", "lat", "lon", "ce", "type", "track.simulated",
+                    "course", "speed_ms"]
+
+
 def report_keys():
     keys, sources = [], set()
     for v in vectors():
@@ -177,6 +184,8 @@ def report_keys():
                         keys.append(k)
                 if isinstance(r.get("track.source_id"), str):
                     sources.add(r["track.source_id"])
+    rank = {k: i for i, k in enumerate(REPORT_KEY_ORDER)}
+    keys.sort(key=lambda k: (rank.get(k, len(rank)), k))
     return keys, sorted(sources)
 
 
@@ -471,10 +480,11 @@ def fig_engines():
     title = "%s engines, written apart, must give the same answer on every vector" % words.get(len(present), len(present))
     f = SVG(W, 500, title,
             "%d scenario vectors (%d steps, %d trace records) and %d load vectors sit at the center. "
-            "each generator under tools/ states its decisions by hand and the Python engine computes the numbers; "
-            "the %s engines are written from the specification and the vectors alone and must reproduce every "
-            "event, trace record and final snapshot." % (len(vs), steps, traces, loads,
-                                                        ", ".join(name for _, name in present[1:])))
+            "The specification and the decisions each generator under tools/ states by hand are the reference; "
+            "the Rust engine computes every vector, and a vector is accepted only when all %s engines (%s) agree. "
+            "Each engine is written from the specification and the vectors alone and must reproduce every "
+            "event, trace record and final snapshot." % (len(vs), steps, traces, loads, words.get(len(present), len(present)).lower(),
+                                                        ", ".join(name for _, name in present)))
     header(f, title, "Each engine reads the specification and the vectors only. A disagreement is filed, not patched.")
     cx, cy = W / 2, 274
     w, h = 236, 124
@@ -488,7 +498,7 @@ def fig_engines():
     for i, (k, name) in enumerate(present):
         ang = -math.pi / 2 + 2 * math.pi * i / len(present)
         x, y = cx + rx * math.cos(ang), cy + ry * math.sin(ang)
-        ref = i == 0
+        ref = k == "rust"  # computes the vectors (tools/consensus.py); all engines check them
         f.rect(x - bw / 2, y - bh / 2, bw, bh, fill="good_bg" if ref else "panel", stroke="good" if ref else "rule", sw=1.5)
         f.text(x, y - 5, name, 15, anchor="middle", bold=True)
         f.text(x, y + 16, "engines/" + k, 13, anchor="middle", fill="quiet", mono=True)
@@ -502,9 +512,9 @@ def fig_engines():
             f.line(p0[0], p0[1], p1[0], p1[1], sw=1.5, arrow=True)
     ky = 474
     f.rect(24, ky - 14, 18, 18, fill="good_bg", stroke="good", rx=4)
-    f.text(50, ky, "reference: writes the vectors' numbers", 14)
+    f.text(50, ky, "computes each vector's numbers", 14)
     f.line(386, ky - 5, 414, ky - 5, sw=1.5, arrow=True)
-    f.text(424, ky, "checks: must reproduce each one, numbers within 1e-6", 14)
+    f.text(424, ky, "checks: all must agree, numbers within 1e-6", 14)
     return f
 
 

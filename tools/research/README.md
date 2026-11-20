@@ -6,7 +6,7 @@ results and the decisions are in
 [docs/research/correlation-and-fusion-methods.md](../../docs/research/correlation-and-fusion-methods.md).
 
 A prototype is evidence, not an engine. It is a subclass of the Python
-reference engine and changes only what its method needs; the engine is not
+engine and changes only what its method needs; the engine is not
 edited. An adopted method reaches the seven engines only through a spec and
 vectors.
 

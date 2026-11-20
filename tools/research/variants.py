@@ -1,6 +1,6 @@
 """Prototype methods for the research harness (README.md).
 
-Each prototype is a subclass of the Python reference engine of
+Each prototype is a subclass of the Python engine of
 engines/python. It changes only what the method needs and leaves the engine
 itself untouched. A prototype is evidence for a decision, not an engine: an
 ADOPTED method reaches the engines only through a spec and vectors.
@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(ROOT, "engines", "python", "src"))
 from goat_correlator.engine import AssignEngine as _AssignEngine, Engine as _Engine  # noqa: E402
 
 
-# The reference engines, taking the options a prototype passes down the chain.
+# The Python engine's classes, taking the options a prototype passes down the chain.
 class AssignEngine(_AssignEngine):
     def __init__(self, pack, **opt):
         super().__init__(pack)
@@ -249,7 +249,7 @@ class FastCiAssign(FastCiMixin, AssignEngine):
 
 
 # ---------------------------------------------------------------------------
-# The registry. A variant without an engine class runs the reference engine.
+# The registry. A variant without an engine class runs the Python engine unchanged.
 
 VARIANTS = {
     # Baselines: the packs as they are on main.

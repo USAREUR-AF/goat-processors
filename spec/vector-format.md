@@ -42,7 +42,12 @@ is false. The error text is not compared.
 
 ## Writing vectors
 
-`tools/make-vectors.py` holds every scenario with its association decisions
-stated by hand, runs the Python engine, and refuses to write a vector whose
-events differ from those decisions. The numbers in a vector come from that
-engine; the other engines check them independently.
+The specification and the hand-stated decisions are the reference; every
+vector is computed by the Rust engine and accepted only when all seven
+engines agree. `tools/make-vectors.py` (and `tools/make-<function>-vectors.py`
+for the other functions) holds every scenario with its decisions stated by
+hand, computes the vector with the Rust engine's runner, refuses a vector
+whose events differ from those decisions, and writes it only when every
+engine's runner gives the same events, trace and snapshot under the
+comparison above (`tools/consensus.py`). A generated vector is written with
+its object keys sorted.
