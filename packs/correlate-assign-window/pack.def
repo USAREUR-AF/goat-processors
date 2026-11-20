@@ -3,9 +3,11 @@
 # system track when it is within the 99 % region of the system track's fused
 # estimate (cost below new_cost = 9.21, chi-square 2 degrees of freedom), and
 # passes the gate against every member. keep_bonus favors the current choice.
-# Stale after 5 times the source's median update interval (last 9), within
-# 5 s and 60 s: five missed updates in a row at a detection probability of
-# 0.5 happen about 3 % of the time.
+# Stale after 120 s without a report (the fixed form of staleness): ten times
+# the slowest update period this pack expects (12 s); ten missed updates in a
+# row at a detection probability of 0.5 happen about 0.1 % of the time.
+# (Staleness from each source's rate, stale_rate, measured worse for this pack
+# on the benchmark, in time to associate, so it is not used here.)
 pack        correlate-assign-window
 version     1.0.0
 method      assign
@@ -15,6 +17,6 @@ gate        same key=track.simulated
 gate        same key=@env
 new_cost    9.21
 keep_bonus  2
-stale_rate  factor=5 floor_ms=5000 ceiling_ms=60000 samples=9
+stale_ms    120000
 window      2
 hypotheses  3

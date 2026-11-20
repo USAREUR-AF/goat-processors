@@ -449,11 +449,6 @@
   "reported": [
    "radar-1/T1"
   ],
-  "intervals": {
-   "adsb": [
-    100000
-   ]
-  },
   "retiring": [],
   "histories": [
    {

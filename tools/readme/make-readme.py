@@ -85,8 +85,14 @@ PACKS = {
     "gnn-time": ("gnn", "as gnn, widening the uncertainty of a source whose clock is known to be off (radar-1, 500 ms); "
                  "no benchmark scenario has a source named radar-1, so there it scores exactly as gnn",
                  "time quality: a clock error becomes position uncertainty"),
-    "window": ("gnn", "pairs two tracks whose distance is under a fixed window that grows with both tracks' reported error",
-               "a distance window in place of the statistical gate, which tolerates a sensor with a fixed position bias"),
+    "gnn-priority": ("gnn", "as gnn, reporting each output track from its highest-priority source (radar-1 before ais)",
+                     "a source-priority output in place of the fused estimate"),
+    "gnn-state": ("gnn", "as gnn, with one chi-square test on position, velocity and height together in place of the "
+                  "course, speed and height tests", "the full-state track-to-track statistic"),
+    "sprt": (None, "pairs two tracks once the evidence that they are one object, added up report by report, passes a "
+             "bound set by 1 % false and 1 % missed pairings, and releases them below the lower bound; tracks go stale "
+             "after five times their source's usual update interval; the output combines the members by their uncertainty",
+             "the sequential likelihood-ratio test (Wald) in place of two passes in a row and a hold"),
     "distance": ("gnn", "pairs two tracks closer than 200 m, for feeds that report no error; tracks of one source may pair; "
                  "the output follows the latest report", "plain distance, for sources with no error estimate"),
     "assign": (None, "at each tick, places each source's tracks into one output track per object by the least total cost, "
@@ -98,8 +104,8 @@ PACKS = {
                       "a multi-frame window"),
     "assign-bias": ("assign-imm", "as assign-imm, estimating a position offset for each pair of sensors",
                     "sensor bias estimation, so a sensor off by a few hundred meters still joins"),
-    "assign-full": ("assign-bias", "as assign-bias, with filter restart, the two-tick window with a margin, and a 20 s "
-                    "stale time", "every option of assign 0.5 together"),
+    "assign-full": ("assign-bias", "as assign-bias, with filter restart, the two-tick window with a margin, and a stale "
+                    "time from each source's update interval", "every option of assign 0.5 together"),
     "assign-time": ("assign-full", "as assign-full, also fitting a clock offset for each pair of sources",
                     "clock offset: a lag along the track that grows with speed is read as a clock error, not a position bias"),
 }
@@ -110,8 +116,14 @@ def correlate_pack_dirs():
 
 
 def bench_results():
+    """The bench results, limited to the packs that still exist (a retired
+    pack keeps its scores in results.json until the bench reruns)."""
     p = rel("docs", "figures", "bench", "results.json")
-    return json.load(open(p, encoding="utf-8")) if os.path.isfile(p) else None
+    if not os.path.isfile(p):
+        return None
+    d = json.load(open(p, encoding="utf-8"))
+    d["packs"] = [k for k in d["packs"] if os.path.isdir(rel("packs", k))]
+    return d
 
 
 def default_pack(d):

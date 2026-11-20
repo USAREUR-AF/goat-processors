@@ -345,11 +345,6 @@
   "reported": [
    "adsb/A7"
   ],
-  "intervals": {
-   "adsb": [
-    2000
-   ]
-  },
   "retiring": [],
   "histories": [
    {

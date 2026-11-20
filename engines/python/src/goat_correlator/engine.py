@@ -392,6 +392,7 @@ class _Entity:
         self.r_meas = None  # per-axis measurement variance of the last report
         self.t_var = (0.0, 0.0)  # per-axis timing variance of the last report
         self.time_err = 0.0      # time error of the last report, ms
+        self.env = None          # the @env key of the last report
 
     def ce(self, pack):
         v = self.report.get("ce")
@@ -429,6 +430,16 @@ class Engine:
         self.intervals = {}
         self._memo = {}
         self.next_group = 1
+        sp = pack.sprt
+        self._sk = None
+        if sp is not None:
+            # correlate.md, Sequential test: the bounds and the H0 widening.
+            h1 = 2.0 * sp["hae_sigma_m"] ** 2
+            self._sk = {"up": math.log((1.0 - sp["missed"]) / sp["false"]),
+                        "lo": math.log(sp["missed"] / (1.0 - sp["false"])),
+                        "p0": sp["pos_m"] ** 2, "v0": sp["vel_ms"] ** 2,
+                        "h1": h1, "h0": h1 + sp["pos_m"] ** 2}
+        self._same = [prm["key"] for name, prm in pack.gate if name == "same"]
         self.retiring = set()
         self.restarted = set()
 
@@ -457,6 +468,35 @@ class Engine:
                     _blend(pr[0][1], pr[1][1], mu[0], mu[1]))
         q = self.pack.filter["accel_var"]
         return _predict_axis(ent.east, dt, q), _predict_axis(ent.north, dt, q)
+
+    def _predict_out(self, ent, t):
+        """_predict's position, velocity and their variances (p, v, pp, vv)
+        per axis, without the cross term, which the fused output does not
+        use; the same arithmetic in the same order, so the same values."""
+        dt = (t - ent.last_time_ms) / 1000.0
+        dt2 = 2 * dt
+        dd = dt * dt
+        d4 = dt ** 4
+        if ent.models is None:
+            q = self.pack.filter["accel_var"]
+            qa, qv = q * d4 / 4, q * dt * dt
+            return [(p + v * dt, v, pp + dt2 * pv + dd * vv + qa, vv + qv)
+                    for p, v, pp, pv, vv in (ent.east, ent.north)]
+        q = (self.pack.filter["accel_var"], self.pack.maneuver["accel_var"])
+        w1, w2 = ent.mode
+        (e1, n1), (e2, n2) = ent.models
+        qa1, qv1 = q[0] * d4 / 4, q[0] * dt * dt
+        qa2, qv2 = q[1] * d4 / 4, q[1] * dt * dt
+        out = []
+        for (p1, v1, pp1, pv1, vv1), (p2, v2, pp2, pv2, vv2) in ((e1, e2), (n1, n2)):
+            p1, pp1, vv1 = p1 + v1 * dt, pp1 + dt2 * pv1 + dd * vv1 + qa1, vv1 + qv1
+            p2, pp2, vv2 = p2 + v2 * dt, pp2 + dt2 * pv2 + dd * vv2 + qa2, vv2 + qv2
+            p = w1 * p1 + w2 * p2
+            v = w1 * v1 + w2 * v2
+            dp1, dv1, dp2, dv2 = p1 - p, v1 - v, p2 - p, v2 - v
+            out.append((p, v, w1 * (pp1 + dp1 * dp1) + w2 * (pp2 + dp2 * dp2),
+                        w1 * (vv1 + dv1 * dv1) + w2 * (vv2 + dv2 * dv2)))
+        return out
 
     def _two_model_update(self, ent, dt, e, n, r, vel, rv, trace):
         """correlate.md, Two-model filter, later reports: mixing, per-model
@@ -515,7 +555,11 @@ class Engine:
 
     def _predict_in(self, b, t, a):
         """B's prediction to t for a comparison with A: B's timing variance
-        added to pp (no shift without a bias estimate)."""
+        added to pp (no shift without a bias estimate). With sprt the gate
+        and the sequential test predict the same pair, so the prediction is
+        kept for the rest of the ingest."""
+        if self._sk is None:
+            return self._with_time(self._predict(b, t), b)
         memo = self._memo
         k = (b.key, t)
         pr = memo.get(k)
@@ -560,17 +604,19 @@ class Engine:
         """correlate.md, Sequential test: d² of the full state under "same
         object" (covariance S) and the log-likelihood ratio increment against
         "different objects" (covariance S + diag(pos_m², vel_ms²))."""
-        sp = self.pack.sprt
+        sk = self._sk
         pb = self._predict_in(b, a.last_time_ms, a)
         q1 = 0.0
         lam = 0.0
-        p0, v0 = sp["pos_m"] ** 2, sp["vel_ms"] ** 2
+        p0, v0 = sk["p0"], sk["v0"]
+        at = a.t_var
         for x, fa in ((0, a.east), (1, a.north)):
-            dp = fa[0] - pb[x][0]
-            dv = fa[1] - pb[x][1]
-            spp = fa[2] + a.t_var[x] + pb[x][2]
-            spv = fa[3] + pb[x][3]
-            svv = fa[4] + pb[x][4]
+            px = pb[x]
+            dp = fa[0] - px[0]
+            dv = fa[1] - px[1]
+            spp = fa[2] + at[x] + px[2]
+            spv = fa[3] + px[3]
+            svv = fa[4] + px[4]
             det = spp * svv - spv * spv
             qa = (svv * dp * dp - 2.0 * spv * dp * dv + spp * dv * dv) / det
             tpp, tvv = spp + p0, svv + v0
@@ -581,25 +627,31 @@ class Engine:
         ha, hb = a.report.get("hae"), b.report.get("hae")
         if ha is not None and hb is not None:
             dh = float(ha) - float(hb)
-            h1 = 2.0 * sp["hae_sigma_m"] ** 2
-            h0 = h1 + p0
+            h1, h0 = sk["h1"], sk["h0"]
             q1 += dh * dh / h1
             lam += 0.5 * (dh * dh / h0 - dh * dh / h1) + 0.5 * math.log(h0 / h1)
         return q1, lam
 
     def _run_same(self, a, b, trace):
-        """The categorical (`same`) tests of the gate stage only."""
-        for name, prm in self.pack.gate:
-            if name == "same" and not self._run_test("gate", name, prm, a, b, trace):
+        """The categorical (`same`) tests of the gate stage only, recorded as
+        _run_test records them."""
+        ra, rb = a.report, b.report
+        for k in self._same:
+            if k == "@env":
+                va, vb = a.env, b.env
+            else:
+                va, vb = ra.get(k), rb.get(k)
+            ok = va == vb
+            trace.append({"stage": "gate", "a": a.key, "b": b.key, "test": "same",
+                          "value": va, "limit": vb, "pass": ok})
+            if not ok:
                 return False
         return True
 
     def _sprt_update(self, a, b, gate_ok, trace):
         """Add one report's evidence to the pair's log-likelihood ratio,
         clamped to [ln B, ln A]; returns the new value."""
-        sp = self.pack.sprt
-        up = math.log((1.0 - sp["missed"]) / sp["false"])
-        lo = math.log(sp["missed"] / (1.0 - sp["false"]))
+        up, lo = self._sk["up"], self._sk["lo"]
         pk = self._pair(a.key, b.key)
         old = self.llr.get(pk, 0.0)
         if gate_ok:
@@ -656,8 +708,8 @@ class Engine:
             ok = value <= limit
         elif name == "same":
             k = prm["key"]
-            va = _env(ra) if k == "@env" else ra.get(k)
-            vb = _env(rb) if k == "@env" else rb.get(k)
+            va = a.env if k == "@env" else ra.get(k)
+            vb = b.env if k == "@env" else rb.get(k)
             value, limit, ok = va, vb, va == vb
         else:
             raise AssertionError(name)
@@ -782,6 +834,7 @@ class Engine:
             if len(ring) > self.pack.stale_rate["samples"]:
                 del ring[0]
         ent.report = dict(report)
+        ent.env = _env(report)
         ent.r_meas = (re_, rn_)
         ent.t_var = (ae, an)
         ent.time_err = te
@@ -795,13 +848,12 @@ class Engine:
         hae, hae_t = None, None
         for m in members:
             e = self.entities[m]
-            pr = self._predict(e, now_ms)
-            for x in (0, 1):
-                a, o = pr[x], acc[x]
+            for x, a in enumerate(self._predict_out(e, now_ms)):
+                o = acc[x]
                 o[0] += 1.0 / a[2]
                 o[1] += a[0] / a[2]
-                o[2] += 1.0 / a[4]
-                o[3] += a[1] / a[4]
+                o[2] += 1.0 / a[3]
+                o[3] += a[1] / a[3]
             if e.report.get("hae") is not None and (hae_t is None or e.last_time_ms > hae_t):
                 hae, hae_t = float(e.report["hae"]), e.last_time_ms
         pe = acc[0][1] / acc[0][0]
@@ -843,7 +895,8 @@ class Engine:
 
     def ingest(self, report):
         events, trace = [], []
-        self._memo = {}
+        if self._sk is not None:
+            self._memo = {}
         ent = self._accept(report, events, trace)
         if ent is None:
             return events, trace
@@ -872,7 +925,7 @@ class Engine:
                 for k in list(self.llr):
                     if key in k.split("|"):
                         o = k.split("|")[0] if k.split("|")[1] == key else k.split("|")[1]
-                        if self.llr[k] <= math.log(self.pack.sprt["missed"] / (1.0 - self.pack.sprt["false"])):
+                        if self.llr[k] <= self._sk["lo"]:
                             del self.llr[k]
             return events, trace
 
@@ -950,9 +1003,16 @@ class Engine:
 
     def tick(self, now_ms):
         events, trace = [], []
+        limits = {}
+        fixed = self.pack.stale_ms if self.pack.stale_rate is None else None
         for k in sorted(self.entities):
             ent = self.entities[k]
-            stale = now_ms - ent.last_time_ms > self._stale_limit(ent.source)
+            lim = fixed
+            if lim is None:
+                lim = limits.get(ent.source)
+                if lim is None:
+                    lim = limits[ent.source] = self._stale_limit(ent.source)
+            stale = now_ms - ent.last_time_ms > lim
             sm = ent.report.get("stale_ms")
             if sm is not None and now_ms >= int(sm):
                 stale = True

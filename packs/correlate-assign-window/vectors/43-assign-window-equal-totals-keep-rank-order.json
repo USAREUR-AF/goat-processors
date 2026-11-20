@@ -1536,12 +1536,6 @@
   },
   "next_system": 3,
   "reported": [],
-  "intervals": {
-   "radar-1": [
-    1000,
-    1000
-   ]
-  },
   "retiring": [],
   "histories": [
    {

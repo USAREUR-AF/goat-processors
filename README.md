@@ -34,8 +34,8 @@ reproduce exactly, down to the record of every test they run.
 
 | Function | What it does | Specification | Packs | Vectors | Status |
 |---|---|---|---:|---:|---|
-| correlate | decides which tracks from different sources describe the same object, groups them, and outputs one estimate per group. This row is the per-report method, `confirm`: each new report is tested, and a pair is grouped after passing on two reports in a row | [correlate.md](spec/correlate.md) 0.8 | 6 | 29 | Built in seven languages |
-| correlate, method assign | the per-tick method, `assign`: at each tick, places all of one source's tracks at once into one output track per object (a system track) by the least total cost, and combines the members' positions weighted by their uncertainty | [correlate-assign.md](spec/correlate-assign.md) 0.6 | 6 | 27 | Built in seven languages |
+| correlate | decides which tracks from different sources describe the same object, groups them, and outputs one estimate per group. This row is the per-report method, `confirm`: each new report is tested, and a pair is grouped after passing on two reports in a row | [correlate.md](spec/correlate.md) 1.0 | 8 | 32 | Built in seven languages |
+| correlate, method assign | the per-tick method, `assign`: at each tick, places all of one source's tracks at once into one output track per object (a system track) by the least total cost, and combines the members' positions weighted by their uncertainty | [correlate-assign.md](spec/correlate-assign.md) 0.7 | 6 | 27 | Built in seven languages |
 | fuse | combines the tracks of one group (those whose reports carry the same `fuse.group` key) into one estimate: weighted by each member's uncertainty (inverse variance), or by covariance intersection when members may share an error, or by taking the best, highest-priority or latest member; each other attribute (identity, for example) by its own rule | [fuse.md](spec/fuse.md) 0.2 | 5 | 16 | Built in seven languages |
 | filter | keeps or drops each report by the first matching rule: inside or outside a circle or polygon, within a distance of a reference such as own ship, by environment, affiliation, source, identity or any key, and thins a feed by interval | [filter.md](spec/filter.md) 0.1 | 3 | 27 | Built in seven languages |
 | quality | measures each track and each source from its reports (time between updates, age, latency, how far reports fall from the track's prediction in units of the reported error, the speed implied by successive positions against the reported speed, reports out of order, missing keys, lateness against the other sources, and the clock error and clock state the source reports) and applies the action a rule attaches to a measure: mark, downgrade, drop or alert | [quality.md](spec/quality.md) 0.2 | 4 | 22 | Built in seven languages |
@@ -66,16 +66,18 @@ and time quality, where sensor clocks are wrong).
 | [`gnn-imm`](packs/correlate-gnn-imm/pack.def) | `confirm` | as gnn, with a second motion model for turning or accelerating targets | `gnn`: a two-model filter, so a turning target stays inside its predicted region | 0.968 / 0.884 / 0.968 |
 | [`gnn-restart`](packs/correlate-gnn-restart/pack.def) | `confirm` | as gnn, restarting a track's motion filter when a report lands far outside its prediction | `gnn`: recovery when a sensor's track number moves to another object | 0.956 / 0.851 / 0.949 |
 | [`gnn-time`](packs/correlate-gnn-time/pack.def) | `confirm` | as gnn, widening the uncertainty of a source whose clock is known to be off (radar-1, 500 ms); no benchmark scenario has a source named radar-1, so there it scores exactly as gnn | `gnn`: time quality: a clock error becomes position uncertainty | 0.951 / 0.820 / 0.959 |
-| [`window`](packs/correlate-window/pack.def) | `confirm` | pairs two tracks whose distance is under a fixed window that grows with both tracks' reported error | `gnn`: a distance window in place of the statistical gate, which tolerates a sensor with a fixed position bias | 0.924 / 0.934 / 0.996 |
+| [`gnn-priority`](packs/correlate-gnn-priority/pack.def) | `confirm` | as gnn, reporting each output track from its highest-priority source (radar-1 before ais) | `gnn`: a source-priority output in place of the fused estimate | not scored |
+| [`gnn-state`](packs/correlate-gnn-state/pack.def) | `confirm` | as gnn, with one chi-square test on position, velocity and height together in place of the course, speed and height tests | `gnn`: the full-state track-to-track statistic | not scored |
+| [`sprt`](packs/correlate-sprt/pack.def) | `confirm` | pairs two tracks once the evidence that they are one object, added up report by report, passes a bound set by 1 % false and 1 % missed pairings, and releases them below the lower bound; tracks go stale after five times their source's usual update interval; the output combines the members by their uncertainty | the sequential likelihood-ratio test (Wald) in place of two passes in a row and a hold | not scored |
 | [`distance`](packs/correlate-distance/pack.def) | `confirm` | pairs two tracks closer than 200 m, for feeds that report no error; tracks of one source may pair; the output follows the latest report | `gnn`: plain distance, for sources with no error estimate | 0.884 / 0.807 / 0.937 |
 | [`assign`](packs/correlate-assign/pack.def) | `assign` | at each tick, places each source's tracks into one output track per object by the least total cost, and combines the members' positions weighted by their uncertainty | the base of the assignment packs | 0.937 / 0.715 / 0.775 |
 | [`assign-imm`](packs/correlate-assign-imm/pack.def) | `assign` | as assign, with a second motion model for turning or accelerating targets | `assign`: the two-model filter | 0.971 / 0.796 / 0.881 |
 | [`assign-window`](packs/correlate-assign-window/pack.def) | `assign` | as assign, keeping up to three candidate histories over two ticks before committing | `assign`: a multi-frame window | 0.929 / 0.698 / 0.739 |
 | [`assign-bias`](packs/correlate-assign-bias/pack.def) | `assign` | as assign-imm, estimating a position offset for each pair of sensors | `assign-imm`: sensor bias estimation, so a sensor off by a few hundred meters still joins | 0.989 / 0.906 / 0.936 |
-| [`assign-full`](packs/correlate-assign-full/pack.def) | `assign` | as assign-bias, with filter restart, the two-tick window with a margin, and a 20 s stale time | `assign-bias`: every option of assign 0.5 together | 0.997 / 0.958 / 0.932 |
+| [`assign-full`](packs/correlate-assign-full/pack.def) | `assign` | as assign-bias, with filter restart, the two-tick window with a margin, and a stale time from each source's update interval | `assign-bias`: every option of assign 0.5 together | 0.997 / 0.958 / 0.932 |
 | [`assign-time`](packs/correlate-assign-time/pack.def) | `assign` | as assign-full, also fitting a clock offset for each pair of sources | `assign-full`: clock offset: a lag along the track that grows with speed is read as a clock error, not a position bias | 0.997 / 0.961 / 0.996 |
 
-**Default: `assign-time`.** It has the highest F1 of every pack on all 3 benchmark sets: named 0.997, random 0.961, time 0.996 (equal with `window`). It keeps one output track per object and combines its members, with the lowest position error of every pack (GOSPA, a mean position error that also charges missed and false tracks: 244 m on the random set). Its weak point is identity swaps (an object's output track changing to another): 33 on the random set, against 14 to 23 for the per-report packs, so the `confirm` method stays selectable.
+**Default: `assign-time`.** It has the highest F1 of every pack on all 3 benchmark sets: named 0.997, random 0.961, time 0.996. It keeps one output track per object and combines its members, with the lowest position error of every pack (GOSPA, a mean position error that also charges missed and false tracks: 244 m on the random set). Its weak point is identity swaps (an object's output track changing to another): 33 on the random set, against 14 to 23 for the per-report packs, so the `confirm` method stays selectable.
 
 ## Quick start
 
@@ -145,7 +147,7 @@ the vector is changed only through the specification.
 
 | Language | Engine | Lines of source | Runs every vector with |
 |---|---|---:|---|
-| Python | [`engines/python`](engines/python) | 2,565 | `cd engines/python && PYTHONPATH=src python3 -m unittest discover -s tests` |
+| Python | [`engines/python`](engines/python) | 2,818 | `cd engines/python && PYTHONPATH=src python3 -m unittest discover -s tests` |
 | Rust | [`engines/rust`](engines/rust) | 5,289 | `cd engines/rust && cargo test` |
 | Go | [`engines/go`](engines/go) | 2,421 | `cd engines/go && go test ./...` |
 | Java | [`engines/java`](engines/java) | 4,431 | `engines/java/build.sh` |
@@ -153,7 +155,7 @@ the vector is changed only through the specification.
 | Erlang | [`engines/erlang`](engines/erlang) | 3,318 | `engines/erlang/run_tests` |
 | Zig | [`engines/zig`](engines/zig) | 5,580 | `cd engines/zig && zig build test` |
 
-Each engine runs all 121 scenario vectors (838 steps, 4,333 trace records) and 218 load vectors (pack files every engine must accept, or must refuse) on every pull request and every push to `main`.
+Each engine runs all 124 scenario vectors (867 steps, 4,426 trace records) and 235 load vectors (pack files every engine must accept, or must refuse) on every pull request and every push to `main`.
 
 ## Benchmark
 
@@ -176,7 +178,6 @@ which `tools/bench/bench.py report` writes. Pack names are explained in
 | Pack | F1, 21 named | F1, 50 random | F1, 7 time | False merges | Missed merges | Identity swaps | GOSPA, m |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | [`gnn`](#methods-and-packs) | 0.951 | 0.820 | 0.959 | 61 | 81 | 23 | 415 |
-| [`window`](#methods-and-packs) | 0.924 | 0.934 | 0.996 | 77 | 40 | 17 | 308 |
 | [`distance`](#methods-and-packs) | 0.884 | 0.807 | 0.937 | 21 | 76 | 14 | 418 |
 | [`assign`](#methods-and-packs) | 0.937 | 0.715 | 0.775 | 15 | 99 | 130 | 475 |
 | [`gnn-imm`](#methods-and-packs) | 0.968 | 0.884 | 0.968 | 71 | 55 | 21 | 344 |
@@ -210,7 +211,7 @@ False merges, missed merges, identity swaps and GOSPA are for the 50 random scen
 | Path | What |
 |---|---|
 | [`spec/`](spec/) | one specification per function, the shared [vector format](spec/vector-format.md), load vectors |
-| [`packs/`](packs/) | 24 rule packs, each with its `pack.def` and its scenario vectors (121 in all) |
+| [`packs/`](packs/) | 26 rule packs, each with its `pack.def` and its scenario vectors (124 in all) |
 | [`engines/`](engines/) | one independent engine per language, each with its test runner |
 | [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), the performance harness (`perf/`), this README's generator (`readme/`) |
 | [`docs/`](docs/) | the benchmark results, the [performance](docs/performance.md) baseline and the figures, each written by a script |
