@@ -3,4 +3,4 @@
 -module(filter_vectors).
 -export([main/1]).
 
-main([Root]) -> io_vectors:main(<<"filter">>, Root).
+main([Root]) -> halt(io_vectors:main(<<"filter">>, Root)).

@@ -6,13 +6,15 @@
 %% line of counters to standard output; diagnostics go to standard error.
 %% The events file holds one JSON object per line, map keys in byte order.
 -module(io_runner).
--export([main/0, parse_steps/1]).
+-export([main/0, main/1, parse_steps/1]).
 
-main() ->
-    Status = try run(init:get_plain_arguments())
-             catch throw:{usage, Msg} -> err(Msg), 2
-             end,
-    halt(Status).
+main() -> halt(main(init:get_plain_arguments())).
+
+%% The exit status of one run with the given arguments.
+main(Argv) ->
+    try run(Argv)
+    catch throw:{usage, Msg} -> err(Msg), 2
+    end.
 
 err(Msg) -> io:format(standard_error, "erlang runner: ~ts~n", [Msg]).
 

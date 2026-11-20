@@ -1,7 +1,7 @@
 %% Helpers the tests share: the repository root, every scenario vector of a
 %% function with its pack, a seeded generator, and running the steps.
 -module(test_support).
--export([main/0, test_modules/0]).
+-export([main/0, coverage/1, test_modules/0]).
 -export([root/0, scenarios/1, scenarios/0, pack_dirs/1, load/2, run/2, run_from/3, steps/1,
          rand_state/1, uniform/2, pick/2, shuffle/2, budget/0]).
 
@@ -80,3 +80,40 @@ test_modules() ->
 main() ->
     Result = eunit:test(test_modules(), []),
     halt(case Result of ok -> 0; _ -> 1 end).
+
+%% coverage [Floor]: cover-compile src/, run the vectors and the tests, print
+%% line coverage per module and in total, halt non-zero below Floor.
+coverage([FloorText]) ->
+    Floor = list_to_float(case lists:member($., FloorText) of
+                              true -> FloorText;
+                              false -> FloorText ++ ".0"
+                          end),
+    Src = filename:join(root(), "engines/erlang/src"),
+    {ok, _} = cover:start(),
+    Compiled = lists:append([cover:compile_directory(D, [{i, Src}])
+                             || D <- lists:sort(filelib:wildcard(filename:join(Src, "*"))),
+                                filelib:is_dir(D)]),
+    Mods = lists:sort([M || {ok, M} <- Compiled]),
+    [] = [E || E = {error, _} <- Compiled],
+    Vectors = lists:append([io_vectors:results(F, root())
+                            || F <- [<<"correlate">>, <<"filter">>, <<"fuse">>, <<"quality">>]]),
+    VectorsOk = lists:all(fun(R) -> R =:= ok end, Vectors),
+    TestsOk = eunit:test(test_modules(), []) =:= ok,
+    Rows = [begin {ok, {M, {C, N}}} = cover:analyse(M, coverage, module), {M, C, N} end
+            || M <- Mods],
+    [io:format("~-24s ~6.1f %  (~b of ~b lines)~n", [M, pct(C, C + N), C, C + N])
+     || {M, C, N} <- Rows],
+    Uncovered = [io_lib:format("~s:~b", [M, L])
+                 || M <- Mods, {ok, Ls} <- [cover:analyse(M, coverage, line)],
+                    {{_, L}, {0, 1}} <- Ls, L > 0],
+    io:format("not covered: ~s~n", [lists:join(" ", Uncovered)]),
+    Covered = lists:sum([C || {_, C, _} <- Rows]),
+    Lines = lists:sum([C + N || {_, C, N} <- Rows]),
+    Total = pct(Covered, Lines),
+    io:format("line coverage: ~.1f % (~b of ~b lines, ~b modules); floor ~.1f %~n",
+              [Total, Covered, Lines, length(Rows), Floor]),
+    io:format("vectors: ~b, all pass: ~p; tests pass: ~p~n", [length(Vectors), VectorsOk, TestsOk]),
+    halt(case VectorsOk andalso TestsOk andalso Total >= Floor of true -> 0; false -> 1 end).
+
+pct(_, 0) -> 100.0;
+pct(C, T) -> 100 * C / T.

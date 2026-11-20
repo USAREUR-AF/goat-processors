@@ -3,4 +3,4 @@
 -module(quality_vectors).
 -export([main/1]).
 
-main([Root]) -> io_vectors:main(<<"quality">>, Root).
+main([Root]) -> halt(io_vectors:main(<<"quality">>, Root)).

@@ -174,6 +174,35 @@ fails. Then it runs the unit, property and fuzz tests (`test/`).
 [--events <file>] [--trace]` runs, as `tools/perf/README.md` "Runner
 contract" states.
 
+## Tests
+
+`run_tests` runs every module of `test/` named `*_tests` with EUnit (OTP's
+own; no third-party package):
+
+| Module | Tests |
+|---|---|
+| `model_tests`, `correlate_unit_tests`, `assign_unit_tests`, `filter_unit_tests`, `fuse_unit_tests`, `quality_unit_tests`, `io_tests` | unit tests per module, including the runner and the vector comparison |
+| `property_tests` | determinism; order independence (a report's key order, a pack's non-repeating lines); a state stored mid-run and restored continues with the same output |
+| `fuzz_tests` | the JSON reader of a steps file, each pack.def parser, each function's ingest: a seeded generator in the test, `GOAT_FUZZ_ITERATIONS` inputs per target (1500 by default) |
+| `registration_tests` | the no-op test kind (Extension points) |
+
+Restore: the state is a value, so storing it (`term_to_binary`) and
+restoring it continues identically; the engine has no restore from
+`snapshot()`, whose JSON does not hold the whole state (correlate's snapshot
+holds no last report, for one).
+
+## Coverage
+
+```
+engines/erlang/coverage [FLOOR]
+```
+
+Line coverage with OTP's own `cover` module (the `tools` application) over
+every module of `src/`, while the four vector runners and the tests run;
+prints the percentage per module, the lines not covered and the total, and
+exits non-zero below FLOOR. CI runs it with the floor 98.2 %, the
+pre-refactor baseline (see `REFACTOR.md`).
+
 Open points and any vector that disagrees with the specification are in
 `DISAGREEMENTS.md`.
 

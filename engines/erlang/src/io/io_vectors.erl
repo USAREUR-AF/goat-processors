@@ -2,16 +2,18 @@
 %% function's packs (packs/<function>-*/vectors/) and every load vector
 %% (spec/<function>-load-vectors/), with its structural comparison. Prints
 %% PASS or FAIL per vector, the path of the first mismatch, a summary line,
-%% and halts non-zero when any vector fails.
+%% and an exit status, non-zero when any vector fails.
 -module(io_vectors).
 -export([main/2, results/2, read/1, steps/1, compare/3]).
 
+%% Runs every vector of the function, prints the summary line; returns the
+%% exit status, 0 when every vector passes.
 main(Function, Root) ->
     Results = results(Function, Root),
     Failed = [R || R <- Results, R =/= ok],
     io:format("~s: ~b vectors, ~b passed, ~b failed~n",
               [Function, length(Results), length(Results) - length(Failed), length(Failed)]),
-    halt(case Failed of [] -> 0; _ -> 1 end).
+    case Failed of [] -> 0; _ -> 1 end.
 
 %% ok | fail per vector, scenario vectors then load vectors, each in file order.
 results(Function, Root) ->
