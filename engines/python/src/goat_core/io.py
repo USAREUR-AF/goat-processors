@@ -9,15 +9,11 @@ import os
 import sys
 import time
 
+from .packdef import read_pack_def  # noqa: F401  (part of the IO surface)
+
 
 class StepsError(Exception):
     """A steps file that does not parse."""
-
-
-def read_pack_def(directory):
-    """The text of <directory>/pack.def."""
-    with open(os.path.join(directory, "pack.def"), encoding="utf-8") as f:
-        return f.read()
 
 
 def parse_steps(text):

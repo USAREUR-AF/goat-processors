@@ -123,11 +123,17 @@ class _Ranker:
         self.matrix = matrix
         self.c = c
         self.solved = {}
-        finite = [abs(x) for r in matrix for x in r if x != INF]
-        # Rounding of any total of this matrix is far below this (n * 2**-53
-        # times a sum of n entries): a bound that exceeds the best total by
-        # more cannot be a total below it.
-        self.slack = 1e-9 * (1.0 + len(matrix) * (max(finite) if finite else 0.0))
+        self._slack = None
+
+    @property
+    def slack(self):
+        """Rounding of any total of this matrix is far below this (n * 2**-53
+        times a sum of n entries): a bound that exceeds the best total by
+        more cannot be a total below it."""
+        if self._slack is None:
+            finite = [abs(x) for r in self.matrix for x in r if x != INF]
+            self._slack = 1e-9 * (1.0 + len(self.matrix) * (max(finite) if finite else 0.0))
+        return self._slack
 
     def solve(self, fixed, forbidden):
         key = (frozenset(fixed), frozenset(forbidden))

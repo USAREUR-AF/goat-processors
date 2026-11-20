@@ -11,7 +11,6 @@ with `extend` is known only to the packs parsed with that table."""
 
 import math
 from types import MappingProxyType
-from typing import Callable, NamedTuple, Tuple
 
 from . import trace as _trace
 from .model import environment
@@ -41,13 +40,17 @@ def speed_difference_pct(sa, sb):
     return 0.0 if fast == 0 else abs(1.0 - slow / fast) * 100.0
 
 
-class TestKind(NamedTuple):
+class TestKind:
     """One test: its parameter names, and evaluate(eng, prm, a, b), which
     returns (value, limit, pass), or None when the test is skipped (it then
     passes). `text`: the parameters are kept as text, not numbers."""
-    params: Tuple[str, ...]
-    evaluate: Callable
-    text: bool = False
+
+    __slots__ = ("params", "evaluate", "text")
+
+    def __init__(self, params, evaluate, text=False):
+        self.params = params
+        self.evaluate = evaluate
+        self.text = text
 
 
 def _distance(eng, prm, a, b):

@@ -4,17 +4,15 @@ drop or alert. The per-entity filter is correlate's (estimate.py)."""
 
 import math
 import re
-from functools import partial, reduce
-from operator import add, is_not, itemgetter
+from functools import reduce
+from operator import add
 from types import MappingProxyType
-from typing import Callable, NamedTuple
 
 from . import estimate
 from . import snapshot as _snapshot
 from . import trace as _trace
-from .io import read_pack_def
-from .model import REQUIRED, TIME_STATES, is_kind as _is, to_plane
-from .packdef import PackError, decimal_int
+from .model import TIME_STATES, _is_int, _is_num, _is_str, missing_key, to_plane
+from .packdef import PackError, decimal_int, read_pack_def
 
 FILTER_PARAMS = ("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms")
 WINDOW_PARAMS = ("window_ms", "min_samples", "forget_ms")
@@ -230,7 +228,6 @@ def input_clock(entities, source):
     return clock, src_latest
 
 
-_not_none = partial(is_not, None)
 
 
 class Window:
@@ -250,14 +247,14 @@ class Window:
     def column(self, name):
         xs = self._columns.get(name)
         if xs is None:
-            xs = list(map(itemgetter(name), self.records))
+            xs = [r[name] for r in self.records]
             self._columns[name] = xs
         return xs
 
     def values(self, name):
         xs = self._values.get(name)
         if xs is None:
-            xs = list(filter(_not_none, self.column(name)))
+            xs = [r[name] for r in self.records if r[name] is not None]
             self._values[name] = xs
         return xs
 
@@ -269,15 +266,19 @@ class Window:
         return xs
 
 
-class Measure(NamedTuple):
+class Measure:
     """One entity measure: compute(window) gives its value (None when it has
     too few samples); `aggregate` (sum, mean, max or min) is how a source
     combines it over its entities. `uses_age`: it reads the window's age
     (the tick's time), not only its samples; the others are computed again
     only when the window changes."""
-    aggregate: str
-    compute: Callable
-    uses_age: bool = False
+
+    __slots__ = ("aggregate", "compute", "uses_age")
+
+    def __init__(self, aggregate, compute, uses_age=False):
+        self.aggregate = aggregate
+        self.compute = compute
+        self.uses_age = uses_age
 
 
 def _last(xs):
@@ -360,7 +361,7 @@ def entity_measures(measures, records, age, k, known=None):
     w = Window(records, age, k)
     if known is None:
         return {name: m.compute(w) for name, m in measures.items()}
-    return {name: (m.compute(w) if m.uses_age else known[name]) for name, m in measures.items()}
+    return {name: (known[name] if not m.uses_age else m.compute(w)) for name, m in measures.items()}
 
 
 def window_measures(measures, records, k):
@@ -431,23 +432,23 @@ class Engine:
     # ingest ------------------------------------------------------------
     def ingest(self, report):
         events, trace = [], []
-        for k, kind in REQUIRED:
-            if not _is(report.get(k), kind):
-                events.append({"ev": "reject", "reason": "missing:" + k})
-                return events, trace
+        k = missing_key(report)
+        if k is not None:
+            events.append({"ev": "reject", "reason": "missing:" + k})
+            return events, trace
         opt = {}
         for k in ("hae", "ce", "course", "speed_ms"):
-            if _is(report.get(k), "num"):
+            if _is_num(report.get(k)):
                 opt[k] = float(report[k])
         if "ce" in opt and opt["ce"] <= 0:
             del opt["ce"]
-        if _is(report.get("received_ms"), "int"):
+        if _is_int(report.get("received_ms")):
             opt["received_ms"] = report["received_ms"]
         te = report.get("time_error_ms")
-        if _is(te, "num") and math.isfinite(te) and te >= 0:
+        if _is_num(te) and math.isfinite(te) and te >= 0:
             opt["time_error_ms"] = float(te)
         ts = report.get("time_state")
-        if _is(ts, "str") and ts in TIME_STATES:
+        if _is_str(ts) and ts in TIME_STATES:
             opt["time_state"] = ts
         source = report["track.source_id"]
         key = source + "/" + report["uid"]
@@ -583,12 +584,13 @@ class Engine:
         for rule in self.pack.rules:
             if rule.scope != scope:
                 continue
-            states = self.rules[rule.name]
-            st = states.get(subject)
-            count, active = (0, False) if st is None else (st["count"], st["active"])
+            st = self.rules[rule.name].get(subject)
+            if st is None:
+                st = self.rules[rule.name][subject] = {"count": 0, "active": False}
+            active = st["active"]
             v = measures[rule.measure]
-            count, now_active, ok, limit = rule_step(rule, count, active, v)
-            states[subject] = {"count": count, "active": now_active}
+            count, now_active, ok, limit = rule_step(rule, st["count"], active, v)
+            st["count"], st["active"] = count, now_active
             if now_active and not active:
                 events.append({"ev": "action-start", "rule": rule.name, "scope": scope,
                                "subject": subject, "action": rule.action, "value": v})

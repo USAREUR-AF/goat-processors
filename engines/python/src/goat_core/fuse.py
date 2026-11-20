@@ -6,15 +6,13 @@ and report validation are correlate's (model.py, estimate.py)."""
 import math
 import re
 from types import MappingProxyType
-from typing import Callable, NamedTuple
 
 from . import estimate
 from . import snapshot as _snapshot
 from . import trace as _trace
 from . import trace as _trace
-from .io import read_pack_def
 from .model import course_deg, missing_key, normalize, to_deg, to_plane, velocity
-from .packdef import PackError, decimal_int
+from .packdef import PackError, decimal_int, read_pack_def
 
 FILTER_PARAMS = ("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms")
 ONCE = ("pack", "version", "filter", "kinematics", "stale_ms")
@@ -270,11 +268,15 @@ def _majority(cands, key, rank_key):
     return firsts[best]
 
 
-class AttributeRule(NamedTuple):
+class AttributeRule:
     """One attribute rule: winner(cands, key, rank_key), and whether it
     takes numbers only (a string or boolean value is then not usable)."""
-    winner: Callable
-    numbers_only: bool = False
+
+    __slots__ = ("winner", "numbers_only")
+
+    def __init__(self, winner, numbers_only=False):
+        self.winner = winner
+        self.numbers_only = numbers_only
 
 
 # The one table of attribute rules.

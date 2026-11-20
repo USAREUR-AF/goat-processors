@@ -4,13 +4,11 @@ first rule whose conditions all hold; forget entities at a tick."""
 import math
 import re
 from types import MappingProxyType
-from typing import Callable, FrozenSet, NamedTuple, Tuple
 
 from . import snapshot as _snapshot
 from . import trace as _trace
-from .io import read_pack_def
 from .model import missing_key, normalize
-from .packdef import PackError
+from .packdef import PackError, read_pack_def
 
 R = 6371008.8
 INT_MAX = 9223372036854775807
@@ -397,11 +395,15 @@ def _order(p, report, state, entities):
     return t, kept, kept is not None and t < kept
 
 
-class ConditionKind(NamedTuple):
+class ConditionKind:
     """One condition: the parameter sets it accepts (any one of them, by
     name) and evaluate(p, report, state, entities)."""
-    params: Tuple[FrozenSet[str], ...]
-    evaluate: Callable
+
+    __slots__ = ("params", "evaluate")
+
+    def __init__(self, params, evaluate):
+        self.params = params
+        self.evaluate = evaluate
 
 
 def _sets(*sets):

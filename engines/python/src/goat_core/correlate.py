@@ -8,23 +8,26 @@ method for one use only (a test fixture, an experiment) is given to
 parse_pack with gate.extend / extend_methods, and no other pack sees it."""
 
 from types import MappingProxyType
-from typing import NamedTuple, Tuple
 
 from . import correlate_pack
 from .assign import AssignEngine
 from .confirm import ConfirmEngine
 from .correlate_pack import Pack, PackError  # noqa: F401  (re-exported)
 from .gate import TESTS
-from .io import read_pack_def
+from .packdef import read_pack_def
 
 
-class Method(NamedTuple):
+class Method:
     """One correlate method: its engine class (a tracks.Correlator), the
     directives a pack of this method must hold, and those it must not
     (a stage name, gate, confirm or hold, refuses every test line of it)."""
-    engine: type
-    required: Tuple[str, ...]
-    refused: Tuple[str, ...]
+
+    __slots__ = ("engine", "required", "refused")
+
+    def __init__(self, engine, required, refused):
+        self.engine = engine
+        self.required = required
+        self.refused = refused
 
 
 METHODS = MappingProxyType({

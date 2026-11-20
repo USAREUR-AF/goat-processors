@@ -1,6 +1,7 @@
 """The names goat_quality.engine has always exported, now in goat_core.quality."""
 
 from goat_core.quality import *  # noqa: F401,F403  (MEASURES below keeps its old shape)
+from goat_core.model import REQUIRED  # noqa: F401,E402
 from goat_core.quality import Engine, Pack, PackError, load_pack, make_engine, parse_pack  # noqa: F401
 from goat_core.quality import MEASURES as _MEASURES
 

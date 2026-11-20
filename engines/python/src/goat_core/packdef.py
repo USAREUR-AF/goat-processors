@@ -1,7 +1,17 @@
-"""pack.def: the error every function's pack parser raises.
+"""pack.def: reading it from a pack directory, and the error every
+function's pack parser raises.
 
 Each function's grammar is in its own module (correlate, filter, fuse,
 quality); this holds only what they share."""
+
+
+import os
+
+
+def read_pack_def(directory):
+    """The text of <directory>/pack.def."""
+    with open(os.path.join(directory, "pack.def"), encoding="utf-8") as f:
+        return f.read()
 
 
 class PackError(Exception):
