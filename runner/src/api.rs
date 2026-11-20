@@ -49,6 +49,8 @@ pub enum Ask {
     Prometheus,
     Tracks,
     Explain(String),
+    /// Everything the Fieldkit page shows, in one read.
+    View,
     Propose { function: String, pack: String, reason: String },
     Proposals,
     Decide { id: String, verb: String },
@@ -85,6 +87,8 @@ pub const ROUTES: &[(&str, &str, Role, &str)] = &[
     ("POST", "/v1/replay", Role::Read, "run a replay file (the body) through a separate copy of the pipeline"),
     ("GET", "/v1/audit", Role::Operate, "the latest audit lines; query limit (default 100)"),
     ("GET", "/v1/routes", Role::Read, "this table"),
+    ("GET", "/v1/view", Role::Read, "everything the operator page shows in one read: state, pipeline with the packs each function may use, system tracks, quality per source, proposals, and the caller's identity and role"),
+    ("GET", "/ui", Role::Read, "the operator page (Fieldkit Processors): one HTML file, no outside assets"),
     ("GET", "/v1/proposals", Role::Read, "every proposal, pending and decided"),
     ("POST", "/v1/proposals", Role::Read, "propose a pack for a function; body {\"function\", \"pack\", \"reason\"}; nothing changes until it is applied"),
     ("POST", "/v1/proposals/{id}/approve", Role::Operate, "apply a pending proposal"),
@@ -131,6 +135,98 @@ pub fn route(method: &str, path: &str) -> Result<(usize, Vec<String>), (u16, Str
     } else {
         Err((404, format!("no route {path}; GET /v1/routes lists them")))
     }
+}
+
+/// The answer to a replay asked for as JSON (the operator page): how many
+/// output lines, the events per function and event, and the system tracks
+/// of the last tick that made any.
+fn replay_summary(out: &str) -> Json {
+    let mut lines = 0i64;
+    let mut events: BTreeMap<String, i64> = BTreeMap::new();
+    let mut tracks = Json::Arr(vec![]);
+    let mut now = Json::Null;
+    for l in out.lines() {
+        let Ok(v) = json::parse(l) else { continue };
+        lines += 1;
+        let stage = v.get("stage").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let Some(evs) = v.get("events").and_then(|e| e.as_array()) else { continue };
+        let mut sys = vec![];
+        for e in evs {
+            let ev = e.get("ev").and_then(|x| x.as_str()).unwrap_or("");
+            *events.entry(format!("{stage} {ev}")).or_default() += 1;
+            if ev == "system" || ev == "fused" {
+                sys.push(e.clone());
+            }
+        }
+        if !sys.is_empty() && v.get("call").and_then(|c| c.as_str()) == Some("tick") {
+            tracks = Json::Arr(sys);
+            now = v.get("now_ms").cloned().unwrap_or(Json::Null);
+        }
+    }
+    let mut m = BTreeMap::new();
+    m.insert("lines".into(), Json::Int(lines));
+    m.insert("events".into(), Json::Obj(events.into_iter().map(|(k, n)| (k.into(), Json::Int(n))).collect()));
+    m.insert("now_ms".into(), now);
+    m.insert("tracks".into(), tracks);
+    Json::Obj(m)
+}
+
+/// Every installed pack under `dir` as (function, pack), sorted by pack name.
+pub fn installed_packs(dir: &Path) -> Vec<(String, String)> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .map(|rd| rd.flatten().filter(|e| e.path().join("pack.def").is_file()).filter_map(|e| e.file_name().into_string().ok()).collect())
+        .unwrap_or_default();
+    names.sort();
+    names
+        .into_iter()
+        .filter_map(|n| {
+            let f = n.split('-').next()?.to_string();
+            crate::config::FUNCTIONS.contains(&f.as_str()).then_some((f, n))
+        })
+        .collect()
+}
+
+/// A browser sends its client certificate, and on the local listener reaches
+/// the API, on requests that another site's page starts. Those are refused:
+/// a request is accepted only when it carries no browser marks, or marks that
+/// say the page came from this same origin. `Sec-Fetch-Site` is sent by every
+/// current browser; `Origin` is the check for one that does not send it.
+fn cross_site(req: &Request) -> Option<String> {
+    if let Some(site) = req.headers.get("sec-fetch-site") {
+        if site != "same-origin" && site != "none" {
+            return Some(format!("Sec-Fetch-Site is {site}"));
+        }
+    }
+    if let Some(origin) = req.headers.get("origin") {
+        let host = req.headers.get("host").map(String::as_str).unwrap_or("");
+        let o = origin.split_once("://").map(|(_, h)| h).unwrap_or(origin.as_str());
+        if origin == "null" || !o.eq_ignore_ascii_case(host) {
+            return Some(format!("Origin {origin} is not this API ({host})"));
+        }
+    }
+    None
+}
+
+/// On the local listener, the Host a browser names must be this machine, so
+/// a page whose own name was pointed at 127.0.0.1 cannot read the API. Only
+/// a browser's request is checked (it carries `Sec-Fetch-*`): a program on
+/// this host may name the host as it likes.
+fn host_is_local(req: &Request, listen: &str) -> bool {
+    if !req.headers.keys().any(|k| k.starts_with("sec-fetch-")) {
+        return true;
+    }
+    let Some(host) = req.headers.get("host") else { return true };
+    let name = match host.rsplit_once(':') {
+        Some((n, port)) if port.bytes().all(|b| b.is_ascii_digit()) => n,
+        _ => host.as_str(),
+    };
+    let name = name.trim_start_matches('[').trim_end_matches(']');
+    let listen_name = listen.rsplit_once(':').map(|(n, _)| n.trim_start_matches('[').trim_end_matches(']')).unwrap_or(listen);
+    let own = std::fs::read_to_string("/proc/sys/kernel/hostname").map(|h| h.trim().to_string()).unwrap_or_default();
+    name.eq_ignore_ascii_case("localhost")
+        || name == listen_name
+        || (!own.is_empty() && name.eq_ignore_ascii_case(&own))
+        || name.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback())
 }
 
 pub fn error(status: u16, what: &str, fix: &str) -> Response {
@@ -201,6 +297,14 @@ impl Server {
             Ok(r) => r,
             Err((s, e)) => return error(s, &e, ""),
         };
+        if let Some(why) = cross_site(req) {
+            self.audit(&who, req, 403);
+            return error(403, &format!("a page from another site may not call this API ({why})"), "open the operator page from the runner itself: /ui on this address");
+        }
+        if who.via == "local" && !host_is_local(req, &self.config.api.listen) {
+            self.audit(&who, req, 403);
+            return error(403, "the local API answers only requests addressed to this machine", "use http://localhost or 127.0.0.1 with the API port");
+        }
         let (method, _, need, _) = ROUTES[i];
         if who.role < need {
             let r = error(
@@ -239,6 +343,7 @@ impl Server {
             "/v1/metrics/prometheus" => Ask::Prometheus,
             "/v1/tracks" => Ask::Tracks,
             "/v1/explain/{track}" => Ask::Explain(args[0].clone()),
+            "/v1/view" => Ask::View,
             "/v1/proposals" if req.method == "GET" => Ask::Proposals,
             "/v1/proposals" => {
                 let body = json::parse(&String::from_utf8_lossy(&req.body)).ok();
@@ -253,6 +358,7 @@ impl Server {
             "/v1/replay" => return self.replay(req),
             "/v1/audit" => return self.read_audit(req),
             "/v1/routes" => return routes_json(),
+            "/ui" => return crate::fieldkit::page(),
             "/v1/source" => return self.publish(req, who),
             "/v1/why/{track}" => return crate::agentic::why(self, who, &args[0], req.query.get("endpoint").map(String::as_str)),
             "/mcp" => {
@@ -272,28 +378,27 @@ impl Server {
     }
 
     fn packs(&self) -> Response {
-        let dir = &self.config.packs_dir;
-        let mut names: Vec<String> = std::fs::read_dir(dir)
-            .map(|rd| rd.flatten().filter(|e| e.path().join("pack.def").is_file()).filter_map(|e| e.file_name().into_string().ok()).collect())
-            .unwrap_or_default();
-        names.sort();
-        let list = names
-            .iter()
-            .filter_map(|n| {
-                let f = n.split('-').next()?;
-                crate::config::FUNCTIONS.contains(&f).then(|| {
-                    let mut m = BTreeMap::new();
-                    m.insert("function".into(), Json::Str(f.into()));
-                    m.insert("pack".into(), Json::Str(n.clone()));
-                    Json::Obj(m)
-                })
+        let list = installed_packs(&self.config.packs_dir)
+            .into_iter()
+            .map(|(f, n)| {
+                let mut m = BTreeMap::new();
+                m.insert("function".into(), Json::Str(f));
+                m.insert("pack".into(), Json::Str(n));
+                Json::Obj(m)
             })
             .collect();
         Response::json(200, Json::Arr(list).to_string())
     }
 
     fn replay(&self, req: &Request) -> Response {
-        let text = String::from_utf8_lossy(&req.body);
+        let mut text = String::from_utf8_lossy(&req.body).into_owned();
+        // The operator page sends the file as one JSON string; a replay file
+        // itself is never a bare JSON string, so this form is unambiguous.
+        if text.trim_start().starts_with('"') {
+            if let Ok(Json::Str(inner)) = json::parse(&text) {
+                text = inner;
+            }
+        }
         let file = match crate::replay::read(&text) {
             Ok(f) => f,
             Err(e) => return error(400, &format!("the body is not a replay file: {e}"), "send a vector, JSON lines of reports, or JSON lines of ingest and tick steps"),
@@ -308,6 +413,9 @@ impl Server {
             out.push_str(&l);
             out.push('\n');
         });
+        if req.headers.get("accept").is_some_and(|a| a.split(',').any(|x| x.trim().starts_with("application/json"))) {
+            return Response::json(200, replay_summary(&out).to_string());
+        }
         Response::text(200, "application/x-ndjson", out)
     }
 

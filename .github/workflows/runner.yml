@@ -34,6 +34,40 @@ jobs:
       - name: the shell scripts pass shellcheck
         run: shellcheck -s sh runner/install.sh runner/packaging/*.sh runner/packaging/deb/*
 
+  fieldkit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: the operator page carries the current Bleating Edge
+        run: python3 -I runner/fieldkit/inline.py --check
+      - name: the scope guard refuses what it should
+        run: python3 -I runner/fieldkit/check-scope.py --self-test
+      - name: build the runner
+        run: cargo build --locked
+        working-directory: runner
+      - name: every action on the page is an allowed CLI verb that exists
+        run: |
+          runner/target/debug/goat-processors help > "$RUNNER_TEMP/usage.txt"
+          python3 -I runner/fieldkit/check-scope.py --usage "$RUNNER_TEMP/usage.txt"
+      - name: install the browser test (pinned in package-lock.json)
+        run: npm ci && npx playwright install --with-deps chromium
+        working-directory: runner/fieldkit/e2e
+      - name: a browser drives every action against a running runner
+        run: npx playwright test
+        working-directory: runner/fieldkit/e2e
+        env:
+          CI: "1"
+          RUNNER_BIN: ../../target/debug/goat-processors
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: fieldkit-test-results
+          path: |
+            runner/fieldkit/e2e/test-results/
+            runner/fieldkit/e2e/.run/runner.log
+          if-no-files-found: ignore
+
   deb:
     strategy:
       fail-fast: false

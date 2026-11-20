@@ -28,7 +28,16 @@ pinned to one version in runner/Cargo.toml and runner/Cargo.lock:
   webpki-roots 1.0.12 CDLA-Permissive-2.0    https://github.com/rustls/webpki-roots
 
 Every crate those depend on, with its version and license, is listed in
-runner/THIRD-PARTY.md. The .deb package carries this file and LICENSE in
+runner/THIRD-PARTY.md.
+
+The runner's operator page carries a copy of the Bleating Edge design system
+(runner/fieldkit/bleating-edge/) from the goatcore repository, under the same
+license and copyright holder. Its browser test uses @playwright/test 1.65.1
+(Apache-2.0, https://github.com/microsoft/playwright), pinned in
+runner/fieldkit/e2e/package-lock.json and fetched in CI; it is test tooling
+and not part of the runner or its package.
+
+The .deb package carries this file and LICENSE in
 /usr/share/doc/goat-processors/. The packs and vectors are original work;
 coordinates in the vectors are notional points in open ocean.
 

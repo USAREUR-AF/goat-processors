@@ -42,10 +42,10 @@ how to troubleshoot it.
 | `install.sh` and [INSTALL.md](INSTALL.md) | Written. CI runs `install.sh` on a fresh Ubuntu 24.04 VM against a mutual-TLS router |
 | Signed release (cosign, keyless) | Written: `.github/workflows/runner-release.yml`, run by a tag `runner-v<version>` |
 | HTTP API ([openapi.yaml](openapi.yaml)): local with a root-only token, mesh with mutual TLS and an allow list; audit log | Built. Tested: every route, both roles, refusals audited, mTLS allow list |
-| CLI verbs on the API: `status`, `health`, `pipeline`, `pack use`, `stop`, `start`, `metrics`, `tracks`, `explain`, `replay --api`, `audit` | Built. Tested: each verb against a running service |
+| CLI verbs on the API: `status`, `view`, `health`, `pipeline`, `pack use`, `stop`, `start`, `metrics`, `tracks`, `explain`, `replay --api`, `audit` | Built. Tested: each verb against a running service |
 | Agent interfaces ([docs/design/agentic-ai.md](../docs/design/agentic-ai.md), [examples/README.md](examples/README.md)): MCP server and `goat-processors mcp`; model endpoints with data levels; agent as a source; settings proposals with a site auto-approval policy; the `why` explainer; audit of every agent call | Built. Tests: `tests/agents.rs` |
 | Agent as an adjudicator (association and fusion hints) | Designed |
-| Visual UI (Fieldkit Processors) | Designed |
+| Operator page, Fieldkit Processors ([below](#the-operator-page-fieldkit-processors), [fieldkit/](fieldkit/README.md)) | Built. Tested: a browser drives all eight actions against a running runner, signed in with a client certificate, and checks each change through the API (`fieldkit/e2e/`); the scope guard checks every action is a CLI verb; `tests/api.rs` checks the page's headers and the cross-site refusals |
 | Container image | Designed |
 
 ## How the runner works
@@ -268,6 +268,69 @@ refused request, is written to `api.audit_file` with who made it.
 `pack use` takes effect at once and is written to the record file, so a
 replay of the record makes the same change at the same step. It lasts until
 the service restarts; to keep it, write the pack in the config file.
+
+## The operator page (Fieldkit Processors)
+
+A web page, served by the runner at `/ui` on each API listener, for a person
+who would rather not type commands. It is one file built into the program: it
+loads nothing from anywhere else and works with no internet. It is built with
+goat's Fieldkit design system, Bleating Edge (large text and buttons, a
+sunlight and a dark screen).
+
+The page has exactly eight actions. Each is one CLI verb and one API route,
+and shows the command it equals ("Same as"), so anything done on the page can
+be done, scripted or checked from the command line:
+
+| On the page | Same as | Who may |
+|---|---|---|
+| Now: the plan view of system tracks with their sources, the track list, quality per source, the pipeline, proposals waiting. It refreshes every 2 seconds | `goat-processors view` | read |
+| Pick packs | `goat-processors pack use FUNCTION PACK` | operate |
+| Pause | `goat-processors stop` | operate |
+| Resume | `goat-processors start` | operate |
+| Replay a file (on a copy of the pipeline; the live runner does not change) | `goat-processors replay FILE --api` | read |
+| Explain a track (its events and trace records) | `goat-processors explain TRACK` | read |
+| Approve, on a waiting proposal | `goat-processors proposal approve ID` | operate |
+| Reject, on a waiting proposal | `goat-processors proposal reject ID` | operate |
+
+Every change asks first, in plain words, then shows what happened. `revert`
+stays a command only.
+
+**Who you are on the page** is decided by the API, as for any caller (the
+table above). The page holds no authority of its own:
+
+| How you open it | You are | You may |
+|---|---|---|
+| `http://127.0.0.1:8470/ui` on the machine, or through an SSH tunnel (INSTALL.md, step 10) | `local` | look; the change buttons are off. A browser cannot show the root-only token |
+| `https://<mesh address>:<port>/ui` (`api.mesh.listen`), with your client certificate installed in the browser | your certificate's name | what `api.mesh.allow` gives that name. `operate` turns the change buttons on |
+
+To let a person change the runner from a browser, give the API a mesh
+listener and allow their certificate (the keys are in Configure, above):
+
+```yaml
+api:
+  listen: "127.0.0.1:8470"
+  mesh:
+    listen: "<this host's mesh address>:8471"
+    allow:
+      - {name: <their certificate's common name>, role: operate}
+```
+
+Then `sudo goat-processors config check && sudo systemctl restart
+goat-processors`. They install their client certificate and key in their
+browser (the site CA signed it; their goat administrator gives it to them),
+add the site CA to the browser's trusted authorities so it trusts the
+runner's own certificate, and open `https://<this host's mesh address>:8471/ui`. The browser asks which
+certificate to use; "Signed in as" on the page shows the name the runner read.
+
+The runner refuses a request that a page from another site starts in your
+browser (by its `Sec-Fetch-Site` or `Origin`), so a page elsewhere cannot use
+your certificate to change the runner. The page itself is sent with a policy
+that lets it load nothing and call only the runner that served it.
+
+For the full step-by-step viewer of one scenario (a plan with a time slider
+and every record), replay a recorded file with `tools/explain`
+(`../tools/explain/README.md`). The page's Explain shows the recent steps the
+runner keeps in memory.
 
 ## Troubleshoot
 

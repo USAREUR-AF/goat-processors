@@ -28,7 +28,7 @@ repository it is `runner/docs/install-card.pdf`.
 | goatcore | the goat project's core repository, `USAREUR-AF/goatcore` on GitHub. It holds the project's design documents, including the operating-system guidance this page points to. Ask the site's goat administrator for access |
 | host class | the kind of machine a host is (for example an x86 server or an ARM edge board). goatcore gives each host class its own operating-system and disk-encryption setup |
 | goatbuilder | goat's tool that builds and installs whole hosts. It will install runners by itself; until then, this page and `install.sh` do |
-| Fieldkit | goat's family of small, offline browser tools for operators. "Fieldkit Processors" is the runner's visual UI, not in this release (step 10) |
+| Fieldkit | goat's family of small, offline browser tools for operators. "Fieldkit Processors" is the runner's web page (step 10) |
 
 In the commands below, `$` is the prompt: type what follows it. Lines without
 `$` are what you should see.
@@ -323,11 +323,34 @@ $ goat-processors replay /usr/share/goat-processors/packs/correlate-assign-time/
 Each line is one step: the report or tick that went in, and the events that
 came out.
 
-## 10. The visual UI
+## 10. Open the web page
 
-The visual UI (Fieldkit Processors) is not in this release; its status is
-Designed (README.md, What exists). Until it is, `goat-processors doctor` and
-the status file in step 9 are the view of the runner.
+The runner serves a web page, Fieldkit Processors, at `/ui`. It shows the
+system tracks on a plan, quality per source and the pipeline, and lets a
+person allowed to change the runner pick packs, pause, resume, replay a file
+and decide proposals. Each button shows the command it equals.
+
+The API listens only on the machine itself (`127.0.0.1:8470`), so open the
+page through an SSH tunnel: a forwarded port from your computer to the
+machine. On your computer, type:
+
+```
+ssh -L 8470:127.0.0.1:8470 <your user>@<the machine's address>
+```
+
+Leave that window open, and open `http://localhost:8470/ui` in a browser on
+your computer.
+
+You should see "Fieldkit Processors", a green "Running." banner, and "Signed
+in as local". If the browser says it cannot connect, check that the SSH
+window is still open and that step 8's doctor reports the API as OK.
+
+Opened this way, the page can look but not change anything: the change
+buttons are off, because a browser cannot show the root-only token. To make
+changes from a browser, the site's administrator turns on the mesh listener
+(`api.mesh` in the config file) and gives your certificate the `operate` role;
+README.md, "The operator page", says how. Without that, make changes with the
+commands the page shows, run with `sudo` on the machine.
 
 ## Update, stop, remove
 

@@ -1,0 +1,10 @@
+{
+  "name": "fieldkit-processors-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Browser test of the runner's operator page (runner/fieldkit/processors.html) against a running runner. Test tooling only: not part of the runner or its package.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": { "test": "playwright test" },
+  "devDependencies": { "@playwright/test": "1.65.1" }
+}

@@ -12,6 +12,13 @@ info:
     not listed is refused. Every change, and every refused request, is written
     to the audit log (api.audit_file). Each CLI verb is one of these routes
     (`goat-processors --help`). Errors are `{"error": text, "fix": text}`.
+
+    A request from a browser page of another site is refused with 403: one
+    whose Sec-Fetch-Site is neither same-origin nor none, or whose Origin is
+    not this API's own address. On the local listener, a browser request
+    (it carries Sec-Fetch-*) must name this machine in its Host (localhost,
+    a loopback address, the listen address or the host name). The operator
+    page at /ui calls only routes listed for it in runner/fieldkit/cli-allowlist.txt.
 servers:
   - url: http://127.0.0.1:8470
 components:
@@ -236,7 +243,12 @@ paths:
   /v1/replay:
     post:
       summary: run a replay file through a separate copy of the configured pipeline (role read; CLI replay FILE --api)
-      description: The live pipeline is not touched. The body is a vector, JSON lines of reports, or JSON lines of steps (runner/README.md, Replay files), at most 16 MiB.
+      description: |
+        The live pipeline is not touched. The body is a vector, JSON lines of
+        reports, or JSON lines of steps (runner/README.md, Replay files), at
+        most 16 MiB; or the same file as one JSON string (the operator page
+        sends it so). A request with Accept application/json is answered with
+        a summary in place of the output lines.
       parameters:
         - {name: trace, in: query, required: false, schema: {type: boolean}}
       requestBody:
@@ -244,12 +256,22 @@ paths:
         content:
           application/x-ndjson:
             schema: {type: string}
+          application/json:
+            schema: {type: string, description: the replay file as one JSON string}
       responses:
         "200":
-          description: one JSON line per stage per step, as goat-processors replay prints
+          description: one JSON line per stage per step, as goat-processors replay prints; or, with Accept application/json, the summary
           content:
             application/x-ndjson:
               schema: {type: string}
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lines: {type: integer, description: output lines}
+                  events: {type: object, description: '"STAGE EV" -> count'}
+                  now_ms: {type: [integer, "null"], description: the last tick that made system tracks}
+                  tracks: {type: array, items: {$ref: "#/components/schemas/Track"}}
         "400": {$ref: "#/components/responses/Error"}
   /v1/audit:
     get:
@@ -263,6 +285,55 @@ paths:
             application/json:
               schema: {type: array, items: {type: object}}
         "403": {$ref: "#/components/responses/Error"}
+  /v1/view:
+    get:
+      summary: everything the operator page shows, in one read (role read; CLI view)
+      responses:
+        "200":
+          description: the state, the pipeline with the packs each function may use, the system tracks, quality per source, the proposals, and the caller
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {$ref: "#/components/schemas/Status"}
+                  health: {type: object, properties: {healthy: {type: boolean}, detail: {type: string}}}
+                  pipeline:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        function: {type: string}
+                        pack: {type: string, description: the pack it runs now}
+                        packs: {type: array, items: {type: string}, description: every installed pack for this function}
+                  now_ms: {type: [integer, "null"]}
+                  tracks: {type: array, items: {$ref: "#/components/schemas/Track"}}
+                  quality:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source: {type: string}
+                        reports: {type: integer, description: reports received from it}
+                        measures: {type: [object, "null"], description: the measures of its latest quality event (spec/quality.md)}
+                        actions: {type: array, items: {type: object}, description: its quality actions now active (action-start events not yet ended)}
+                        entity_actions: {type: integer, description: how many of its objects have an active quality action}
+                  proposals: {type: array, items: {type: object}}
+                  you: {type: object, properties: {name: {type: string}, role: {type: string, enum: [read, operate]}, via: {type: string}}}
+  /ui:
+    get:
+      summary: the operator page, Fieldkit Processors (role read)
+      description: |
+        One HTML file with no outside assets (runner/fieldkit/processors.html).
+        Served with a Content-Security-Policy that allows nothing from
+        outside, calls to this origin only, and no framing. Each action on the
+        page is one CLI verb and one route of this API, answered with the
+        caller's own role.
+      responses:
+        "200":
+          description: the page
+          content:
+            text/html: {schema: {type: string}}
   /v1/routes:
     get:
       summary: every route with the role it needs (role read)
