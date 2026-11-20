@@ -47,8 +47,9 @@ the same object. It has two **methods**, chosen by a line in the pack:
 Each **pack** below is one set of correlate settings. Most extend another
 pack and add one capability. F1 is the [benchmark](#benchmark)'s association
 score, from 0 to 1: how well a pack puts the tracks of one object together
-and keeps different objects apart, on three sets of scenarios (named, random,
-and time quality, where sensor clocks are wrong).
+and keeps different objects apart. It is measured on the benchmark's
+evaluation set, scenarios held out from tuning, and the number in brackets is
+its 95 % interval: two packs differ only when their intervals do not overlap.
 
 {{methods_and_packs}}
 
