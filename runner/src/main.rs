@@ -162,7 +162,7 @@ fn main() -> ExitCode {
         ["proposals"] => api_verb(&a, "GET", "/v1/proposals".into(), None, Some(show_proposals)),
         ["propose", function, pack] => {
             let mut m = std::collections::BTreeMap::new();
-            m.insert("function".to_string(), Json::Str(function.to_string()));
+            m.insert("function".into(), Json::Str(function.to_string()));
             m.insert("pack".into(), Json::Str(pack.to_string()));
             m.insert("reason".into(), Json::Str(a.reason.clone().unwrap_or_default()));
             api_verb(&a, "POST", "/v1/proposals".into(), Some(Json::Obj(m).to_string().into_bytes()), Some(show_proposal))

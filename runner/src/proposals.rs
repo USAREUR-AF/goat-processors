@@ -73,7 +73,7 @@ impl Proposal {
     pub fn to_json(&self) -> Json {
         let mut m = BTreeMap::new();
         let s = |v: &str| Json::Str(v.into());
-        m.insert("id".to_string(), s(&self.id));
+        m.insert("id".into(), s(&self.id));
         m.insert("by".into(), s(&self.by));
         m.insert("via".into(), s(&self.via));
         m.insert("at_ms".into(), Json::Int(self.at_ms));
@@ -153,7 +153,7 @@ pub fn run_gate(cmd: &[String], timeout_s: u64, function: &str, pack: &str) -> (
     use std::process::{Command, Stdio};
     use std::time::{Duration, Instant};
     let mut m = BTreeMap::new();
-    m.insert("command".to_string(), Json::Arr(cmd.iter().map(|c| Json::Str(c.clone())).collect()));
+    m.insert("command".into(), Json::Arr(cmd.iter().map(|c| Json::Str(c.clone())).collect()));
     let started = Instant::now();
     let child = Command::new(&cmd[0])
         .args(&cmd[1..])

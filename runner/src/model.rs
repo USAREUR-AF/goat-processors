@@ -163,12 +163,12 @@ pub fn chat(e: &Endpoint, system: &str, user: &str) -> Result<String, String> {
     let mut msgs = Vec::new();
     for (role, content) in [("system", system), ("user", user)] {
         let mut m = std::collections::BTreeMap::new();
-        m.insert("role".to_string(), Json::Str(role.into()));
+        m.insert("role".into(), Json::Str(role.into()));
         m.insert("content".into(), Json::Str(content.into()));
         msgs.push(Json::Obj(m));
     }
     let mut req = std::collections::BTreeMap::new();
-    req.insert("messages".to_string(), Json::Arr(msgs));
+    req.insert("messages".into(), Json::Arr(msgs));
     req.insert("temperature".into(), Json::Int(0));
     if let Some(m) = &e.model {
         req.insert("model".into(), Json::Str(m.clone()));

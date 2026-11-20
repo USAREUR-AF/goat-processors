@@ -166,7 +166,7 @@ pub fn digest(text: &str) -> String {
 }
 
 fn obj(pairs: Vec<(&str, Json)>) -> Json {
-    Json::Obj(pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+    Json::Obj(pairs.into_iter().map(|(k, v)| (k.to_string().into(), v)).collect())
 }
 
 fn s(v: &str) -> Json {
@@ -177,7 +177,7 @@ fn tool_json(t: &Tool) -> Json {
     let mut props = BTreeMap::new();
     let mut required = Vec::new();
     for (name, ty, desc, req) in t.args {
-        props.insert(name.to_string(), obj(vec![("type", s(ty)), ("description", s(desc))]));
+        props.insert(name.to_string().into(), obj(vec![("type", s(ty)), ("description", s(desc))]));
         if *req {
             required.push(s(name));
         }
@@ -278,7 +278,7 @@ fn call_tool(server: &Server, who: &Identity, name: &str, args: &Json) -> (Resul
         None => Vec::new(),
         Some(spec) if spec.starts_with("{json:") => {
             let keys: Vec<&str> = spec.trim_start_matches("{json:").trim_end_matches('}').split(',').collect();
-            let m: BTreeMap<String, Json> = keys.iter().filter_map(|k| args.get(k).map(|v| (k.to_string(), v.clone()))).collect();
+            let m: json::Map = keys.iter().filter_map(|k| args.get(k).map(|v| (k.to_string().into(), v.clone()))).collect();
             Json::Obj(m).to_string().into_bytes()
         }
         Some(arg) => args.get(arg).and_then(|v| v.as_str()).unwrap_or("").as_bytes().to_vec(),

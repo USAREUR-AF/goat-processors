@@ -188,7 +188,7 @@ impl Pipeline {
                 Some(Json::Arr(m)) => m.iter().filter_map(|x| x.as_str().map(str::to_string)).collect(),
                 _ => continue,
             };
-            let marks: BTreeMap<String, Json> = members.iter().filter_map(|m| self.provenance.get(m).map(|p| (m.clone(), p.clone()))).collect();
+            let marks: goat_correlator::json::Map = members.iter().filter_map(|m| self.provenance.get(m).map(|p| (m.clone().into(), p.clone()))).collect();
             if let (Json::Obj(map), false) = (e, marks.is_empty()) {
                 map.insert("agent_provenance".into(), Json::Obj(marks));
             }
@@ -234,7 +234,7 @@ pub fn agent_provenance(r: &Json) -> Option<(String, Json)> {
     let mut m = BTreeMap::new();
     for k in ["agent", "model", "inputs"] {
         if let Some(v) = r.get(&format!("provenance.{k}")) {
-            m.insert(k.to_string(), v.clone());
+            m.insert(k.to_string().into(), v.clone());
         }
     }
     Some((entity, Json::Obj(m)))

@@ -30,7 +30,7 @@ End every sentence with the numbers of the records it rests on, in square bracke
 Use only the records given. Do not write a sentence you cannot cite.";
 
 fn obj(pairs: Vec<(&str, Json)>) -> Json {
-    Json::Obj(pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+    Json::Obj(pairs.into_iter().map(|(k, v)| (k.to_string().into(), v)).collect())
 }
 
 /// MCP tools beyond the API routes.

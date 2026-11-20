@@ -48,12 +48,12 @@ fn stub_answer(request: &str) -> String {
         n + 50
     );
     let mut msg = std::collections::BTreeMap::new();
-    msg.insert("role".to_string(), Json::Str("assistant".into()));
+    msg.insert("role".into(), Json::Str("assistant".into()));
     msg.insert("content".into(), Json::Str(text));
     let mut choice = std::collections::BTreeMap::new();
-    choice.insert("message".to_string(), Json::Obj(msg));
+    choice.insert("message".into(), Json::Obj(msg));
     let mut out = std::collections::BTreeMap::new();
-    out.insert("choices".to_string(), Json::Arr(vec![Json::Obj(choice)]));
+    out.insert("choices".into(), Json::Arr(vec![Json::Obj(choice)]));
     Json::Obj(out).to_string()
 }
 

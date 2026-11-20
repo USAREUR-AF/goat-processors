@@ -158,7 +158,7 @@ impl Server {
     /// One agent call: identity, tool, the SHA-256 of its inputs, and the outcome.
     pub fn audit_agent(&self, who: &Identity, tool: &str, inputs_sha256: &str, outcome: &str) {
         let mut m = BTreeMap::new();
-        m.insert("time_ms".to_string(), Json::Int(crate::service::wall_ms()));
+        m.insert("time_ms".into(), Json::Int(crate::service::wall_ms()));
         m.insert("who".into(), Json::Str(who.name.clone()));
         m.insert("via".into(), Json::Str(who.via.into()));
         m.insert("role".into(), Json::Str(who.role.name().into()));
@@ -349,7 +349,7 @@ impl Server {
         }
         self.audit_agent(who, "publish", &digest, &format!("accepted {n} reports as {}", grant.source_id));
         let mut m = BTreeMap::new();
-        m.insert("accepted".to_string(), Json::Int(n as i64));
+        m.insert("accepted".into(), Json::Int(n as i64));
         m.insert("source_id".into(), Json::Str(grant.source_id.clone()));
         Response::json(202, Json::Obj(m).to_string())
     }
