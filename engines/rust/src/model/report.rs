@@ -1,11 +1,11 @@
-//! Reports (spec/correlate.md, Reports): the required keys, the reject event,
-//! and the optional-key rules. Shared by correlate (`engine`) and the filter
-//! function (`filter_fn`), whose spec cites this section unchanged.
+//! correlate.md Reports (with Time quality): the required keys, the reject event,
+//! and the optional-key rules. Shared by correlate and the filter
+//! function, whose spec cites this section unchanged.
 
 use std::collections::BTreeMap;
 
-use crate::json::{obj, Json};
-use crate::pack::{TimeDefault, TimeState};
+use super::json::{obj, Json};
+use super::pack::{TimeDefault, TimeState};
 
 /// The five required keys of an accepted report.
 #[derive(Debug, Clone, Copy)]

@@ -1,7 +1,7 @@
 //! Combining a group's members' kinematics (spec/fuse.md, Kinematics).
 
-use crate::filter::Axis;
-use crate::json::{obj, Json};
+use crate::model::Axis;
+use crate::model::{obj, Json};
 
 use super::pack::Kinematics;
 use super::Member;

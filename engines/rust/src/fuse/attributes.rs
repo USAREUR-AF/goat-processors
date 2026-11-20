@@ -2,7 +2,7 @@
 
 use std::cmp::Ordering;
 
-use crate::json::Json;
+use crate::model::Json;
 
 use super::pack::Rule;
 use super::Member;

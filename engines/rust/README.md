@@ -1,53 +1,122 @@
 # goat-processors, rust engine
 
-An implementation of `spec/correlate.md` (version 0.8),
-`spec/correlate-assign.md` (version 0.6), `spec/fuse.md` (version 0.2), the filter
-function `spec/filter.md` (version 0.1) and `spec/quality.md` (version 0.2) in Rust,
-written from the
-specifications and the vectors only. The pack's `method` line selects which
-runs: `confirm` (the default) or `assign`. Standard library only; it carries
-its own small JSON reader (`src/json.rs`).
+An implementation in Rust of `spec/correlate.md` (version 0.8),
+`spec/correlate-assign.md` (version 0.6), `spec/filter.md` (version 0.1),
+`spec/fuse.md` (version 0.2) and `spec/quality.md` (version 0.2), written from
+the specifications and the vectors only. Standard library only; it carries its
+own small JSON reader (`src/model/json.rs`).
 
-| File | Spec section |
+## Layout
+
+One module per concern, the same names as the other engines use:
+
+| Module | What it holds |
 |---|---|
-| `src/pack.rs` | Pack: `load_pack(dir)` and `parse_pack(text)`, with `time_default` (`parse_time_default`, shared with quality) and `time_offset` |
-| `src/filter.rs` | Frame; Track estimate (the per-axis Kalman steps, with a position variance per axis); Two-model filter |
-| `src/engine.rs` | Reports, Measurement variance and its `time` record, Restart (the test in `Engine::ingest`), Tests (with B's timing variance), Association, Events, Trace, Snapshot: `Engine::ingest`, `Engine::tick`, `Engine::snapshot` |
-| `src/engine/assign.rs` | `correlate-assign.md`: Memberships, Assignment of one source, Cost (with timing variance), Sensor bias (moving into a frame, the update, the time offset fit), Ranking (exhaustive enumeration), Window (with restarted entities and `margin`), Events, Trace, Snapshot |
-| `src/report.rs` | `correlate.md` Reports: required keys, reject event, optional-key rules (used by correlate and filter); Time quality (`time_quality`) |
-| `src/filter_fn/pack.rs` | `filter.md` Pack: `filter_fn::load_pack(dir)` and `filter_fn::parse_pack(text)` |
-| `src/filter_fn/geometry.rs` | `filter.md` Geometry: distance, polygon, reference prediction |
-| `src/filter_fn/mod.rs` | `filter.md` Reports, Conditions, Rules, Tick, Events, Trace, Snapshot: `filter_fn::Engine` |
-| `src/fuse.rs` | `spec/fuse.md` Reports (validation, normalized report), Groups, On each tick, Fused event (with Height), Events, Trace, Snapshot: `fuse::Engine` |
-| `src/fuse/pack.rs` | `spec/fuse.md` Pack: `fuse::load_pack(dir)` and `fuse::parse_pack(text)` |
-| `src/fuse/kinematics.rs` | `spec/fuse.md` Kinematics: `inverse_variance`, `covariance_intersection` (weight, fold), `best`, `priority`, `latest` |
-| `src/fuse/attributes.rs` | `spec/fuse.md` Attributes: candidates, the five rules, `majority` equality |
-| `tests/common/mod.rs` | `spec/vector-format.md`: the structural comparison, shared by all runners |
-| `tests/vectors.rs` | correlate vectors: `packs/correlate-*` and `spec/correlate-load-vectors` |
-| `tests/filter_vectors.rs` | filter vectors: `packs/filter-*` and `spec/filter-load-vectors` |
-| `src/quality.rs` | `spec/quality.md` 0.2: Reports (with Time quality, resolved with `src/report.rs`), Order, Input clock, Samples, Window, Entity and Source measures, Rules, Forwarding, Tick, Ingest, Events, Trace, Snapshot; reuses `src/filter.rs` for Frame and Track estimate |
-| `src/quality/pack.rs` | `spec/quality.md` 0.2, Pack (line ends, control characters, `time_default` through `pack::parse_time_default`): `quality::load_pack(dir)` and `quality::parse_pack(text)` |
-| `tests/fuse_vectors.rs` | fuse vectors: `packs/fuse-*` and `spec/fuse-load-vectors` |
-| `tests/quality_vectors.rs` | quality vectors: `packs/quality-*` and `spec/quality-load-vectors` |
+| `src/model/` | the shared data model: JSON values, reports, frame, track estimate, two-model filter, shared pack values. Values and pure functions only |
+| `src/correlate/` | correlate: the engine both methods share, its pack, the tests, restart, and the `confirm` method |
+| `src/assign/` | correlate's `assign` method (correlate-assign.md) |
+| `src/filter/` | the filter function |
+| `src/fuse/` | the fuse function |
+| `src/quality/` | the quality function |
+| `src/trace.rs` | `StepResult` and the shared event and trace record builders |
+| `src/snapshot.rs` | the JSON forms every Snapshot shares |
+| `src/io/` | the steps file, the events file, the runner contract |
+| `src/function.rs` | `Function`, the one entry-point shape |
+| `src/bin/runner.rs` | the command-line runner (`runner/build`, `runner/run`) |
 
-Use (filter: the same calls on `goat_correlator::filter_fn::{load_pack, Engine}`):
+Every function has the same entry point, the trait `goat_correlator::Function`:
 
 ```rust
-let pack = goat_correlator::load_pack(std::path::Path::new("packs/correlate-gnn"))?;
-let mut engine = goat_correlator::Engine::new(pack);
+use goat_correlator::{Function, correlate};
+
+let pack = correlate::Engine::load_pack(std::path::Path::new("packs/correlate-gnn"))?;
+let mut engine = correlate::Engine::new(pack);
 let step = engine.ingest(&report);   // step.events, step.trace (JSON values)
 let step = engine.tick(1500);
 let state = engine.snapshot();
-
-// fuse (spec/fuse.md); reuses correlate's Frame and filter (src/filter.rs)
-let pack = goat_correlator::fuse::load_pack(std::path::Path::new("packs/fuse-shared"))?;
-let mut fuse = goat_correlator::fuse::Engine::new(pack);
-
-let pack = goat_correlator::quality::load_pack(std::path::Path::new("packs/quality-feed"))?;
-let mut quality = goat_correlator::quality::Engine::new(pack);
-let step = quality.ingest(&report);  // new, pass (with the actions in force)
-let step = quality.tick(60000);      // forget, quality, action-start / action-end
 ```
+
+`filter::Engine`, `fuse::Engine` and `quality::Engine` are driven by the same
+five calls. `Function::NAME` is the name the runner's `--function` takes.
+
+## Where each spec section lives
+
+### spec/correlate.md
+
+| Section | File |
+|---|---|
+| What the correlator does | `src/correlate/mod.rs` |
+| Reports | `src/model/report.rs` (required keys, reject, optional keys); `src/correlate/mod.rs` (`ingest`: out-of-order, the reference) |
+| Reports, Time quality | `src/model/report.rs` (`time_quality`) |
+| Frame | `src/model/frame.rs` |
+| Track estimate | `src/model/track.rs` (the per-axis steps); `src/correlate/entity.rs` (an entity's prediction); `src/correlate/mod.rs` (Measurement variance, first and later reports) |
+| Two-model filter | `src/model/two_model.rs` |
+| Restart | `src/correlate/mod.rs` |
+| Tests | `src/correlate/pair_tests.rs` |
+| Association | `src/correlate/confirm.rs` |
+| Events | `src/correlate/confirm.rs`; `src/trace.rs` |
+| Trace | `src/trace.rs` (the record shape); written where each stage runs |
+| Snapshot | `src/correlate/confirm.rs`; `src/correlate/mod.rs` (`filter_json`); `src/snapshot.rs` |
+| Pack | `src/correlate/pack.rs`; `src/model/pack.rs` (`filter`, `time_default`) |
+| Floats | every number is a binary64 (`f64`); integers of reports are `i64` |
+
+### spec/correlate-assign.md
+
+| Section | File |
+|---|---|
+| What this method does; Shared with `correlate.md` | `src/assign/mod.rs` |
+| Memberships | `src/assign/membership.rs` |
+| Assignment of one source | `src/assign/cost.rs` |
+| Sensor bias | `src/assign/bias.rs` |
+| Ranking | `src/assign/ranking.rs` |
+| Window | `src/assign/window.rs` |
+| Events | `src/assign/membership.rs` (membership events); `src/assign/window.rs` (`system`, `provisional`) |
+| Trace | `src/assign/cost.rs` (gate, cost); `src/assign/window.rs` (choice, history); `src/assign/bias.rs` (bias) |
+| Snapshot | `src/assign/snapshot.rs` |
+| Pack | `src/correlate/pack.rs` |
+
+### spec/filter.md
+
+| Section | File |
+|---|---|
+| What the filter does; Rules; Tick; Events; Trace; Snapshot | `src/filter/mod.rs` |
+| Reports | `src/model/report.rs` (cited from correlate.md) |
+| Geometry | `src/filter/geometry.rs` |
+| Conditions | `src/filter/conditions.rs` |
+| Pack | `src/filter/pack.rs` |
+
+### spec/fuse.md
+
+| Section | File |
+|---|---|
+| What fuse does; Groups; On each tick; Fused event; Events; Trace | `src/fuse/mod.rs` |
+| Shared with `correlate.md` | `src/model/frame.rs`, `src/model/track.rs` |
+| Reports | `src/fuse/report.rs` |
+| Kinematics | `src/fuse/kinematics.rs` |
+| Attributes | `src/fuse/attributes.rs` |
+| Snapshot | `src/fuse/snapshot.rs` |
+| Pack | `src/fuse/pack.rs` |
+
+### spec/quality.md
+
+| Section | File |
+|---|---|
+| What quality does; Reports; Frame and filter; Window; Tick; Ingest | `src/quality/mod.rs` |
+| Reports, Time quality | `src/model/report.rs` (`time_error_ms`, `time_state`) |
+| Order; Input clock; Samples | `src/quality/samples.rs` |
+| Entity measures; Source measures | `src/quality/measures.rs` |
+| Rules | `src/quality/rules.rs` |
+| Forwarding | `src/quality/forwarding.rs` |
+| Events | `src/quality/measures.rs` (`quality`), `src/quality/rules.rs` (actions), `src/quality/forwarding.rs` (`pass`), `src/quality/mod.rs` |
+| Trace | `src/quality/mod.rs` (samples), `src/quality/rules.rs` (rules) |
+| Snapshot | `src/quality/snapshot.rs` |
+| Pack | `src/quality/pack.rs` |
+
+### spec/vector-format.md
+
+| Section | File |
+|---|---|
+| Steps, the comparison | `tests/common/mod.rs`; `src/io/mod.rs` (steps files) |
 
 ## Build
 
@@ -66,17 +135,21 @@ cargo test
 
 `scenario_vectors` runs every `packs/correlate-*/vectors/*.json`: each step's
 events and trace, then the final snapshot. `load_vectors` runs every
-`spec/correlate-load-vectors/*.json`. `filter_scenario_vectors` and
-`filter_load_vectors` do the same for `packs/filter-*/vectors/*.json` and
-`spec/filter-load-vectors/*.json`; `quality_scenario_vectors` and
-`quality_load_vectors` for `packs/quality-*/vectors/*.json` and
-`spec/quality-load-vectors/*.json`. Numbers compare within
+`spec/correlate-load-vectors/*.json`. `filter_scenario_vectors`,
+`fuse_scenario_vectors`, `quality_scenario_vectors` and their `*_load_vectors`
+do the same for the other functions. Numbers compare within
 `1e-6 * max(1, abs(want))`; a key with `null` differs from an absent key. On a
 failure the test prints the vector and the path of the first mismatch, for
-example `steps[2].trace[6].value: got 1.0, want 2.0`. `fuse_scenario_vectors`
-and `fuse_load_vectors` do the same for `packs/fuse-*/vectors/*.json` and
-`spec/fuse-load-vectors/*.json`. Add `-- --nocapture` to
+example `steps[2].trace[6].value: got 1.0, want 2.0`. Add `-- --nocapture` to
 see one line per vector.
 
-Points still open under correlate 0.8, correlate-assign 0.6, filter 0.1,
-fuse 0.2 and quality 0.2 are in `DISAGREEMENTS.md`.
+## The runner
+
+`runner/build` builds `src/bin/runner.rs` with the release profile;
+`runner/run` runs it, as `tools/perf/README.md` "Runner contract" states:
+
+```
+runner/run --function correlate --pack ../../packs/correlate-gnn --steps <steps.json> --events out.jsonl --trace
+```
+
+Points still open under each spec are in `DISAGREEMENTS.md`.

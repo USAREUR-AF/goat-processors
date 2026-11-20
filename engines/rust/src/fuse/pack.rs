@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use crate::pack::FilterParams;
+use crate::model::pack::FilterParams;
 
 /// The pack's `kinematics` method (spec/fuse.md, Kinematics).
 #[derive(Debug, Clone, Copy, PartialEq)]

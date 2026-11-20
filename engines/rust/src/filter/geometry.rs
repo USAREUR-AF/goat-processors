@@ -1,8 +1,8 @@
 //! spec/filter.md, Geometry: distance, polygon, reference prediction.
 //!
-//! `R`, `rad`, `deg` and `wrap` are the correlate engine's own (src/filter.rs).
+//! `R`, `rad`, `deg` and `wrap` are the correlate engine's own (`crate::model::frame`).
 
-use crate::filter::{deg, rad, wrap180 as wrap, R};
+use crate::model::{deg, rad, wrap180 as wrap, R};
 
 /// Distance (haversine) from point 1 to point 2, in meters, in the spec's order.
 pub fn distance(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {

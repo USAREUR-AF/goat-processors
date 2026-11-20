@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use crate::pack::{parse_time_default, FilterParams, TimeDefault};
+use crate::model::pack::{parse_time_default, FilterParams, TimeDefault};
 
 /// The entity measures, in the order of the table "Entity measures".
 pub const ENTITY_MEASURES: [&str; 23] = [
