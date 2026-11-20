@@ -59,7 +59,10 @@ how to troubleshoot it.
 
 **Reports.** Each input delivers reports. A fabric sample or a UDP datagram
 holds one report as a JSON object, a JSON array of reports, or JSON lines.
-Anything else is counted as unreadable and skipped. Reports are passed to the
+Anything else is counted as unreadable and skipped. A report written with
+nested objects (`{"track": {"source_id": "r1"}}`, as a JSON encoder that
+cannot write a member name holding `.` produces it) is read with dotted keys
+(`"track.source_id"`); a dotted key already present wins. Reports are passed to the
 pipeline in the order they arrive.
 
 **Stages.** A report goes through the stages in order. A stage passes it on
@@ -223,7 +226,7 @@ The events are described in each function's specification under `spec/`.
 |---|---|
 | a vector (`packs/*/vectors/*.json`) | its steps, exactly; the pipeline is the vector's own pack unless `-c` or `--pack` gives one |
 | JSON lines of `{"ingest": <report>}` and `{"tick": <now_ms>}` | these steps, in order (what `record` writes) |
-| JSON lines of reports | each report, with ticks from the input clock |
+| JSON lines of reports | each report, with ticks from the input clock; nested objects read as dotted keys, as on the fabric |
 
 `replay` prints one JSON line per stage per step, `{step, call, now_ms, stage,
 events}`, with `trace` when given `--trace`. `--pack correlate=correlate-gnn`

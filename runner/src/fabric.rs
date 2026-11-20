@@ -94,6 +94,46 @@ impl Session {
 
 /// Reads a payload: a report, an array of reports, or JSON lines of reports.
 pub fn decode(from: &str, bytes: &[u8]) -> Input {
+    match decode_raw(from, bytes) {
+        Input::Reports(v) => Input::Reports(v.into_iter().map(flatten).collect()),
+        other => other,
+    }
+}
+
+/// A report written with nested objects, as a JSON encoder that cannot
+/// write a member name holding `.` produces it (`{"track": {"source_id":
+/// "r1"}}`), is read with dotted keys (`"track.source_id": "r1"`). A dotted
+/// key already present is kept; arrays are left as they are.
+pub fn flatten(r: Json) -> Json {
+    let Json::Obj(m) = r else { return r };
+    if !m.values().any(|v| matches!(v, Json::Obj(_))) {
+        return Json::Obj(m);
+    }
+    fn walk(prefix: &str, m: &json::Map, out: &mut Vec<(String, Json)>) {
+        for (k, v) in m {
+            let key = if prefix.is_empty() { k.as_str().to_string() } else { format!("{prefix}.{}", k.as_str()) };
+            match v {
+                Json::Obj(inner) => walk(&key, inner, out),
+                _ => out.push((key, v.clone())),
+            }
+        }
+    }
+    let mut flat = Vec::new();
+    walk("", &m, &mut flat);
+    let mut out = json::Map::new();
+    // Keys written flat in the input win over the same key reached by nesting.
+    for (k, v) in m.iter().filter(|(_, v)| !matches!(v, Json::Obj(_))) {
+        out.insert(k.clone(), v.clone());
+    }
+    for (k, v) in flat {
+        if !out.contains_key(k.as_str()) {
+            out.insert(k.into(), v);
+        }
+    }
+    Json::Obj(out)
+}
+
+fn decode_raw(from: &str, bytes: &[u8]) -> Input {
     let Ok(text) = std::str::from_utf8(bytes) else {
         return Input::Unreadable { from: from.into(), why: "not UTF-8".into() };
     };
@@ -132,6 +172,18 @@ mod tests {
         assert!(matches!(decode("k", b"3"), Input::Unreadable { .. }));
         assert!(matches!(decode("k", b"\xff"), Input::Unreadable { .. }));
         assert_eq!(key_chunk("radar-1/T*1"), "radar-1/T_1");
+        match decode("k", br#"{"track":{"source_id":"r1"},"uid":"T1","track.source_id":"r0","a":{"b":{"c":1}}}"#) {
+            Input::Reports(v) => {
+                assert_eq!(v[0].get("track.source_id").and_then(|x| x.as_str()), Some("r0"), "a flat key wins");
+                assert_eq!(v[0].get("a.b.c"), Some(&Json::Int(1)));
+                assert!(v[0].get("track").is_none());
+            }
+            _ => panic!(),
+        }
+        match decode("k", br#"{"track":{"source_id":"r1"},"uid":"T1"}"#) {
+            Input::Reports(v) => assert_eq!(v[0].get("track.source_id").and_then(|x| x.as_str()), Some("r1")),
+            _ => panic!(),
+        }
         assert_eq!(key_chunk("a//b"), "a/b");
     }
 
