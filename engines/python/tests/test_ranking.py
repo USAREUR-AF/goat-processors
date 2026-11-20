@@ -76,6 +76,18 @@ class Ranking(unittest.TestCase):
         self.assertEqual(ranked_assignments([[INF]], 0, 2), [])
         self.assertEqual(_first_assignment([[2.0, 1.0, 5.0]], 2), [1])
 
+    def test_negative_entries(self):
+        """Entries below 0 (a cost less the keep bonus): the bound still holds."""
+        rng = random.Random(17)
+        for _ in range(300):
+            n, c = rng.randint(2, 5), rng.randint(1, 4)
+            m = [[INF if rng.random() < 0.3 else float(rng.randint(-4, 6)) for _ in range(c)]
+                 + [rng.choice([-1.0, 3.0]) if j == i else INF for j in range(n)] for i in range(n)]
+            want = brute(m, c)
+            got = ranked_assignments(m, c, 3)
+            self.assertEqual([(assignment_total(m, g), [j if j < c else c for j in g]) for g in got],
+                             [(w[0], w[1]) for w in want[:3]])
+
     def test_dense_forbidden(self):
         """Mostly forbidden entries: the bound meets rows with no column left."""
         rng = random.Random(13)

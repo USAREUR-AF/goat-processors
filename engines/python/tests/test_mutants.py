@@ -206,6 +206,28 @@ class TwoModel(unittest.TestCase):
         self.assertEqual(mu, [1.0, 0.0])
 
 
+class MoreQuality(unittest.TestCase):
+    def test_median_of_an_odd_count(self):
+        self.assertEqual(Q._median([1, 2, 4, 8, 16]), 4)
+
+    def test_filter_parameter_below_one(self):
+        Q.parse_pack(Quality.BASE.replace("vel_sigma_ms=5", "vel_sigma_ms=0.5"))
+
+
+class MoreTimeVariance(unittest.TestCase):
+    def test_first_report_without_velocity(self):
+        """tracks.py: no velocity, no prediction: the timing variance is 0."""
+        eng = correlate.make_engine(correlate.parse_pack(ASSIGN + "time_default a error_ms=100\n"))
+        _, trace = eng.ingest(rep("a", "1", 0, 1.0, 1.0))
+        self.assertEqual((trace[0]["var_east"], trace[0]["var_north"]), (0.0, 0.0))
+
+    def test_both_measurement_variances(self):
+        eng = correlate.make_engine(correlate.parse_pack(ASSIGN + "time_default a error_ms=100\n"))
+        _, trace = eng.ingest(rep("a", "1", 0, 1.0, 1.0, course=30.0, speed_ms=100.0))
+        self.assertEqual(eng.entities["a/1"].r_meas,
+                         (2500.0 + trace[0]["var_east"], 2500.0 + trace[0]["var_north"]))
+
+
 class Course(unittest.TestCase):
     def test_a_course_that_rounds_to_360_is_0(self):
         """model.py course_deg: [0, 360), a tiny negative course adds up to 360.0."""
