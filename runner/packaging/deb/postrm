@@ -6,6 +6,8 @@ fi
 if [ "$1" = purge ]; then
   rm -rf /var/lib/goat-processors
   # /etc/goat-processors/tls holds certificates the site placed; it is kept.
-  getent passwd goat-processors >/dev/null && deluser --system goat-processors >/dev/null 2>&1 || true
+  if getent passwd goat-processors >/dev/null; then
+    deluser --system goat-processors >/dev/null 2>&1 || true
+  fi
 fi
 exit 0
