@@ -159,7 +159,8 @@ impl Service {
         let api = format!("127.0.0.1:{}", free_port());
         let udp = format!("127.0.0.1:{}", free_port());
         let cfg = format!(
-            "name: t\nsite: s\npacks_dir: {packs}\ntick_ms: 200\ninputs:\n  udp:\n    - listen: \"{udp}\"\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: quality, pack: quality-feed}}\nstatus_file: {d}/status.json\napi:\n  listen: \"{api}\"\n  token_file: {d}/api.token\n  audit_file: {d}/audit.jsonl\n{agents}",
+            "name: t\nsite: s\npacks_dir: {packs}\ntick_ms: 200\ninputs:\n  udp:\n    - listen: \"{udp}\"\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: quality, pack: quality-feed}}\nstatus_file: {d}/status.json\napi:\n  listen: \"{api}\"\n  token_file: {d}/api.token\n  audit_file: {d}/audit.jsonl\n{agents}{pf}",
+            pf = if agents.contains("agents:") { format!("  proposals_file: {}/proposals.json\n", dir.display()) } else { format!("agents:\n  proposals_file: {}/proposals.json\n", dir.display()) },
             packs = repo().join("packs").display(),
             d = dir.display(),
         );
@@ -228,7 +229,7 @@ fn joined_track(svc: &Service) -> String {
     v.get("tracks").unwrap().as_array().unwrap().iter().find(|t| t.get("members").map(|m| m.to_string()) == Some("[\"adsb/T1\",\"radar-1/T1\"]".into())).map(|t| s(t, "system").to_string()).expect("a joined track")
 }
 
-const POLICY: &str = "  actions:\n    - {who: local-admin, actions: [use_pack, stop, start]}\n";
+const POLICY: &str = "  actions:\n    - {who: local-admin, actions: [use_pack, stop, start, approve, reject, revert]}\n";
 
 #[test]
 fn a1_reference_client_lists_and_calls_every_tool() {
@@ -427,4 +428,96 @@ fn a9_outputs_are_byte_identical_with_agent_interfaces_on_and_no_agent() {
     );
     assert!(on.lines().count() > 20);
     assert_eq!(on, off);
+}
+
+fn proposals(svc: &Service) -> Vec<Json> {
+    let (_, text) = svc.tool(None, "proposals", "{}");
+    json::parse(&text).unwrap().as_array().unwrap().clone()
+}
+
+fn wait_state(svc: &Service, id: &str, state: &str) -> Json {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        if let Some(p) = proposals(svc).into_iter().find(|p| s(p, "id") == id) {
+            if s(&p, "state") == state {
+                return p;
+            }
+            assert!(Instant::now() < deadline, "{id} is {}, not {state}", s(&p, "state"));
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+fn running_pack(svc: &Service, function: &str) -> String {
+    let (_, text) = svc.tool(None, "pipeline", "{}");
+    json::parse(&text).unwrap().as_array().unwrap().iter().find(|st| s(st, "function") == function).map(|st| s(st, "pack").to_string()).unwrap()
+}
+
+#[test]
+fn a5_proposals_policy_approval_and_revert() {
+    // The policy: the agent (here the local read-only identity) may move
+    // quality between quality-feed and quality-time once `true` passes, and
+    // may move correlate to assign-full only if `false` passes (it never does).
+    let agents = "agents:\n  auto_approve:\n    - {who: local, function: quality, packs: [quality-feed, quality-time], gate: [\"true\"]}\n    - {who: local, function: correlate, packs: [correlate-assign-full], gate: [\"false\"]}\n";
+    let svc = Service::start("agents-a5", &format!("record:\n  path: {}/record.jsonl\n{agents}", tmp("agents-a5-rec").display()));
+    let token = svc.token();
+
+    // Inside the policy: applied after the gate.
+    let (err, text) = svc.tool(None, "propose", "{\"function\":\"quality\",\"pack\":\"quality-time\",\"reason\":\"sources report their clock state\"}");
+    assert!(!err, "{text}");
+    let p1 = json::parse(&text).unwrap();
+    assert_eq!(s(&p1, "state"), "gating");
+    let p1 = wait_state(&svc, s(&p1, "id"), "applied");
+    assert_eq!(s(&p1, "decided_by"), "policy");
+    assert_eq!(p1.get("gate").unwrap().get("passed"), Some(&Json::Bool(true)));
+    assert_eq!(running_pack(&svc, "quality"), "quality-time");
+
+    // Outside the policy (a pack not in its bounds): waits for a person.
+    let (_, text) = svc.tool(None, "propose", "{\"function\":\"quality\",\"pack\":\"quality-edge\",\"reason\":\"try the edge rules\"}");
+    let p2 = json::parse(&text).unwrap();
+    let id2 = s(&p2, "id").to_string();
+    assert_eq!(s(&p2, "state"), "pending");
+    std::thread::sleep(Duration::from_millis(500));
+    assert_eq!(s(&wait_state(&svc, &id2, "pending"), "state"), "pending");
+    assert_eq!(running_pack(&svc, "quality"), "quality-time");
+
+    // A failing gate: not applied, waits for a person.
+    let (_, text) = svc.tool(None, "propose", "{\"function\":\"correlate\",\"pack\":\"correlate-assign-full\",\"reason\":\"x\"}");
+    let p3 = json::parse(&text).unwrap();
+    let p3 = wait_state(&svc, s(&p3, "id"), "gate-failed");
+    assert_eq!(p3.get("gate").unwrap().get("passed"), Some(&Json::Bool(false)));
+    assert_eq!(running_pack(&svc, "correlate"), "correlate-assign-time");
+
+    // The read-only proposer cannot approve its own proposal.
+    let out = bin().args(["proposal", "approve", &id2, "--api", &svc.api, "-c", "/nonexistent"]).output().unwrap();
+    assert!(!out.status.success());
+    // A person with the role operate approves it (the CLI, with the token).
+    let out = bin().args(["proposal", "approve", &id2, "-c"]).arg(svc.dir.join("r.yaml")).output().unwrap();
+    let t = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success() && t.contains("applied") && t.contains("decided by local-admin"), "{t}");
+    assert_eq!(running_pack(&svc, "quality"), "quality-edge");
+
+    // Revert restores the previous pack, in one step.
+    let out = bin().args(["proposal", "revert", &id2, "-c"]).arg(svc.dir.join("r.yaml")).output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(running_pack(&svc, "quality"), "quality-time");
+    assert_eq!(s(&wait_state(&svc, &id2, "reverted"), "decided_by"), "local-admin");
+    // The revert action tool, like every action tool, needs the site policy.
+    let r = svc.mcp(Some(&token), "tools/call", &format!("{{\"name\":\"revert\",\"arguments\":{{\"id\":\"{}\"}}}}", s(&p1, "id")));
+    assert!(r.to_string().contains("site policy"), "the revert action tool needs the policy: {r}");
+
+    // Every step is audited and recorded.
+    assert!(svc.agent_audit("propose").len() >= 3);
+    assert!(svc.audit().iter().any(|a| s(a, "path") == format!("/v1/proposals/{id2}/approve") && s(a, "who") == "local-admin"));
+    let rec = std::fs::read_to_string(tmp_path("agents-a5-rec").join("record.jsonl")).unwrap();
+    for pack in ["quality-time", "quality-edge"] {
+        assert!(rec.contains(&format!("{{\"pack\":{{\"function\":\"quality\",\"pack\":\"{pack}\"}}}}")), "{pack} not recorded");
+    }
+    // The proposals are kept in the proposals file.
+    let saved = json::parse(&std::fs::read_to_string(svc.dir.join("proposals.json")).unwrap()).unwrap();
+    assert!(saved.as_array().unwrap().iter().any(|p| s(p, "id") == id2 && s(p, "state") == "reverted"));
+}
+
+fn tmp_path(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_TARGET_TMPDIR")).join(name)
 }

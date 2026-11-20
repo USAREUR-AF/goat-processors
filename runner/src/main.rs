@@ -9,6 +9,7 @@ mod http;
 mod mcp;
 mod model;
 mod pipeline;
+mod proposals;
 mod replay;
 mod selftest;
 mod service;
@@ -44,6 +45,9 @@ The running service, through its API (each verb is one API route; -o json prints
   goat-processors explain TRACK                what led to one system track        GET  /v1/explain/TRACK
   goat-processors replay FILE --api            run a file on a copy of the running pipeline  POST /v1/replay
   goat-processors audit                        the latest audit lines (sudo)       GET  /v1/audit
+  goat-processors proposals                    every settings proposal              GET  /v1/proposals
+  goat-processors propose FUNCTION PACK --reason TEXT   propose a pack; nothing changes yet  POST /v1/proposals
+  goat-processors proposal approve|reject|revert ID     decide a proposal (sudo)   POST /v1/proposals/ID/VERB
   goat-processors why TRACK [--endpoint NAME]  a model explains one track, citing trace records  GET /v1/why/TRACK
   goat-processors mcp                          an MCP server on stdin and stdout, for agents on this host  POST /mcp
   options: [-c CONFIG] [--api HOST:PORT] [-o json]. The API address and the token file come from
@@ -64,10 +68,11 @@ struct Args {
     api: Option<String>,
     use_api: bool,
     endpoint: Option<String>,
+    reason: Option<String>,
 }
 
 fn parse_args(argv: Vec<String>) -> Result<Args, String> {
-    let mut a = Args { rest: vec![], config: None, output: None, packs: vec![], packs_dir: None, tick_ms: None, trace: false, snapshot: false, out: None, api: None, use_api: false, endpoint: None };
+    let mut a = Args { rest: vec![], config: None, output: None, packs: vec![], packs_dir: None, tick_ms: None, trace: false, snapshot: false, out: None, api: None, use_api: false, endpoint: None, reason: None };
     let mut it = argv.into_iter();
     while let Some(x) = it.next() {
         let mut val = |name: &str| it.next().ok_or(format!("{name} needs a value"));
@@ -83,6 +88,7 @@ fn parse_args(argv: Vec<String>) -> Result<Args, String> {
             "--tick-ms" => a.tick_ms = Some(val(&x)?.parse().map_err(|_| "--tick-ms needs a whole number")?),
             "--trace" => a.trace = true,
             "--endpoint" => a.endpoint = Some(val(&x)?),
+            "--reason" => a.reason = Some(val(&x)?),
             "--snapshot" => a.snapshot = true,
             "--out" => a.out = Some(val(&x)?.into()),
             "--api" => {
@@ -153,6 +159,17 @@ fn main() -> ExitCode {
             api_verb(&a, "GET", format!("/v1/why/{}{q}", http::encode(track)), None, Some(show_why))
         }
         ["mcp"] => cmd_mcp(&a),
+        ["proposals"] => api_verb(&a, "GET", "/v1/proposals".into(), None, Some(show_proposals)),
+        ["propose", function, pack] => {
+            let mut m = std::collections::BTreeMap::new();
+            m.insert("function".to_string(), Json::Str(function.to_string()));
+            m.insert("pack".into(), Json::Str(pack.to_string()));
+            m.insert("reason".into(), Json::Str(a.reason.clone().unwrap_or_default()));
+            api_verb(&a, "POST", "/v1/proposals".into(), Some(Json::Obj(m).to_string().into_bytes()), Some(show_proposal))
+        }
+        ["proposal", verb @ ("approve" | "reject" | "revert"), id] => {
+            api_verb(&a, "POST", format!("/v1/proposals/{}/{verb}", http::encode(id)), None, Some(show_proposal))
+        }
         ["version"] | ["--version"] => {
             println!("goat-processors {}", env!("CARGO_PKG_VERSION"));
             Ok(ExitCode::SUCCESS)
@@ -521,4 +538,26 @@ fn cmd_mcp(a: &Args) -> Result<ExitCode, String> {
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+fn show_proposal(p: &Json) -> String {
+    format!(
+        "{:<5} {:<12} {:<10} {} -> {}  by {}{}  {}\n",
+        s_of(p, "id"),
+        s_of(p, "state"),
+        s_of(p, "function"),
+        s_of(p, "previous_pack"),
+        s_of(p, "pack"),
+        s_of(p, "by"),
+        p.get("decided_by").and_then(|d| d.as_str()).map(|d| format!(", decided by {d}")).unwrap_or_default(),
+        s_of(p, "reason")
+    )
+}
+
+fn show_proposals(v: &Json) -> String {
+    let list = v.as_array().cloned().unwrap_or_default();
+    if list.is_empty() {
+        return "no proposals\n".into();
+    }
+    list.iter().map(show_proposal).collect()
 }

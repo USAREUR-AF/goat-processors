@@ -48,6 +48,9 @@ pub enum Ask {
     Metrics,
     Tracks,
     Explain(String),
+    Propose { function: String, pack: String, reason: String },
+    Proposals,
+    Decide { id: String, verb: String },
 }
 
 #[derive(Debug, Clone)]
@@ -80,6 +83,11 @@ pub const ROUTES: &[(&str, &str, Role, &str)] = &[
     ("POST", "/v1/replay", Role::Read, "run a replay file (the body) through a separate copy of the pipeline"),
     ("GET", "/v1/audit", Role::Operate, "the latest audit lines; query limit (default 100)"),
     ("GET", "/v1/routes", Role::Read, "this table"),
+    ("GET", "/v1/proposals", Role::Read, "every proposal, pending and decided"),
+    ("POST", "/v1/proposals", Role::Read, "propose a pack for a function; body {\"function\", \"pack\", \"reason\"}; nothing changes until it is applied"),
+    ("POST", "/v1/proposals/{id}/approve", Role::Operate, "apply a pending proposal"),
+    ("POST", "/v1/proposals/{id}/reject", Role::Operate, "reject a pending proposal"),
+    ("POST", "/v1/proposals/{id}/revert", Role::Operate, "restore the pack an applied proposal replaced"),
     ("GET", "/v1/why/{track}", Role::Read, "a plain explanation of one system track from a model endpoint; every sentence cites trace records; query endpoint"),
     ("POST", "/mcp", Role::Read, "the MCP endpoint: the routes above as tools for agents (JSON-RPC 2.0); each tool keeps its route's role"),
 ];
@@ -227,6 +235,16 @@ impl Server {
             "/v1/metrics" => Ask::Metrics,
             "/v1/tracks" => Ask::Tracks,
             "/v1/explain/{track}" => Ask::Explain(args[0].clone()),
+            "/v1/proposals" if req.method == "GET" => Ask::Proposals,
+            "/v1/proposals" => {
+                let body = json::parse(&String::from_utf8_lossy(&req.body)).ok();
+                let f = |k: &str| body.as_ref().and_then(|b| b.get(k)).and_then(|v| v.as_str()).map(str::to_string);
+                match (f("function"), f("pack")) {
+                    (Some(function), Some(pack)) => Ask::Propose { function, pack, reason: f("reason").unwrap_or_default() },
+                    _ => return error(400, "the body must be {\"function\": ..., \"pack\": ..., \"reason\": ...}", ""),
+                }
+            }
+            p if p.starts_with("/v1/proposals/{id}/") => Ask::Decide { id: args[0].clone(), verb: p.rsplit('/').next().unwrap_or("").to_string() },
             "/v1/packs" => return self.packs(),
             "/v1/replay" => return self.replay(req),
             "/v1/audit" => return self.read_audit(req),

@@ -71,15 +71,31 @@ def main():
         "explain": {"track": track_ids[0] if track_ids else "none"},
         "why": {"track": track_ids[0] if track_ids else "none"},
         "replay": {"content": json.dumps(vector)},
-        "use_pack": {"function": stages[0]["function"], "pack": stages[0]["pack"]} if stages else {},
+        # The action calls re-select the pack the last stage runs. Selecting a
+        # pack restarts that stage empty, so the last stage (usually quality)
+        # is used rather than correlate, whose system tracks the read tools show.
+        "use_pack": {"function": stages[-1]["function"], "pack": stages[-1]["pack"]} if stages else {},
     }
     failed = 0
+    proposed = []  # proposal ids, for approve, reject and revert
     for t in tools:
         name = t["name"]
         read_only = t.get("annotations", {}).get("readOnlyHint", False)
         if not read_only and not a.actions:
             continue
-        is_error, text = c.call(name, **args.get(name, {}))
+        if name == "propose":
+            # Propose the pack the last stage runs already.
+            arguments = {"function": stages[-1]["function"], "pack": stages[-1]["pack"], "reason": "reference client check"} if stages else {}
+            for _ in range(2):  # one to approve and revert, one to reject
+                is_error, text = c.call(name, **arguments)
+                if not is_error:
+                    proposed.append(json.loads(text)["id"])
+        elif name in ("approve", "revert") and proposed:
+            is_error, text = c.call(name, id=proposed[0])
+        elif name == "reject" and len(proposed) > 1:
+            is_error, text = c.call(name, id=proposed[1])
+        else:
+            is_error, text = c.call(name, **args.get(name, {}))
         if a.json:
             print(json.dumps({"tool": name, "error": is_error, "text": text}))
         else:

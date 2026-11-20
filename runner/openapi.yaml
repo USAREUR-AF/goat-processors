@@ -324,3 +324,69 @@ paths:
               schema: {type: object}
         "202":
           description: a notification was received
+  /v1/proposals:
+    get:
+      summary: every settings proposal, pending and decided (role read; CLI proposals)
+      responses:
+        "200":
+          description: id, by, via, at_ms, function, pack, previous_pack, reason, state (pending, gating, applied, rejected, gate-failed, reverted), decided_by (an identity, or policy), gate (command, exit, passed, seconds, output_tail)
+          content:
+            application/json:
+              schema: {type: array, items: {type: object}}
+    post:
+      summary: propose a pack for one function (role read; CLI propose FUNCTION PACK --reason TEXT)
+      description: |
+        Nothing changes until the proposal is applied. When agents.auto_approve
+        names the proposer, the function and the pack, the proposal's gate
+        command runs, and the pack is applied if it exits 0; otherwise the
+        proposal waits for a person (state pending, or gate-failed).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [function, pack]
+              properties:
+                function: {type: string}
+                pack: {type: string}
+                reason: {type: string}
+      responses:
+        "202":
+          description: the proposal, with its state (pending or gating)
+          content:
+            application/json:
+              schema: {type: object}
+        "400": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+  /v1/proposals/{id}/approve:
+    post:
+      summary: apply a pending or gate-failed proposal (role operate; CLI proposal approve ID)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: the proposal, applied}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+  /v1/proposals/{id}/reject:
+    post:
+      summary: reject a pending or gate-failed proposal (role operate; CLI proposal reject ID)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: the proposal, rejected}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+  /v1/proposals/{id}/revert:
+    post:
+      summary: restore the pack an applied proposal replaced (role operate; CLI proposal revert ID)
+      description: Refused when the function now runs another pack than the proposal's, since reverting would undo a later change.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: the proposal, reverted}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
