@@ -196,6 +196,8 @@ runs the same suite with line coverage, as CI does.
 | `test_fuzz.py` | the pack.def parsers, the steps JSON reader and the engines' report intake, from a seeded generator; bounded by `GOAT_FUZZ_CASES` (1500) and `GOAT_FUZZ_SECONDS` (4 s per parser); `GOAT_FUZZ_SEED` changes the seed |
 | `test_registration.py`, `registration.py`, `fixtures/correlate-noop/` | the registration point (above) |
 | `test_compat.py` | the old packages still export every old name |
+| `test_mutants.py` | one test per real-fault mutant the vectors missed (REFACTOR.md) |
+| `mutate.py` | mutation testing, standard library only (REFACTOR.md) |
 | `coverage_check.py` | line coverage with the standard library only: `sys.monitoring` (Python 3.12 and later), `sys.settrace` before |
 
 
