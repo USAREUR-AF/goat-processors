@@ -33,8 +33,8 @@ have always had, for the tools that import them.
 | `quality.py` | the quality function; `MEASURES`, its table of measures |
 | `trace.py` | one constructor per trace record shape |
 | `snapshot.py` | `snapshot()` of every engine |
-| `io.py` | the pack directory, the steps and events files, the runner |
-| `packdef.py` | `PackError`, shared by every pack parser |
+| `io.py` | the steps and events files, the runner |
+| `packdef.py` | reading `pack.def` from a pack directory; `PackError`, shared by every pack parser |
 
 **Entry point.** Every function has the same shape:
 
@@ -55,6 +55,11 @@ two-model, inverse variance), `gate.py` (d2, distance, course, speed),
 `quality.entity_measures`, `quality.source_measures`, `quality.rule_step`,
 `quality.input_clock`. An engine's state is only its object's attributes;
 `snapshot()` (snapshot.py) reads them. Module-level names are constants.
+Two memos, derived from the state and never in a snapshot: method assign
+computes each prediction and pair value once per tick (reset every tick),
+and quality keeps an entity's window measures while its window is
+unchanged (keyed by a version the window bumps). `FUNCTIONS` imports a
+function's modules when it is first used.
 
 ## Registration: one table per extension kind
 
@@ -62,7 +67,7 @@ two-model, inverse variance), `gate.py` (d2, distance, course, speed),
 |---|---|---|
 | correlate method | `correlate.METHODS` | `Method(engine, required, refused)`: the engine class (a `tracks.Correlator`) and the directives the method's packs must and must not hold |
 | correlate test | `gate.TESTS` | `TestKind(params, evaluate, text=False)`: `evaluate(eng, prm, a, b)` returns `(value, limit, pass)`, or `None` when skipped |
-| quality measure | `quality.MEASURES` | `Measure(aggregate, compute)`: `compute(window)` gives the entity measure; `aggregate` (sum, mean, max, min) the source measure |
+| quality measure | `quality.MEASURES` | `Measure(aggregate, compute, uses_age=False)`: `compute(window)` gives the entity measure; `aggregate` (sum, mean, max, min) the source measure; `uses_age` when it reads the tick's time, not only the samples |
 | filter condition | `filter.CONDITIONS` | `ConditionKind(params, evaluate)` |
 | fuse method, attribute rule | `fuse.KINEMATICS`, `fuse.ATTRIBUTE_RULES` | a function; `AttributeRule(winner, numbers_only)` |
 
@@ -210,4 +215,4 @@ variance, which its tests, staleness and output read.
 this refactor, commit 407a295): 98.6 % of 2421 lines. Floor: 98.6 %
 (the higher of the baseline and 80 %), enforced by the `python` job of
 `.github/workflows/conformance.yml`. The same numbers on Python 3.11, 3.12
-and 3.14. Measured after this refactor: 99.8 % of 2850 lines.
+and 3.14. Measured after this refactor: 99.8 % of 3018 lines.

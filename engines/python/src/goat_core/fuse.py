@@ -348,7 +348,7 @@ class Engine:
         lat, lon = float(report["lat"]), float(report["lon"])
         if self.ref is None:
             self.ref = (lat, lon)
-        e, n = self._to_plane(lat, lon)
+        e, n = to_plane(self.ref, lat, lon)
         f = self.pack.filter
         vel = None
         if report.get("course") is not None and report.get("speed_ms") is not None:
@@ -411,14 +411,18 @@ class Engine:
                 events.append({"ev": "drop", "entity": k, "group": ent.group})
         q = self.pack.filter["accel_var"]
         method = self.pack.kinematics
+        combine = KINEMATICS[method]
+        rank_key = self._rank_key
+        predict_axis = estimate.predict_axis
+        entities = self.entities
         for g, members in self._groups():
-            ents = [self.entities[m] for m in members]
+            ents = [entities[m] for m in members]
             pred = {}
             for e in ents:
                 dt = (now_ms - e.last_time_ms) / 1000.0
-                pred[e.key] = [estimate.predict_axis(e.east, dt, q), estimate.predict_axis(e.north, dt, q)]
+                pred[e.key] = [predict_axis(e.east, dt, q), predict_axis(e.north, dt, q)]
             var = {m: pred[m][0][2] + pred[m][1][2] for m in members}
-            est, src, weights = kinematics(method, ents, pred, var, self._rank_key)
+            est, src, weights = combine(ents, pred, var, rank_key)
             for m, w in weights:
                 trace.append(_trace.fuse_intersect(g, m, w))
             trace.append(_trace.fuse_kinematics(
@@ -426,7 +430,7 @@ class Engine:
                 _trace.fuse_candidates(ents, var, self.ranks),
                 src.key if src else None))
             east, north = est
-            lat, lon = self._to_deg(east[0], north[0])
+            lat, lon = to_deg(self.ref, east[0], north[0])
             course = course_deg(east[1], north[1])
             ev = {"ev": "fused", "group": g, "members": list(members),
                   "from": src.key if src else None,
