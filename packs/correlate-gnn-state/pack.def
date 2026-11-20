@@ -1,0 +1,15 @@
+# As correlate-gnn, with the gate on the full kinematic state (the `state`
+# test, Bar-Shalom 1981) in place of the position-only gate: position and
+# velocity per axis, and height when both tracks report it, inside the 99 %
+# region (chi-square quantile for 4 or 5 degrees of freedom). Height error
+# 100 m per track. Other values as in correlate-gnn.
+pack           correlate-gnn-state
+version        1.0.0
+filter         accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+gate           state probability=0.99 hae_sigma_m=100
+gate           same key=@env
+confirm_count  2
+hold           mahalanobis gate=18.42
+hold_failures  2
+stale_ms       60000
+output         fused

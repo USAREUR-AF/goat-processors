@@ -406,22 +406,94 @@ pack says `same_source allow`, a group never holds two entities with the same
   otherwise a new group of A and B is created (event `correlate`). The chosen
   pair's count is reset to 0.
 
+**Sequential test.** With the `sprt` directive, the counts, `confirm_count`,
+the `hold` tests and `hold_failures` are replaced by Wald's sequential
+probability ratio test (Wald 1947) on each pair. Each pair holds `L`, the
+log-likelihood ratio of "same object" against "different objects"
+accumulated over its reports, starting at 0. With the directive's `false`
+(the probability of confirming two different objects) and `missed` (of
+releasing one object), `up = ln((1 - missed) / false)` and
+`lo = ln(missed / (1 - false))`.
+
+*One report's evidence* for A against B: per axis, `dp`, `dv`, `spp`, `spv`,
+`svv`, `det` and `q` as in the `state` test (with B predicted to A's time).
+"Different objects" is the same Gaussian difference with an added spread,
+`tpp = spp + P`, `tvv = svv + V`, where `P = pos_m²` and `V = vel_ms²`;
+`det0 = tpp*tvv - spv*spv` and
+`q0 = (tvv*dp*dp - 2*spv*dp*dv + tpp*dv*dv) / det0`. The increment is the
+sum over east and north of `0.5*(q0 - q) + 0.5*ln(det0 / det)`. When both
+last reports have `hae`, with `h1 = 2*hs*hs` (`hs` the directive's
+`hae_sigma_m`), `h0 = h1 + P` and `dh = hae_a - hae_b`, it adds
+`0.5*(dh*dh/h0 - dh*dh/h1) + 0.5*ln(h0 / h1)`. The record's `d2` is the sum of
+the two `q` plus `dh*dh/h1` when both have `hae`.
+
+*Update of a pair*: `L = min(max(L + increment, lo), up)`. When the update
+is forced (below), `L = lo` and the increment is null. Each update writes
+`{"stage":"sprt","a":<A>,"b":<B>,"test":"llr","value":L,"limit":up,"pass":<L >= up>,"lower":lo,"increment":<increment or null>,"d2":<d2 or null>}`.
+
+On each accepted report for A, after its filter is updated:
+
+- **A is in a group G.** A's *link* is the other member of G whose pair has
+  the greatest `L` (a pair with no `L` reads 0), ties to key order. Only the
+  link pair is updated: run the `same` tests of the `gate` line between A and
+  the link, in pack order; when one fails, the update is forced, otherwise it
+  adds A's evidence. When the new `L` is `lo` or below, A leaves G (event
+  `leave`, reason `release`, dissolving G as for a hold when one member is
+  left), and every pair naming A whose `L` is `lo` or below is removed.
+  Pairs inside a group are otherwise kept.
+- **A is not in a group.** The candidates are those of associate, in key
+  order. For each B: run the `gate` tests, then the `confirm` tests, as in
+  associate. When every test passed, the pair adds A's evidence (starting
+  from 0 when it has no `L`). When a test failed and the pair has no `L`,
+  nothing more happens for B. When a test failed and the pair has an `L`:
+  the `same` tests of the `gate` line run again (without trace records); if
+  one fails the update is forced, otherwise the pair adds A's evidence. After
+  the update, a pair whose `L` is `lo` or below is removed; a pair whose `L`
+  is `up` is ready. Of the ready candidates the one with the smallest `d²`
+  is chosen exactly as in associate (`rank` records), and A joins or
+  correlates as there. No count is kept.
+
+With `up` and `lo` reached by clamping, a confirmed pair needs evidence worth
+the whole interval from `up` to `lo` before it is released, and one report
+that fits badly lowers `L` by its own increment only: a single noisy report
+does not split a pair that many reports have confirmed.
+
 **On each tick** at `now_ms`:
 
 1. **Staleness**, entities in key order. An entity is stale when
-   `now_ms - last_time_ms > stale_ms` of the pack, or when its last report had
-   `stale_ms` and `now_ms >= stale_ms`. A stale entity in a group leaves it
+   `now_ms - last_time_ms` is above its source's stale time (below), or when
+   its last report had `stale_ms` and `now_ms >= stale_ms`. A stale entity in a group leaves it
    (event `leave`, reason `stale`), the group is dissolved if one member is
    left (as in hold: event `dissolve`, the last member ungrouped with its hold
-   failure count set to 0), and the entity is removed (event `drop`), with every pair count that
-   names it.
-2. **Fused output**, groups in creation order. The primary member is chosen by
-   the pack's `output` line: `priority` takes the lowest `priority` number for
+   failure count set to 0), and the entity is removed (event `drop`), with every pair count and
+   pair `L` that names it.
+2. **Fused output**, groups in creation order. With `output fused` (the
+   default), the event `fused` has `primary` null and gives, per axis, the
+   information-weighted combination of every member's filter predicted to
+   `now_ms`, members in key order: `p = (sum of p_i/pp_i) / (sum of 1/pp_i)`
+   and `v = (sum of v_i/vv_i) / (sum of 1/vv_i)`, each sum added left to
+   right from 0, then the position in degrees and `course`, `speed_ms` from
+   `v` as below, plus the `hae` of the member with the greatest
+   `last_time_ms` whose last report has `hae` (ties to key order). The
+   members are taken as independent; when their errors may be shared, fuse
+   (`fuse.md`, `covariance_intersection`) is the place to combine them.
+   Otherwise the primary member is chosen by the pack's `output` line: `priority` takes the lowest `priority` number for
    the member's source (100 for a source the pack does not list), ties to key
    order; `latest` takes the greatest `last_time_ms`, ties to key order. The
    event `fused` gives the primary's filter predicted to `now_ms`, in degrees,
    with `course = deg(atan2(ve, vn))` in [0, 360) and `speed_ms = hypot(ve,
    vn)`, plus the primary's last `hae` when it has one.
+
+**Stale time of a source.** With `stale_ms <ms>` it is that number. With
+`stale_rate factor=<k> floor_ms=<f> ceiling_ms=<c> samples=<n>` it follows the
+source's own update rate: each accepted report of an entity that already
+existed appends `time_ms - last_time_ms` (before this report) to its source's
+list of intervals, which keeps the last `n`, oldest dropped first. The stale
+time is `k * m`, with `m` the lower median of the list (the element at index
+`(count - 1) // 2` of the list sorted ascending), raised to `f` when below and
+lowered to `c` when above; with an empty list it is `c`. A sensor that
+updates every 4 s is stale after `4 k` s, one that updates every 12 s after
+`12 k` s, without a value chosen for the slowest sensor.
 
 ## Events
 
@@ -433,10 +505,10 @@ Each event is a JSON object. `members` lists are in key order.
 | `new` | `entity` |
 | `correlate` | `group`, `members` |
 | `join` | `group`, `entity` |
-| `leave` | `group`, `entity`, `reason` (`hold` or `stale`) |
+| `leave` | `group`, `entity`, `reason` (`hold`, `release` or `stale`) |
 | `dissolve` | `group`, `entity` (the remaining member) |
 | `drop` | `entity` |
-| `fused` | `group`, `primary`, `members`, `lat`, `lon`, `course`, `speed_ms`, `hae` when known |
+| `fused` | `group`, `primary` (null with `output fused`), `members`, `lat`, `lon`, `course`, `speed_ms`, `hae` when known |
 
 Event order for a report: `new` (first report only), then the association
 events in the order they happen. For a tick: per stale entity `leave`,
@@ -453,8 +525,9 @@ Two-model filter:
 records. A pair's count after its tests is a
 record with stage `confirm` (also when a `gate` test failed), `"test":"count"`,
 `value` the new count, `limit` the pack's `confirm_count`, and `pass` true
-when it has reached it. Records are in the order
-the tests run.
+when it has reached it (not with `sprt`, which keeps no count). With `sprt`
+each pair update is a record with stage `sprt` (Association, Sequential
+test). Records are in the order the tests run.
 
 ## Snapshot
 
@@ -468,6 +541,9 @@ directive each entity also holds `models`
 (`{"quiet": {"east": [...], "north": [...]}, "maneuver": {...}}`) and
 `mode` (`[mu1, mu2]`), and `filter` is their combination; `groups` maps a group name
 to its members; `counts` maps `"<key>|<key>"` (keys in order) to the count.
+With `sprt` the snapshot also holds `llr`, mapping each pair key that has an
+`L` to it. With `stale_rate` it holds `intervals`, mapping each source (in
+key order) to its list of intervals, oldest first.
 
 ## Pack
 
@@ -489,8 +565,10 @@ hold           <test> <param>=<value> ...
 confirm_count  <n>
 hold_failures  <n>
 stale_ms       <ms>
+stale_rate     factor=<k> floor_ms=<ms> ceiling_ms=<ms> samples=<n>
+sprt           false=<p> missed=<p> pos_m=<m> vel_ms=<m/s> hae_sigma_m=<m>
 same_source    forbid | allow
-output         priority | latest
+output         fused | priority | latest
 priority       <source_id> <n>
 ```
 
@@ -515,8 +593,18 @@ It takes the source id, a first token without `=`, and then `error_ms`,
 
 `gate`, `confirm`, `hold` and `priority` repeat; their order is the order the
 tests run. Every other directive appears once, and `pack`, `version`,
-`filter`, `confirm_count`, `hold_failures`, `stale_ms` are required;
-`same_source` defaults to `forbid` and `output` to `priority`. `method`
+`filter`, `confirm_count`, `hold_failures` and one of `stale_ms` and
+`stale_rate` (never both) are required; with `sprt`, `confirm_count`,
+`hold_failures` and `hold` are load errors instead. `same_source` defaults to
+`forbid` and `output` to `fused`.
+
+`stale_rate` takes exactly `factor` (a number above 0), `floor_ms` and
+`ceiling_ms` (integers, `0 <= floor_ms <= ceiling_ms`) and `samples` (an
+integer, 1 or above), and is valid with either method. `sprt` takes exactly
+`false` and `missed` (numbers above 0 and below 0.5) and `pos_m`, `vel_ms`,
+`hae_sigma_m` (numbers above 0); it is valid with method `confirm` only. The
+`state` test's `probability` is one of the four values of its table and its
+`hae_sigma_m` is above 0. `method`
 is optional and defaults to `confirm`, the method of this document;
 `method assign` selects [correlate-assign.md](correlate-assign.md), which has
 its own directives. A test name or
@@ -545,7 +633,25 @@ may differ on them until a later version settles them with vectors.
 |---|---|
 | An integer literal outside the signed 64-bit range | Reports |
 | `same` between booleans, arrays or objects | Tests |
-| Ranges of `confirm_count`, `hold_failures`, `stale_ms` (0, negative) and of test parameters (negative `max_m`, `err_min_m` above `err_max_m`, `gate` 0 or below) | Pack |
+| Ranges of `confirm_count`, `hold_failures`, `stale_ms` (0, negative) and of test parameters (negative `max_m`, `gate` 0 or below) | Pack |
 | `priority` listing one source twice | Pack |
 | A repeated parameter within one `filter`, `maneuver` or test line | Pack |
 | Which decimal spellings a number may take (exponent, leading `+`, `.5`, `inf`, `nan`), and a `#` inside a value | Pack |
+
+## Methods and sources
+
+Each method of this document is a published one, written here in our own
+terms, and each default value of the packs is derived in the pack's comment
+from a stated probability or unit.
+
+| Method | Section | Source |
+|---|---|---|
+| Kalman filter per track, constant velocity | Track estimate | R. E. Kalman, "A new approach to linear filtering and prediction problems", 1960 |
+| Interacting multiple model filter | Two-model filter | H. A. P. Blom and Y. Bar-Shalom, "The interacting multiple model algorithm for systems with Markovian switching coefficients", IEEE TAC, 1988 |
+| Chi-square gate on the position difference (`mahalanobis`) | Tests | Y. Bar-Shalom and T. E. Fortmann, *Tracking and Data Association*, 1988 |
+| Track-to-track association on the full state (`state`) | Tests | Y. Bar-Shalom, "On the track-to-track correlation problem", IEEE TAC, 1981; the cross-covariance it leaves out: Y. Bar-Shalom and L. Campo, IEEE TAES, 1986 |
+| Chi-square quantiles | Tests | M. Abramowitz and I. Stegun, *Handbook of Mathematical Functions*, 1964, table 26.8 |
+| Sequential probability ratio test (`sprt`) | Association | A. Wald, *Sequential Analysis*, 1947; as a track score, S. Blackman and R. Popoli, *Design and Analysis of Modern Tracking Systems*, 1999, chapter 6 |
+| M of N confirmation with a hold | Association | Blackman and Popoli 1999, track confirmation and deletion logic |
+| Information-weighted combination (`output fused`) | Association | Bar-Shalom and Fortmann 1988 |
+| Least-cost assignment, ranked assignments | `correlate-assign.md` | H. W. Kuhn, 1955; K. G. Murty, "An algorithm for ranking all the assignments in order of increasing cost", 1968 |

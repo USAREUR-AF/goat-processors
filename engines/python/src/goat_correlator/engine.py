@@ -272,7 +272,7 @@ def parse_pack(text):
             raise PackError("line %d: unknown directive %s" % (i, d))
     if p.method == "assign":
         required = ("pack", "version", "filter", "new_cost", "keep_bonus", "stale_ms")
-        refused = ("confirm_count", "hold_failures", "same_source", "output", "priority")
+        refused = ("confirm_count", "hold_failures", "same_source", "output", "priority", "sprt")
         if p.confirm or p.hold or any(d in seen for d in refused):
             raise PackError("method assign takes only pack, version, method, filter, maneuver, gate, "
                             "new_cost, keep_bonus, stale_ms, window, hypotheses, margin, bias, time_offset, restart, time_default")
