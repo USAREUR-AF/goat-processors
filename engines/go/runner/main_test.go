@@ -16,7 +16,7 @@ func TestRun(t *testing.T) {
 	events := filepath.Join(t.TempDir(), "out.jsonl")
 	var out, errw bytes.Buffer
 	code := run([]string{"--function", "correlate", "--pack", filepath.Join(root, "packs", "correlate-gnn"),
-		"--steps", vec, "--events", events, "--trace"}, &out, &errw)
+		"--steps", vec, "--events", events, "--trace", "--cpuprofile", filepath.Join(t.TempDir(), "cpu")}, &out, &errw)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errw.String())
 	}
@@ -62,6 +62,7 @@ func TestRunFails(t *testing.T) {
 		"steps not JSON":   {"--function", "correlate", "--pack", pack, "--steps", notJSON},
 		"steps not a list": {"--function", "correlate", "--pack", pack, "--steps", bad},
 		"no pack":          {"--function", "correlate", "--pack", dir, "--steps", good},
+		"profile dir":      {"--function", "correlate", "--pack", pack, "--steps", good, "--cpuprofile", filepath.Join(dir, "no", "p")},
 		"events dir":       {"--function", "correlate", "--pack", pack, "--steps", good, "--events", filepath.Join(dir, "no", "x")},
 	} {
 		var out, errw bytes.Buffer

@@ -47,12 +47,13 @@ func extreme(xs []any, largest bool) any {
 	return best
 }
 
-func toFloats(xs []int64) []float64 {
-	out := make([]float64, len(xs))
-	for i, x := range xs {
-		out[i] = float64(x)
+// meanInts is mean of the integers as binary64, in order.
+func meanInts(xs []int64) float64 {
+	s := 0.0
+	for _, x := range xs {
+		s += float64(x)
 	}
-	return out
+	return s / float64(len(xs))
 }
 
 // The measures tables (spec: Entity measures, Source measures) are one
@@ -78,9 +79,12 @@ type Window struct {
 	NoTime                int64
 }
 
-// windowOf reads an entity's window records in one pass.
-func windowOf(records []record, age int64, k int) *Window {
-	w := &Window{Reports: int64(len(records)), Age: age, MinSamples: k}
+// windowOf reads an entity's window records in one pass into w, whose
+// slices it reuses (the measures read them and keep none).
+func windowOf(w *Window, records []record, age int64, k int) *Window {
+	*w = Window{Reports: int64(len(records)), Age: age, MinSamples: k,
+		Intervals: w.Intervals[:0], Latencies: w.Latencies[:0], Lateness: w.Lateness[:0], NIS: w.NIS[:0],
+		SpeedErr: w.SpeedErr[:0], TimeErrors: w.TimeErrors[:0], StateCodes: w.StateCodes[:0]}
 	for _, rec := range records {
 		if rec.interval != nil {
 			w.Intervals = append(w.Intervals, *rec.interval)
@@ -101,7 +105,7 @@ func windowOf(records []record, age int64, k int) *Window {
 			w.TimeErrors = append(w.TimeErrors, *rec.timeError)
 		}
 		if rec.timeState != nil {
-			w.StateCodes = append(w.StateCodes, timeStateCodes[*rec.timeState])
+			w.StateCodes = append(w.StateCodes, rec.stateCode)
 		} else {
 			w.NoTime++
 		}
@@ -174,7 +178,7 @@ func DefaultMeasures() []Measure {
 			if !w.enough(len(w.Intervals)) {
 				return nil
 			}
-			return mean(toFloats(w.Intervals))
+			return meanInts(w.Intervals)
 		}, Mean},
 		{"interval_max", func(w *Window) any {
 			if !w.enough(len(w.Intervals)) {
@@ -187,7 +191,7 @@ func DefaultMeasures() []Measure {
 			if !w.enough(len(w.Latencies)) {
 				return nil
 			}
-			return mean(toFloats(w.Latencies))
+			return meanInts(w.Latencies)
 		}, Mean},
 		{"latency_max", func(w *Window) any {
 			if !w.enough(len(w.Latencies)) {
@@ -199,11 +203,12 @@ func DefaultMeasures() []Measure {
 			if !w.enough(len(w.Lateness)) {
 				return nil
 			}
-			values := make([]float64, len(w.Lateness))
-			for i, x := range w.Lateness {
-				values[i], _ = asFloat(x)
+			s := 0.0
+			for _, x := range w.Lateness {
+				v, _ := asFloat(x)
+				s += v
 			}
-			return mean(values)
+			return s / float64(len(w.Lateness))
 		}, Mean},
 		{"lateness_max", func(w *Window) any {
 			if !w.enough(len(w.Lateness)) {
@@ -273,7 +278,7 @@ func DefaultMeasures() []Measure {
 // measures computes an entity's measures over its window at now_ms
 // (spec: Entity measures). An absent measure is nil.
 func (g *Engine) measures(e *entity, now int64) Obj {
-	return entityMeasuresOf(g.pack.Measures, windowOf(e.window, now-e.last, int(g.pack.MinSamples)))
+	return entityMeasuresOf(g.pack.Measures, windowOf(&g.scratch, e.window, now-e.last, int(g.pack.MinSamples)))
 }
 
 // entityMeasuresOf is every entity measure of the table over one window.

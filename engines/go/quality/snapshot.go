@@ -74,6 +74,11 @@ func Restore(p *Pack, snap map[string]any) (*Engine, error) {
 				ce: d.Bool("ce", r["ce"]), vel: d.Bool("vel", r["vel"]), hae: d.Bool("hae", r["hae"]),
 			})
 		}
+		for i := range e.window {
+			if st := e.window[i].timeState; st != nil {
+				e.window[i].stateCode = timeStateCodes[*st]
+			}
+		}
 		g.entities[key] = e
 	}
 	rules := d.Object("rules", snap["rules"])

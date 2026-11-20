@@ -24,6 +24,7 @@ type record struct {
 	lateness          any // int64, float64 (clock a mean of two values), or nil
 	timeError         *float64
 	timeState         *string
+	stateCode         int64 // the time state's code, when timeState is not nil
 	sourceOutOfOrder  bool
 	nis, speedErr     *float64
 	ce, vel, hae      bool // presence flags
@@ -52,6 +53,9 @@ type Engine struct {
 	entities map[string]*entity
 	// states[i] holds pack.Rules[i]'s state per subject (entity key or source).
 	states []map[string]*ruleState
+	// scratch is the Window the measures are read from, reused at each
+	// entity of each tick; it holds no state between them.
+	scratch Window
 }
 
 // New returns an engine for a loaded pack.

@@ -69,7 +69,7 @@ func (g *Engine) Ingest(report map[string]any) (events, tr []Obj) {
 		tr = append(tr, trace.Sample(r.key, "time_error", te, tq.errorReport, tq.errorDefault))
 	}
 	if ts, stated := tq.timeState(); stated {
-		rec.timeState = &ts
+		rec.timeState, rec.stateCode = &ts, timeStateCodes[ts]
 		tr = append(tr, trace.Sample(r.key, "time_state", ts, tq.stateReport, tq.stateDefault))
 	}
 	sourceOrder := "in-order"

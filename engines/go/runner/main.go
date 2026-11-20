@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"time"
 
 	"goat-correlator/engines/go/correlate"
@@ -52,6 +53,7 @@ func run(args []string, stdout, stderr writer) int {
 	stepsPath := fs.String("steps", "", "steps file")
 	eventsPath := fs.String("events", "", "events file to write")
 	withTrace := fs.Bool("trace", false, "include each step's trace")
+	cpuProfile := fs.String("cpuprofile", "", "write a CPU profile of the engine calls here (diagnostics, not in the contract)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -78,9 +80,20 @@ func run(args []string, stdout, stderr writer) int {
 	if err != nil {
 		return fail("pack: %v", err)
 	}
+	if *cpuProfile != "" {
+		f, err := os.Create(*cpuProfile)
+		if err != nil {
+			return fail("cpuprofile: %v", err)
+		}
+		defer f.Close()
+		pprof.StartCPUProfile(f)
+	}
 	t2 := time.Now()
 	results, snap := io.Run(g, steps)
 	t3 := time.Now()
+	if *cpuProfile != "" {
+		pprof.StopCPUProfile()
+	}
 
 	var nIngest, nEvents, nTrace int
 	for i, s := range steps {
