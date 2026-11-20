@@ -274,6 +274,10 @@ struct Runner {
     latency_us: VecDeque<u64>,
     /// Wall time minus report time at ingest, milliseconds (wall clock only).
     age_ms: VecDeque<i64>,
+    /// Settings proposals (proposals.rs).
+    book: crate::proposals::Book,
+    /// For the policy gates, which report back to the loop.
+    tx: Sender<Input>,
 }
 
 impl Runner {
@@ -471,6 +475,9 @@ impl Runner {
                 eprintln!("started by {} ({})", call.who.name, call.who.via);
                 ok(self.status())
             }
+            Ask::Proposals => ok(self.book.to_json()),
+            Ask::Propose { function, pack, reason } => self.propose(&call.who, function, pack, reason),
+            Ask::Decide { id, verb } => self.decide(&call.who, &id, &verb),
             Ask::PackUse { function, pack } => match self.p.use_pack(&function, &pack, &self.c.packs_dir.clone()) {
                 Ok(()) => {
                     self.pipeline_changes += 1;
@@ -482,6 +489,119 @@ impl Runner {
             },
         };
         let _ = call.reply.send(resp);
+    }
+}
+
+impl Runner {
+    fn save_book(&self) {
+        if let Err(e) = self.book.save(&self.c.agents.proposals_file) {
+            eprintln!("warning: cannot write the proposals file: {e}");
+        }
+    }
+
+    /// Applies a pack selection as `pack use` does: recorded, logged.
+    fn apply(&mut self, function: &str, pack: &str, by: &str) -> Result<(), String> {
+        self.p.use_pack(function, pack, &self.c.packs_dir.clone())?;
+        self.pipeline_changes += 1;
+        self.step(Step::Pack { function: function.to_string(), pack: pack.to_string() });
+        eprintln!("{function} now runs pack {pack} ({by})");
+        Ok(())
+    }
+
+    fn propose(&mut self, who: &crate::api::Identity, function: String, pack: String, reason: String) -> crate::http::Response {
+        use crate::api::error;
+        let Some(stage) = self.p.stages.iter().find(|st| st.function == function) else {
+            return error(409, &format!("the pipeline has no {function} stage"), "goat-processors pipeline lists the functions");
+        };
+        let previous = stage.pack.clone();
+        if !pack.starts_with(&format!("{function}-")) || !self.c.packs_dir.join(&pack).join("pack.def").is_file() || pack.contains('/') {
+            return error(409, &format!("{pack:?} is not an installed {function} pack"), "goat-processors pack ls lists them");
+        }
+        let id = self.book.new_id();
+        let policy = self.c.agents.auto_approve.iter().find(|r| r.who == who.name && r.function == function && r.packs.iter().any(|p| *p == pack)).cloned();
+        let mut prop = crate::proposals::Proposal {
+            id: id.clone(),
+            by: who.name.clone(),
+            via: who.via.to_string(),
+            at_ms: wall_ms(),
+            function: function.clone(),
+            pack: pack.clone(),
+            previous_pack: previous,
+            reason,
+            state: crate::proposals::State::Pending,
+            decided_by: None,
+            gate: None,
+        };
+        if let Some(rule) = policy {
+            prop.state = crate::proposals::State::Gating;
+            let tx = self.tx.clone();
+            let (id2, f2, p2) = (id.clone(), function.clone(), pack.clone());
+            std::thread::spawn(move || {
+                let (passed, gate) = crate::proposals::run_gate(&rule.gate, rule.gate_timeout_s, &f2, &p2);
+                let _ = tx.send(Input::GateDone { id: id2, passed, gate });
+            });
+        }
+        eprintln!("proposal {id} by {}: {function} -> {pack} ({})", who.name, prop.state.name());
+        let out = prop.to_json();
+        self.book.list.push(prop);
+        self.save_book();
+        crate::http::Response::json(202, out.to_string())
+    }
+
+    fn gate_done(&mut self, id: &str, passed: bool, gate: Json) {
+        let Some(p) = self.book.get_mut(id) else { return };
+        if p.state != crate::proposals::State::Gating {
+            return;
+        }
+        p.gate = Some(gate);
+        let (function, pack) = (p.function.clone(), p.pack.clone());
+        if passed {
+            p.decided_by = Some("policy".into());
+            match self.apply(&function, &pack, &format!("proposal {id}, applied by the site policy")) {
+                Ok(()) => self.book.get_mut(id).unwrap().state = crate::proposals::State::Applied,
+                Err(e) => {
+                    let p = self.book.get_mut(id).unwrap();
+                    p.state = crate::proposals::State::GateFailed;
+                    eprintln!("proposal {id}: the gate passed but the pack did not load: {e}");
+                }
+            }
+        } else {
+            p.state = crate::proposals::State::GateFailed;
+            eprintln!("proposal {id}: the policy gate failed; it waits for a person");
+        }
+        self.save_book();
+    }
+
+    fn decide(&mut self, who: &crate::api::Identity, id: &str, verb: &str) -> crate::http::Response {
+        use crate::api::error;
+        use crate::proposals::State;
+        let Some(p) = self.book.get_mut(id).cloned() else {
+            return error(404, &format!("no proposal {id:?}"), "goat-processors proposals lists them");
+        };
+        let open = matches!(p.state, State::Pending | State::GateFailed);
+        let result = match verb {
+            "approve" if open => self.apply(&p.function, &p.pack, &format!("proposal {id}, approved by {}", who.name)).map(|_| State::Applied),
+            "reject" if open => Ok(State::Rejected),
+            "revert" if p.state == State::Applied => {
+                let running = self.p.stages.iter().find(|s| s.function == p.function).map(|s| s.pack.clone()).unwrap_or_default();
+                if running != p.pack {
+                    return error(409, &format!("{} now runs {running}, not this proposal's {}; reverting would undo a later change", p.function, p.pack), "revert the later change first, or use pack use");
+                }
+                self.apply(&p.function, &p.previous_pack, &format!("proposal {id}, reverted by {}", who.name)).map(|_| State::Reverted)
+            }
+            _ => return error(409, &format!("proposal {id} is {}; {verb} does not apply", p.state.name()), "approve and reject apply to pending proposals, revert to applied ones"),
+        };
+        match result {
+            Ok(st) => {
+                let q = self.book.get_mut(id).unwrap();
+                q.state = st;
+                q.decided_by = Some(who.name.clone());
+                let out = q.to_json();
+                self.save_book();
+                crate::http::Response::json(200, out.to_string())
+            }
+            Err(e) => error(409, &e, ""),
+        }
     }
 }
 
@@ -552,6 +672,7 @@ pub fn run(c: Config) -> Result<(), String> {
     if c.api.enabled {
         crate::api::start(&c, tx.clone())?;
     }
+    let gate_tx = tx.clone();
     // Only a file input ends; with no other input, its end closes the run.
     let endless = c.inputs.fabric.is_some() || !c.inputs.udp.is_empty();
     drop(tx);
@@ -569,6 +690,7 @@ pub fn run(c: Config) -> Result<(), String> {
     );
 
     let tick = c.tick_ms;
+    let c_proposals = c.agents.proposals_file.clone();
     let mut r = Runner {
         c,
         p,
@@ -586,6 +708,8 @@ pub fn run(c: Config) -> Result<(), String> {
         rate: VecDeque::new(),
         latency_us: VecDeque::new(),
         age_ms: VecDeque::new(),
+        book: crate::proposals::Book::load(&c_proposals),
+        tx: gate_tx,
     };
     let mut input_clock = InputClock::new(tick);
     let mut next_wall = (wall_ms().div_euclid(tick) + 1) * tick;
@@ -635,6 +759,7 @@ pub fn run(c: Config) -> Result<(), String> {
                 }
             }
             Ok(Input::Api(call)) => r.answer(call),
+            Ok(Input::GateDone { id, passed, gate }) => r.gate_done(&id, passed, gate),
             Ok(Input::Ended) => {
                 if !endless && !ended {
                     ended = true;

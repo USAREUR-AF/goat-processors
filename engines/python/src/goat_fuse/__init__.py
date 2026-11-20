@@ -1,5 +1,5 @@
-"""goat-fuse Python engine, written from spec/fuse.md."""
+"""goat-fuse: the fuse function of the Python engine (goat_core.fuse)."""
 
-from .engine import Engine, Pack, PackError, load_pack, parse_pack
+from .engine import Engine, Pack, PackError, load_pack, make_engine, parse_pack
 
-__all__ = ["Engine", "Pack", "PackError", "load_pack", "parse_pack"]
+__all__ = ["Engine", "Pack", "PackError", "load_pack", "make_engine", "parse_pack"]

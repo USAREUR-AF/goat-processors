@@ -62,20 +62,20 @@ and time quality, where sensor clocks are wrong).
 
 | Pack | Method | What it does | Adds over the pack it extends | F1, named / random / time |
 |---|---|---|---|---|
-| [`gnn`](packs/correlate-gnn/pack.def) | `confirm` | pairs two tracks when one lies inside the other's predicted 99 % uncertainty region and they agree on course, speed and height, on two reports in a row; the nearest candidate wins | the base of the per-report packs: a statistical gate, a test of the distance between two tracks measured in units of their combined uncertainty | 0.951 / 0.820 / 0.959 |
-| [`gnn-imm`](packs/correlate-gnn-imm/pack.def) | `confirm` | as gnn, with a second motion model for turning or accelerating targets | `gnn`: a two-model filter, so a turning target stays inside its predicted region | 0.968 / 0.884 / 0.968 |
-| [`gnn-restart`](packs/correlate-gnn-restart/pack.def) | `confirm` | as gnn, restarting a track's motion filter when a report lands far outside its prediction | `gnn`: recovery when a sensor's track number moves to another object | 0.956 / 0.851 / 0.949 |
-| [`gnn-time`](packs/correlate-gnn-time/pack.def) | `confirm` | as gnn, widening the uncertainty of a source whose clock is known to be off (radar-1, 500 ms); no benchmark scenario has a source named radar-1, so there it scores exactly as gnn | `gnn`: time quality: a clock error becomes position uncertainty | 0.951 / 0.820 / 0.959 |
-| [`window`](packs/correlate-window/pack.def) | `confirm` | pairs two tracks whose distance is under a fixed window that grows with both tracks' reported error | `gnn`: a distance window in place of the statistical gate, which tolerates a sensor with a fixed position bias | 0.924 / 0.934 / 0.996 |
-| [`distance`](packs/correlate-distance/pack.def) | `confirm` | pairs two tracks closer than 200 m, for feeds that report no error; tracks of one source may pair; the output follows the latest report | `gnn`: plain distance, for sources with no error estimate | 0.884 / 0.807 / 0.937 |
-| [`assign`](packs/correlate-assign/pack.def) | `assign` | at each tick, places each source's tracks into one output track per object by the least total cost, and combines the members' positions weighted by their uncertainty | the base of the assignment packs | 0.937 / 0.715 / 0.775 |
-| [`assign-imm`](packs/correlate-assign-imm/pack.def) | `assign` | as assign, with a second motion model for turning or accelerating targets | `assign`: the two-model filter | 0.971 / 0.796 / 0.881 |
-| [`assign-window`](packs/correlate-assign-window/pack.def) | `assign` | as assign, keeping up to three candidate histories over two ticks before committing | `assign`: a multi-frame window | 0.929 / 0.698 / 0.740 |
+| [`gnn`](packs/correlate-gnn/pack.def) | `confirm` | pairs two tracks when one lies inside the other's predicted 99 % uncertainty region and they agree on course, speed and height, on two reports in a row; the nearest candidate wins | the base of the per-report packs: a statistical gate, a test of the distance between two tracks measured in units of their combined uncertainty | 0.951 / 0.826 / 0.959 |
+| [`gnn-imm`](packs/correlate-gnn-imm/pack.def) | `confirm` | as gnn, with a second motion model for turning or accelerating targets | `gnn`: a two-model filter, so a turning target stays inside its predicted region | 0.968 / 0.878 / 0.968 |
+| [`gnn-restart`](packs/correlate-gnn-restart/pack.def) | `confirm` | as gnn, restarting a track's motion filter when a report lands far outside its prediction | `gnn`: recovery when a sensor's track number moves to another object | 0.956 / 0.855 / 0.949 |
+| [`gnn-time`](packs/correlate-gnn-time/pack.def) | `confirm` | as gnn, widening the uncertainty of a source whose clock is known to be off (radar-1, 500 ms); no benchmark scenario has a source named radar-1, so there it scores exactly as gnn | `gnn`: time quality: a clock error becomes position uncertainty | 0.951 / 0.826 / 0.959 |
+| [`window`](packs/correlate-window/pack.def) | `confirm` | pairs two tracks whose distance is under a fixed window that grows with both tracks' reported error | `gnn`: a distance window in place of the statistical gate, which tolerates a sensor with a fixed position bias | 0.924 / 0.932 / 0.996 |
+| [`distance`](packs/correlate-distance/pack.def) | `confirm` | pairs two tracks closer than 200 m, for feeds that report no error; tracks of one source may pair; the output follows the latest report | `gnn`: plain distance, for sources with no error estimate | 0.884 / 0.791 / 0.937 |
+| [`assign`](packs/correlate-assign/pack.def) | `assign` | at each tick, places each source's tracks into one output track per object by the least total cost, and combines the members' positions weighted by their uncertainty | the base of the assignment packs | 0.937 / 0.692 / 0.775 |
+| [`assign-imm`](packs/correlate-assign-imm/pack.def) | `assign` | as assign, with a second motion model for turning or accelerating targets | `assign`: the two-model filter | 0.971 / 0.772 / 0.881 |
+| [`assign-window`](packs/correlate-assign-window/pack.def) | `assign` | as assign, keeping up to three candidate histories over two ticks before committing | `assign`: a multi-frame window | 0.929 / 0.677 / 0.740 |
 | [`assign-bias`](packs/correlate-assign-bias/pack.def) | `assign` | as assign-imm, estimating a position offset for each pair of sensors | `assign-imm`: sensor bias estimation, so a sensor off by a few hundred meters still joins | 0.990 / 0.906 / 0.936 |
-| [`assign-full`](packs/correlate-assign-full/pack.def) | `assign` | as assign-bias, with filter restart, the two-tick window with a margin, and a 20 s stale time | `assign-bias`: every option of assign 0.5 together | 0.997 / 0.958 / 0.932 |
-| [`assign-time`](packs/correlate-assign-time/pack.def) | `assign` | as assign-full, also fitting a clock offset for each pair of sources | `assign-full`: clock offset: a lag along the track that grows with speed is read as a clock error, not a position bias | 0.997 / 0.961 / 0.996 |
+| [`assign-full`](packs/correlate-assign-full/pack.def) | `assign` | as assign-bias, with filter restart, the two-tick window with a margin, and a 20 s stale time | `assign-bias`: every option of assign 0.5 together | 0.997 / 0.955 / 0.932 |
+| [`assign-time`](packs/correlate-assign-time/pack.def) | `assign` | as assign-full, also fitting a clock offset for each pair of sources | `assign-full`: clock offset: a lag along the track that grows with speed is read as a clock error, not a position bias | 0.997 / 0.956 / 0.996 |
 
-**Default: `assign-time`.** It has the highest F1 of every pack on all 3 benchmark sets: named 0.997 (equal with `assign-full`), random 0.961, time 0.996 (equal with `window`). It keeps one output track per object and combines its members, with the lowest position error of every pack (GOSPA, a mean position error that also charges missed and false tracks: 244 m on the random set). Its weak point is identity swaps (an object's output track changing to another): 33 on the random set, against 14 to 23 for the per-report packs, so the `confirm` method stays selectable.
+**Default: `assign-time`.** It has the highest F1 of every pack on all 3 benchmark sets: named 0.997 (equal with `assign-full`), random 0.956, time 0.996 (equal with `window`). It keeps one output track per object and combines its members, with the lowest position error of every pack (GOSPA, a mean position error that also charges missed and false tracks: 263 m on the random set). Its weak point is identity swaps (an object's output track changing to another): 362 on the random set, against 116 to 312 for the per-report packs, so the `confirm` method stays selectable.
 
 ## Quick start
 
@@ -158,25 +158,31 @@ the vector is changed only through the specification.
 
 | Language | Engine | Lines of source | Runs every vector with |
 |---|---|---:|---|
-| Python | [`engines/python`](engines/python) | 2,565 | `cd engines/python && PYTHONPATH=src python3 -m unittest discover -s tests` |
+| Python | [`engines/python`](engines/python) | 3,389 | `cd engines/python && PYTHONPATH=src python3 -m unittest discover -s tests` |
 | Rust | [`engines/rust`](engines/rust) | 7,470 | `cd engines/rust && cargo test` |
 | Go | [`engines/go`](engines/go) | 6,134 | `cd engines/go && go test ./...` |
 | Java | [`engines/java`](engines/java) | 5,476 | `engines/java/build.sh` |
 | C++ | [`engines/cpp`](engines/cpp) | 5,762 | `cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir build/cpp` |
-| Erlang | [`engines/erlang`](engines/erlang) | 3,417 | `engines/erlang/run_tests` |
-| Zig | [`engines/zig`](engines/zig) | 5,774 | `cd engines/zig && zig build test` |
+| Erlang | [`engines/erlang`](engines/erlang) | 3,838 | `engines/erlang/run_tests` |
+| Zig | [`engines/zig`](engines/zig) | 7,751 | `cd engines/zig && zig build test` |
 
 Each engine runs all 121 scenario vectors (838 steps, 4,333 trace records) and 218 load vectors (pack files every engine must accept, or must refuse) on every pull request and every push to `main`.
 
 ## Benchmark
 
-The correlate packs are scored against ground truth on generated scenarios:
-crossing, formation, splitting and turning objects; sensors with understated
-or absent error, bias, latency, low detection, track number swaps and false
-tracks; and sensors whose clocks are offset, drifting or free-running, or
-whose reports arrive out of order. Every score and its formula is in [docs/benchmark.md](docs/benchmark.md),
-which `tools/bench/bench.py report` writes. Pack names are explained in
-[Methods and packs](#methods-and-packs).
+The correlate packs are scored against ground truth on two separated sets of
+scenarios. The **tuning set** is public and is the only one packs are tuned on.
+The **evaluation set** comes from held-out seeds and gives every number below;
+its seeds are published after each release and then replaced. Each set holds
+500 random scenarios and the same families: formations that split and join,
+shallow crossings and merges, 3 to 9 g turns, climbs and dives, stop-and-go
+surface traffic, sensor dropouts, latency, out-of-order bursts, wrong stated
+error and bias, scale up to 1,000 objects, clutter, mixed air, surface and
+land traffic, track-number reuse and late sensors, and ships on recorded
+public AIS tracks. Every score, its formula and its 95 % interval are in
+[docs/benchmark.md](docs/benchmark.md), which `tools/bench/bench.py report`
+writes; a difference counts only when the intervals separate. Pack names are
+explained in [Methods and packs](#methods-and-packs).
 
 | Measure | Meaning |
 |---|---|
@@ -186,22 +192,22 @@ which `tools/bench/bench.py report` writes. Pack names are explained in
 | identity swap | an object's output track changes to another while the first still exists |
 | GOSPA | the mean, over ticks, of the distance between output and true positions, with each error capped at 500 m and every missed or false track charged half the cap; lower is better |
 
-| Pack | F1, 21 named | F1, 50 random | F1, 7 time | False merges | Missed merges | Identity swaps | GOSPA, m |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| [`gnn`](#methods-and-packs) | 0.951 | 0.820 | 0.959 | 61 | 81 | 23 | 414 |
-| [`window`](#methods-and-packs) | 0.924 | 0.934 | 0.996 | 77 | 40 | 17 | 308 |
-| [`distance`](#methods-and-packs) | 0.884 | 0.807 | 0.937 | 21 | 76 | 14 | 418 |
-| [`assign`](#methods-and-packs) | 0.937 | 0.715 | 0.775 | 15 | 99 | 131 | 475 |
-| [`gnn-imm`](#methods-and-packs) | 0.968 | 0.884 | 0.968 | 71 | 55 | 21 | 344 |
-| [`assign-imm`](#methods-and-packs) | 0.971 | 0.796 | 0.881 | 12 | 54 | 159 | 399 |
-| [`assign-window`](#methods-and-packs) | 0.929 | 0.698 | 0.740 | 62 | 90 | 231 | 477 |
-| [`assign-bias`](#methods-and-packs) | 0.990 | 0.906 | 0.936 | 11 | 47 | 65 | 313 |
-| [`assign-full`](#methods-and-packs) | 0.997 | 0.958 | 0.932 | 10 | 4 | 37 | 247 |
-| [`gnn-restart`](#methods-and-packs) | 0.956 | 0.851 | 0.949 | 60 | 64 | 18 | 383 |
-| [`assign-time`](#methods-and-packs) | 0.997 | 0.961 | 0.996 | 9 | 2 | 33 | 244 |
-| [`gnn-time`](#methods-and-packs) | 0.951 | 0.820 | 0.959 | 61 | 81 | 23 | 414 |
+| Pack | F1, 500 random | F1 per family, lowest | False merges | Identity swaps | GOSPA, m |
+|---|---:|---|---:|---:|---:|
+| [`gnn`](#methods-and-packs) | 0.819<br>(0.802 to 0.833) | 0.806 (formation) | 508<br>(432 to 582) | 321<br>(270 to 373) | 411<br>(393 to 428) |
+| [`window`](#methods-and-packs) | 0.934<br>(0.928 to 0.940) | 0.821 (formation) | 680<br>(597 to 768) | 122<br>(100 to 146) | 315<br>(301 to 331) |
+| [`distance`](#methods-and-packs) | 0.812<br>(0.797 to 0.825) | 0.706 (sensor problems) | 119<br>(82 to 156) | 277<br>(235 to 323) | 411<br>(394 to 429) |
+| [`assign`](#methods-and-packs) | 0.681<br>(0.656 to 0.704) | 0.707 (sensor problems) | 78<br>(55 to 103) | 1424<br>(1266 to 1579) | 479<br>(460 to 498) |
+| [`gnn-imm`](#methods-and-packs) | 0.856<br>(0.839 to 0.870) | 0.889 (formation) | 595<br>(513 to 674) | 217<br>(175 to 262) | 369<br>(351 to 388) |
+| [`assign-imm`](#methods-and-packs) | 0.750<br>(0.726 to 0.771) | 0.852 (sensor problems) | 83<br>(59 to 109) | 1830<br>(1558 to 2112) | 424<br>(405 to 445) |
+| [`assign-window`](#methods-and-packs) | 0.669<br>(0.644 to 0.692) | 0.700 (sensor problems) | 428<br>(369 to 490) | 2180<br>(1936 to 2418) | 480<br>(461 to 499) |
+| [`assign-bias`](#methods-and-packs) | 0.885<br>(0.870 to 0.899) | 0.898 (track management) | 48<br>(31 to 66) | 767<br>(664 to 876) | 332<br>(314 to 350) |
+| [`assign-full`](#methods-and-packs) | 0.935<br>(0.922 to 0.947) | 0.935 (sensor problems) | 57<br>(36 to 83) | 495<br>(383 to 610) | 267<br>(250 to 287) |
+| [`gnn-restart`](#methods-and-packs) | 0.843<br>(0.827 to 0.856) | 0.817 (formation) | 513<br>(433 to 587) | 301<br>(247 to 357) | 383<br>(366 to 403) |
+| [`assign-time`](#methods-and-packs) | 0.934<br>(0.921 to 0.947) | 0.942 (formation) | 51<br>(33 to 70) | 471<br>(371 to 580) | 268<br>(250 to 287) |
+| [`gnn-time`](#methods-and-packs) | 0.819<br>(0.802 to 0.833) | 0.806 (formation) | 508<br>(432 to 582) | 321<br>(270 to 373) | 411<br>(393 to 428) |
 
-False merges, missed merges, identity swaps and GOSPA are for the 50 random scenarios.
+All numbers are from the evaluation set (663 scenarios, held-out seeds); brackets are 95 % bootstrap intervals. False merges, identity swaps and GOSPA are over the random scenarios; every family is in [docs/benchmark.md](docs/benchmark.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/bench/random-dark.svg">
@@ -233,28 +239,29 @@ False merges, missed merges, identity swaps and GOSPA are for the 50 random scen
 
 An AI agent here is a program, usually driven by a language model, that reads
 data and acts through tools. The processors stay fast and exact, with no model
-inside the engines. The design connects agents at the edges, through the same
-doors a person uses, and gives every agent action the identity it acts for and
-an entry in a log.
+inside the engines. Agents connect at the edges, through the same doors a
+person uses, and every agent action carries the identity it acts for and is
+written to an audit log.
 
-None of these interfaces is built yet. A row says Built only when its code and its tests are on main.
+Six of the seven interfaces are built. A row says Built only when its code and its tests are on main.
 
 | Interface | What it lets you build | Status |
 |---|---|---|
-| MCP server | Connect an AI assistant to a running runner over MCP (Model Context Protocol, the common way an assistant calls a program's tools): it can read tracks and quality marks and propose changes, with the authority of the person it acts for and no more | Designed |
-| Agent as a source | Have an agent publish tracks or notes on the goat fabric (the network the runner reads and publishes on) under its own name, marked as agent-derived with its model and inputs; the processors take them in like any other source | Designed |
+| [MCP server](runner/src/mcp.rs) | Connect an AI assistant to a running runner over MCP (Model Context Protocol, the common way an assistant calls a program's tools): it can read tracks and quality marks and propose changes, with the authority of the person it acts for and no more | Built |
+| [Agent as a source](runner/src/api.rs) | Have an agent publish tracks or notes on the goat fabric (the network the runner reads and publishes on) under its own name, marked as agent-derived with its model and inputs; the processors take them in like any other source | Built |
 | Agent as an adjudicator | Let an agent or an analyst settle a hard case with a hint ("treat A and B as one object", "keep A and B apart") that the engines record and trace like any other input, so a replay stays exact | Designed |
-| Settings proposals and site auto-approval | Have an agent propose a pack or config change that a person approves, or that a site rule approves within set bounds once the benchmark passes; every change is logged and can be reverted in one step | Designed |
-| Audit log | See every agent call and action afterwards: who it acted for, which tool, a fingerprint (hash) of its inputs, and the result | Designed |
-| The "why?" explainer | Ask in plain words why two tracks were joined or kept apart, and get an answer in which every sentence cites the trace record it comes from | Designed |
-| Build-your-own guide | Build your own integration from one runnable example per interface (MCP, source, adjudicator, settings), each run in CI | Designed |
+| [Settings proposals and site auto-approval](runner/src/proposals.rs) | Have an agent propose another installed pack for a function; a person approves it, or a site rule does, within the packs the rule allows and once its gate command (the benchmark, for example) passes; every change is logged and can be reverted in one step | Built |
+| [Audit log](runner/src/api.rs) | See every agent call and action afterwards: who it acted for, which tool, a fingerprint (hash) of its inputs, and the result | Built |
+| [The "why?" explainer](runner/src/agentic.rs) | Ask in plain words why two tracks were joined or kept apart, and get an answer in which every sentence cites the trace record it comes from | Built |
+| [Build-your-own guide](runner/examples/README.md) | Build your own integration from one runnable example per built interface (MCP, source, settings), each run in CI; the adjudicator example follows when hints are built | Built |
 
 Built: the code and its tests are on main. Written: the document exists. Designed: decided, not yet in the tree.
 
-The runner works with no agent at all, and in the design every agent feature
-stays optional. Each site declares which model its agent features may use, one
-on its own machines or one hosted by a provider, and the highest level of data
-that may be sent to it. The design document, `docs/design/agentic-ai.md`, is not written yet.
+Every agent feature is optional: with all of them enabled and no agent
+connected, the runner's output is the same, byte for byte (tested). Each site
+declares which model its agent features may use, one on its own machines or
+one hosted by a provider, and the highest level of data that may be sent to
+it. The design, with the cost and the matching safeguard for each choice, is in [`docs/design/agentic-ai.md`](docs/design/agentic-ai.md).
 
 ## Contributing
 

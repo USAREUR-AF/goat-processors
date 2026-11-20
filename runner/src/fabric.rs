@@ -19,6 +19,8 @@ pub enum Input {
     Api(crate::api::Call),
     /// A file input has played to its end.
     Ended,
+    /// A proposal's policy gate finished.
+    GateDone { id: String, passed: bool, gate: Json },
 }
 
 /// The Zenoh config for a fabric section.

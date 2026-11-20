@@ -120,13 +120,19 @@ the vector is changed only through the specification.
 
 ## Benchmark
 
-The correlate packs are scored against ground truth on generated scenarios:
-crossing, formation, splitting and turning objects; sensors with understated
-or absent error, bias, latency, low detection, track number swaps and false
-tracks; and sensors whose clocks are offset, drifting or free-running, or
-whose reports arrive out of order. Every score and its formula is in [docs/benchmark.md](docs/benchmark.md),
-which `tools/bench/bench.py report` writes. Pack names are explained in
-[Methods and packs](#methods-and-packs).
+The correlate packs are scored against ground truth on two separated sets of
+scenarios. The **tuning set** is public and is the only one packs are tuned on.
+The **evaluation set** comes from held-out seeds and gives every number below;
+its seeds are published after each release and then replaced. Each set holds
+500 random scenarios and the same families: formations that split and join,
+shallow crossings and merges, 3 to 9 g turns, climbs and dives, stop-and-go
+surface traffic, sensor dropouts, latency, out-of-order bursts, wrong stated
+error and bias, scale up to 1,000 objects, clutter, mixed air, surface and
+land traffic, track-number reuse and late sensors, and ships on recorded
+public AIS tracks. Every score, its formula and its 95 % interval are in
+[docs/benchmark.md](docs/benchmark.md), which `tools/bench/bench.py report`
+writes; a difference counts only when the intervals separate. Pack names are
+explained in [Methods and packs](#methods-and-packs).
 
 | Measure | Meaning |
 |---|---|
@@ -165,16 +171,17 @@ which `tools/bench/bench.py report` writes. Pack names are explained in
 
 An AI agent here is a program, usually driven by a language model, that reads
 data and acts through tools. The processors stay fast and exact, with no model
-inside the engines. The design connects agents at the edges, through the same
-doors a person uses, and gives every agent action the identity it acts for and
-an entry in a log.
+inside the engines. Agents connect at the edges, through the same doors a
+person uses, and every agent action carries the identity it acts for and is
+written to an audit log.
 
 {{agentic}}
 
-The runner works with no agent at all, and in the design every agent feature
-stays optional. Each site declares which model its agent features may use, one
-on its own machines or one hosted by a provider, and the highest level of data
-that may be sent to it. {{agentic_design}}
+Every agent feature is optional: with all of them enabled and no agent
+connected, the runner's output is the same, byte for byte (tested). Each site
+declares which model its agent features may use, one on its own machines or
+one hosted by a provider, and the highest level of data that may be sent to
+it. {{agentic_design}}
 
 ## Contributing
 

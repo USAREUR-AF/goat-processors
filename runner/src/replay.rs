@@ -162,6 +162,11 @@ pub fn output_lines(step: usize, call: &Step, out: &Output, trace: bool) -> Vec<
                 Step::Pack { .. } => m.insert("call".into(), Json::Str("pack".into())),
             };
             m.insert("stage".into(), Json::Str(s.function.clone()));
+            if let Step::Ingest(r) = call {
+                if let Some((_, prov)) = crate::pipeline::agent_provenance(r) {
+                    m.insert("provenance".into(), prov);
+                }
+            }
             m.insert("events".into(), Json::Arr(s.events.clone()));
             if trace {
                 m.insert("trace".into(), Json::Arr(s.trace.clone()));

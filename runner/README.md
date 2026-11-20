@@ -43,7 +43,8 @@ how to troubleshoot it.
 | Signed release (cosign, keyless) | Written: `.github/workflows/runner-release.yml`, run by a tag `runner-v<version>` |
 | HTTP API ([openapi.yaml](openapi.yaml)): local with a root-only token, mesh with mutual TLS and an allow list; audit log | Built. Tested: every route, both roles, refusals audited, mTLS allow list |
 | CLI verbs on the API: `status`, `health`, `pipeline`, `pack use`, `stop`, `start`, `metrics`, `tracks`, `explain`, `replay --api`, `audit` | Built. Tested: each verb against a running service |
-| Agent interfaces (MCP server, model endpoint, agent as a source or adjudicator, settings proposals) | Not started; built on this API next |
+| Agent interfaces ([docs/design/agentic-ai.md](../docs/design/agentic-ai.md), [examples/README.md](examples/README.md)): MCP server and `goat-processors mcp`; model endpoints with data levels; agent as a source; settings proposals with a site auto-approval policy; the `why` explainer; audit of every agent call | Built. Tests: `tests/agents.rs` |
+| Agent as an adjudicator (association and fusion hints) | Designed |
 | Visual UI (Fieldkit Processors) | Designed |
 | Container image | Designed |
 
@@ -141,6 +142,15 @@ exits 1. The service runs the same check before it starts.
 | `api.mesh.listen` | no | | `<ip>:<port>` for callers on other hosts, over mutual TLS |
 | `api.mesh.tls` | no | the `fabric.tls` files | `root_ca` (signs callers' certificates), `certificate`, `private_key` |
 | `api.mesh.allow[]` | with `api.mesh` | | `{name: <certificate CN>, role: read or operate}`; a CN not listed is refused |
+| `agents.mcp` | no | `true` | serve the MCP endpoint, `POST /mcp` (examples/README.md) |
+| `agents.data_levels` | no | `[public, site]` | the site's data levels, least sensitive first |
+| `agents.local_level` | no | the highest level | the highest level a local caller may receive |
+| `agents.clients[]` | no | | `{name: <certificate CN>, data_level}`; a mesh caller not listed receives the lowest level |
+| `agents.endpoints[]` | no | | model endpoints the runner may call: `{name, url, kind: local or hosted, data_level, model, key_file, timeout_ms, ca_file}` |
+| `agents.actions[]` | no | | `{who, actions: [use_pack, stop, start, approve, reject, revert]}`: which identities may call MCP action tools |
+| `agents.sources[]` | no | | `{who, source_id}`: which identity may publish reports as which source |
+| `agents.auto_approve[]` | no | | `{who, function, packs, gate, gate_timeout_s}`: proposals applied without a person once `gate` exits 0 |
+| `agents.proposals_file` | no | `/var/lib/goat-processors/proposals.json` | pending and decided proposals |
 
 The config check refuses an input key expression that also matches the output
 prefix, since the runner would then read what it publishes. It also refuses
@@ -170,6 +180,9 @@ identity by source priority.
 | run another pack for one function, now | `sudo goat-processors pack use <function> <pack>` |
 | pause, and resume, processing | `sudo goat-processors stop`, `sudo goat-processors start` |
 | who changed what | `sudo goat-processors audit` |
+| explain one track in plain words, from a model | `goat-processors why <id>` (needs `agents.endpoints`) |
+| settings proposals | `goat-processors proposals`; `goat-processors propose <function> <pack> --reason TEXT`; `sudo goat-processors proposal approve|reject|revert <id>` |
+| connect an agent on this host | `goat-processors mcp` (an MCP server on stdin and stdout) |
 | check the program against its test cases | `goat-processors selftest` |
 | run a file through a pipeline, offline | `goat-processors replay FILE -c /etc/goat-processors/runner.yaml` |
 
