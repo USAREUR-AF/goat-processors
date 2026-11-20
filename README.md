@@ -181,8 +181,8 @@ Highest pairwise F1 over the random set: `correlate-assign-time`, 0.961.
 | [`spec/`](spec/) | one specification per function, the shared [vector format](spec/vector-format.md), load vectors |
 | [`packs/`](packs/) | 24 rule packs, each with its `pack.def` and its scenario vectors (121 in all) |
 | [`engines/`](engines/) | one independent engine per language, each with its test runner |
-| [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), this README's generator (`readme/`) |
-| [`docs/`](docs/) | the benchmark results and the figures, each drawn by a script from the vectors |
+| [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), the performance harness (`perf/`), this README's generator (`readme/`) |
+| [`docs/`](docs/) | the benchmark results, the [performance](docs/performance.md) baseline and the figures, each written by a script |
 
 ## Contributing
 
