@@ -59,7 +59,7 @@ impl Engine {
             let pk = pair_key(a, b);
             let count = if all_passed { self.counts.get(&pk).copied().unwrap_or(0) + 1 } else { 0 };
             self.counts.insert(pk, count);
-            out.trace.push(record("confirm", a, b, "count", (count as f64).into(), (need as f64).into(), count >= need, false));
+            out.trace.push(record("confirm", a, b, "count", Json::Int(count as i64), Json::Int(need as i64), count >= need, false));
             if count >= need {
                 confirmed.push(b.clone());
             }
@@ -195,7 +195,7 @@ impl Engine {
                 let mut pairs = vec![
                     ("last_time_ms", e.last_time_ms.into()),
                     ("group", e.group.map_or(Json::Null, |g| group_name(g).into())),
-                    ("hold_failures", (e.hold_failures as f64).into()),
+                    ("hold_failures", Json::Int(e.hold_failures as i64)),
                 ];
                 pairs.extend(filter_json(e));
                 (k.into(), obj(pairs))
@@ -206,13 +206,13 @@ impl Engine {
             .iter()
             .map(|(g, ms)| (group_name(*g).into(), Json::Arr(ms.iter().map(|m| m.as_str().into()).collect())))
             .collect();
-        let counts = self.counts.iter().map(|((x, y), n)| (format!("{}|{}", x, y).into(), Json::Num(*n as f64))).collect();
+        let counts = self.counts.iter().map(|((x, y), n)| (format!("{}|{}", x, y).into(), Json::Int(*n as i64))).collect();
         obj(vec![
             ("ref", reference),
             ("entities", Json::Obj(entities)),
             ("groups", Json::Obj(groups)),
             ("counts", Json::Obj(counts)),
-            ("next_group", (self.next_group as f64).into()),
+            ("next_group", Json::Int(self.next_group as i64)),
         ])
     }
 }
