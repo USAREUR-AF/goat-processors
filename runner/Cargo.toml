@@ -1,6 +1,6 @@
 [package]
 name = "goat-processors"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.80"
 description = "goat-processors runner: runs a declared pipeline of processing functions on the goat fabric"
@@ -18,6 +18,10 @@ goat_correlator = { path = "../engines/rust" }
 zenoh = { version = "=1.9.0", default-features = false, features = ["transport_tcp", "transport_tls"] }
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_norway = "=0.9.42"
+# The API's mutual TLS listener. Each is already in the build through zenoh.
+rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std"] }
+rustls-pki-types = { version = "=1.16.0", features = ["std"] }
+x509-parser = "=0.18.1"
 
 [profile.release]
 lto = "thin"

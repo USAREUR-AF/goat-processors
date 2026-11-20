@@ -47,6 +47,74 @@ pub struct Config {
     pub record: Option<Record>,
     #[serde(default = "default_status_file")]
     pub status_file: PathBuf,
+    #[serde(default)]
+    pub api: Api,
+}
+
+/// The HTTP API (runner/openapi.yaml). The local listener is plain HTTP on
+/// the loopback interface; the mesh listener requires mutual TLS.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Api {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Loopback address and port of the local listener.
+    #[serde(default = "default_api_listen")]
+    pub listen: String,
+    /// The file holding the token a local caller shows to change anything.
+    /// The service writes it at start, readable by root only.
+    #[serde(default = "default_token_file")]
+    pub token_file: PathBuf,
+    /// Every request that changes something, and every refused request, is
+    /// appended here as one JSON line.
+    #[serde(default = "default_audit_file")]
+    pub audit_file: PathBuf,
+    #[serde(default)]
+    pub mesh: Option<ApiMesh>,
+}
+
+impl Default for Api {
+    fn default() -> Self {
+        Api { enabled: true, listen: default_api_listen(), token_file: default_token_file(), audit_file: default_audit_file(), mesh: None }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApiMesh {
+    /// Address and port to listen on, for example `0.0.0.0:8471`.
+    pub listen: String,
+    /// The server certificate and the CA that signs client certificates.
+    /// Default: the fabric's `tls` section.
+    #[serde(default)]
+    pub tls: Option<Tls>,
+    /// Who may call: the common name (CN) of a client certificate, and its role.
+    pub allow: Vec<Allow>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Allow {
+    pub name: String,
+    pub role: Role,
+}
+
+/// What a caller may do. `read`: every GET route and replay. `operate`: also
+/// select packs, stop and start.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    Read,
+    Operate,
+}
+
+impl Role {
+    pub fn name(self) -> &'static str {
+        match self {
+            Role::Read => "read",
+            Role::Operate => "operate",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
@@ -177,6 +245,18 @@ fn default_mode() -> String {
 }
 fn default_speed() -> f64 {
     1.0
+}
+fn default_true() -> bool {
+    true
+}
+fn default_api_listen() -> String {
+    "127.0.0.1:8470".into()
+}
+fn default_token_file() -> PathBuf {
+    PathBuf::from("/run/goat-processors/api.token")
+}
+fn default_audit_file() -> PathBuf {
+    PathBuf::from("/var/lib/goat-processors/audit.jsonl")
 }
 fn default_status_file() -> PathBuf {
     PathBuf::from(DEFAULT_STATUS_FILE)
@@ -331,6 +411,34 @@ pub fn check(c: &Config) -> Vec<String> {
                     if !path.is_absolute() {
                         p.push(format!("fabric.tls.{k}: {} is not an absolute path. Give the full path, for example /etc/goat-processors/tls/{k}.pem.", path.display()));
                     }
+                }
+            }
+        }
+    }
+
+    // API.
+    if c.api.enabled {
+        match c.api.listen.parse::<SocketAddr>() {
+            Err(_) => p.push(format!("api.listen: {:?} is not an address. Write it as `127.0.0.1:8470`.", c.api.listen)),
+            Ok(a) if !a.ip().is_loopback() => p.push(format!(
+                "api.listen: {} is not a loopback address. The local API is plain HTTP; use 127.0.0.1, and api.mesh for access from other hosts (mutual TLS).",
+                c.api.listen
+            )),
+            Ok(_) => {}
+        }
+        if let Some(m) = &c.api.mesh {
+            if m.listen.parse::<SocketAddr>().is_err() {
+                p.push(format!("api.mesh.listen: {:?} is not an address. Write it as `<ip>:<port>`, for example `0.0.0.0:8471`.", m.listen));
+            }
+            if m.tls.is_none() && c.fabric.as_ref().and_then(|f| f.tls.as_ref()).is_none() {
+                p.push("api.mesh: no certificates. Add api.mesh.tls (root_ca, certificate, private_key), or a fabric.tls section it can use.".into());
+            }
+            if m.allow.is_empty() {
+                p.push("api.mesh.allow: empty, so no one could call. Add `- {name: <certificate CN>, role: read}`.".into());
+            }
+            for (i, a) in m.allow.iter().enumerate() {
+                if a.name.is_empty() {
+                    p.push(format!("api.mesh.allow[{i}].name: empty. Give the common name (CN) of the caller's certificate."));
                 }
             }
         }
