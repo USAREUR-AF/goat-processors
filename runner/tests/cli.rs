@@ -263,10 +263,10 @@ fn service_batch_layout_publishes_a_fixed_key_set() {
     zc.insert_json5("listen/endpoints", &format!("[\"tcp/127.0.0.1:{port}\"]")).unwrap();
     zc.insert_json5("scouting/multicast/enabled", "false").unwrap();
     let z = zenoh::open(zc).wait().unwrap();
-    let got = z.declare_subscriber("volatile/rou/**").with(zenoh::handlers::FifoChannel::new(10_000)).wait().unwrap();
+    let got = z.declare_subscriber("volatile/site-a/**").with(zenoh::handlers::FifoChannel::new(10_000)).wait().unwrap();
 
     let cfg = format!(
-        "name: t\nsite: s\npacks_dir: {}\ntick_ms: 200\nfabric:\n  mode: peer\n  connect: [\"tcp/127.0.0.1:{port}\"]\ninputs:\n  fabric:\n    keys: [\"data/entity/track/**\"]\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: quality, pack: quality-feed}}\noutputs:\n  fabric:\n    prefix: volatile/rou/stream/processors\n    layout: batch\n    heartbeat_ms: 1000\nstatus_file: {}\napi:\n  enabled: false\n",
+        "name: t\nsite: s\npacks_dir: {}\ntick_ms: 200\nfabric:\n  mode: peer\n  connect: [\"tcp/127.0.0.1:{port}\"]\ninputs:\n  fabric:\n    keys: [\"data/entity/track/**\"]\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: quality, pack: quality-feed}}\noutputs:\n  fabric:\n    prefix: volatile/site-a/stream/processors\n    layout: batch\n    heartbeat_ms: 1000\nstatus_file: {}\napi:\n  enabled: false\n",
         repo().join("packs").display(),
         d.join("status.json").display()
     );
@@ -279,7 +279,7 @@ fn service_batch_layout_publishes_a_fixed_key_set() {
     let mut keys = std::collections::BTreeSet::new();
     let mut joined = false;
     let mut i = 0;
-    while Instant::now() < deadline && !(joined && keys.contains("volatile/rou/stream/processors/quality")) {
+    while Instant::now() < deadline && !(joined && keys.contains("volatile/site-a/stream/processors/quality")) {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
         for (src, dlat) in [("radar-1", 0.0), ("radar-2", 0.0001)] {
             let r = format!("{{\"track.source_id\":\"{src}\",\"uid\":\"T1\",\"time_ms\":{now},\"lat\":{},\"lon\":1.0,\"ce\":30.0,\"type\":\"a-f-A\"}}", 1.0 + dlat + i as f64 * 1e-5);
@@ -307,8 +307,8 @@ fn service_batch_layout_publishes_a_fixed_key_set() {
     // Only fixed keys: no key per track and none per quality subject.
     for k in &keys {
         assert!(
-            ["volatile/rou/stream/processors/tracks", "volatile/rou/stream/processors/quality"].contains(&k.as_str())
-                || k.starts_with("volatile/rou/stream/processors/events/"),
+            ["volatile/site-a/stream/processors/tracks", "volatile/site-a/stream/processors/quality"].contains(&k.as_str())
+                || k.starts_with("volatile/site-a/stream/processors/events/"),
             "a key outside the fixed set: {k}"
         );
     }
