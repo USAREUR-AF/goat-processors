@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>goat-processors</title>
+<meta name="description" content="Correlation, fusion, filtering and track quality as written specifications, settings packs and test vectors that seven independent engines reproduce exactly.">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="#top"><img src="assets/icon.svg" width="28" height="28" alt="">goat-processors</a>
+    <nav aria-label="Sections">
+      <a href="#what">What it is</a><a href="#trace">Trace</a><a href="#benchmark">Benchmark</a><a href="#start">Start</a>
+      <a class="gh" href="https://github.com/USAREUR-AF/goat-processors">GitHub</a>
+    </nav>
+  </header>
+</div>
+
+<main id="top">
+<section class="hero" aria-labelledby="name">
+<pre class="bgcode" aria-hidden="true">pack           correlate-gnn
+version        0.1.0
+filter         accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+gate           mahalanobis gate=9.21
+gate           same key=track.simulated
+gate           same key=@env
+confirm        course max_deg=45 min_speed_ms=5
+confirm        speed max_pct=40 min_speed_ms=5
+confirm        altitude max_m=300
+confirm_count  2
+hold           mahalanobis gate=18.42
+hold_failures  2
+stale_ms       120000
+same_source    forbid
+output         priority</pre>
+  <div class="wrap hero-grid">
+    <div>
+      <p class="prompt">&gt;_ explain 04-separation-dissolves.json<span class="cur" aria-hidden="true"></span></p>
+      <h1 class="wordmark" id="name">goat-processors</h1>
+      <p class="tagline">Correlation, fusion, filtering and track quality, with every decision traced.</p>
+      <p class="lede">Each function is a written specification, packs of settings and test vectors. Seven engines, written apart in seven languages, reproduce every vector exactly, down to the record of each test they run.</p>
+      <div class="buttons">
+        <a class="btn star" href="https://github.com/USAREUR-AF/goat-processors"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 2.8l2.8 5.8 6.4.9-4.6 4.5 1.1 6.3L12 17.3l-5.7 3 1.1-6.3-4.6-4.5 6.4-.9z"/></svg>Star on GitHub</a>
+        <a class="btn" href="#start">Quick start</a>
+        <a class="btn" href="https://github.com/USAREUR-AF/goat-processors/tree/main/spec">Specifications</a>
+      </div>
+      <div class="cmd"><pre><span class="dollar">$ </span><code id="c-start">cd engines/python &amp;&amp; PYTHONPATH=src python3 -m unittest discover -s tests</code></pre><button class="copy" type="button" data-copy="c-start">Copy</button></div>
+    </div>
+
+    <div class="scope" role="img" aria-label="A replay of test vector 04-separation-dissolves from pack correlate-gnn: radar-1/T1 and adsb/A7 report the same aircraft 10 meters apart, pass the gate on two reports in a row and are grouped as g1; then adsb/A7 turns north, fails the hold test twice (391 and 1874 against a limit of 18.42) and the group dissolves.">
+      <div class="scope-head"><span><b>correlate-gnn</b> 04-separation-dissolves</span><span id="clock">step 3/7, 1.0 s</span></div>
+      <svg class="plot" id="plot" viewBox="0 0 520 260" aria-hidden="true"></svg>
+      <pre class="trace" id="trace" aria-hidden="true"><span class="in">ingest radar-1/T1  t=1.000 s</span>
+gate    mahalanobis  0.1096  limit 9.21   <span class="pass">pass</span>
+gate    same         0       limit 0      <span class="pass">pass</span>
+gate    same         A       limit A      <span class="pass">pass</span>
+confirm course       0.0     limit 45.0   <span class="pass">pass</span>
+confirm speed        0.0     limit 40.0   <span class="pass">pass</span>
+confirm count        2       limit 2      <span class="pass">pass</span>
+<span class="ev">-&gt; correlate g1 [adsb/A7, radar-1/T1]</span></pre>
+      <div class="scope-foot">The vector's own inputs and trace records, replayed in order. Positions to scale.</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="numbers">
+      <div><span class="n" data-measure="engines">7</span><span class="l">engines</span><code>ls engines | wc -l</code></div>
+      <div><span class="n" data-measure="vectors">121</span><span class="l">scenario vectors</span><code>ls packs/*/vectors/*.json | wc -l</code></div>
+      <div><span class="n" data-measure="traces">4,333</span><span class="l">trace records, all reproduced</span><code>site/build.py counts every vector's trace</code></div>
+      <div><span class="n" data-measure="packs">24</span><span class="l">settings packs</span><code>ls packs/*/pack.def | wc -l</code></div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="what">
+  <div class="wrap">
+    <h2>What it is</h2>
+    <p class="sub">The functions that work on track data after it is translated. <a href="https://github.com/USAREUR-AF/goat-transformers">goat-transformers</a> translates messages into one shared report model; goat-processors reads that model.</p>
+    <div class="cards">
+      <div class="card"><h3>A function is a specification</h3><p>correlate, fuse, filter and quality are each one document in <code>spec/</code>. Each runs as <code>load_pack</code>, then <code>ingest(report)</code> and <code>tick(now_ms)</code>, and <code>snapshot()</code> returns its whole state.</p></div>
+      <div class="card"><h3>A pack is a settings file</h3><p><code>packs/&lt;function&gt;-&lt;name&gt;/pack.def</code> names which specified tests run and with which limits. A pack holds no code and no expressions.</p></div>
+      <div class="card"><h3>Seven engines must agree</h3><p>Python, Rust, Go, Java, C++, Erlang and Zig, each standard library only, each written from the specification and the vectors alone. Every pull request runs every vector in all seven.</p></div>
+    </div>
+    <figure style="margin-top:36px">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/from-tree/processing-layer-dark.svg">
+        <img src="assets/from-tree/processing-layer-light.svg" width="880" height="390" alt="Message formats are translated by goat-transformers into one shared report model. goat-processors reads that model and runs filter, correlate, fuse and quality on it. Each function returns events, a trace record for every test, and a snapshot of its whole state.">
+      </picture>
+      <figcaption>Drawn by <code>docs/figures/make-figures.py</code> from the tree.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="band" id="trace">
+  <div class="wrap feature">
+    <div>
+      <h2>Every decision is in the trace</h2>
+      <p>Each test is one record: what it compared, the value it computed, the limit and the result. This is step 3 of <a href="https://github.com/USAREUR-AF/goat-processors/blob/main/packs/correlate-gnn/vectors/04-separation-dissolves.json"><code>04-separation-dissolves.json</code></a>, copied from the vector:</p>
+      <pre class="json">{"stage": "gate", "a": "radar-1/T1", "b": "adsb/A7",
+ "test": "mahalanobis", "value": 0.10957452680004903,
+ "limit": 9.21, "pass": true}</pre>
+      <p>The value is the squared distance between the two tracks in units of their combined uncertainty. The limit is the pack line <code>gate mahalanobis gate=9.21</code>. Open any vector in the replay viewer, a single HTML page that works offline:</p>
+      <pre class="block">python3 -I tools/explain/explain.py \
+  packs/correlate-gnn/vectors/04-separation-dissolves.json</pre>
+    </div>
+    <figure>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/from-tree/correlate-decision-dark.svg">
+        <img src="assets/from-tree/correlate-decision-light.svg" width="880" height="540" loading="lazy" alt="Vector 04-separation-dissolves, step 3: radar-1/T1 at 1 s lies inside the 99 percent region where adsb/A7 was predicted to be (squared distance 0.1096, limit 9.21). Every confirm test passes, so the engine emits correlate with group g1, members adsb/A7 and radar-1/T1.">
+      </picture>
+      <figcaption>The generator recomputes the gate value from the snapshots and refuses to draw if it differs from the trace record.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="band" id="engines">
+  <div class="wrap feature">
+    <div>
+      <h2>Seven engines check each other</h2>
+      <p>The Python engine and <code>tools/make-*-vectors.py</code> write the vectors; each generator states its scenarios' decisions by hand and refuses to write a vector whose events differ. The other six engines are written from the specification and the vectors, never from another engine's source. Numbers must match within a relative 1e-6.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Engine</th><th>Runs every vector with</th></tr></thead>
+        <tbody>
+          <tr><td>Python</td><td><code>cd engines/python &amp;&amp; PYTHONPATH=src python3 -m unittest discover -s tests</code></td></tr>
+          <tr><td>Rust</td><td><code>cd engines/rust &amp;&amp; cargo test</code></td></tr>
+          <tr><td>Go</td><td><code>cd engines/go &amp;&amp; go test ./...</code></td></tr>
+          <tr><td>Java</td><td><code>engines/java/build.sh</code></td></tr>
+          <tr><td>C++</td><td><code>cmake -S engines/cpp -B build/cpp &amp;&amp; cmake --build build/cpp &amp;&amp; ctest --test-dir build/cpp</code></td></tr>
+          <tr><td>Erlang</td><td><code>engines/erlang/run_tests</code></td></tr>
+          <tr><td>Zig</td><td><code>cd engines/zig &amp;&amp; zig build test</code></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <figure>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/from-tree/seven-engines-dark.svg">
+        <img src="assets/from-tree/seven-engines-light.svg" width="880" height="500" loading="lazy" alt="The scenario vectors and the load vectors sit at the center. The Python engine computes the numbers; the Rust, Go, Java, C++, Erlang and Zig engines are written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot.">
+      </picture>
+      <figcaption>Counts in the figure are taken from the tree by <code>docs/figures/make-figures.py</code>.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="band" id="benchmark">
+  <div class="wrap feature">
+    <div>
+      <h2>Scored against ground truth</h2>
+      <p>The correlate packs run on generated scenarios: crossing, formation, splitting and turning objects; sensors with bias, latency, low detection, track number swaps and false tracks; sensors whose clocks are offset or drifting. F1 runs from 0 to 1 and scores whether the output puts two tracks together exactly when they are one object. GOSPA is a mean position error that also charges missed and false tracks.</p>
+      <p>The default pack, <code>assign-time</code>, on the 50 random scenarios: F1 <span class="num" data-measure="f1-random">0.961</span>, GOSPA <span class="num" data-measure="gospa-random">244</span> m.</p>
+      <pre class="block">python3 -I tools/bench/bench.py check   # docs/benchmark.md is current
+python3 -I tools/bench/bench.py report  # rewrite it</pre>
+      <p><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/docs/benchmark.md">Every score and its formula</a></p>
+    </div>
+    <figure>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/from-tree/random-dark.svg">
+        <img src="assets/from-tree/random-light.svg" width="778" height="484" loading="lazy" alt="Pooled scores over the random set of the benchmark, one bar per correlate pack.">
+      </picture>
+      <figcaption>Written by <code>tools/bench/bench.py report</code>.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="band" id="start">
+  <div class="wrap">
+    <h2>Quick start</h2>
+    <p class="sub">Each engine and tool uses only its language's standard library.</p>
+    <pre class="block">git clone https://github.com/USAREUR-AF/goat-processors
+cd goat-processors
+
+# run every vector in one language
+cd engines/python &amp;&amp; PYTHONPATH=src python3 -m unittest discover -s tests &amp;&amp; cd ../..
+
+# replay every vector, with an index page
+python3 -I tools/explain/explain.py --all build/explain</pre>
+    <p><a href="https://github.com/USAREUR-AF/goat-processors#readme">README</a> &middot; <a href="https://github.com/USAREUR-AF/goat-processors/blob/main/CONTRIBUTING.md">Add a function, a pack or an engine</a> &middot; <a href="https://github.com/USAREUR-AF/goat-processors/blob/main/spec/vector-format.md">Vector format</a></p>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><a href="https://github.com/USAREUR-AF/goat-processors">Repository</a><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/LICENSE">Apache License 2.0</a><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/SECURITY.md">Security policy</a></p>
+    <p>Portions written by U.S. Federal government employees within the scope of their employment are in the public domain in the United States. Part of <a href="https://github.com/USAREUR-AF/goatcore">goat</a>.</p>
+  </div>
+</footer>
+<script src="assets/hero.js" defer></script>
+</body>
+</html>

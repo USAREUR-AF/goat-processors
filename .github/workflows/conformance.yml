@@ -70,6 +70,7 @@ jobs:
           distribution: temurin
           java-version: "17"
       - run: engines/java/build.sh
+      - run: engines/java/coverage.sh
   cpp:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -79,6 +80,13 @@ jobs:
           cmake -S engines/cpp -B "$RUNNER_TEMP/cpp"
           cmake --build "$RUNNER_TEMP/cpp"
           ctest --test-dir "$RUNNER_TEMP/cpp" --output-on-failure
+      # Line coverage with gcc's own --coverage and gcov; the floor is
+      # max(baseline 96.7 %, 80 %) (engines/cpp/REFACTOR.md).
+      - run: |
+          cmake -S engines/cpp -B "$RUNNER_TEMP/cpp-cov" -DGOAT_COVERAGE=ON
+          cmake --build "$RUNNER_TEMP/cpp-cov"
+          ctest --test-dir "$RUNNER_TEMP/cpp-cov" --output-on-failure
+          python3 -I engines/cpp/coverage.py "$RUNNER_TEMP/cpp-cov" --floor 96.7
   erlang:
     runs-on: ubuntu-latest
     timeout-minutes: 10

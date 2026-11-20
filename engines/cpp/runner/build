@@ -1,0 +1,7 @@
+#!/bin/sh
+# tools/perf/README.md "Runner contract": builds the runner with the engine's
+# optimized profile (Release, the CMakeLists.txt default). No arguments.
+set -e
+here=$(cd "$(dirname "$0")" && pwd)
+cmake -S "$here/.." -B "$here/../../../build/cpp-runner" -DCMAKE_BUILD_TYPE=Release >&2
+cmake --build "$here/../../../build/cpp-runner" --target goat_runner -j >&2

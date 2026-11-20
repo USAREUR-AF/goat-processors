@@ -1,0 +1,8 @@
+#!/bin/sh
+# Builds the java runner (tools/perf/README.md, Runner contract) into runner/classes.
+set -eu
+here=$(cd "$(dirname "$0")" && pwd)
+src="$here/../src"
+rm -rf "$here/classes"
+mkdir -p "$here/classes"
+javac --release 17 -Xlint:all -Werror -d "$here/classes" $(find "$src" -name '*.java' | sort)
