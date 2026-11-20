@@ -140,7 +140,8 @@ key order; or `p - o` with `pp + var`, from pair `"<a_src>|<b_src>"`, when
 `a_src` is before `b_src`. Two
 entities of one source are never moved. This applies wherever B is
 predicted to be compared with A: the `distance`, `window` and `mahalanobis`
-tests of `correlate.md` (to B's prediction, before the test formula;
+tests of `correlate.md` and the `state` test (to B's prediction, before the
+test formula;
 `distance` and `window` read no `pp`, so only the offset changes them), and
 each member of M in Cost. A system track's estimate for output moves no
 member.
@@ -387,7 +388,9 @@ holds `last_time_ms`, `system` (its committed system track, or null) and
 `maneuver`); `systems` maps each committed system track name to its
 members in key order; `next_system` is the committed counter; `reported`
 lists, in key order, the entities that reported since the previous tick.
-With `restart` the snapshot also holds `restarted`, the restarted entities in
+Each entity also holds `time` when its last report had a time error above 0,
+as in `correlate.md`. With `stale_rate` the snapshot also holds `intervals`,
+as in `correlate.md`. With `restart` the snapshot also holds `restarted`, the restarted entities in
 key order. With `bias` it holds `bias`, mapping each stored pair key to
 `{"east", "weight_east", "north", "weight_north", "var", "pairs"}` (`o` and
 `w` per axis, `var`, `n`), keys in order; with `time_offset` each also has

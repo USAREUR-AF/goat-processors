@@ -436,8 +436,9 @@ On each accepted report for A, after its filter is updated:
 - **A is in a group G.** A's *link* is the other member of G whose pair has
   the greatest `L` (a pair with no `L` reads 0), ties to key order. Only the
   link pair is updated: run the `same` tests of the `gate` line between A and
-  the link, in pack order; when one fails, the update is forced, otherwise it
-  adds A's evidence. When the new `L` is `lo` or below, A leaves G (event
+  the link, in pack order, each writing its `gate` record and stopping at the
+  first that fails; when one fails, the update is forced, otherwise it adds
+  A's evidence. When the new `L` is `lo` or below, A leaves G (event
   `leave`, reason `release`, dissolving G as for a hold when one member is
   left), and every pair naming A whose `L` is `lo` or below is removed.
   Pairs inside a group are otherwise kept.
@@ -450,8 +451,9 @@ On each accepted report for A, after its filter is updated:
   one fails the update is forced, otherwise the pair adds A's evidence. After
   the update, a pair whose `L` is `lo` or below is removed; a pair whose `L`
   is `up` is ready. Of the ready candidates the one with the smallest `d²`
-  is chosen exactly as in associate (`rank` records), and A joins or
-  correlates as there. No count is kept.
+  is chosen exactly as in associate, by the position `d²` of associate (not
+  the `d2` of the `sprt` record), with its `rank` records; A joins or
+  correlates as there. No count is kept, and the chosen pair keeps its `L`.
 
 With `up` and `lo` reached by clamping, a confirmed pair needs evidence worth
 the whole interval from `up` to `lo` before it is released, and one report
@@ -470,7 +472,8 @@ does not split a pair that many reports have confirmed.
 2. **Fused output**, groups in creation order. With `output fused` (the
    default), the event `fused` has `primary` null and gives, per axis, the
    information-weighted combination of every member's filter predicted to
-   `now_ms`, members in key order: `p = (sum of p_i/pp_i) / (sum of 1/pp_i)`
+   `now_ms` (no timing variance added: this is not a comparison), members in
+   key order: `p = (sum of p_i/pp_i) / (sum of 1/pp_i)`
    and `v = (sum of v_i/vv_i) / (sum of 1/vv_i)`, each sum added left to
    right from 0, then the position in degrees and `course`, `speed_ms` from
    `v` as below, plus the `hae` of the member with the greatest
@@ -542,8 +545,10 @@ directive each entity also holds `models`
 `mode` (`[mu1, mu2]`), and `filter` is their combination; `groups` maps a group name
 to its members; `counts` maps `"<key>|<key>"` (keys in order) to the count.
 With `sprt` the snapshot also holds `llr`, mapping each pair key that has an
-`L` to it. With `stale_rate` it holds `intervals`, mapping each source (in
-key order) to its list of intervals, oldest first.
+`L` to it. With `stale_rate` it holds `intervals`, mapping each source that has at
+least one interval (in key order) to its list of intervals, oldest first.
+With `sprt`, entities still hold `hold_failures` (always 0) and the snapshot
+still holds `counts` (always empty).
 
 ## Pack
 
@@ -603,7 +608,8 @@ tests run. Every other directive appears once, and `pack`, `version`,
 integer, 1 or above), and is valid with either method. `sprt` takes exactly
 `false` and `missed` (numbers above 0 and below 0.5) and `pos_m`, `vel_ms`,
 `hae_sigma_m` (numbers above 0); it is valid with method `confirm` only. The
-`state` test's `probability` is one of the four values of its table and its
+`state` test's `probability` is one of the four values of its table, compared
+as numbers (`0.990` is `0.99`), and its
 `hae_sigma_m` is above 0. `method`
 is optional and defaults to `confirm`, the method of this document;
 `method assign` selects [correlate-assign.md](correlate-assign.md), which has

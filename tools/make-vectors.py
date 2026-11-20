@@ -746,17 +746,16 @@ scenario("60-sprt-one-noisy-report-holds", "correlate-sprt", sprt_pair([500, 0])
 scenario("61-sprt-release", "correlate-sprt", sprt_pair([700]),
          [["new"], ["new", "correlate"], [], [], ["leave", "dissolve"], []])
 
-RATE = [("ingest", rep("radar-1", "T1", 1000 * i, 0, 0, ce=30, **AIR)) for i in range(4)] + [
-    ("ingest", rep("adsb", "A7", 0, 5000, 0, ce=30, **AIR)),
-    ("tick", 8000),
-    ("tick", 8001),
-]
-# 62. stale_rate: radar-1 reported every 1 s (three intervals of 1000 ms), so
-#     its stale time is max(5 * 1000, 5000) = 5000 ms: T1, last at 3 s, is not
-#     stale at 8 s and is at 8.001 s. adsb has no interval yet, so its stale
-#     time is the 60 s ceiling and A7 stays (snapshot: intervals).
+RATE = [("ingest", rep("radar-1", "T1", t, 0, 0, ce=30, **AIR)) for t in (0, 1000, 3000, 6000, 10000)] + [
+    ("ingest", rep("adsb", "A7", t, 5000, 0, ce=30, **AIR)) for t in (0, 200, 400)] + [
+    ("tick", 5400), ("tick", 5401), ("tick", 20000), ("tick", 20001)]
+# 62. stale_rate: radar-1's intervals are 1, 2, 3 and 4 s; their lower median
+#     is 2 s (the upper would be 3 s), so T1 is stale 5 * 2 = 10 s after its
+#     last report: not at 20 s, at 20.001 s. adsb's intervals are 0.2 s, so
+#     5 * 0.2 = 1 s, raised to the 5 s floor: A7 (last at 0.4 s) is not stale
+#     at 5.4 s and is at 5.401 s (snapshot: intervals).
 scenario("62-stale-rate-per-source", "correlate-sprt", RATE,
-         [["new"], [], [], [], ["new"], [], ["drop"]])
+         [["new"], [], [], [], [], ["new"], [], [], [], ["drop"], [], ["drop"]])
 
 ST = dict(ce=30, **AIR)
 # 63. The `state` test: T1 and A7 at one spot, but flying east and west at
