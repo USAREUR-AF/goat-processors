@@ -95,7 +95,7 @@
       if (group && pos[group.members[0]] && pos[group.members[1]]) {
         var a = pos[group.members[0]], b = pos[group.members[1]];
         el("line", { "class": "link", x1: a.x, y1: a.y, x2: b.x, y2: b.y });
-        el("text", { "class": "grp", x: Math.min(a.x, b.x) - 12, y: (a.y + b.y) / 2 + 4, "text-anchor": "end" }, group.id);
+        el("text", { "class": "grp", x: (a.x + b.x) / 2, y: Math.max(a.y, b.y) + 30, "text-anchor": "middle" }, "group " + group.id);
       }
       var by = H - 14;
       el("line", { "class": "scale", x1: 14, x2: 14 + bar * cam.s, y1: by, y2: by });

@@ -76,7 +76,7 @@ code, pre { font-family: var(--mono); }
 .plot .trail { fill: none; stroke-width: 1.5; opacity: .55; }
 .plot .link { stroke: var(--accent); stroke-width: 3; }
 .plot .grp { font-weight: 700; fill: var(--accent); }
-.trace { margin: 0; padding: 10px 12px; height: 13.6em; overflow: hidden; border-top: 1px solid var(--rule); background: var(--code-bg);
+.trace { margin: 0; padding: 10px 12px; height: calc(8 * 1.65em + 20px); overflow: hidden; border-top: 1px solid var(--rule); background: var(--code-bg);
   font: 12.5px/1.65 var(--mono); color: var(--quiet); white-space: pre; }
 .trace .pass { color: var(--good); } .trace .fail { color: var(--bad); }
 .trace .ev { color: var(--accent); font-weight: 700; }
