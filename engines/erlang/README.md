@@ -172,7 +172,8 @@ fails. Then it runs the unit, property and fuzz tests (`test/`).
 
 `runner/build` builds; `runner/run --function <f> --pack <dir> --steps <file>
 [--events <file>] [--trace]` runs, as `tools/perf/README.md` "Runner
-contract" states.
+contract" states. The runner and the vector runners load the function's
+modules in one batch before their clocks start (`io_engine:preload/1`).
 
 ## Tests
 
