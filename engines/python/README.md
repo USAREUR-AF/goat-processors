@@ -1,6 +1,6 @@
 # The Python engine
 
-The reference engine of goat-processors: correlate (methods `confirm` and
+One of the seven engines of goat-processors: correlate (methods `confirm` and
 `assign`), filter, fuse and quality, written from `spec/` and the vectors.
 Python 3.9 or later, standard library only.
 
