@@ -1,5 +1,6 @@
 package goat.filter;
 
+import goat.trace.Fields;
 import goat.io.LoadError;
 import goat.io.Processor;
 import goat.model.KeyOrder;
@@ -231,7 +232,7 @@ public final class FilterProcessor implements Processor {
             Map.Entry<String, State> e = it.next();
             long value = nowMs - e.getValue().timeMs;
             boolean forget = value > pack.forgetMs;
-            Map<String, Object> rec = new LinkedHashMap<>();
+            Map<String, Object> rec = new Fields();
             rec.put("stage", "forget");
             rec.put("entity", e.getKey());
             rec.put("test", "age");
@@ -272,7 +273,7 @@ public final class FilterProcessor implements Processor {
     // ---- events and trace (spec: Events, Trace) ----
 
     private static Map<String, Object> ruleRecord(String rule, String key, Condition c, Outcome o, boolean pass) {
-        Map<String, Object> m = new LinkedHashMap<>();
+        Map<String, Object> m = new Fields();
         m.put("stage", "rule");
         m.put("rule", rule);
         m.put("entity", key);

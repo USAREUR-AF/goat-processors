@@ -10,7 +10,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.ToLongFunction;
 
 /**
  * fuse.md, Kinematics: the table of methods, by the name of the pack's {@code kinematics} line. A
@@ -35,36 +34,72 @@ final class Kinematics {
         }
     }
 
-    interface Method {
-        Estimate combine(Fuse.Group g, List<Fuse.Member> members, ToLongFunction<Fuse.Entity> rankOrder, Result res);
+    /**
+     * The table, in the order of fuse.md, Kinematics: one constant per method (an enum, so the
+     * table costs no start-up work). A new method is one more constant.
+     */
+    enum Method {
+        INVERSE_VARIANCE("inverse_variance") {
+            @Override
+            Estimate combine(Fuse.Group g, List<Fuse.Member> members, Fuse fuse, Result res) {
+                return new Estimate(inverseVariance(members), null);
+            }
+        },
+        COVARIANCE_INTERSECTION("covariance_intersection") {
+            @Override
+            Estimate combine(Fuse.Group g, List<Fuse.Member> members, Fuse fuse, Result res) {
+                return new Estimate(covarianceIntersection(g, members, res), null);
+            }
+        },
+        BEST("best") {
+            @Override
+            boolean better(Fuse.Member m, Fuse.Member win, Fuse fuse) {
+                return m.var() < win.var();
+            }
+        },
+        PRIORITY("priority") {
+            @Override
+            boolean better(Fuse.Member m, Fuse.Member win, Fuse fuse) {
+                return fuse.rankOrder(m.e) < fuse.rankOrder(win.e);
+            }
+        },
+        LATEST("latest") {
+            @Override
+            boolean better(Fuse.Member m, Fuse.Member win, Fuse fuse) {
+                return m.e.lastTime > win.e.lastTime;
+            }
+        };
+
+        /** The name on the pack's {@code kinematics} line. */
+        final String name;
+
+        Method(String name) {
+            this.name = name;
+        }
+
+        /**
+         * The fused estimate of a group. By default the one member whose filter is the estimate
+         * ({@code best}, {@code priority}, {@code latest}): the first that no later member beats.
+         */
+        Estimate combine(Fuse.Group g, List<Fuse.Member> members, Fuse fuse, Result res) {
+            Fuse.Member win = null;
+            for (Fuse.Member m : members) if (win == null || better(m, win, fuse)) win = m;
+            return Estimate.of(win);
+        }
+
+        /** True when m beats the current winner; members come in key order, so ties keep the earlier. */
+        boolean better(Fuse.Member m, Fuse.Member win, Fuse fuse) {
+            throw new IllegalStateException(name + " is not a pick");
+        }
     }
 
-    /** True when m beats the current winner; members come in key order, so ties keep the earlier. */
-    interface Better {
-        boolean test(Fuse.Member m, Fuse.Member win, ToLongFunction<Fuse.Entity> rankOrder);
-    }
-
-    /** The table, in the order of fuse.md, Kinematics. */
+    /** The table by name, in the order of fuse.md. */
     static final Map<String, Method> TABLE = table();
 
     private static Map<String, Method> table() {
         Map<String, Method> t = new LinkedHashMap<>();
-        t.put("inverse_variance", (g, members, rank, res) -> new Estimate(inverseVariance(members), null));
-        t.put("covariance_intersection",
-                (g, members, rank, res) -> new Estimate(covarianceIntersection(g, members, res), null));
-        t.put("best", pick((m, win, rank) -> m.var() < win.var()));
-        t.put("priority", pick((m, win, rank) -> rank.applyAsLong(m.e) < rank.applyAsLong(win.e)));
-        t.put("latest", pick((m, win, rank) -> m.e.lastTime > win.e.lastTime));
+        for (Method m : Method.values()) t.put(m.name, m);
         return Collections.unmodifiableMap(t);
-    }
-
-    /** {@code best}, {@code priority}, {@code latest}: the one member whose filter is the estimate. */
-    static Method pick(Better better) {
-        return (g, members, rank, res) -> {
-            Fuse.Member win = null;
-            for (Fuse.Member m : members) if (win == null || better.test(m, win, rank)) win = m;
-            return Estimate.of(win);
-        };
     }
 
     /** {@code inverse_variance}: correlate-assign.md's fused estimate, members in key order. */

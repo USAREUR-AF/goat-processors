@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -88,12 +89,24 @@ public final class Vectors {
         }
         if (want instanceof Number) {
             if (!(got instanceof Number)) return mismatch(path, got, want);
-            double g = ((Number) got).doubleValue(), w = ((Number) want).doubleValue();
-            return Math.abs(g - w) <= 1e-6 * Math.max(1, Math.abs(w)) ? null : mismatch(path, got, want);
+            return close((Number) got, (Number) want) ? null : mismatch(path, got, want);
         }
         if (want instanceof Map) {
             if (!(got instanceof Map)) return mismatch(path, got, want);
             Map<?, ?> g = (Map<?, ?>) got, w = (Map<?, ?>) want;
+            if (sameKeyOrder(g, w)) {
+                // Keys in the same order: compare along both maps, no lookups. The first mismatch
+                // is the one of the definition below (want's keys in order, no key missing or extra).
+                Iterator<? extends Map.Entry<?, ?>> gi = g.entrySet().iterator();
+                for (Map.Entry<?, ?> we : w.entrySet()) {
+                    Map.Entry<?, ?> ge = gi.next();
+                    Object gv = ge.getValue(), wv = we.getValue();
+                    if (leafEqual(gv, wv)) continue;
+                    String m = diff(path + "." + we.getKey(), gv, wv);
+                    if (m != null) return m;
+                }
+                return null;
+            }
             for (Object key : w.keySet()) {
                 if (!g.containsKey(key)) return path + "." + key + ": missing, want " + Json.write(w.get(key));
                 String m = diff(path + "." + key, g.get(key), w.get(key));
@@ -107,7 +120,9 @@ public final class Vectors {
             if (!(got instanceof List)) return mismatch(path, got, want);
             List<?> g = (List<?>) got, w = (List<?>) want;
             for (int k = 0; k < Math.min(g.size(), w.size()); k++) {
-                String m = diff(path + "[" + k + "]", g.get(k), w.get(k));
+                Object gv = g.get(k), wv = w.get(k);
+                if (leafEqual(gv, wv)) continue;
+                String m = diff(path + "[" + k + "]", gv, wv);
                 if (m != null) return m;
             }
             if (g.size() != w.size())
@@ -115,6 +130,28 @@ public final class Vectors {
             return null;
         }
         return want.equals(got) ? null : mismatch(path, got, want);
+    }
+
+    /** Both maps hold the same keys in the same order. */
+    private static boolean sameKeyOrder(Map<?, ?> g, Map<?, ?> w) {
+        if (g.size() != w.size()) return false;
+        Iterator<?> gi = g.keySet().iterator();
+        for (Object k : w.keySet()) if (!k.equals(gi.next())) return false;
+        return true;
+    }
+
+    /** A number, string, boolean or null equal to the wanted one, as {@link #diff} compares them: no path to build. */
+    private static boolean leafEqual(Object got, Object want) {
+        if (want == null) return got == null;
+        if (want instanceof Number) return got instanceof Number && close((Number) got, (Number) want);
+        if (want instanceof String || want instanceof Boolean) return want.equals(got);
+        return false;
+    }
+
+    /** vector-format.md: numbers compare to relative 1e-6. */
+    private static boolean close(Number got, Number want) {
+        double g = got.doubleValue(), w = want.doubleValue();
+        return Math.abs(g - w) <= 1e-6 * Math.max(1, Math.abs(w));
     }
 
     private static String mismatch(String path, Object got, Object want) {

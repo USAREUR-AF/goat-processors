@@ -156,6 +156,20 @@ fit (`Bias.d2`, `Bias.accept`, `Bias.fitTimeOffset`), the fuse weight and fold
 processor object (and the method object it holds) and is read out by `snapshot()`. There is no
 mutable static field anywhere in the engine.
 
+## Performance notes
+
+- Ranking (correlate-assign.md) is a branch-and-bound walk in the definition's own order
+  (`assign/Ranking.rank`): it keeps the k best so far and skips a branch only when a lower bound
+  on every total in it exceeds the k-th best by more than rounding could close; kept totals are
+  computed as the definition computes them. `Ranking.rankAll` is the definition (every
+  assignment, stable sort), used when an entry is not finite and by the tests as the oracle.
+- Key order (`model/KeyOrder`) compares UTF-16 units and decodes code points only when a
+  surrogate is at the first difference.
+- Events, trace records and parsed JSON objects are `trace/Fields`, an insertion-ordered map in
+  arrays; the JSON reader takes strings without escapes and integers of up to 18 digits without
+  copying; the vector comparison walks two maps in step when their keys come in the same order.
+- Quality keeps each source's latest time instead of rescanning every entity per report.
+
 ## Open points
 
 No vector contradicts any specification, so there is no `DISAGREEMENTS.md`. On the open points:

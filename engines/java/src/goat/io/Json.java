@@ -1,13 +1,14 @@
 package goat.io;
 
+import goat.trace.Fields;
+
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Minimal JSON reader and writer. Objects are LinkedHashMap, arrays ArrayList,
+ * Minimal JSON reader and writer. Objects are insertion-ordered maps (goat.trace.Fields), arrays ArrayList,
  * integers Long, other numbers Double, JSON null is Java null. Input that is not JSON is an
  * IllegalArgumentException, whatever is wrong with it.
  */
@@ -71,7 +72,7 @@ public final class Json {
     }
 
     private Map<String, Object> object() {
-        Map<String, Object> m = new LinkedHashMap<>();
+        Map<String, Object> m = new Fields();
         expect('{');
         ws();
         if (peek() == '}') { i++; return m; }
@@ -106,6 +107,16 @@ public final class Json {
 
     private String string() {
         expect('"');
+        // Fast path: no escape before the closing quote, the text as it is.
+        for (int j = i; j < s.length(); j++) {
+            char c = s.charAt(j);
+            if (c == '"') {
+                String out = s.substring(i, j);
+                i = j + 1;
+                return out;
+            }
+            if (c == '\\') break;
+        }
         StringBuilder b = new StringBuilder();
         while (true) {
             if (i >= s.length()) throw err("unterminated string");
@@ -147,8 +158,16 @@ public final class Json {
             else if (c == '.' || c == 'e' || c == 'E' || c == '+' || c == '-') { integral = false; i++; }
             else break;
         }
+        int digits = i - start - (s.charAt(start) == '-' ? 1 : 0);
+        if (digits == 0) throw err("bad value");
+        if (integral && digits <= 18) {
+            // At most 18 digits always fits a long: the value of Long.parseLong without the substring.
+            boolean neg = s.charAt(start) == '-';
+            long v = 0;
+            for (int j = neg ? start + 1 : start; j < i; j++) v = v * 10 + (s.charAt(j) - '0');
+            return neg ? -v : v;
+        }
         String t = s.substring(start, i);
-        if (t.isEmpty() || t.equals("-")) throw err("bad value");
         if (integral) {
             try { return Long.parseLong(t); } catch (NumberFormatException ex) { return Double.parseDouble(t); }
         }

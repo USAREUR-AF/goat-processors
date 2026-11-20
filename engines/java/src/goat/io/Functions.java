@@ -25,10 +25,27 @@ public final class Functions {
 
     private static Map<String, Loader> table() {
         Map<String, Loader> t = new LinkedHashMap<>();
-        t.put("correlate", Correlator::fromText);
-        t.put("filter", FilterProcessor::fromText);
-        t.put("fuse", Fuse::fromText);
-        t.put("quality", Quality::fromText);
+        // Anonymous classes, not method references: no lambda bootstrap at start-up.
+        t.put("correlate", new Loader() {
+            public Processor fromText(String text) throws LoadError {
+                return Correlator.fromText(text);
+            }
+        });
+        t.put("filter", new Loader() {
+            public Processor fromText(String text) throws LoadError {
+                return FilterProcessor.fromText(text);
+            }
+        });
+        t.put("fuse", new Loader() {
+            public Processor fromText(String text) throws LoadError {
+                return Fuse.fromText(text);
+            }
+        });
+        t.put("quality", new Loader() {
+            public Processor fromText(String text) throws LoadError {
+                return Quality.fromText(text);
+            }
+        });
         return Collections.unmodifiableMap(t);
     }
 

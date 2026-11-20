@@ -1,5 +1,6 @@
 package goat.correlate;
 
+import goat.trace.Fields;
 import goat.model.Axis;
 import goat.trace.Result;
 
@@ -122,7 +123,7 @@ public final class Tests {
     /** correlate.md, Trace, one record; {@code skipped} only when true. */
     static Map<String, Object> rec(String stage, Entity a, Entity b, String test,
                                    Object value, Object limit, boolean pass, boolean skipped) {
-        Map<String, Object> m = new LinkedHashMap<>();
+        Map<String, Object> m = new Fields();
         m.put("stage", stage);
         m.put("a", a.key);
         m.put("b", b.key);

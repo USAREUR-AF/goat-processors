@@ -1,5 +1,6 @@
 package goat.quality;
 
+import goat.trace.Fields;
 import goat.io.LoadError;
 import goat.io.Processor;
 import goat.model.Axis;
@@ -54,6 +55,8 @@ public final class Quality implements Processor {
     private Double lat0, lon0;
     private Long lastTick;
     private final TreeMap<String, Entity> entities = new TreeMap<>(KEY_ORDER);
+    /** Input clock: each source's latest time (see {@link #recomputeSourceLatest}), sources in key order. */
+    private final TreeMap<String, Long> latestBySource = new TreeMap<>(KEY_ORDER);
     /** Rule name (pack order) -> subject (key order) -> state. */
     private final LinkedHashMap<String, TreeMap<String, RuleState>> ruleStates = new LinkedHashMap<>();
 
@@ -197,6 +200,7 @@ public final class Quality implements Processor {
             a.last = t;
             a.lastE = e;
             a.lastN = n;
+            latestBySource.merge(source, t, Math::max);
         }
         a.window.add(rec);
 
@@ -211,10 +215,19 @@ public final class Quality implements Processor {
      * count; null with no other source.
      */
     private Number inputClock(String reportSource) {
-        TreeMap<String, Long> latest = new TreeMap<>(KEY_ORDER);
-        for (Entity ent : entities.values())
-            if (!ent.source.equals(reportSource)) latest.merge(ent.source, ent.last, Math::max);
-        return median(new ArrayList<>(latest.values()));
+        List<Long> times = new ArrayList<>();
+        for (Map.Entry<String, Long> e : latestBySource.entrySet())
+            if (!e.getKey().equals(reportSource)) times.add(e.getValue());
+        return median(times);
+    }
+
+    /**
+     * Each source's latest time, the greatest {@code last} of its entities: kept as reports move
+     * {@code last} (it only grows) and found again from the entities when an entity is forgotten.
+     */
+    private void recomputeSourceLatest() {
+        latestBySource.clear();
+        for (Entity ent : entities.values()) latestBySource.merge(ent.source, ent.last, Math::max);
     }
 
     /** Input clock, pure: the median of the times, as {@link #inputClock}; null for none. */
@@ -234,10 +247,7 @@ public final class Quality implements Processor {
      * null when there is none.
      */
     private Long latestOf(String source) {
-        Long best = null;
-        for (Entity ent : entities.values())
-            if (ent.source.equals(source) && (best == null || ent.last > best)) best = ent.last;
-        return best;
+        return latestBySource.get(source);
     }
 
     /** Spec: Forwarding, the `pass` event for an accepted report of entity a. */
@@ -299,14 +309,17 @@ public final class Quality implements Processor {
 
         // 2. Forget entities, key order.
         TreeSet<String> sourcesBefore = sources();
+        boolean forgot = false;
         for (Iterator<Entity> it = entities.values().iterator(); it.hasNext(); ) {
             Entity ent = it.next();
             if (now - ent.last > pack.forgetMs) {
                 forgetSubject("entity", ent.key, res);
                 it.remove();
+                forgot = true;
                 res.events.add(ev("forget", "entity", ent.key));
             }
         }
+        if (forgot) recomputeSourceLatest();
         // 3. Forget sources, key order.
         TreeSet<String> sourcesNow = sources();
         for (String src : sourcesBefore) {
@@ -374,7 +387,7 @@ public final class Quality implements Processor {
                 pass = v != null && rule.clears(((Number) v).doubleValue());
                 if (pass) st.active = false;
             }
-            Map<String, Object> tr = new LinkedHashMap<>();
+            Map<String, Object> tr = new Fields();
             tr.put("stage", "rule");
             tr.put("rule", rule.name);
             tr.put("subject", subject);
@@ -442,7 +455,7 @@ public final class Quality implements Processor {
 
     /** Spec: Trace, an ingest sample record. */
     private static Map<String, Object> sample(String entity, String name, Object value, Object... inputs) {
-        Map<String, Object> m = new LinkedHashMap<>();
+        Map<String, Object> m = new Fields();
         m.put("stage", "sample");
         m.put("entity", entity);
         m.put("sample", name);
@@ -454,7 +467,7 @@ public final class Quality implements Processor {
     }
 
     private static Map<String, Object> ev(String name, Object... kv) {
-        Map<String, Object> m = new LinkedHashMap<>();
+        Map<String, Object> m = new Fields();
         m.put("ev", name);
         for (int k = 0; k < kv.length; k += 2) m.put((String) kv[k], kv[k + 1]);
         return m;

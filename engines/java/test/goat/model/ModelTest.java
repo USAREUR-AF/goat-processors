@@ -137,6 +137,24 @@ public final class ModelTest {
         Check.eq(0, KeyOrder.KEY_ORDER.compare("x/1", "x/1"), "equal");
     }
 
+    /** The fast comparison has the sign of the definition (compare the code point arrays), surrogates included. */
+    public static void testKeyOrderMatchesDefinition() {
+        goat.testkit.Rng r = new goat.testkit.Rng(99);
+        char[] alphabet = {'a', 'b', '/', '\u00e9', '\uD7FF', '\uD800', '\uDBFF', '\uDC00', '\uDFFF', '\uE000', '\uFFFF'};
+        for (int i = 0; i < 20000; i++) {
+            String x = word(r, alphabet), y = r.chance(0.3) ? x + word(r, alphabet) : word(r, alphabet);
+            int want = Integer.signum(java.util.Arrays.compare(x.codePoints().toArray(), y.codePoints().toArray()));
+            Check.eq(want, Integer.signum(KeyOrder.compare(x, y)), "compare " + x.chars().boxed().toList() + " " + y.chars().boxed().toList());
+        }
+    }
+
+    static String word(goat.testkit.Rng r, char[] alphabet) {
+        StringBuilder b = new StringBuilder();
+        int n = r.below(5);
+        for (int k = 0; k < n; k++) b.append(alphabet[r.below(alphabet.length)]);
+        return b.toString();
+    }
+
     static Map<String, Object> report() {
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("track.source_id", "s");

@@ -44,6 +44,34 @@ public final class AssignTest {
         Check.same(0.0, Ranking.total(new Double[0][0], new double[0], 0, new int[0]), "no rows");
     }
 
+    /**
+     * The branch-and-bound ranking gives exactly the definition's first k (exhaustive enumeration,
+     * stable sort), on seeded random problems with forbidden entries, equal totals, negative
+     * entries and values of very different sizes.
+     */
+    public static void testRankEqualsDefinition() {
+        goat.testkit.Rng r = new goat.testkit.Rng(4242);
+        double[] palette = {0, 1, 2, 2, 3, -2, 0.1, 0.2, 0.30000000000000004, 1e-17, 1e16, 7.21, 9.21};
+        for (int c = 0; c < 3000; c++) {
+            int n = r.below(6), cols = r.below(6), k = 1 + r.below(5);
+            Double[][] entry = new Double[n][cols];
+            double[] alone = new double[n];
+            for (int i = 0; i < n; i++) {
+                alone[i] = r.chance(0.5) ? 9.21 : r.chance(0.5) ? 7.21 : palette[r.below(palette.length)];
+                for (int j = 0; j < cols; j++)
+                    entry[i][j] = r.chance(0.3) ? null : r.chance(0.5) ? palette[r.below(palette.length)] : r.unit() * 20 - 2;
+            }
+            Check.eq(choices(Ranking.rankAll(entry, alone, cols, k)), choices(Ranking.rank(entry, alone, cols, k)),
+                    "case " + c);
+        }
+    }
+
+    public static void testRankNotFiniteFallsBack() {
+        Double[][] entry = {{Double.POSITIVE_INFINITY, 1.0}, {Double.NaN, 2.0}};
+        double[] alone = {3, 3};
+        Check.eq(choices(Ranking.rankAll(entry, alone, 2, 3)), choices(Ranking.rank(entry, alone, 2, 3)), "not finite");
+    }
+
     public static void testMembership() {
         Membership m = new Membership();
         TreeSet<String> s1 = new TreeSet<>(List.of("a/1", "b/1"));

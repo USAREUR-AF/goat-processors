@@ -1,5 +1,6 @@
 package goat.fuse;
 
+import goat.trace.Fields;
 import goat.io.LoadError;
 import goat.io.Processor;
 import goat.model.Axis;
@@ -233,7 +234,7 @@ public final class Fuse implements Processor {
         }
 
         // 2.2 Combine by the pack's kinematics method.
-        Kinematics.Estimate est = Kinematics.TABLE.get(pack.kinematics).combine(g, members, this::rankOrder, res);
+        Kinematics.Estimate est = Kinematics.TABLE.get(pack.kinematics).combine(g, members, this, res);
         Axis[] fused = est.fused;
         Member from = est.from;
         res.trace.add(kinematicsRecord(g, members, from));
@@ -255,7 +256,7 @@ public final class Fuse implements Processor {
     }
 
     /** Rank for comparison: an unlisted source ranks after every listed one. */
-    private long rankOrder(Entity e) {
+    long rankOrder(Entity e) {
         Long r = rank(e);
         return r == null ? pack.sources.size() : r;
     }
@@ -395,14 +396,14 @@ public final class Fuse implements Processor {
     // ================================================================ helpers
 
     private static Map<String, Object> ev(String name, Object... kv) {
-        Map<String, Object> m = new LinkedHashMap<>();
+        Map<String, Object> m = new Fields();
         m.put("ev", name);
         m.putAll(rec(kv));
         return m;
     }
 
     private static Map<String, Object> rec(Object... kv) {
-        Map<String, Object> m = new LinkedHashMap<>();
+        Map<String, Object> m = new Fields();
         for (int k = 0; k < kv.length; k += 2) m.put((String) kv[k], kv[k + 1]);
         return m;
     }

@@ -69,7 +69,7 @@ public final class Measures {
                 if (rec.nis != null) nis.add(rec.nis);
                 if (rec.speedErr != null) speedErr.add(rec.speedErr);
                 if (rec.timeError != null) timeErrors.add(rec.timeError);
-                if (rec.timeState != null) stateCodes.add(stateCode(rec.timeState));
+                if (rec.timeState != null) stateCodes.add(rec.stateCode());
                 else noTime++;
                 if (rec.order.equals("out-of-order")) outOfOrder++;
                 if (rec.order.equals("duplicate")) duplicate++;

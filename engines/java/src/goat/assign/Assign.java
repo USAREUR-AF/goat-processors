@@ -1,5 +1,6 @@
 package goat.assign;
 
+import goat.trace.Fields;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -406,7 +407,7 @@ public final class Assign implements Method {
     // ---- Trace and Snapshot ----
 
     private static Map<String, Object> assignRec(Entity a, String b, String test, Double value, boolean pass) {
-        Map<String, Object> m = new LinkedHashMap<>();
+        Map<String, Object> m = new Fields();
         m.put("stage", "assign");
         m.put("a", a.key);
         m.put("b", b);
@@ -419,7 +420,7 @@ public final class Assign implements Method {
 
     private static Map<String, Object> historyRec(int a, Integer b, String test, double value, Double limit,
                                                   boolean pass) {
-        Map<String, Object> m = new LinkedHashMap<>();
+        Map<String, Object> m = new Fields();
         m.put("stage", "history");
         m.put("a", a);
         m.put("b", b);

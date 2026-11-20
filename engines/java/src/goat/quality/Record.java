@@ -1,5 +1,6 @@
 package goat.quality;
 
+import goat.trace.Fields;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -15,8 +16,16 @@ final class Record {
     boolean sourceOutOfOrder;
     boolean ce, vel, hae;
 
+    /** The time state's code (quality.md, Time quality), found once; not part of the snapshot. */
+    private Long stateCode;
+
+    Long stateCode() {
+        if (stateCode == null && timeState != null) stateCode = Measures.stateCode(timeState);
+        return stateCode;
+    }
+
     Map<String, Object> toMap() {
-        Map<String, Object> m = new LinkedHashMap<>();
+        Map<String, Object> m = new Fields();
         m.put("wt", wt);
         m.put("time_ms", timeMs);
         m.put("order", order);

@@ -1,5 +1,6 @@
 package goat.assign;
 
+import goat.trace.Fields;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -162,7 +163,7 @@ final class Bias implements FrameMove {
             pairs.put(key, st);
         }
         // 4. Trace, with the state after step 3.
-        Map<String, Object> m = new LinkedHashMap<>();
+        Map<String, Object> m = new Fields();
         m.put("stage", "bias");
         m.put("a", x.key);
         m.put("b", y.key);
