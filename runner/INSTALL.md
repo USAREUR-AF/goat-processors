@@ -6,6 +6,9 @@ fabric**. Each step says what to type, what you should see, and what to do
 if you do not see it. It takes about fifteen minutes.
 
 [README.md](README.md) explains how the runner works and every config key.
+A one-page version of these steps, to print and keep at the machine, is
+[docs/install-card.pdf](docs/install-card.pdf); the package installs it in
+`/usr/share/doc/goat-processors/`, and each release carries it.
 
 ## Words used here
 

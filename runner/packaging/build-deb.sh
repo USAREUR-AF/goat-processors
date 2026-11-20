@@ -19,7 +19,7 @@ install -d -m 0750 "$root/etc/goat-processors/tls"
 mkdir -p "$root/usr/share/goat-processors"
 cp -r packs "$root/usr/share/goat-processors/packs"
 find "$root/usr/share/goat-processors" -type d -exec chmod 0755 {} + -o -type f -exec chmod 0644 {} +
-for f in runner/README.md runner/INSTALL.md runner/DEPLOY-CONTRACT.md NOTICE LICENSE; do
+for f in runner/README.md runner/INSTALL.md runner/DEPLOY-CONTRACT.md runner/docs/install-card.pdf NOTICE LICENSE; do
   [ -f "$f" ] && install -D -m 0644 "$f" "$root/usr/share/doc/goat-processors/$(basename "$f")"
 done
 for f in runner/README.md runner/INSTALL.md; do

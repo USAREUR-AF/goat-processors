@@ -72,16 +72,17 @@ jobs:
       - name: sign every file, keyless
         run: |
           cp runner/install.sh dist/install.sh
+          cp runner/docs/install-card.pdf dist/install-card.pdf
           cd dist
-          for f in *.deb install.sh; do
+          for f in *.deb install.sh install-card.pdf; do
             cosign sign-blob --yes --bundle "$f.sigstore.json" "$f"
           done
-          sha256sum *.deb install.sh > SHA256SUMS
+          sha256sum *.deb install.sh install-card.pdf > SHA256SUMS
           cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS
       - name: the signatures verify as a site will check them
         run: |
           cd dist
-          for f in *.deb install.sh SHA256SUMS; do
+          for f in *.deb install.sh install-card.pdf SHA256SUMS; do
             cosign verify-blob "$f" --bundle "$f.sigstore.json" \
               --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/runner-release.yml@${{ github.ref }}" \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com
