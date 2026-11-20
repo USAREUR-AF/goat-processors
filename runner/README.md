@@ -142,6 +142,7 @@ exits 1. The service runs the same check before it starts.
 | `api.token_file` | no | `/run/goat-processors/api.token` | the token a local caller shows to change anything; the service writes a new one at each start, readable by root only |
 | `api.audit_file` | no | `/var/lib/goat-processors/audit.jsonl` | every change and every refused request, one JSON line each |
 | `api.mesh.listen` | no | | `<ip>:<port>` for callers on other hosts, over mutual TLS |
+| `api.metrics_listen` | no | off | `<mesh ip>:<port>` that serves only `GET /metrics` (the Prometheus text), plain HTTP with no caller check, for an obs host's scraper. `config check` refuses an address that listens on every interface |
 | `api.mesh.tls` | no | the `fabric.tls` files | `root_ca` (signs callers' certificates), `certificate`, `private_key` |
 | `api.mesh.allow[]` | with `api.mesh` | | `{name: <certificate CN>, role: read or operate}`; a CN not listed is refused |
 | `agents.mcp` | no | `true` | serve the MCP endpoint, `POST /mcp` (examples/README.md) |
@@ -176,7 +177,7 @@ identity by source priority.
 | state, pipeline, counters per source | `goat-processors status` |
 | is it running and ticking (exit 0 or 1) | `goat-processors health` |
 | reports per second, processing latency | `goat-processors metrics` |
-| the same for a Prometheus scraper: reports per source, system tracks, system tracks with members from more than one source, source tracks per source, events per function and event, quality events per source, latency quantiles | `GET /v1/metrics/prometheus` (role read) |
+| the same for a Prometheus scraper: reports per source, system tracks, system tracks with members from more than one source, source tracks per source, events per function and event, quality events per source, latency quantiles | `GET /v1/metrics/prometheus` (role read), or `GET /metrics` on `api.metrics_listen` |
 | the system tracks now | `goat-processors tracks` |
 | what led to one system track | `goat-processors explain <id>` (the id from `tracks`) |
 | list packs | `goat-processors pack ls` |

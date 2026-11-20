@@ -318,3 +318,40 @@ fn mesh_api_needs_an_allowed_certificate() {
     assert!(audit.iter().any(|a| s(a, "who") == "stranger" && a.get("status").and_then(|x| x.as_i64()) == Some(403)));
     assert!(audit.iter().any(|a| s(a, "who") == "viewer" && a.get("status").and_then(|x| x.as_i64()) == Some(403)));
 }
+
+#[test]
+fn metrics_port_serves_only_prometheus_text() {
+    let port = free_port();
+    let svc = Service::start("api-metrics-port", &format!("  metrics_listen: \"127.0.0.1:{port}\"\n"));
+    svc.feed(5);
+    let get = |method: &str, path: &str| -> (u16, String) {
+        let mut s = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+        write!(s, "{method} {path} HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n").unwrap();
+        let mut out = String::new();
+        s.read_to_string(&mut out).unwrap();
+        let st = out.split(' ').nth(1).unwrap().parse().unwrap();
+        (st, out.split_once("\r\n\r\n").map(|(_, b)| b.to_string()).unwrap_or_default())
+    };
+    let (st, body) = get("GET", "/metrics");
+    assert_eq!(st, 200, "{body}");
+    assert!(body.contains("# TYPE goat_processors_reports_in_total counter"), "{body}");
+    // Nothing else is reachable on this port.
+    assert_eq!(get("GET", "/v1/tracks").0, 404);
+    assert_eq!(get("POST", "/v1/stop").0, 404);
+    assert_eq!(get("GET", "/v1/metrics/prometheus").0, 404);
+}
+
+#[test]
+fn metrics_port_on_every_address_is_refused() {
+    let d = tmp("metrics-any");
+    let cfg = format!(
+        "name: t\nsite: s\npacks_dir: {}\ninputs:\n  udp:\n    - listen: \"127.0.0.1:{}\"\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\nstatus_file: {}/status.json\napi:\n  metrics_listen: \"0.0.0.0:9464\"\n",
+        repo().join("packs").display(),
+        free_port(),
+        d.display()
+    );
+    std::fs::write(d.join("r.yaml"), cfg).unwrap();
+    let out = bin().args(["config", "check", "-c"]).arg(d.join("r.yaml")).output().unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stdout).contains("mesh address"), "{}", String::from_utf8_lossy(&out.stdout));
+}

@@ -459,6 +459,33 @@ pub fn start(c: &Config, tx: Sender<Input>) -> Result<Arc<Server>, String> {
         }
     });
 
+    if let Some(ml) = &c.api.metrics_listen {
+        let listener = TcpListener::bind(ml).map_err(|e| format!("cannot listen for metrics on {ml}: {e}"))?;
+        let s = server.clone();
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let s = s.clone();
+                spawn_limited(&s.clone(), move || {
+                    let mut stream = stream;
+                    stream.set_read_timeout(Some(Duration::from_secs(10))).ok();
+                    // Only GET /metrics; every other request is refused here,
+                    // so this port can never reach a route that reads tracks
+                    // or changes anything.
+                    let resp = match http::read_request(&mut stream) {
+                        Ok(req) if req.method == "GET" && req.path == "/metrics" => {
+                            let mut req = req;
+                            req.path = "/v1/metrics/prometheus".into();
+                            s.handle(&req, Identity { name: "metrics".into(), role: Role::Read, via: "metrics" })
+                        }
+                        Ok(_) => error(404, "this port serves only GET /metrics", "use the API for anything else"),
+                        Err((st, e)) => error(st, &e, ""),
+                    };
+                    let _ = http::write_response(&mut stream, &resp);
+                });
+            }
+        });
+    }
+
     if let Some(m) = &c.api.mesh {
         let tls = m.tls.clone().or_else(|| c.fabric.as_ref().and_then(|f| f.tls.clone())).ok_or("api.mesh has no certificates")?;
         let cfg = http::tls_config(&tls.root_ca, &tls.certificate, &tls.private_key)?;

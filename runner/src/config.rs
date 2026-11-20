@@ -211,11 +211,17 @@ pub struct Api {
     pub audit_file: PathBuf,
     #[serde(default)]
     pub mesh: Option<ApiMesh>,
+    /// An address and port that serves only `GET /metrics` (the Prometheus
+    /// text of `/v1/metrics/prometheus`), plain HTTP and with no caller check,
+    /// for an obs host's scraper. Bind it to the host's mesh address, never
+    /// to every address. Off when absent.
+    #[serde(default)]
+    pub metrics_listen: Option<String>,
 }
 
 impl Default for Api {
     fn default() -> Self {
-        Api { enabled: true, listen: default_api_listen(), token_file: default_token_file(), audit_file: default_audit_file(), mesh: None }
+        Api { enabled: true, listen: default_api_listen(), token_file: default_token_file(), audit_file: default_audit_file(), mesh: None, metrics_listen: None }
     }
 }
 
@@ -606,6 +612,15 @@ pub fn check(c: &Config) -> Vec<String> {
                 c.api.listen
             )),
             Ok(_) => {}
+        }
+        if let Some(ml) = &c.api.metrics_listen {
+            match ml.parse::<SocketAddr>() {
+                Err(_) => p.push(format!("api.metrics_listen: {ml:?} is not an address. Write it as `<mesh ip>:9464`.")),
+                Ok(a) if a.ip().is_unspecified() => p.push(format!(
+                    "api.metrics_listen: {ml} listens on every address. The metrics port has no caller check; bind it to this host's mesh address."
+                )),
+                Ok(_) => {}
+            }
         }
         if let Some(m) = &c.api.mesh {
             if m.listen.parse::<SocketAddr>().is_err() {
