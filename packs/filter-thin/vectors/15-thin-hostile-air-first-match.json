@@ -1,262 +1,262 @@
 {
  "name": "15-thin-hostile-air-first-match",
  "pack": "filter-thin",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "H1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 0.9,
-    "type": "a-h-A-M-F"
-   },
-   "expect": [
-    {
-     "ev": "keep",
-     "entity": "radar-1/H1",
-     "rule": "hostile-air"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "older",
-     "entity": "radar-1/H1",
-     "test": "order",
-     "negated": false,
-     "value": 0,
-     "limit": null,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "exercise",
-     "entity": "radar-1/H1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": "1",
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "coarse",
-     "entity": "radar-1/H1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": [
-      2000.0,
-      null
-     ],
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "radar-1/H1",
-     "test": "env",
-     "negated": false,
-     "value": "A",
-     "limit": [
-      "A"
-     ],
-     "pass": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "radar-1/H1",
-     "test": "affiliation",
-     "negated": false,
-     "value": "h",
-     "limit": [
-      "h",
-      "s",
-      "j",
-      "k"
-     ],
-     "pass": true
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "H1",
-    "time_ms": 500,
-    "lat": 1.0,
-    "lon": 0.9,
-    "type": "a-h-A-M-F"
-   },
-   "expect": [
-    {
-     "ev": "keep",
-     "entity": "radar-1/H1",
-     "rule": "hostile-air"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "older",
-     "entity": "radar-1/H1",
-     "test": "order",
-     "negated": false,
-     "value": 500,
-     "limit": 0,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "exercise",
-     "entity": "radar-1/H1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": "1",
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "coarse",
-     "entity": "radar-1/H1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": [
-      2000.0,
-      null
-     ],
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "radar-1/H1",
-     "test": "env",
-     "negated": false,
-     "value": "A",
-     "limit": [
-      "A"
-     ],
-     "pass": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "radar-1/H1",
-     "test": "affiliation",
-     "negated": false,
-     "value": "h",
-     "limit": [
-      "h",
-      "s",
-      "j",
-      "k"
-     ],
-     "pass": true
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "H1",
-    "time_ms": 1000,
-    "lat": 1.0,
-    "lon": 0.9,
-    "type": "a-s-A"
-   },
-   "expect": [
-    {
-     "ev": "keep",
-     "entity": "radar-1/H1",
-     "rule": "hostile-air"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "older",
-     "entity": "radar-1/H1",
-     "test": "order",
-     "negated": false,
-     "value": 1000,
-     "limit": 500,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "exercise",
-     "entity": "radar-1/H1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": "1",
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "coarse",
-     "entity": "radar-1/H1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": [
-      2000.0,
-      null
-     ],
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "radar-1/H1",
-     "test": "env",
-     "negated": false,
-     "value": "A",
-     "limit": [
-      "A"
-     ],
-     "pass": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "radar-1/H1",
-     "test": "affiliation",
-     "negated": false,
-     "value": "s",
-     "limit": [
-      "h",
-      "s",
-      "j",
-      "k"
-     ],
-     "pass": true
-    }
-   ]
-  }
- ],
  "snapshot": {
   "entities": {
    "radar-1/H1": {
-    "time_ms": 1000,
+    "course": null,
+    "kept_ms": 1000,
     "lat": 1.0,
     "lon": 0.9,
-    "course": null,
     "speed_ms": null,
     "stale_ms": null,
-    "kept_ms": 1000
+    "time_ms": 1000
    }
   }
- }
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "radar-1/H1",
+     "ev": "keep",
+     "rule": "hostile-air"
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 0.9,
+    "time_ms": 0,
+    "track.source_id": "radar-1",
+    "type": "a-h-A-M-F",
+    "uid": "H1"
+   },
+   "trace": [
+    {
+     "entity": "radar-1/H1",
+     "limit": null,
+     "negated": false,
+     "pass": false,
+     "rule": "older",
+     "stage": "rule",
+     "test": "order",
+     "value": 0
+    },
+    {
+     "entity": "radar-1/H1",
+     "limit": "1",
+     "negated": false,
+     "pass": false,
+     "rule": "exercise",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "radar-1/H1",
+     "limit": [
+      2000.0,
+      null
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "coarse",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "radar-1/H1",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "env",
+     "value": "A"
+    },
+    {
+     "entity": "radar-1/H1",
+     "limit": [
+      "h",
+      "s",
+      "j",
+      "k"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "affiliation",
+     "value": "h"
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "radar-1/H1",
+     "ev": "keep",
+     "rule": "hostile-air"
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 0.9,
+    "time_ms": 500,
+    "track.source_id": "radar-1",
+    "type": "a-h-A-M-F",
+    "uid": "H1"
+   },
+   "trace": [
+    {
+     "entity": "radar-1/H1",
+     "limit": 0,
+     "negated": false,
+     "pass": false,
+     "rule": "older",
+     "stage": "rule",
+     "test": "order",
+     "value": 500
+    },
+    {
+     "entity": "radar-1/H1",
+     "limit": "1",
+     "negated": false,
+     "pass": false,
+     "rule": "exercise",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "radar-1/H1",
+     "limit": [
+      2000.0,
+      null
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "coarse",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "radar-1/H1",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "env",
+     "value": "A"
+    },
+    {
+     "entity": "radar-1/H1",
+     "limit": [
+      "h",
+      "s",
+      "j",
+      "k"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "affiliation",
+     "value": "h"
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "radar-1/H1",
+     "ev": "keep",
+     "rule": "hostile-air"
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 0.9,
+    "time_ms": 1000,
+    "track.source_id": "radar-1",
+    "type": "a-s-A",
+    "uid": "H1"
+   },
+   "trace": [
+    {
+     "entity": "radar-1/H1",
+     "limit": 500,
+     "negated": false,
+     "pass": false,
+     "rule": "older",
+     "stage": "rule",
+     "test": "order",
+     "value": 1000
+    },
+    {
+     "entity": "radar-1/H1",
+     "limit": "1",
+     "negated": false,
+     "pass": false,
+     "rule": "exercise",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "radar-1/H1",
+     "limit": [
+      2000.0,
+      null
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "coarse",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "radar-1/H1",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "env",
+     "value": "A"
+    },
+    {
+     "entity": "radar-1/H1",
+     "limit": [
+      "h",
+      "s",
+      "j",
+      "k"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "affiliation",
+     "value": "s"
+    }
+   ]
+  }
+ ]
 }

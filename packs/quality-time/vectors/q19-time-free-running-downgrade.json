@@ -1,1469 +1,9 @@
 {
  "name": "q19-time-free-running-downgrade",
  "pack": "quality-time",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "ais",
-    "uid": "M1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 20,
-    "time_state": "coherent",
-    "time_error_ms": 5
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "ais/M1"
-    },
-    {
-     "ev": "pass",
-     "entity": "ais/M1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "ais",
-      "uid": "M1",
-      "time_ms": 0,
-      "lat": 1.0,
-      "lon": 1.0,
-      "ce": 20,
-      "time_state": "coherent",
-      "time_error_ms": 5
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "order",
-     "value": "first",
-     "inputs": [
-      0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_error",
-     "value": 5.0,
-     "inputs": [
-      5.0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_state",
-     "value": "coherent",
-     "inputs": [
-      "coherent",
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      0,
-      null
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "ais",
-    "uid": "M1",
-    "time_ms": 10000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 20,
-    "time_state": "coherent",
-    "time_error_ms": 5
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "ais/M1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "ais",
-      "uid": "M1",
-      "time_ms": 10000,
-      "lat": 1.0,
-      "lon": 1.0,
-      "ce": 20,
-      "time_state": "coherent",
-      "time_error_ms": 5
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      10000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "interval",
-     "value": 10000,
-     "inputs": [
-      10000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_error",
-     "value": 5.0,
-     "inputs": [
-      5.0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_state",
-     "value": "coherent",
-     "inputs": [
-      "coherent",
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      10000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      1003300.0,
-      1003300.0
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "ais",
-    "uid": "M1",
-    "time_ms": 20000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 20,
-    "time_state": "coherent",
-    "time_error_ms": 5
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "ais/M1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "ais",
-      "uid": "M1",
-      "time_ms": 20000,
-      "lat": 1.0,
-      "lon": 1.0,
-      "ce": 20,
-      "time_state": "coherent",
-      "time_error_ms": 5
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      20000,
-      10000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "interval",
-     "value": 10000,
-     "inputs": [
-      20000,
-      10000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_error",
-     "value": 5.0,
-     "inputs": [
-      5.0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_state",
-     "value": "coherent",
-     "inputs": [
-      "coherent",
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      20000,
-      10000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      7398.3155586563435,
-      7398.3155586563435
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "ais",
-    "uid": "M1",
-    "time_ms": 30000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 20,
-    "time_state": "free-running",
-    "time_error_ms": 40
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "ais/M1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "ais",
-      "uid": "M1",
-      "time_ms": 30000,
-      "lat": 1.0,
-      "lon": 1.0,
-      "ce": 20,
-      "time_state": "free-running",
-      "time_error_ms": 40
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      30000,
-      20000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "interval",
-     "value": 10000,
-     "inputs": [
-      30000,
-      20000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_error",
-     "value": 40.0,
-     "inputs": [
-      40.0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_state",
-     "value": "free-running",
-     "inputs": [
-      "free-running",
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      30000,
-      20000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      7290.482208028536,
-      7290.482208028536
-     ]
-    }
-   ]
-  },
-  {
-   "tick": 30000,
-   "expect": [
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "ais/M1",
-     "measures": {
-      "reports": 4,
-      "interval_last": 10000,
-      "interval_mean": 10000.0,
-      "interval_max": 10000,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 0.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": 13.75,
-      "time_error_max": 40.0,
-      "time_state_last": 2,
-      "time_state_worst": 2,
-      "missing_time": 0.0
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "ais",
-     "measures": {
-      "reports": 4,
-      "interval_last": 10000.0,
-      "interval_mean": 10000.0,
-      "interval_max": 10000,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 0.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": 13.75,
-      "time_error_max": 40.0,
-      "time_state_last": 2,
-      "time_state_worst": 2,
-      "missing_time": 0.0,
-      "entities": 1
-     }
-    },
-    {
-     "ev": "action-start",
-     "rule": "free-running",
-     "scope": "source",
-     "subject": "ais",
-     "action": "downgrade",
-     "value": 2
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "behind",
-     "subject": "ais",
-     "measure": "lateness_mean",
-     "value": null,
-     "limit": 2000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "ahead",
-     "subject": "ais",
-     "measure": "lateness_max",
-     "value": null,
-     "limit": -1500.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "source-disorder",
-     "subject": "ais",
-     "measure": "source_out_of_order",
-     "value": 0,
-     "limit": 3.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "free-running",
-     "subject": "ais",
-     "measure": "time_state_worst",
-     "value": 2,
-     "limit": 2.0,
-     "pass": true,
-     "count": 0,
-     "active": true
-    },
-    {
-     "stage": "rule",
-     "rule": "time-error",
-     "subject": "ais",
-     "measure": "time_error_max",
-     "value": 40.0,
-     "limit": 100.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "time-unstated",
-     "subject": "ais",
-     "measure": "missing_time",
-     "value": 0.0,
-     "limit": 0.5,
-     "pass": false,
-     "count": 0,
-     "active": false
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "ais",
-    "uid": "M1",
-    "time_ms": 40000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 20,
-    "time_state": "coherent",
-    "time_error_ms": 5
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "ais/M1",
-     "rules": [
-      "free-running"
-     ],
-     "withheld": false,
-     "report": {
-      "track.source_id": "ais",
-      "uid": "M1",
-      "time_ms": 40000,
-      "lat": 1.0,
-      "lon": 1.0,
-      "ce": 80.0,
-      "time_state": "coherent",
-      "time_error_ms": 5
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      40000,
-      30000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "interval",
-     "value": 10000,
-     "inputs": [
-      40000,
-      30000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_error",
-     "value": 5.0,
-     "inputs": [
-      5.0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_state",
-     "value": "coherent",
-     "inputs": [
-      "coherent",
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      40000,
-      30000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      7278.952325868916,
-      7278.952325868916
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "ais",
-    "uid": "M1",
-    "time_ms": 50000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 20,
-    "time_state": "coherent",
-    "time_error_ms": 5
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "ais/M1",
-     "rules": [
-      "free-running"
-     ],
-     "withheld": false,
-     "report": {
-      "track.source_id": "ais",
-      "uid": "M1",
-      "time_ms": 50000,
-      "lat": 1.0,
-      "lon": 1.0,
-      "ce": 80.0,
-      "time_state": "coherent",
-      "time_error_ms": 5
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      50000,
-      40000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "interval",
-     "value": 10000,
-     "inputs": [
-      50000,
-      40000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_error",
-     "value": 5.0,
-     "inputs": [
-      5.0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_state",
-     "value": "coherent",
-     "inputs": [
-      "coherent",
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      50000,
-      40000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      7278.025207125436,
-      7278.025207125436
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "ais",
-    "uid": "M1",
-    "time_ms": 60000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 20,
-    "time_state": "coherent",
-    "time_error_ms": 5
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "ais/M1",
-     "rules": [
-      "free-running"
-     ],
-     "withheld": false,
-     "report": {
-      "track.source_id": "ais",
-      "uid": "M1",
-      "time_ms": 60000,
-      "lat": 1.0,
-      "lon": 1.0,
-      "ce": 80.0,
-      "time_state": "coherent",
-      "time_error_ms": 5
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      60000,
-      50000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "interval",
-     "value": 10000,
-     "inputs": [
-      60000,
-      50000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_error",
-     "value": 5.0,
-     "inputs": [
-      5.0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_state",
-     "value": "coherent",
-     "inputs": [
-      "coherent",
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      60000,
-      50000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      7278.019793403831,
-      7278.019793403831
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "ais",
-    "uid": "M1",
-    "time_ms": 70000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 20,
-    "time_state": "coherent",
-    "time_error_ms": 5
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "ais/M1",
-     "rules": [
-      "free-running"
-     ],
-     "withheld": false,
-     "report": {
-      "track.source_id": "ais",
-      "uid": "M1",
-      "time_ms": 70000,
-      "lat": 1.0,
-      "lon": 1.0,
-      "ce": 80.0,
-      "time_state": "coherent",
-      "time_error_ms": 5
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      70000,
-      60000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "interval",
-     "value": 10000,
-     "inputs": [
-      70000,
-      60000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_error",
-     "value": 5.0,
-     "inputs": [
-      5.0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_state",
-     "value": "coherent",
-     "inputs": [
-      "coherent",
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      70000,
-      60000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      7278.016006135642,
-      7278.016006135642
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "ais",
-    "uid": "M1",
-    "time_ms": 80000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 20,
-    "time_state": "coherent",
-    "time_error_ms": 5
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "ais/M1",
-     "rules": [
-      "free-running"
-     ],
-     "withheld": false,
-     "report": {
-      "track.source_id": "ais",
-      "uid": "M1",
-      "time_ms": 80000,
-      "lat": 1.0,
-      "lon": 1.0,
-      "ce": 80.0,
-      "time_state": "coherent",
-      "time_error_ms": 5
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      80000,
-      70000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "interval",
-     "value": 10000,
-     "inputs": [
-      80000,
-      70000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_error",
-     "value": 5.0,
-     "inputs": [
-      5.0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_state",
-     "value": "coherent",
-     "inputs": [
-      "coherent",
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      80000,
-      70000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      7278.015996089152,
-      7278.015996089152
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "ais",
-    "uid": "M1",
-    "time_ms": 90000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 20,
-    "time_state": "coherent",
-    "time_error_ms": 5
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "ais/M1",
-     "rules": [
-      "free-running"
-     ],
-     "withheld": false,
-     "report": {
-      "track.source_id": "ais",
-      "uid": "M1",
-      "time_ms": 90000,
-      "lat": 1.0,
-      "lon": 1.0,
-      "ce": 80.0,
-      "time_state": "coherent",
-      "time_error_ms": 5
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      90000,
-      80000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "interval",
-     "value": 10000,
-     "inputs": [
-      90000,
-      80000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_error",
-     "value": 5.0,
-     "inputs": [
-      5.0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_state",
-     "value": "coherent",
-     "inputs": [
-      "coherent",
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      90000,
-      80000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      7278.015987024651,
-      7278.015987024651
-     ]
-    }
-   ]
-  },
-  {
-   "tick": 89999,
-   "expect": [
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "ais/M1",
-     "measures": {
-      "reports": 7,
-      "interval_last": 10000,
-      "interval_mean": 10000.0,
-      "interval_max": 10000,
-      "age": -1,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 0.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": 10.0,
-      "time_error_max": 40.0,
-      "time_state_last": 0,
-      "time_state_worst": 2,
-      "missing_time": 0.0
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "ais",
-     "measures": {
-      "reports": 7,
-      "interval_last": 10000.0,
-      "interval_mean": 10000.0,
-      "interval_max": 10000,
-      "age": -1,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 0.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": 10.0,
-      "time_error_max": 40.0,
-      "time_state_last": 0,
-      "time_state_worst": 2,
-      "missing_time": 0.0,
-      "entities": 1
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "behind",
-     "subject": "ais",
-     "measure": "lateness_mean",
-     "value": null,
-     "limit": 2000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "ahead",
-     "subject": "ais",
-     "measure": "lateness_max",
-     "value": null,
-     "limit": -1500.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "source-disorder",
-     "subject": "ais",
-     "measure": "source_out_of_order",
-     "value": 0,
-     "limit": 3.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "free-running",
-     "subject": "ais",
-     "measure": "time_state_worst",
-     "value": 2,
-     "limit": 2.0,
-     "pass": false,
-     "count": 0,
-     "active": true
-    },
-    {
-     "stage": "rule",
-     "rule": "time-error",
-     "subject": "ais",
-     "measure": "time_error_max",
-     "value": 40.0,
-     "limit": 100.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "time-unstated",
-     "subject": "ais",
-     "measure": "missing_time",
-     "value": 0.0,
-     "limit": 0.5,
-     "pass": false,
-     "count": 0,
-     "active": false
-    }
-   ]
-  },
-  {
-   "tick": 90000,
-   "expect": [
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "ais/M1",
-     "measures": {
-      "reports": 6,
-      "interval_last": 10000,
-      "interval_mean": 10000.0,
-      "interval_max": 10000,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 0.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": 5.0,
-      "time_error_max": 5.0,
-      "time_state_last": 0,
-      "time_state_worst": 0,
-      "missing_time": 0.0
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "ais",
-     "measures": {
-      "reports": 6,
-      "interval_last": 10000.0,
-      "interval_mean": 10000.0,
-      "interval_max": 10000,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 0.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": 5.0,
-      "time_error_max": 5.0,
-      "time_state_last": 0,
-      "time_state_worst": 0,
-      "missing_time": 0.0,
-      "entities": 1
-     }
-    },
-    {
-     "ev": "action-end",
-     "rule": "free-running",
-     "scope": "source",
-     "subject": "ais",
-     "action": "downgrade",
-     "reason": "clear",
-     "value": 0
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "behind",
-     "subject": "ais",
-     "measure": "lateness_mean",
-     "value": null,
-     "limit": 2000.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "ahead",
-     "subject": "ais",
-     "measure": "lateness_max",
-     "value": null,
-     "limit": -1500.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "source-disorder",
-     "subject": "ais",
-     "measure": "source_out_of_order",
-     "value": 0,
-     "limit": 3.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "free-running",
-     "subject": "ais",
-     "measure": "time_state_worst",
-     "value": 0,
-     "limit": 2.0,
-     "pass": true,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "time-error",
-     "subject": "ais",
-     "measure": "time_error_max",
-     "value": 5.0,
-     "limit": 100.0,
-     "pass": false,
-     "count": 0,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "time-unstated",
-     "subject": "ais",
-     "measure": "missing_time",
-     "value": 0.0,
-     "limit": 0.5,
-     "pass": false,
-     "count": 0,
-     "active": false
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "ais",
-    "uid": "M1",
-    "time_ms": 100000,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 20,
-    "time_state": "coherent",
-    "time_error_ms": 5
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "ais/M1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "ais",
-      "uid": "M1",
-      "time_ms": 100000,
-      "lat": 1.0,
-      "lon": 1.0,
-      "ce": 20,
-      "time_state": "coherent",
-      "time_error_ms": 5
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      100000,
-      90000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "interval",
-     "value": 10000,
-     "inputs": [
-      100000,
-      90000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_error",
-     "value": 5.0,
-     "inputs": [
-      5.0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "time_state",
-     "value": "coherent",
-     "inputs": [
-      "coherent",
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      100000,
-      90000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "ais/M1",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      7278.0159867467955,
-      7278.0159867467955
-     ]
-    }
-   ]
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
-  "last_tick": 90000,
   "entities": {
    "ais/M1": {
-    "source": "ais",
-    "last_time_ms": 100000,
-    "last_pos": [
-     0.0,
-     0.0
-    ],
     "filter": {
      "east": [
       0.0,
@@ -1480,159 +20,1619 @@
       30.622577483007504
      ]
     },
+    "last_pos": [
+     0.0,
+     0.0
+    ],
+    "last_time_ms": 100000,
+    "source": "ais",
     "window": [
      {
-      "wt": 40000,
+      "ce": true,
+      "hae": false,
+      "interval": 10000,
+      "latency": null,
+      "lateness": null,
+      "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
+      "speed_err": null,
+      "time_error": 5.0,
       "time_ms": 40000,
-      "order": "advance",
+      "time_state": "coherent",
+      "vel": false,
+      "wt": 40000
+     },
+     {
+      "ce": true,
+      "hae": false,
       "interval": 10000,
       "latency": null,
       "lateness": null,
-      "source_out_of_order": false,
-      "time_error": 5.0,
-      "time_state": "coherent",
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": true,
-      "vel": false,
-      "hae": false
-     },
-     {
-      "wt": 50000,
+      "time_error": 5.0,
       "time_ms": 50000,
-      "order": "advance",
+      "time_state": "coherent",
+      "vel": false,
+      "wt": 50000
+     },
+     {
+      "ce": true,
+      "hae": false,
       "interval": 10000,
       "latency": null,
       "lateness": null,
-      "source_out_of_order": false,
-      "time_error": 5.0,
-      "time_state": "coherent",
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": true,
-      "vel": false,
-      "hae": false
-     },
-     {
-      "wt": 60000,
+      "time_error": 5.0,
       "time_ms": 60000,
-      "order": "advance",
+      "time_state": "coherent",
+      "vel": false,
+      "wt": 60000
+     },
+     {
+      "ce": true,
+      "hae": false,
       "interval": 10000,
       "latency": null,
       "lateness": null,
-      "source_out_of_order": false,
-      "time_error": 5.0,
-      "time_state": "coherent",
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": true,
-      "vel": false,
-      "hae": false
-     },
-     {
-      "wt": 70000,
+      "time_error": 5.0,
       "time_ms": 70000,
-      "order": "advance",
+      "time_state": "coherent",
+      "vel": false,
+      "wt": 70000
+     },
+     {
+      "ce": true,
+      "hae": false,
       "interval": 10000,
       "latency": null,
       "lateness": null,
-      "source_out_of_order": false,
-      "time_error": 5.0,
-      "time_state": "coherent",
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": true,
-      "vel": false,
-      "hae": false
-     },
-     {
-      "wt": 80000,
+      "time_error": 5.0,
       "time_ms": 80000,
-      "order": "advance",
+      "time_state": "coherent",
+      "vel": false,
+      "wt": 80000
+     },
+     {
+      "ce": true,
+      "hae": false,
       "interval": 10000,
       "latency": null,
       "lateness": null,
-      "source_out_of_order": false,
-      "time_error": 5.0,
-      "time_state": "coherent",
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": true,
-      "vel": false,
-      "hae": false
-     },
-     {
-      "wt": 90000,
+      "time_error": 5.0,
       "time_ms": 90000,
-      "order": "advance",
-      "interval": 10000,
-      "latency": null,
-      "lateness": null,
-      "source_out_of_order": false,
-      "time_error": 5.0,
       "time_state": "coherent",
-      "nis": 0.0,
-      "speed_err": null,
-      "ce": true,
       "vel": false,
-      "hae": false
+      "wt": 90000
      },
      {
-      "wt": 100000,
-      "time_ms": 100000,
-      "order": "advance",
+      "ce": true,
+      "hae": false,
       "interval": 10000,
       "latency": null,
       "lateness": null,
-      "source_out_of_order": false,
-      "time_error": 5.0,
-      "time_state": "coherent",
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": true,
+      "time_error": 5.0,
+      "time_ms": 100000,
+      "time_state": "coherent",
       "vel": false,
-      "hae": false
+      "wt": 100000
      }
     ]
    }
   },
+  "last_tick": 90000,
+  "ref": [
+   1.0,
+   1.0
+  ],
   "rules": {
-   "behind": {
-    "ais": {
-     "count": 0,
-     "active": false
-    }
-   },
    "ahead": {
     "ais": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
     }
    },
-   "source-disorder": {
+   "behind": {
     "ais": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
     }
    },
    "free-running": {
     "ais": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
+    }
+   },
+   "source-disorder": {
+    "ais": {
+     "active": false,
+     "count": 0
     }
    },
    "time-error": {
     "ais": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
     }
    },
    "time-unstated": {
     "ais": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
     }
    }
   }
- }
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "ais/M1",
+     "ev": "new"
+    },
+    {
+     "entity": "ais/M1",
+     "ev": "pass",
+     "report": {
+      "ce": 20,
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_error_ms": 5,
+      "time_ms": 0,
+      "time_state": "coherent",
+      "track.source_id": "ais",
+      "uid": "M1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 20,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_error_ms": 5,
+    "time_ms": 0,
+    "time_state": "coherent",
+    "track.source_id": "ais",
+    "uid": "M1"
+   },
+   "trace": [
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      0,
+      null
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "first"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      5.0,
+      null
+     ],
+     "sample": "time_error",
+     "stage": "sample",
+     "value": 5.0
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      "coherent",
+      null
+     ],
+     "sample": "time_state",
+     "stage": "sample",
+     "value": "coherent"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      0,
+      null
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "ais/M1",
+     "ev": "pass",
+     "report": {
+      "ce": 20,
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_error_ms": 5,
+      "time_ms": 10000,
+      "time_state": "coherent",
+      "track.source_id": "ais",
+      "uid": "M1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 20,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_error_ms": 5,
+    "time_ms": 10000,
+    "time_state": "coherent",
+    "track.source_id": "ais",
+    "uid": "M1"
+   },
+   "trace": [
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      10000,
+      0
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      10000,
+      0
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 10000
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      5.0,
+      null
+     ],
+     "sample": "time_error",
+     "stage": "sample",
+     "value": 5.0
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      "coherent",
+      null
+     ],
+     "sample": "time_state",
+     "stage": "sample",
+     "value": "coherent"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      10000,
+      0
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      0.0,
+      0.0,
+      1003300.0,
+      1003300.0
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "ais/M1",
+     "ev": "pass",
+     "report": {
+      "ce": 20,
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_error_ms": 5,
+      "time_ms": 20000,
+      "time_state": "coherent",
+      "track.source_id": "ais",
+      "uid": "M1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 20,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_error_ms": 5,
+    "time_ms": 20000,
+    "time_state": "coherent",
+    "track.source_id": "ais",
+    "uid": "M1"
+   },
+   "trace": [
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      20000,
+      10000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      20000,
+      10000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 10000
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      5.0,
+      null
+     ],
+     "sample": "time_error",
+     "stage": "sample",
+     "value": 5.0
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      "coherent",
+      null
+     ],
+     "sample": "time_state",
+     "stage": "sample",
+     "value": "coherent"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      20000,
+      10000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      0.0,
+      0.0,
+      7398.3155586563435,
+      7398.3155586563435
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "ais/M1",
+     "ev": "pass",
+     "report": {
+      "ce": 20,
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_error_ms": 40,
+      "time_ms": 30000,
+      "time_state": "free-running",
+      "track.source_id": "ais",
+      "uid": "M1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 20,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_error_ms": 40,
+    "time_ms": 30000,
+    "time_state": "free-running",
+    "track.source_id": "ais",
+    "uid": "M1"
+   },
+   "trace": [
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      30000,
+      20000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      30000,
+      20000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 10000
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      40.0,
+      null
+     ],
+     "sample": "time_error",
+     "stage": "sample",
+     "value": 40.0
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      "free-running",
+      null
+     ],
+     "sample": "time_state",
+     "stage": "sample",
+     "value": "free-running"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      30000,
+      20000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      0.0,
+      0.0,
+      7290.482208028536,
+      7290.482208028536
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "interval_last": 10000,
+      "interval_max": 10000,
+      "interval_mean": 10000.0,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": 0.0,
+      "missing_hae": 1.0,
+      "missing_time": 0.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 4,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": 40.0,
+      "time_error_mean": 13.75,
+      "time_state_last": 2,
+      "time_state_worst": 2
+     },
+     "scope": "entity",
+     "subject": "ais/M1"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "entities": 1,
+      "interval_last": 10000.0,
+      "interval_max": 10000,
+      "interval_mean": 10000.0,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": 0.0,
+      "missing_hae": 1.0,
+      "missing_time": 0.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 4,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": 40.0,
+      "time_error_mean": 13.75,
+      "time_state_last": 2,
+      "time_state_worst": 2
+     },
+     "scope": "source",
+     "subject": "ais"
+    },
+    {
+     "action": "downgrade",
+     "ev": "action-start",
+     "rule": "free-running",
+     "scope": "source",
+     "subject": "ais",
+     "value": 2
+    }
+   ],
+   "tick": 30000,
+   "trace": [
+    {
+     "active": false,
+     "count": 0,
+     "limit": 2000.0,
+     "measure": "lateness_mean",
+     "pass": false,
+     "rule": "behind",
+     "stage": "rule",
+     "subject": "ais",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": -1500.0,
+     "measure": "lateness_max",
+     "pass": false,
+     "rule": "ahead",
+     "stage": "rule",
+     "subject": "ais",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 3.0,
+     "measure": "source_out_of_order",
+     "pass": false,
+     "rule": "source-disorder",
+     "stage": "rule",
+     "subject": "ais",
+     "value": 0
+    },
+    {
+     "active": true,
+     "count": 0,
+     "limit": 2.0,
+     "measure": "time_state_worst",
+     "pass": true,
+     "rule": "free-running",
+     "stage": "rule",
+     "subject": "ais",
+     "value": 2
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 100.0,
+     "measure": "time_error_max",
+     "pass": false,
+     "rule": "time-error",
+     "stage": "rule",
+     "subject": "ais",
+     "value": 40.0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 0.5,
+     "measure": "missing_time",
+     "pass": false,
+     "rule": "time-unstated",
+     "stage": "rule",
+     "subject": "ais",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "ais/M1",
+     "ev": "pass",
+     "report": {
+      "ce": 80.0,
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_error_ms": 5,
+      "time_ms": 40000,
+      "time_state": "coherent",
+      "track.source_id": "ais",
+      "uid": "M1"
+     },
+     "rules": [
+      "free-running"
+     ],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 20,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_error_ms": 5,
+    "time_ms": 40000,
+    "time_state": "coherent",
+    "track.source_id": "ais",
+    "uid": "M1"
+   },
+   "trace": [
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      40000,
+      30000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      40000,
+      30000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 10000
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      5.0,
+      null
+     ],
+     "sample": "time_error",
+     "stage": "sample",
+     "value": 5.0
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      "coherent",
+      null
+     ],
+     "sample": "time_state",
+     "stage": "sample",
+     "value": "coherent"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      40000,
+      30000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      0.0,
+      0.0,
+      7278.952325868916,
+      7278.952325868916
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "ais/M1",
+     "ev": "pass",
+     "report": {
+      "ce": 80.0,
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_error_ms": 5,
+      "time_ms": 50000,
+      "time_state": "coherent",
+      "track.source_id": "ais",
+      "uid": "M1"
+     },
+     "rules": [
+      "free-running"
+     ],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 20,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_error_ms": 5,
+    "time_ms": 50000,
+    "time_state": "coherent",
+    "track.source_id": "ais",
+    "uid": "M1"
+   },
+   "trace": [
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      50000,
+      40000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      50000,
+      40000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 10000
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      5.0,
+      null
+     ],
+     "sample": "time_error",
+     "stage": "sample",
+     "value": 5.0
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      "coherent",
+      null
+     ],
+     "sample": "time_state",
+     "stage": "sample",
+     "value": "coherent"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      50000,
+      40000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      0.0,
+      0.0,
+      7278.025207125436,
+      7278.025207125436
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "ais/M1",
+     "ev": "pass",
+     "report": {
+      "ce": 80.0,
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_error_ms": 5,
+      "time_ms": 60000,
+      "time_state": "coherent",
+      "track.source_id": "ais",
+      "uid": "M1"
+     },
+     "rules": [
+      "free-running"
+     ],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 20,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_error_ms": 5,
+    "time_ms": 60000,
+    "time_state": "coherent",
+    "track.source_id": "ais",
+    "uid": "M1"
+   },
+   "trace": [
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      60000,
+      50000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      60000,
+      50000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 10000
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      5.0,
+      null
+     ],
+     "sample": "time_error",
+     "stage": "sample",
+     "value": 5.0
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      "coherent",
+      null
+     ],
+     "sample": "time_state",
+     "stage": "sample",
+     "value": "coherent"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      60000,
+      50000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      0.0,
+      0.0,
+      7278.019793403831,
+      7278.019793403831
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "ais/M1",
+     "ev": "pass",
+     "report": {
+      "ce": 80.0,
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_error_ms": 5,
+      "time_ms": 70000,
+      "time_state": "coherent",
+      "track.source_id": "ais",
+      "uid": "M1"
+     },
+     "rules": [
+      "free-running"
+     ],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 20,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_error_ms": 5,
+    "time_ms": 70000,
+    "time_state": "coherent",
+    "track.source_id": "ais",
+    "uid": "M1"
+   },
+   "trace": [
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      70000,
+      60000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      70000,
+      60000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 10000
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      5.0,
+      null
+     ],
+     "sample": "time_error",
+     "stage": "sample",
+     "value": 5.0
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      "coherent",
+      null
+     ],
+     "sample": "time_state",
+     "stage": "sample",
+     "value": "coherent"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      70000,
+      60000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      0.0,
+      0.0,
+      7278.016006135642,
+      7278.016006135642
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "ais/M1",
+     "ev": "pass",
+     "report": {
+      "ce": 80.0,
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_error_ms": 5,
+      "time_ms": 80000,
+      "time_state": "coherent",
+      "track.source_id": "ais",
+      "uid": "M1"
+     },
+     "rules": [
+      "free-running"
+     ],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 20,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_error_ms": 5,
+    "time_ms": 80000,
+    "time_state": "coherent",
+    "track.source_id": "ais",
+    "uid": "M1"
+   },
+   "trace": [
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      80000,
+      70000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      80000,
+      70000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 10000
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      5.0,
+      null
+     ],
+     "sample": "time_error",
+     "stage": "sample",
+     "value": 5.0
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      "coherent",
+      null
+     ],
+     "sample": "time_state",
+     "stage": "sample",
+     "value": "coherent"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      80000,
+      70000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      0.0,
+      0.0,
+      7278.015996089152,
+      7278.015996089152
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "ais/M1",
+     "ev": "pass",
+     "report": {
+      "ce": 80.0,
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_error_ms": 5,
+      "time_ms": 90000,
+      "time_state": "coherent",
+      "track.source_id": "ais",
+      "uid": "M1"
+     },
+     "rules": [
+      "free-running"
+     ],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 20,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_error_ms": 5,
+    "time_ms": 90000,
+    "time_state": "coherent",
+    "track.source_id": "ais",
+    "uid": "M1"
+   },
+   "trace": [
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      90000,
+      80000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      90000,
+      80000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 10000
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      5.0,
+      null
+     ],
+     "sample": "time_error",
+     "stage": "sample",
+     "value": 5.0
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      "coherent",
+      null
+     ],
+     "sample": "time_state",
+     "stage": "sample",
+     "value": "coherent"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      90000,
+      80000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      0.0,
+      0.0,
+      7278.015987024651,
+      7278.015987024651
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "quality",
+     "measures": {
+      "age": -1,
+      "duplicate": 0,
+      "interval_last": 10000,
+      "interval_max": 10000,
+      "interval_mean": 10000.0,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": 0.0,
+      "missing_hae": 1.0,
+      "missing_time": 0.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 7,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": 40.0,
+      "time_error_mean": 10.0,
+      "time_state_last": 0,
+      "time_state_worst": 2
+     },
+     "scope": "entity",
+     "subject": "ais/M1"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": -1,
+      "duplicate": 0,
+      "entities": 1,
+      "interval_last": 10000.0,
+      "interval_max": 10000,
+      "interval_mean": 10000.0,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": 0.0,
+      "missing_hae": 1.0,
+      "missing_time": 0.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 7,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": 40.0,
+      "time_error_mean": 10.0,
+      "time_state_last": 0,
+      "time_state_worst": 2
+     },
+     "scope": "source",
+     "subject": "ais"
+    }
+   ],
+   "tick": 89999,
+   "trace": [
+    {
+     "active": false,
+     "count": 0,
+     "limit": 2000.0,
+     "measure": "lateness_mean",
+     "pass": false,
+     "rule": "behind",
+     "stage": "rule",
+     "subject": "ais",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": -1500.0,
+     "measure": "lateness_max",
+     "pass": false,
+     "rule": "ahead",
+     "stage": "rule",
+     "subject": "ais",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 3.0,
+     "measure": "source_out_of_order",
+     "pass": false,
+     "rule": "source-disorder",
+     "stage": "rule",
+     "subject": "ais",
+     "value": 0
+    },
+    {
+     "active": true,
+     "count": 0,
+     "limit": 2.0,
+     "measure": "time_state_worst",
+     "pass": false,
+     "rule": "free-running",
+     "stage": "rule",
+     "subject": "ais",
+     "value": 2
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 100.0,
+     "measure": "time_error_max",
+     "pass": false,
+     "rule": "time-error",
+     "stage": "rule",
+     "subject": "ais",
+     "value": 40.0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 0.5,
+     "measure": "missing_time",
+     "pass": false,
+     "rule": "time-unstated",
+     "stage": "rule",
+     "subject": "ais",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "interval_last": 10000,
+      "interval_max": 10000,
+      "interval_mean": 10000.0,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": 0.0,
+      "missing_hae": 1.0,
+      "missing_time": 0.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 6,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": 5.0,
+      "time_error_mean": 5.0,
+      "time_state_last": 0,
+      "time_state_worst": 0
+     },
+     "scope": "entity",
+     "subject": "ais/M1"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "entities": 1,
+      "interval_last": 10000.0,
+      "interval_max": 10000,
+      "interval_mean": 10000.0,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": 0.0,
+      "missing_hae": 1.0,
+      "missing_time": 0.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 6,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": 5.0,
+      "time_error_mean": 5.0,
+      "time_state_last": 0,
+      "time_state_worst": 0
+     },
+     "scope": "source",
+     "subject": "ais"
+    },
+    {
+     "action": "downgrade",
+     "ev": "action-end",
+     "reason": "clear",
+     "rule": "free-running",
+     "scope": "source",
+     "subject": "ais",
+     "value": 0
+    }
+   ],
+   "tick": 90000,
+   "trace": [
+    {
+     "active": false,
+     "count": 0,
+     "limit": 2000.0,
+     "measure": "lateness_mean",
+     "pass": false,
+     "rule": "behind",
+     "stage": "rule",
+     "subject": "ais",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": -1500.0,
+     "measure": "lateness_max",
+     "pass": false,
+     "rule": "ahead",
+     "stage": "rule",
+     "subject": "ais",
+     "value": null
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 3.0,
+     "measure": "source_out_of_order",
+     "pass": false,
+     "rule": "source-disorder",
+     "stage": "rule",
+     "subject": "ais",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 2.0,
+     "measure": "time_state_worst",
+     "pass": true,
+     "rule": "free-running",
+     "stage": "rule",
+     "subject": "ais",
+     "value": 0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 100.0,
+     "measure": "time_error_max",
+     "pass": false,
+     "rule": "time-error",
+     "stage": "rule",
+     "subject": "ais",
+     "value": 5.0
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 0.5,
+     "measure": "missing_time",
+     "pass": false,
+     "rule": "time-unstated",
+     "stage": "rule",
+     "subject": "ais",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "ais/M1",
+     "ev": "pass",
+     "report": {
+      "ce": 20,
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_error_ms": 5,
+      "time_ms": 100000,
+      "time_state": "coherent",
+      "track.source_id": "ais",
+      "uid": "M1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 20,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_error_ms": 5,
+    "time_ms": 100000,
+    "time_state": "coherent",
+    "track.source_id": "ais",
+    "uid": "M1"
+   },
+   "trace": [
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      100000,
+      90000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      100000,
+      90000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 10000
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      5.0,
+      null
+     ],
+     "sample": "time_error",
+     "stage": "sample",
+     "value": 5.0
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      "coherent",
+      null
+     ],
+     "sample": "time_state",
+     "stage": "sample",
+     "value": "coherent"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      100000,
+      90000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "ais/M1",
+     "inputs": [
+      0.0,
+      0.0,
+      7278.0159867467955,
+      7278.0159867467955
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  }
+ ]
 }

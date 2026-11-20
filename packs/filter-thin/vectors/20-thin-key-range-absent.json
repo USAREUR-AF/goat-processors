@@ -1,559 +1,559 @@
 {
  "name": "20-thin-key-range-absent",
  "pack": "filter-thin",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "net",
-    "uid": "1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 0.9,
-    "type": "a-f-G",
-    "ce": 2500
-   },
-   "expect": [
-    {
-     "ev": "drop",
-     "entity": "net/1",
-     "rule": "coarse"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "older",
-     "entity": "net/1",
-     "test": "order",
-     "negated": false,
-     "value": 0,
-     "limit": null,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "exercise",
-     "entity": "net/1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": "1",
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "coarse",
-     "entity": "net/1",
-     "test": "key",
-     "negated": false,
-     "value": 2500,
-     "limit": [
-      2000.0,
-      null
-     ],
-     "pass": true
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "net",
-    "uid": "2",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 0.9,
-    "type": "a-f-G",
-    "ce": 1500
-   },
-   "expect": [
-    {
-     "ev": "keep",
-     "entity": "net/2",
-     "rule": "default"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "older",
-     "entity": "net/2",
-     "test": "order",
-     "negated": false,
-     "value": 0,
-     "limit": null,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "exercise",
-     "entity": "net/2",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": "1",
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "coarse",
-     "entity": "net/2",
-     "test": "key",
-     "negated": false,
-     "value": 1500,
-     "limit": [
-      2000.0,
-      null
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "net/2",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "A"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "air-thin",
-     "entity": "net/2",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "A"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "fast-surface",
-     "entity": "net/2",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "S"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "surface-thin",
-     "entity": "net/2",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "S"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "no-type",
-     "entity": "net/2",
-     "test": "has",
-     "negated": true,
-     "value": true,
-     "limit": null,
-     "pass": false
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "net",
-    "uid": "3",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 0.9,
-    "type": "a-f-G"
-   },
-   "expect": [
-    {
-     "ev": "keep",
-     "entity": "net/3",
-     "rule": "default"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "older",
-     "entity": "net/3",
-     "test": "order",
-     "negated": false,
-     "value": 0,
-     "limit": null,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "exercise",
-     "entity": "net/3",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": "1",
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "coarse",
-     "entity": "net/3",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": [
-      2000.0,
-      null
-     ],
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "net/3",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "A"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "air-thin",
-     "entity": "net/3",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "A"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "fast-surface",
-     "entity": "net/3",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "S"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "surface-thin",
-     "entity": "net/3",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "S"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "no-type",
-     "entity": "net/3",
-     "test": "has",
-     "negated": true,
-     "value": true,
-     "limit": null,
-     "pass": false
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "net",
-    "uid": "4",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 0.9,
-    "type": "a-f-G",
-    "ce": "3000"
-   },
-   "expect": [
-    {
-     "ev": "keep",
-     "entity": "net/4",
-     "rule": "default"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "older",
-     "entity": "net/4",
-     "test": "order",
-     "negated": false,
-     "value": 0,
-     "limit": null,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "exercise",
-     "entity": "net/4",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": "1",
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "coarse",
-     "entity": "net/4",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": [
-      2000.0,
-      null
-     ],
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "net/4",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "A"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "air-thin",
-     "entity": "net/4",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "A"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "fast-surface",
-     "entity": "net/4",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "S"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "surface-thin",
-     "entity": "net/4",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "S"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "no-type",
-     "entity": "net/4",
-     "test": "has",
-     "negated": true,
-     "value": true,
-     "limit": null,
-     "pass": false
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "net",
-    "uid": "5",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 0.9,
-    "type": "a-f-G",
-    "ce": 0
-   },
-   "expect": [
-    {
-     "ev": "keep",
-     "entity": "net/5",
-     "rule": "default"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "older",
-     "entity": "net/5",
-     "test": "order",
-     "negated": false,
-     "value": 0,
-     "limit": null,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "exercise",
-     "entity": "net/5",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": "1",
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "coarse",
-     "entity": "net/5",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": [
-      2000.0,
-      null
-     ],
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "net/5",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "A"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "air-thin",
-     "entity": "net/5",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "A"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "fast-surface",
-     "entity": "net/5",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "S"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "surface-thin",
-     "entity": "net/5",
-     "test": "env",
-     "negated": false,
-     "value": "G",
-     "limit": [
-      "S"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "no-type",
-     "entity": "net/5",
-     "test": "has",
-     "negated": true,
-     "value": true,
-     "limit": null,
-     "pass": false
-    }
-   ]
-  }
- ],
  "snapshot": {
   "entities": {
    "net/1": {
-    "time_ms": 0,
+    "course": null,
+    "kept_ms": null,
     "lat": 1.0,
     "lon": 0.9,
-    "course": null,
     "speed_ms": null,
     "stale_ms": null,
-    "kept_ms": null
+    "time_ms": 0
    },
    "net/2": {
-    "time_ms": 0,
+    "course": null,
+    "kept_ms": 0,
     "lat": 1.0,
     "lon": 0.9,
-    "course": null,
     "speed_ms": null,
     "stale_ms": null,
-    "kept_ms": 0
+    "time_ms": 0
    },
    "net/3": {
-    "time_ms": 0,
+    "course": null,
+    "kept_ms": 0,
     "lat": 1.0,
     "lon": 0.9,
-    "course": null,
     "speed_ms": null,
     "stale_ms": null,
-    "kept_ms": 0
+    "time_ms": 0
    },
    "net/4": {
-    "time_ms": 0,
+    "course": null,
+    "kept_ms": 0,
     "lat": 1.0,
     "lon": 0.9,
-    "course": null,
     "speed_ms": null,
     "stale_ms": null,
-    "kept_ms": 0
+    "time_ms": 0
    },
    "net/5": {
-    "time_ms": 0,
+    "course": null,
+    "kept_ms": 0,
     "lat": 1.0,
     "lon": 0.9,
-    "course": null,
     "speed_ms": null,
     "stale_ms": null,
-    "kept_ms": 0
+    "time_ms": 0
    }
   }
- }
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "net/1",
+     "ev": "drop",
+     "rule": "coarse"
+    }
+   ],
+   "ingest": {
+    "ce": 2500,
+    "lat": 1.0,
+    "lon": 0.9,
+    "time_ms": 0,
+    "track.source_id": "net",
+    "type": "a-f-G",
+    "uid": "1"
+   },
+   "trace": [
+    {
+     "entity": "net/1",
+     "limit": null,
+     "negated": false,
+     "pass": false,
+     "rule": "older",
+     "stage": "rule",
+     "test": "order",
+     "value": 0
+    },
+    {
+     "entity": "net/1",
+     "limit": "1",
+     "negated": false,
+     "pass": false,
+     "rule": "exercise",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "net/1",
+     "limit": [
+      2000.0,
+      null
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "coarse",
+     "stage": "rule",
+     "test": "key",
+     "value": 2500
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "net/2",
+     "ev": "keep",
+     "rule": "default"
+    }
+   ],
+   "ingest": {
+    "ce": 1500,
+    "lat": 1.0,
+    "lon": 0.9,
+    "time_ms": 0,
+    "track.source_id": "net",
+    "type": "a-f-G",
+    "uid": "2"
+   },
+   "trace": [
+    {
+     "entity": "net/2",
+     "limit": null,
+     "negated": false,
+     "pass": false,
+     "rule": "older",
+     "stage": "rule",
+     "test": "order",
+     "value": 0
+    },
+    {
+     "entity": "net/2",
+     "limit": "1",
+     "negated": false,
+     "pass": false,
+     "rule": "exercise",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "net/2",
+     "limit": [
+      2000.0,
+      null
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "coarse",
+     "stage": "rule",
+     "test": "key",
+     "value": 1500
+    },
+    {
+     "entity": "net/2",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/2",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "air-thin",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/2",
+     "limit": [
+      "S"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "fast-surface",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/2",
+     "limit": [
+      "S"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "surface-thin",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/2",
+     "limit": null,
+     "negated": true,
+     "pass": false,
+     "rule": "no-type",
+     "stage": "rule",
+     "test": "has",
+     "value": true
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "net/3",
+     "ev": "keep",
+     "rule": "default"
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 0.9,
+    "time_ms": 0,
+    "track.source_id": "net",
+    "type": "a-f-G",
+    "uid": "3"
+   },
+   "trace": [
+    {
+     "entity": "net/3",
+     "limit": null,
+     "negated": false,
+     "pass": false,
+     "rule": "older",
+     "stage": "rule",
+     "test": "order",
+     "value": 0
+    },
+    {
+     "entity": "net/3",
+     "limit": "1",
+     "negated": false,
+     "pass": false,
+     "rule": "exercise",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "net/3",
+     "limit": [
+      2000.0,
+      null
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "coarse",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "net/3",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/3",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "air-thin",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/3",
+     "limit": [
+      "S"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "fast-surface",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/3",
+     "limit": [
+      "S"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "surface-thin",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/3",
+     "limit": null,
+     "negated": true,
+     "pass": false,
+     "rule": "no-type",
+     "stage": "rule",
+     "test": "has",
+     "value": true
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "net/4",
+     "ev": "keep",
+     "rule": "default"
+    }
+   ],
+   "ingest": {
+    "ce": "3000",
+    "lat": 1.0,
+    "lon": 0.9,
+    "time_ms": 0,
+    "track.source_id": "net",
+    "type": "a-f-G",
+    "uid": "4"
+   },
+   "trace": [
+    {
+     "entity": "net/4",
+     "limit": null,
+     "negated": false,
+     "pass": false,
+     "rule": "older",
+     "stage": "rule",
+     "test": "order",
+     "value": 0
+    },
+    {
+     "entity": "net/4",
+     "limit": "1",
+     "negated": false,
+     "pass": false,
+     "rule": "exercise",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "net/4",
+     "limit": [
+      2000.0,
+      null
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "coarse",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "net/4",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/4",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "air-thin",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/4",
+     "limit": [
+      "S"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "fast-surface",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/4",
+     "limit": [
+      "S"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "surface-thin",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/4",
+     "limit": null,
+     "negated": true,
+     "pass": false,
+     "rule": "no-type",
+     "stage": "rule",
+     "test": "has",
+     "value": true
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "net/5",
+     "ev": "keep",
+     "rule": "default"
+    }
+   ],
+   "ingest": {
+    "ce": 0,
+    "lat": 1.0,
+    "lon": 0.9,
+    "time_ms": 0,
+    "track.source_id": "net",
+    "type": "a-f-G",
+    "uid": "5"
+   },
+   "trace": [
+    {
+     "entity": "net/5",
+     "limit": null,
+     "negated": false,
+     "pass": false,
+     "rule": "older",
+     "stage": "rule",
+     "test": "order",
+     "value": 0
+    },
+    {
+     "entity": "net/5",
+     "limit": "1",
+     "negated": false,
+     "pass": false,
+     "rule": "exercise",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "net/5",
+     "limit": [
+      2000.0,
+      null
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "coarse",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "net/5",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/5",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "air-thin",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/5",
+     "limit": [
+      "S"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "fast-surface",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/5",
+     "limit": [
+      "S"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "surface-thin",
+     "stage": "rule",
+     "test": "env",
+     "value": "G"
+    },
+    {
+     "entity": "net/5",
+     "limit": null,
+     "negated": true,
+     "pass": false,
+     "rule": "no-type",
+     "stage": "rule",
+     "test": "has",
+     "value": true
+    }
+   ]
+  }
+ ]
 }

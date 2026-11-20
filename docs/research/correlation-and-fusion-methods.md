@@ -167,7 +167,7 @@ fitting and needs no learned model in the engines.
 
 | Item | How |
 |---|---|
-| Prototype | a subclass of the Python reference engine in [tools/research/variants.py](../../tools/research/variants.py); the engine is not changed |
+| Prototype | a subclass of the Python engine in [tools/research/variants.py](../../tools/research/variants.py); the engine is not changed |
 | Base pack | `correlate-assign-time` |
 | Scenarios | the 78 benchmark scenarios of [tools/bench](../../tools/bench/), scored by its `score.py`, pooled by set as in [docs/benchmark.md](../benchmark.md) |
 | Held-out set | 50 more random scenarios from seed 20261120, built by the same generator. No parameter was chosen on them |

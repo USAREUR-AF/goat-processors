@@ -1,126 +1,126 @@
 {
  "name": "11-area-rejects-and-older-report",
  "pack": "filter-area",
+ "snapshot": {
+  "entities": {
+   "own/OS1": {
+    "course": null,
+    "kept_ms": 5000,
+    "lat": 1.0,
+    "lon": 0.9,
+    "speed_ms": null,
+    "stale_ms": null,
+    "time_ms": 5000
+   }
+  }
+ },
  "steps": [
   {
-   "ingest": {
-    "track.source_id": "own",
-    "uid": "OS1",
-    "time_ms": 0,
-    "lat": 1.0
-   },
    "expect": [
     {
      "ev": "reject",
      "reason": "missing:lon"
     }
    ],
+   "ingest": {
+    "lat": 1.0,
+    "time_ms": 0,
+    "track.source_id": "own",
+    "uid": "OS1"
+   },
    "trace": []
   },
   {
-   "ingest": {
-    "track.source_id": "own",
-    "uid": 7,
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0
-   },
    "expect": [
     {
      "ev": "reject",
      "reason": "missing:uid"
     }
    ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 0,
+    "track.source_id": "own",
+    "uid": 7
+   },
    "trace": []
   },
   {
-   "ingest": {
-    "track.source_id": "own",
-    "uid": "OS1",
-    "time_ms": 1.5,
-    "lat": 1.0,
-    "lon": 1.0
-   },
    "expect": [
     {
      "ev": "reject",
      "reason": "missing:time_ms"
     }
    ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 1.5,
+    "track.source_id": "own",
+    "uid": "OS1"
+   },
    "trace": []
   },
   {
-   "ingest": {
-    "track.source_id": "own",
-    "uid": "OS1",
-    "time_ms": 5000,
-    "lat": 1.0,
-    "lon": 0.9
-   },
    "expect": [
     {
-     "ev": "keep",
      "entity": "own/OS1",
+     "ev": "keep",
      "rule": "own-ship"
     }
    ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 0.9,
+    "time_ms": 5000,
+    "track.source_id": "own",
+    "uid": "OS1"
+   },
    "trace": [
     {
-     "stage": "rule",
-     "rule": "own-ship",
      "entity": "own/OS1",
-     "test": "source",
-     "negated": false,
-     "value": "own",
      "limit": [
       "own"
      ],
-     "pass": true
+     "negated": false,
+     "pass": true,
+     "rule": "own-ship",
+     "stage": "rule",
+     "test": "source",
+     "value": "own"
     }
    ]
   },
   {
-   "ingest": {
-    "track.source_id": "own",
-    "uid": "OS1",
-    "time_ms": 4000,
-    "lat": 1.0,
-    "lon": 0.926983721
-   },
    "expect": [
     {
-     "ev": "keep",
      "entity": "own/OS1",
+     "ev": "keep",
      "rule": "own-ship"
     }
    ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 0.926983721,
+    "time_ms": 4000,
+    "track.source_id": "own",
+    "uid": "OS1"
+   },
    "trace": [
     {
-     "stage": "rule",
-     "rule": "own-ship",
      "entity": "own/OS1",
-     "test": "source",
-     "negated": false,
-     "value": "own",
      "limit": [
       "own"
      ],
-     "pass": true
+     "negated": false,
+     "pass": true,
+     "rule": "own-ship",
+     "stage": "rule",
+     "test": "source",
+     "value": "own"
     }
    ]
   }
- ],
- "snapshot": {
-  "entities": {
-   "own/OS1": {
-    "time_ms": 5000,
-    "lat": 1.0,
-    "lon": 0.9,
-    "course": null,
-    "speed_ms": null,
-    "stale_ms": null,
-    "kept_ms": 5000
-   }
-  }
- }
+ ]
 }

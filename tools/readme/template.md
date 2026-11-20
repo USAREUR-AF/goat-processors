@@ -106,10 +106,13 @@ entry and every choice:
 
 {{figure:seven-engines}}
 
-The Python engine and `tools/make-*-vectors.py` write the vectors; each
-generator states its scenarios' decisions by hand and refuses to write a
-vector whose events differ from them. The other {{n_others_word}} engines are written from
-the specification and the vectors alone, never from another engine's source.
+The specification and the hand-stated decisions are the reference; every
+vector is computed by the Rust engine and accepted only when all
+{{n_engines}} engines agree. Each generator, `tools/make-*-vectors.py`, states its
+scenarios' decisions by hand, refuses a vector whose events differ from them,
+and writes a vector only when every engine reproduces its events, trace and
+final snapshot. Every engine is written from the specification and the
+vectors alone, never from another engine's source.
 An engine that disagrees with a vector records it in its `DISAGREEMENTS.md`;
 the vector is changed only through the specification.
 

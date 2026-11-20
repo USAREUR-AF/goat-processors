@@ -236,6 +236,9 @@ def trace_example():
     step = 2
     st = v["steps"][step]
     rec = next(t for t in st["trace"] if t["test"] == "mahalanobis")
+    # The fields in the order spec/correlate.md lists them (vector files sort their keys).
+    order = ["stage", "a", "b", "test", "value", "limit", "pass"]
+    rec = dict(sorted(rec.items(), key=lambda kv: (order.index(kv[0]) if kv[0] in order else len(order), kv[0])))
     ev = st["expect"][0]
     gate = next(line.strip() for line in read("packs", v["pack"], "pack.def").splitlines()
                 if line.split()[:2] == ["gate", rec["test"]])
@@ -361,7 +364,6 @@ def parts():
     p = {
         "n_engines_word": WORDS.get(n, str(n)),
         "n_engines": WORDS.get(n, str(n)).lower(),
-        "n_others_word": WORDS.get(n - 1, str(n - 1)).lower(),
         "tolerance": tolerance(),
         "badge": "[![conformance](https://github.com/%s/actions/workflows/conformance.yml/badge.svg?branch=main)]"
                  "(https://github.com/%s/actions/workflows/conformance.yml)" % (REPO, REPO),

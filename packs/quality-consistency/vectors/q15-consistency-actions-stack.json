@@ -1,735 +1,13 @@
 {
  "name": "q15-consistency-actions-stack",
  "pack": "quality-consistency",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "eo-2",
-    "uid": "E1",
-    "time_ms": 0,
-    "lat": 0.999640272,
-    "lon": 1.000359783,
-    "ce": 5,
-    "speed_ms": 60,
-    "course": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "eo-2/E1"
-    },
-    {
-     "ev": "pass",
-     "entity": "eo-2/E1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "eo-2",
-      "uid": "E1",
-      "time_ms": 0,
-      "lat": 0.999640272,
-      "lon": 1.000359783,
-      "ce": 5,
-      "speed_ms": 60,
-      "course": 0
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "order",
-     "value": "first",
-     "inputs": [
-      0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      0,
-      null
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "eo-2",
-    "uid": "E1",
-    "time_ms": 5000,
-    "lat": 1.000359728,
-    "lon": 0.999640217,
-    "ce": 5,
-    "speed_ms": 60,
-    "course": 0
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "eo-2/E1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "eo-2",
-      "uid": "E1",
-      "time_ms": 5000,
-      "lat": 1.000359728,
-      "lon": 0.999640217,
-      "ce": 5,
-      "speed_ms": 60,
-      "course": 0
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      5000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "interval",
-     "value": 5000,
-     "inputs": [
-      5000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      5000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "nis",
-     "value": 65.92483331871738,
-     "inputs": [
-      -80.00002162350742,
-      -220.00003235550253,
-      831.25,
-      831.25
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "speed_err",
-     "value": 37.3725845197625,
-     "inputs": [
-      22.627415480237506,
-      60.0
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "eo-2",
-    "uid": "E1",
-    "time_ms": 10000,
-    "lat": 0.999640272,
-    "lon": 1.000359783,
-    "ce": 5,
-    "speed_ms": 60,
-    "course": 0
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "eo-2/E1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "eo-2",
-      "uid": "E1",
-      "time_ms": 10000,
-      "lat": 0.999640272,
-      "lon": 1.000359783,
-      "ce": 5,
-      "speed_ms": 60,
-      "course": 0
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      10000,
-      5000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "interval",
-     "value": 5000,
-     "inputs": [
-      10000,
-      5000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      10000,
-      5000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "nis",
-     "value": 159.0651381253885,
-     "inputs": [
-      143.4483146352547,
-      -205.51718336254723,
-      394.8994252873564,
-      394.8994252873564
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "speed_err",
-     "value": 37.3725845197625,
-     "inputs": [
-      22.627415480237506,
-      60.0
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "eo-2",
-    "uid": "E1",
-    "time_ms": 15000,
-    "lat": 1.000359728,
-    "lon": 0.999640217,
-    "ce": 5,
-    "speed_ms": 60,
-    "course": 0
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "eo-2/E1",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "eo-2",
-      "uid": "E1",
-      "time_ms": 15000,
-      "lat": 1.000359728,
-      "lon": 0.999640217,
-      "ce": 5,
-      "speed_ms": 60,
-      "course": 0
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      15000,
-      10000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "interval",
-     "value": 5000,
-     "inputs": [
-      15000,
-      10000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      15000,
-      10000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "nis",
-     "value": 76.56866497736925,
-     "inputs": [
-      -148.5714687293709,
-      89.80848188469993,
-      393.6211340206187,
-      393.6211340206187
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "speed_err",
-     "value": 37.3725845197625,
-     "inputs": [
-      22.627415480237506,
-      60.0
-     ]
-    }
-   ]
-  },
-  {
-   "tick": 15000,
-   "expect": [
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "eo-2/E1",
-     "measures": {
-      "reports": 4,
-      "interval_last": 5000,
-      "interval_mean": 5000.0,
-      "interval_max": 5000,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": 100.51954547382506,
-      "speed_err_mean": 37.3725845197625,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 0.0,
-      "missing_vel": 0.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0
-     }
-    },
-    {
-     "ev": "action-start",
-     "rule": "speed-mismatch",
-     "scope": "entity",
-     "subject": "eo-2/E1",
-     "action": "mark",
-     "value": 37.3725845197625
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "eo-2",
-     "measures": {
-      "reports": 4,
-      "interval_last": 5000.0,
-      "interval_mean": 5000.0,
-      "interval_max": 5000,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": 100.51954547382506,
-      "speed_err_mean": 37.3725845197625,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 0.0,
-      "missing_vel": 0.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0,
-      "entities": 1
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "speed-mismatch",
-     "subject": "eo-2/E1",
-     "measure": "speed_err_mean",
-     "value": 37.3725845197625,
-     "limit": 20.0,
-     "pass": true,
-     "count": 0,
-     "active": true
-    },
-    {
-     "stage": "rule",
-     "rule": "overconfident",
-     "subject": "eo-2",
-     "measure": "nis_mean",
-     "value": 100.51954547382506,
-     "limit": 6.0,
-     "pass": true,
-     "count": 1,
-     "active": false
-    },
-    {
-     "stage": "rule",
-     "rule": "no-error",
-     "subject": "eo-2",
-     "measure": "missing_ce",
-     "value": 0.0,
-     "limit": 0.5,
-     "pass": false,
-     "count": 0,
-     "active": false
-    }
-   ]
-  },
-  {
-   "tick": 16000,
-   "expect": [
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "eo-2/E1",
-     "measures": {
-      "reports": 4,
-      "interval_last": 5000,
-      "interval_mean": 5000.0,
-      "interval_max": 5000,
-      "age": 1000,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": 100.51954547382506,
-      "speed_err_mean": 37.3725845197625,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 0.0,
-      "missing_vel": 0.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0
-     }
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "eo-2",
-     "measures": {
-      "reports": 4,
-      "interval_last": 5000.0,
-      "interval_mean": 5000.0,
-      "interval_max": 5000,
-      "age": 1000,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": null,
-      "lateness_max": null,
-      "lateness_min": null,
-      "nis_mean": 100.51954547382506,
-      "speed_err_mean": 37.3725845197625,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 0.0,
-      "missing_vel": 0.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0,
-      "entities": 1
-     }
-    },
-    {
-     "ev": "action-start",
-     "rule": "overconfident",
-     "scope": "source",
-     "subject": "eo-2",
-     "action": "downgrade",
-     "value": 100.51954547382506
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "speed-mismatch",
-     "subject": "eo-2/E1",
-     "measure": "speed_err_mean",
-     "value": 37.3725845197625,
-     "limit": 10.0,
-     "pass": false,
-     "count": 0,
-     "active": true
-    },
-    {
-     "stage": "rule",
-     "rule": "overconfident",
-     "subject": "eo-2",
-     "measure": "nis_mean",
-     "value": 100.51954547382506,
-     "limit": 6.0,
-     "pass": true,
-     "count": 0,
-     "active": true
-    },
-    {
-     "stage": "rule",
-     "rule": "no-error",
-     "subject": "eo-2",
-     "measure": "missing_ce",
-     "value": 0.0,
-     "limit": 0.5,
-     "pass": false,
-     "count": 0,
-     "active": false
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "eo-2",
-    "uid": "E1",
-    "time_ms": 20000,
-    "lat": 0.999640272,
-    "lon": 1.000359783,
-    "speed_ms": 60,
-    "course": 0,
-    "quality.marks": [
-     "upstream"
-    ]
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "eo-2/E1",
-     "rules": [
-      "overconfident",
-      "speed-mismatch"
-     ],
-     "withheld": false,
-     "report": {
-      "track.source_id": "eo-2",
-      "uid": "E1",
-      "time_ms": 20000,
-      "lat": 0.999640272,
-      "lon": 1.000359783,
-      "speed_ms": 60,
-      "course": 0,
-      "quality.marks": [
-       "upstream",
-       "speed-mismatch"
-      ],
-      "ce": 100.0
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      20000,
-      15000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "interval",
-     "value": 5000,
-     "inputs": [
-      20000,
-      15000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      20000,
-      15000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "nis",
-     "value": 21.880409787881323,
-     "inputs": [
-      143.38763224556493,
-      -205.42009158982955,
-      2868.2016341632752,
-      2868.2016341632752
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "speed_err",
-     "value": 37.3725845197625,
-     "inputs": [
-      22.627415480237506,
-      60.0
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "eo-2",
-    "uid": "E1",
-    "time_ms": 25000,
-    "lat": 1.000359728,
-    "lon": 0.999640217,
-    "ce": 7.5,
-    "speed_ms": 60,
-    "course": 0
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "eo-2/E1",
-     "rules": [
-      "overconfident",
-      "speed-mismatch"
-     ],
-     "withheld": false,
-     "report": {
-      "track.source_id": "eo-2",
-      "uid": "E1",
-      "time_ms": 25000,
-      "lat": 1.000359728,
-      "lon": 0.999640217,
-      "ce": 15.0,
-      "speed_ms": 60,
-      "course": 0,
-      "quality.marks": [
-       "speed-mismatch"
-      ]
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      25000,
-      20000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "interval",
-     "value": 5000,
-     "inputs": [
-      25000,
-      20000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      25000,
-      20000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "nis",
-     "value": 121.23367779458343,
-     "inputs": [
-      53.307284920854016,
-      -365.5323593627503,
-      1125.5583007070054,
-      1125.5583007070054
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "eo-2/E1",
-     "sample": "speed_err",
-     "value": 37.3725845197625,
-     "inputs": [
-      22.627415480237506,
-      60.0
-     ]
-    }
-   ]
-  }
- ],
  "snapshot": {
-  "ref": [
-   0.999640272,
-   1.000359783
-  ],
-  "last_tick": 16000,
   "entities": {
    "eo-2/E1": {
-    "source": "eo-2",
-    "last_time_ms": 25000,
-    "last_pos": [
-     -80.00002162350742,
-     79.99996764449746
-    ],
     "filter": {
      "east": [
-      -83.30923672359471,
-      1.9243276482996026,
+      -83.3092367235947,
+      1.9243276482996061,
       51.59525488288243,
       5.498940818121857,
       8.598561961486825
@@ -742,125 +20,847 @@
       8.598561961486825
      ]
     },
+    "last_pos": [
+     -80.00002162350741,
+     79.99996764449745
+    ],
+    "last_time_ms": 25000,
+    "source": "eo-2",
     "window": [
      {
-      "wt": 0,
-      "time_ms": 0,
-      "order": "first",
+      "ce": true,
+      "hae": false,
       "interval": null,
       "latency": null,
       "lateness": null,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": null,
+      "order": "first",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": true,
+      "time_error": null,
+      "time_ms": 0,
+      "time_state": null,
       "vel": true,
-      "hae": false
+      "wt": 0
      },
      {
-      "wt": 5000,
-      "time_ms": 5000,
-      "order": "advance",
+      "ce": true,
+      "hae": false,
       "interval": 5000,
       "latency": null,
       "lateness": null,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": 65.92483331871738,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": 37.3725845197625,
-      "ce": true,
+      "time_error": null,
+      "time_ms": 5000,
+      "time_state": null,
       "vel": true,
-      "hae": false
+      "wt": 5000
      },
      {
-      "wt": 10000,
+      "ce": true,
+      "hae": false,
+      "interval": 5000,
+      "latency": null,
+      "lateness": null,
+      "nis": 159.0651381253884,
+      "order": "advance",
+      "source_out_of_order": false,
+      "speed_err": 37.3725845197625,
+      "time_error": null,
       "time_ms": 10000,
-      "order": "advance",
+      "time_state": null,
+      "vel": true,
+      "wt": 10000
+     },
+     {
+      "ce": true,
+      "hae": false,
       "interval": 5000,
       "latency": null,
       "lateness": null,
+      "nis": 76.56866497736918,
+      "order": "advance",
       "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
-      "nis": 159.0651381253885,
       "speed_err": 37.3725845197625,
-      "ce": true,
-      "vel": true,
-      "hae": false
-     },
-     {
-      "wt": 15000,
+      "time_error": null,
       "time_ms": 15000,
-      "order": "advance",
-      "interval": 5000,
-      "latency": null,
-      "lateness": null,
-      "source_out_of_order": false,
-      "time_error": null,
       "time_state": null,
-      "nis": 76.56866497736925,
-      "speed_err": 37.3725845197625,
-      "ce": true,
       "vel": true,
-      "hae": false
+      "wt": 15000
      },
      {
-      "wt": 20000,
-      "time_ms": 20000,
-      "order": "advance",
-      "interval": 5000,
-      "latency": null,
-      "lateness": null,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
-      "nis": 21.880409787881323,
-      "speed_err": 37.3725845197625,
       "ce": false,
-      "vel": true,
-      "hae": false
-     },
-     {
-      "wt": 25000,
-      "time_ms": 25000,
-      "order": "advance",
+      "hae": false,
       "interval": 5000,
       "latency": null,
       "lateness": null,
+      "nis": 21.88040978788132,
+      "order": "advance",
       "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
-      "nis": 121.23367779458343,
       "speed_err": 37.3725845197625,
-      "ce": true,
+      "time_error": null,
+      "time_ms": 20000,
+      "time_state": null,
       "vel": true,
-      "hae": false
+      "wt": 20000
+     },
+     {
+      "ce": true,
+      "hae": false,
+      "interval": 5000,
+      "latency": null,
+      "lateness": null,
+      "nis": 121.23367779458344,
+      "order": "advance",
+      "source_out_of_order": false,
+      "speed_err": 37.3725845197625,
+      "time_error": null,
+      "time_ms": 25000,
+      "time_state": null,
+      "vel": true,
+      "wt": 25000
      }
     ]
    }
   },
+  "last_tick": 16000,
+  "ref": [
+   0.999640272,
+   1.000359783
+  ],
   "rules": {
-   "overconfident": {
-    "eo-2": {
-     "count": 0,
-     "active": true
-    }
-   },
    "no-error": {
     "eo-2": {
-     "count": 0,
-     "active": false
+     "active": false,
+     "count": 0
+    }
+   },
+   "overconfident": {
+    "eo-2": {
+     "active": true,
+     "count": 0
     }
    },
    "speed-mismatch": {
     "eo-2/E1": {
-     "count": 0,
-     "active": true
+     "active": true,
+     "count": 0
     }
    }
   }
- }
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "eo-2/E1",
+     "ev": "new"
+    },
+    {
+     "entity": "eo-2/E1",
+     "ev": "pass",
+     "report": {
+      "ce": 5,
+      "course": 0,
+      "lat": 0.999640272,
+      "lon": 1.000359783,
+      "speed_ms": 60,
+      "time_ms": 0,
+      "track.source_id": "eo-2",
+      "uid": "E1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 5,
+    "course": 0,
+    "lat": 0.999640272,
+    "lon": 1.000359783,
+    "speed_ms": 60,
+    "time_ms": 0,
+    "track.source_id": "eo-2",
+    "uid": "E1"
+   },
+   "trace": [
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      0,
+      null
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "first"
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      0,
+      null
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "eo-2/E1",
+     "ev": "pass",
+     "report": {
+      "ce": 5,
+      "course": 0,
+      "lat": 1.000359728,
+      "lon": 0.999640217,
+      "speed_ms": 60,
+      "time_ms": 5000,
+      "track.source_id": "eo-2",
+      "uid": "E1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 5,
+    "course": 0,
+    "lat": 1.000359728,
+    "lon": 0.999640217,
+    "speed_ms": 60,
+    "time_ms": 5000,
+    "track.source_id": "eo-2",
+    "uid": "E1"
+   },
+   "trace": [
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      5000,
+      0
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      5000,
+      0
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 5000
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      5000,
+      0
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      -80.00002162350741,
+      -220.00003235550255,
+      831.25,
+      831.25
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 65.92483331871738
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      22.6274154802375,
+      60.0
+     ],
+     "sample": "speed_err",
+     "stage": "sample",
+     "value": 37.3725845197625
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "eo-2/E1",
+     "ev": "pass",
+     "report": {
+      "ce": 5,
+      "course": 0,
+      "lat": 0.999640272,
+      "lon": 1.000359783,
+      "speed_ms": 60,
+      "time_ms": 10000,
+      "track.source_id": "eo-2",
+      "uid": "E1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 5,
+    "course": 0,
+    "lat": 0.999640272,
+    "lon": 1.000359783,
+    "speed_ms": 60,
+    "time_ms": 10000,
+    "track.source_id": "eo-2",
+    "uid": "E1"
+   },
+   "trace": [
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      10000,
+      5000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      10000,
+      5000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 5000
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      10000,
+      5000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      143.44831463525466,
+      -205.51718336254714,
+      394.8994252873564,
+      394.8994252873564
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 159.0651381253884
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      22.6274154802375,
+      60.0
+     ],
+     "sample": "speed_err",
+     "stage": "sample",
+     "value": 37.3725845197625
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "eo-2/E1",
+     "ev": "pass",
+     "report": {
+      "ce": 5,
+      "course": 0,
+      "lat": 1.000359728,
+      "lon": 0.999640217,
+      "speed_ms": 60,
+      "time_ms": 15000,
+      "track.source_id": "eo-2",
+      "uid": "E1"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 5,
+    "course": 0,
+    "lat": 1.000359728,
+    "lon": 0.999640217,
+    "speed_ms": 60,
+    "time_ms": 15000,
+    "track.source_id": "eo-2",
+    "uid": "E1"
+   },
+   "trace": [
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      15000,
+      10000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      15000,
+      10000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 5000
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      15000,
+      10000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      -148.57146872937088,
+      89.80848188469984,
+      393.6211340206187,
+      393.6211340206187
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 76.56866497736918
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      22.6274154802375,
+      60.0
+     ],
+     "sample": "speed_err",
+     "stage": "sample",
+     "value": 37.3725845197625
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "interval_last": 5000,
+      "interval_max": 5000,
+      "interval_mean": 5000.0,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": 0.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 0.0,
+      "nis_mean": 100.51954547382498,
+      "out_of_order": 0,
+      "reports": 4,
+      "source_out_of_order": 0,
+      "speed_err_mean": 37.3725845197625,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "eo-2/E1"
+    },
+    {
+     "action": "mark",
+     "ev": "action-start",
+     "rule": "speed-mismatch",
+     "scope": "entity",
+     "subject": "eo-2/E1",
+     "value": 37.3725845197625
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "entities": 1,
+      "interval_last": 5000.0,
+      "interval_max": 5000,
+      "interval_mean": 5000.0,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": 0.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 0.0,
+      "nis_mean": 100.51954547382498,
+      "out_of_order": 0,
+      "reports": 4,
+      "source_out_of_order": 0,
+      "speed_err_mean": 37.3725845197625,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "source",
+     "subject": "eo-2"
+    }
+   ],
+   "tick": 15000,
+   "trace": [
+    {
+     "active": true,
+     "count": 0,
+     "limit": 20.0,
+     "measure": "speed_err_mean",
+     "pass": true,
+     "rule": "speed-mismatch",
+     "stage": "rule",
+     "subject": "eo-2/E1",
+     "value": 37.3725845197625
+    },
+    {
+     "active": false,
+     "count": 1,
+     "limit": 6.0,
+     "measure": "nis_mean",
+     "pass": true,
+     "rule": "overconfident",
+     "stage": "rule",
+     "subject": "eo-2",
+     "value": 100.51954547382498
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 0.5,
+     "measure": "missing_ce",
+     "pass": false,
+     "rule": "no-error",
+     "stage": "rule",
+     "subject": "eo-2",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 1000,
+      "duplicate": 0,
+      "interval_last": 5000,
+      "interval_max": 5000,
+      "interval_mean": 5000.0,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": 0.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 0.0,
+      "nis_mean": 100.51954547382498,
+      "out_of_order": 0,
+      "reports": 4,
+      "source_out_of_order": 0,
+      "speed_err_mean": 37.3725845197625,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "eo-2/E1"
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 1000,
+      "duplicate": 0,
+      "entities": 1,
+      "interval_last": 5000.0,
+      "interval_max": 5000,
+      "interval_mean": 5000.0,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": null,
+      "lateness_mean": null,
+      "lateness_min": null,
+      "missing_ce": 0.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 0.0,
+      "nis_mean": 100.51954547382498,
+      "out_of_order": 0,
+      "reports": 4,
+      "source_out_of_order": 0,
+      "speed_err_mean": 37.3725845197625,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "source",
+     "subject": "eo-2"
+    },
+    {
+     "action": "downgrade",
+     "ev": "action-start",
+     "rule": "overconfident",
+     "scope": "source",
+     "subject": "eo-2",
+     "value": 100.51954547382498
+    }
+   ],
+   "tick": 16000,
+   "trace": [
+    {
+     "active": true,
+     "count": 0,
+     "limit": 10.0,
+     "measure": "speed_err_mean",
+     "pass": false,
+     "rule": "speed-mismatch",
+     "stage": "rule",
+     "subject": "eo-2/E1",
+     "value": 37.3725845197625
+    },
+    {
+     "active": true,
+     "count": 0,
+     "limit": 6.0,
+     "measure": "nis_mean",
+     "pass": true,
+     "rule": "overconfident",
+     "stage": "rule",
+     "subject": "eo-2",
+     "value": 100.51954547382498
+    },
+    {
+     "active": false,
+     "count": 0,
+     "limit": 0.5,
+     "measure": "missing_ce",
+     "pass": false,
+     "rule": "no-error",
+     "stage": "rule",
+     "subject": "eo-2",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "eo-2/E1",
+     "ev": "pass",
+     "report": {
+      "ce": 100.0,
+      "course": 0,
+      "lat": 0.999640272,
+      "lon": 1.000359783,
+      "quality.marks": [
+       "upstream",
+       "speed-mismatch"
+      ],
+      "speed_ms": 60,
+      "time_ms": 20000,
+      "track.source_id": "eo-2",
+      "uid": "E1"
+     },
+     "rules": [
+      "overconfident",
+      "speed-mismatch"
+     ],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "course": 0,
+    "lat": 0.999640272,
+    "lon": 1.000359783,
+    "quality.marks": [
+     "upstream"
+    ],
+    "speed_ms": 60,
+    "time_ms": 20000,
+    "track.source_id": "eo-2",
+    "uid": "E1"
+   },
+   "trace": [
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      20000,
+      15000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      20000,
+      15000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 5000
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      20000,
+      15000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      143.38763224556493,
+      -205.42009158982952,
+      2868.2016341632752,
+      2868.2016341632752
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 21.88040978788132
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      22.6274154802375,
+      60.0
+     ],
+     "sample": "speed_err",
+     "stage": "sample",
+     "value": 37.3725845197625
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "eo-2/E1",
+     "ev": "pass",
+     "report": {
+      "ce": 15.0,
+      "course": 0,
+      "lat": 1.000359728,
+      "lon": 0.999640217,
+      "quality.marks": [
+       "speed-mismatch"
+      ],
+      "speed_ms": 60,
+      "time_ms": 25000,
+      "track.source_id": "eo-2",
+      "uid": "E1"
+     },
+     "rules": [
+      "overconfident",
+      "speed-mismatch"
+     ],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "ce": 7.5,
+    "course": 0,
+    "lat": 1.000359728,
+    "lon": 0.999640217,
+    "speed_ms": 60,
+    "time_ms": 25000,
+    "track.source_id": "eo-2",
+    "uid": "E1"
+   },
+   "trace": [
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      25000,
+      20000
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      25000,
+      20000
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 5000
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      25000,
+      20000
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      53.30728492085406,
+      -365.5323593627503,
+      1125.5583007070054,
+      1125.5583007070054
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 121.23367779458344
+    },
+    {
+     "entity": "eo-2/E1",
+     "inputs": [
+      22.6274154802375,
+      60.0
+     ],
+     "sample": "speed_err",
+     "stage": "sample",
+     "value": 37.3725845197625
+    }
+   ]
+  }
+ ]
 }

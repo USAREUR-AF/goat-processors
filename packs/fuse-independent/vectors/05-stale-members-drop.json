@@ -1,234 +1,234 @@
 {
  "name": "05-stale-members-drop",
  "pack": "fuse-independent",
+ "snapshot": {
+  "entities": {},
+  "ref": [
+   1.0,
+   1.0
+  ]
+ },
  "steps": [
   {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
    "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 0,
+    "ce": 30,
+    "fuse.group": "s1",
     "lat": 1.0,
     "lon": 1.0,
-    "fuse.group": "s1",
-    "ce": 30
+    "time_ms": 0,
+    "track.source_id": "radar-1",
+    "uid": "T1"
    },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-1/T1",
-     "group": "s1"
-    }
-   ],
    "trace": []
   },
   {
+   "expect": [
+    {
+     "entity": "adsb/A7",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
    "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A7",
-    "time_ms": 0,
+    "ce": 30,
+    "fuse.group": "s1",
     "lat": 1.0,
     "lon": 1.000089946,
-    "fuse.group": "s1",
-    "ce": 30,
-    "stale_ms": 3000
+    "stale_ms": 3000,
+    "time_ms": 0,
+    "track.source_id": "adsb",
+    "uid": "A7"
    },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "adsb/A7",
-     "group": "s1"
-    }
-   ],
    "trace": []
   },
   {
-   "tick": 2999,
    "expect": [
     {
+     "attributes": {},
+     "ce": 213.1434176951015,
+     "course": 0.0,
      "ev": "fused",
+     "from": null,
      "group": "s1",
+     "lat": 1.0,
+     "lon": 1.000044973,
      "members": [
       "adsb/A7",
       "radar-1/T1"
      ],
-     "from": null,
-     "lat": 1.0,
-     "lon": 1.000044973,
-     "course": 0.0,
-     "speed_ms": 0.0,
-     "ce": 213.1434176951015,
-     "attributes": {}
+     "speed_ms": 0.0
     }
    ],
+   "tick": 2999,
    "trace": [
     {
-     "stage": "kinematics",
-     "group": "s1",
-     "method": "inverse_variance",
      "candidates": [
       {
        "member": "adsb/A7",
-       "var": 181720.46602699402,
+       "rank": 0,
        "time_ms": 0,
-       "rank": 0
+       "var": 181720.46602699402
       },
       {
        "member": "radar-1/T1",
-       "var": 181720.46602699402,
+       "rank": 1,
        "time_ms": 0,
-       "rank": 1
+       "var": 181720.46602699402
       }
      ],
+     "group": "s1",
+     "method": "inverse_variance",
+     "stage": "kinematics",
      "winner": null
     },
     {
-     "stage": "attribute",
+     "candidates": [],
      "group": "s1",
      "key": "type",
      "rule": "priority",
-     "candidates": [],
-     "winner": null,
-     "value": null
+     "stage": "attribute",
+     "value": null,
+     "winner": null
     },
     {
-     "stage": "attribute",
+     "candidates": [],
      "group": "s1",
      "key": "callsign",
      "rule": "priority",
-     "candidates": [],
-     "winner": null,
-     "value": null
+     "stage": "attribute",
+     "value": null,
+     "winner": null
     }
    ]
   },
   {
-   "tick": 3000,
    "expect": [
     {
-     "ev": "drop",
      "entity": "adsb/A7",
-     "group": "s1"
-    },
-    {
-     "ev": "fused",
-     "group": "s1",
-     "members": [
-      "radar-1/T1"
-     ],
-     "from": null,
-     "lat": 1.0,
-     "lon": 1.0,
-     "course": 0.0,
-     "speed_ms": 0.0,
-     "ce": 301.5298492686918,
-     "attributes": {}
-    }
-   ],
-   "trace": [
-    {
-     "stage": "kinematics",
-     "group": "s1",
-     "method": "inverse_variance",
-     "candidates": [
-      {
-       "member": "radar-1/T1",
-       "var": 181840.5,
-       "time_ms": 0,
-       "rank": 1
-      }
-     ],
-     "winner": null
-    },
-    {
-     "stage": "attribute",
-     "group": "s1",
-     "key": "type",
-     "rule": "priority",
-     "candidates": [],
-     "winner": null,
-     "value": null
-    },
-    {
-     "stage": "attribute",
-     "group": "s1",
-     "key": "callsign",
-     "rule": "priority",
-     "candidates": [],
-     "winner": null,
-     "value": null
-    }
-   ]
-  },
-  {
-   "tick": 120000,
-   "expect": [
-    {
-     "ev": "fused",
-     "group": "s1",
-     "members": [
-      "radar-1/T1"
-     ],
-     "from": null,
-     "lat": 1.0,
-     "lon": 1.0,
-     "course": 0.0,
-     "speed_ms": 0.0,
-     "ce": 13994.31670357649,
-     "attributes": {}
-    }
-   ],
-   "trace": [
-    {
-     "stage": "kinematics",
-     "group": "s1",
-     "method": "inverse_variance",
-     "candidates": [
-      {
-       "member": "radar-1/T1",
-       "var": 391681800.0,
-       "time_ms": 0,
-       "rank": 1
-      }
-     ],
-     "winner": null
-    },
-    {
-     "stage": "attribute",
-     "group": "s1",
-     "key": "type",
-     "rule": "priority",
-     "candidates": [],
-     "winner": null,
-     "value": null
-    },
-    {
-     "stage": "attribute",
-     "group": "s1",
-     "key": "callsign",
-     "rule": "priority",
-     "candidates": [],
-     "winner": null,
-     "value": null
-    }
-   ]
-  },
-  {
-   "tick": 120001,
-   "expect": [
-    {
      "ev": "drop",
+     "group": "s1"
+    },
+    {
+     "attributes": {},
+     "ce": 301.5298492686918,
+     "course": 0.0,
+     "ev": "fused",
+     "from": null,
+     "group": "s1",
+     "lat": 1.0,
+     "lon": 1.0,
+     "members": [
+      "radar-1/T1"
+     ],
+     "speed_ms": 0.0
+    }
+   ],
+   "tick": 3000,
+   "trace": [
+    {
+     "candidates": [
+      {
+       "member": "radar-1/T1",
+       "rank": 1,
+       "time_ms": 0,
+       "var": 181840.5
+      }
+     ],
+     "group": "s1",
+     "method": "inverse_variance",
+     "stage": "kinematics",
+     "winner": null
+    },
+    {
+     "candidates": [],
+     "group": "s1",
+     "key": "type",
+     "rule": "priority",
+     "stage": "attribute",
+     "value": null,
+     "winner": null
+    },
+    {
+     "candidates": [],
+     "group": "s1",
+     "key": "callsign",
+     "rule": "priority",
+     "stage": "attribute",
+     "value": null,
+     "winner": null
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "attributes": {},
+     "ce": 13994.31670357649,
+     "course": 0.0,
+     "ev": "fused",
+     "from": null,
+     "group": "s1",
+     "lat": 1.0,
+     "lon": 1.0,
+     "members": [
+      "radar-1/T1"
+     ],
+     "speed_ms": 0.0
+    }
+   ],
+   "tick": 120000,
+   "trace": [
+    {
+     "candidates": [
+      {
+       "member": "radar-1/T1",
+       "rank": 1,
+       "time_ms": 0,
+       "var": 391681800.0
+      }
+     ],
+     "group": "s1",
+     "method": "inverse_variance",
+     "stage": "kinematics",
+     "winner": null
+    },
+    {
+     "candidates": [],
+     "group": "s1",
+     "key": "type",
+     "rule": "priority",
+     "stage": "attribute",
+     "value": null,
+     "winner": null
+    },
+    {
+     "candidates": [],
+     "group": "s1",
+     "key": "callsign",
+     "rule": "priority",
+     "stage": "attribute",
+     "value": null,
+     "winner": null
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
      "entity": "radar-1/T1",
+     "ev": "drop",
      "group": "s1"
     }
    ],
+   "tick": 120001,
    "trace": []
   }
- ],
- "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
-  "entities": {}
- }
+ ]
 }

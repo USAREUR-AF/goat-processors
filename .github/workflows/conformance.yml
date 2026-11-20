@@ -12,17 +12,24 @@ concurrency:
 jobs:
   vectors-current:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: the committed vectors are what the scenarios produce
-        run: python3 -I tools/make-vectors.py && git diff --exit-code -- packs
-      - name: the committed filter vectors are what the scenarios produce
-        run: python3 -I tools/make-filter-vectors.py && git diff --exit-code -- packs spec/filter-load-vectors
-      - name: the committed fuse vectors are what the scenarios produce
-        run: python3 -I tools/make-fuse-vectors.py && git diff --exit-code -- packs spec/fuse-load-vectors && test -z "$(git status --porcelain -- packs spec/fuse-load-vectors)"
-      - name: the committed quality vectors are what the scenarios produce
-        run: python3 -I tools/make-quality-vectors.py && git diff --exit-code -- packs spec/quality-load-vectors
+      - name: the Rust toolchain (the Rust engine computes every vector)
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: the committed vectors are what the Rust engine computes from the scenarios (spec/vector-format.md comparison)
+        # Not byte equality: spec/correlate.md (Floats) lets the platform's library
+        # functions differ in the last bit, which the vector comparison absorbs.
+        run: |
+          mkdir -p "$RUNNER_TEMP/committed"
+          cp -r packs spec "$RUNNER_TEMP/committed/"
+          python3 -I tools/make-vectors.py --rust-only
+          python3 -I tools/make-filter-vectors.py --rust-only
+          python3 -I tools/make-fuse-vectors.py --rust-only
+          python3 -I tools/make-quality-vectors.py --rust-only
+          python3 -I tools/vectors_match.py "$RUNNER_TEMP/committed" .
+          rm -rf packs spec
+          cp -r "$RUNNER_TEMP/committed/packs" "$RUNNER_TEMP/committed/spec" .
       - name: the replay viewer replays every vector
         run: python3 -I tools/explain/test_explain.py
       - name: the figures and the README are what their generators write

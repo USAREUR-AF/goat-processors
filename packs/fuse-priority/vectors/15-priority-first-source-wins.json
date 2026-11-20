@@ -1,136 +1,9 @@
 {
  "name": "15-priority-first-source-wins",
  "pack": "fuse-priority",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "eo-2",
-    "uid": "E1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "fuse.group": "s1",
-    "ce": 80,
-    "callsign": "EYE"
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "eo-2/E1",
-     "group": "s1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "R1",
-    "time_ms": 9000,
-    "lat": 1.0,
-    "lon": 1.000089946,
-    "fuse.group": "s1",
-    "ce": 10,
-    "callsign": "R-ONE",
-    "hae": 100
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-1/R1",
-     "group": "s1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "tick": 9000,
-   "expect": [
-    {
-     "ev": "fused",
-     "group": "s1",
-     "members": [
-      "eo-2/E1",
-      "radar-1/R1"
-     ],
-     "from": "eo-2/E1",
-     "lat": 1.0,
-     "lon": 1.0,
-     "course": 0.0,
-     "speed_ms": 0.0,
-     "ce": 904.4557755910457,
-     "attributes": {
-      "callsign": {
-       "value": "EYE",
-       "from": "eo-2/E1"
-      }
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "kinematics",
-     "group": "s1",
-     "method": "priority",
-     "candidates": [
-      {
-       "member": "eo-2/E1",
-       "var": 1636080.5,
-       "time_ms": 0,
-       "rank": 0
-      },
-      {
-       "member": "radar-1/R1",
-       "var": 200.0,
-       "time_ms": 9000,
-       "rank": 1
-      }
-     ],
-     "winner": "eo-2/E1"
-    },
-    {
-     "stage": "attribute",
-     "group": "s1",
-     "key": "callsign",
-     "rule": "priority",
-     "candidates": [
-      {
-       "member": "eo-2/E1",
-       "value": "EYE",
-       "time_ms": 0,
-       "rank": 0
-      },
-      {
-       "member": "radar-1/R1",
-       "value": "R-ONE",
-       "time_ms": 9000,
-       "rank": 1
-      }
-     ],
-     "winner": "eo-2/E1",
-     "value": "EYE"
-    },
-    {
-     "stage": "attribute",
-     "group": "s1",
-     "key": "type",
-     "rule": "latest",
-     "candidates": [],
-     "winner": null,
-     "value": null
-    }
-   ]
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
   "entities": {
    "eo-2/E1": {
-    "last_time_ms": 0,
-    "group": "s1",
     "filter": {
      "east": [
       0.0,
@@ -147,6 +20,8 @@
       10000.0
      ]
     },
+    "group": "s1",
+    "last_time_ms": 0,
     "report": {
      "callsign": "EYE",
      "ce": 80,
@@ -159,8 +34,6 @@
     }
    },
    "radar-1/R1": {
-    "last_time_ms": 9000,
-    "group": "s1",
     "filter": {
      "east": [
       10.000029401756041,
@@ -177,6 +50,8 @@
       10000.0
      ]
     },
+    "group": "s1",
+    "last_time_ms": 9000,
     "report": {
      "callsign": "R-ONE",
      "ce": 10,
@@ -189,6 +64,131 @@
      "uid": "R1"
     }
    }
+  },
+  "ref": [
+   1.0,
+   1.0
+  ]
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "eo-2/E1",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
+   "ingest": {
+    "callsign": "EYE",
+    "ce": 80,
+    "fuse.group": "s1",
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 0,
+    "track.source_id": "eo-2",
+    "uid": "E1"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "entity": "radar-1/R1",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
+   "ingest": {
+    "callsign": "R-ONE",
+    "ce": 10,
+    "fuse.group": "s1",
+    "hae": 100,
+    "lat": 1.0,
+    "lon": 1.000089946,
+    "time_ms": 9000,
+    "track.source_id": "radar-1",
+    "uid": "R1"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "attributes": {
+      "callsign": {
+       "from": "eo-2/E1",
+       "value": "EYE"
+      }
+     },
+     "ce": 904.4557755910457,
+     "course": 0.0,
+     "ev": "fused",
+     "from": "eo-2/E1",
+     "group": "s1",
+     "lat": 1.0,
+     "lon": 1.0,
+     "members": [
+      "eo-2/E1",
+      "radar-1/R1"
+     ],
+     "speed_ms": 0.0
+    }
+   ],
+   "tick": 9000,
+   "trace": [
+    {
+     "candidates": [
+      {
+       "member": "eo-2/E1",
+       "rank": 0,
+       "time_ms": 0,
+       "var": 1636080.5
+      },
+      {
+       "member": "radar-1/R1",
+       "rank": 1,
+       "time_ms": 9000,
+       "var": 200.0
+      }
+     ],
+     "group": "s1",
+     "method": "priority",
+     "stage": "kinematics",
+     "winner": "eo-2/E1"
+    },
+    {
+     "candidates": [
+      {
+       "member": "eo-2/E1",
+       "rank": 0,
+       "time_ms": 0,
+       "value": "EYE"
+      },
+      {
+       "member": "radar-1/R1",
+       "rank": 1,
+       "time_ms": 9000,
+       "value": "R-ONE"
+      }
+     ],
+     "group": "s1",
+     "key": "callsign",
+     "rule": "priority",
+     "stage": "attribute",
+     "value": "EYE",
+     "winner": "eo-2/E1"
+    },
+    {
+     "candidates": [],
+     "group": "s1",
+     "key": "type",
+     "rule": "latest",
+     "stage": "attribute",
+     "value": null,
+     "winner": null
+    }
+   ]
   }
- }
+ ]
 }

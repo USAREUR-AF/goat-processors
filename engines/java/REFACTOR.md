@@ -184,5 +184,5 @@ costs were removed in step 6 (the function and kinematics tables were lambdas, n
 class table and an enum). proc-coord: a rerun of the harness on a quiet machine settles these
 four cells.
 
-Snapshot then restore: not applicable (no restore). Mutation testing is the Python reference's,
+Snapshot then restore: not applicable (no restore). Mutation testing is the Python engine's,
 not this engine's.

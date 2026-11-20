@@ -1,396 +1,396 @@
 {
  "name": "17-thin-dropped-does-not-advance",
  "pack": "filter-thin",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 0.9,
-    "type": "a-f-A-M-F"
-   },
-   "expect": [
-    {
-     "ev": "keep",
-     "entity": "radar-1/T1",
-     "rule": "default"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "older",
-     "entity": "radar-1/T1",
-     "test": "order",
-     "negated": false,
-     "value": 0,
-     "limit": null,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "exercise",
-     "entity": "radar-1/T1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": "1",
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "coarse",
-     "entity": "radar-1/T1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": [
-      2000.0,
-      null
-     ],
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "radar-1/T1",
-     "test": "env",
-     "negated": false,
-     "value": "A",
-     "limit": [
-      "A"
-     ],
-     "pass": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "radar-1/T1",
-     "test": "affiliation",
-     "negated": false,
-     "value": "f",
-     "limit": [
-      "h",
-      "s",
-      "j",
-      "k"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "air-thin",
-     "entity": "radar-1/T1",
-     "test": "env",
-     "negated": false,
-     "value": "A",
-     "limit": [
-      "A"
-     ],
-     "pass": true
-    },
-    {
-     "stage": "rule",
-     "rule": "air-thin",
-     "entity": "radar-1/T1",
-     "test": "interval",
-     "negated": false,
-     "value": null,
-     "limit": 2000,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "fast-surface",
-     "entity": "radar-1/T1",
-     "test": "env",
-     "negated": false,
-     "value": "A",
-     "limit": [
-      "S"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "surface-thin",
-     "entity": "radar-1/T1",
-     "test": "env",
-     "negated": false,
-     "value": "A",
-     "limit": [
-      "S"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "no-type",
-     "entity": "radar-1/T1",
-     "test": "has",
-     "negated": true,
-     "value": true,
-     "limit": null,
-     "pass": false
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 1500,
-    "lat": 1.0,
-    "lon": 0.9,
-    "type": "a-f-A-M-F"
-   },
-   "expect": [
-    {
-     "ev": "drop",
-     "entity": "radar-1/T1",
-     "rule": "air-thin"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "older",
-     "entity": "radar-1/T1",
-     "test": "order",
-     "negated": false,
-     "value": 1500,
-     "limit": 0,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "exercise",
-     "entity": "radar-1/T1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": "1",
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "coarse",
-     "entity": "radar-1/T1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": [
-      2000.0,
-      null
-     ],
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "radar-1/T1",
-     "test": "env",
-     "negated": false,
-     "value": "A",
-     "limit": [
-      "A"
-     ],
-     "pass": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "radar-1/T1",
-     "test": "affiliation",
-     "negated": false,
-     "value": "f",
-     "limit": [
-      "h",
-      "s",
-      "j",
-      "k"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "air-thin",
-     "entity": "radar-1/T1",
-     "test": "env",
-     "negated": false,
-     "value": "A",
-     "limit": [
-      "A"
-     ],
-     "pass": true
-    },
-    {
-     "stage": "rule",
-     "rule": "air-thin",
-     "entity": "radar-1/T1",
-     "test": "interval",
-     "negated": false,
-     "value": 1500,
-     "limit": 2000,
-     "pass": true
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 2500,
-    "lat": 1.0,
-    "lon": 0.9,
-    "type": "a-f-A-M-F"
-   },
-   "expect": [
-    {
-     "ev": "keep",
-     "entity": "radar-1/T1",
-     "rule": "default"
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "older",
-     "entity": "radar-1/T1",
-     "test": "order",
-     "negated": false,
-     "value": 2500,
-     "limit": 0,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "exercise",
-     "entity": "radar-1/T1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": "1",
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "coarse",
-     "entity": "radar-1/T1",
-     "test": "key",
-     "negated": false,
-     "value": null,
-     "limit": [
-      2000.0,
-      null
-     ],
-     "pass": false,
-     "unknown": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "radar-1/T1",
-     "test": "env",
-     "negated": false,
-     "value": "A",
-     "limit": [
-      "A"
-     ],
-     "pass": true
-    },
-    {
-     "stage": "rule",
-     "rule": "hostile-air",
-     "entity": "radar-1/T1",
-     "test": "affiliation",
-     "negated": false,
-     "value": "f",
-     "limit": [
-      "h",
-      "s",
-      "j",
-      "k"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "air-thin",
-     "entity": "radar-1/T1",
-     "test": "env",
-     "negated": false,
-     "value": "A",
-     "limit": [
-      "A"
-     ],
-     "pass": true
-    },
-    {
-     "stage": "rule",
-     "rule": "air-thin",
-     "entity": "radar-1/T1",
-     "test": "interval",
-     "negated": false,
-     "value": 2500,
-     "limit": 2000,
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "fast-surface",
-     "entity": "radar-1/T1",
-     "test": "env",
-     "negated": false,
-     "value": "A",
-     "limit": [
-      "S"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "surface-thin",
-     "entity": "radar-1/T1",
-     "test": "env",
-     "negated": false,
-     "value": "A",
-     "limit": [
-      "S"
-     ],
-     "pass": false
-    },
-    {
-     "stage": "rule",
-     "rule": "no-type",
-     "entity": "radar-1/T1",
-     "test": "has",
-     "negated": true,
-     "value": true,
-     "limit": null,
-     "pass": false
-    }
-   ]
-  }
- ],
  "snapshot": {
   "entities": {
    "radar-1/T1": {
-    "time_ms": 2500,
+    "course": null,
+    "kept_ms": 2500,
     "lat": 1.0,
     "lon": 0.9,
-    "course": null,
     "speed_ms": null,
     "stale_ms": null,
-    "kept_ms": 2500
+    "time_ms": 2500
    }
   }
- }
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "keep",
+     "rule": "default"
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 0.9,
+    "time_ms": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "entity": "radar-1/T1",
+     "limit": null,
+     "negated": false,
+     "pass": false,
+     "rule": "older",
+     "stage": "rule",
+     "test": "order",
+     "value": 0
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": "1",
+     "negated": false,
+     "pass": false,
+     "rule": "exercise",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      2000.0,
+      null
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "coarse",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "env",
+     "value": "A"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "h",
+      "s",
+      "j",
+      "k"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "affiliation",
+     "value": "f"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "air-thin",
+     "stage": "rule",
+     "test": "env",
+     "value": "A"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": 2000,
+     "negated": false,
+     "pass": false,
+     "rule": "air-thin",
+     "stage": "rule",
+     "test": "interval",
+     "value": null
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "S"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "fast-surface",
+     "stage": "rule",
+     "test": "env",
+     "value": "A"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "S"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "surface-thin",
+     "stage": "rule",
+     "test": "env",
+     "value": "A"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": null,
+     "negated": true,
+     "pass": false,
+     "rule": "no-type",
+     "stage": "rule",
+     "test": "has",
+     "value": true
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "drop",
+     "rule": "air-thin"
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 0.9,
+    "time_ms": 1500,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "entity": "radar-1/T1",
+     "limit": 0,
+     "negated": false,
+     "pass": false,
+     "rule": "older",
+     "stage": "rule",
+     "test": "order",
+     "value": 1500
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": "1",
+     "negated": false,
+     "pass": false,
+     "rule": "exercise",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      2000.0,
+      null
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "coarse",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "env",
+     "value": "A"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "h",
+      "s",
+      "j",
+      "k"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "affiliation",
+     "value": "f"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "air-thin",
+     "stage": "rule",
+     "test": "env",
+     "value": "A"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": 2000,
+     "negated": false,
+     "pass": true,
+     "rule": "air-thin",
+     "stage": "rule",
+     "test": "interval",
+     "value": 1500
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "keep",
+     "rule": "default"
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 0.9,
+    "time_ms": 2500,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": [
+    {
+     "entity": "radar-1/T1",
+     "limit": 0,
+     "negated": false,
+     "pass": false,
+     "rule": "older",
+     "stage": "rule",
+     "test": "order",
+     "value": 2500
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": "1",
+     "negated": false,
+     "pass": false,
+     "rule": "exercise",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      2000.0,
+      null
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "coarse",
+     "stage": "rule",
+     "test": "key",
+     "unknown": true,
+     "value": null
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "env",
+     "value": "A"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "h",
+      "s",
+      "j",
+      "k"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "hostile-air",
+     "stage": "rule",
+     "test": "affiliation",
+     "value": "f"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "A"
+     ],
+     "negated": false,
+     "pass": true,
+     "rule": "air-thin",
+     "stage": "rule",
+     "test": "env",
+     "value": "A"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": 2000,
+     "negated": false,
+     "pass": false,
+     "rule": "air-thin",
+     "stage": "rule",
+     "test": "interval",
+     "value": 2500
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "S"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "fast-surface",
+     "stage": "rule",
+     "test": "env",
+     "value": "A"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": [
+      "S"
+     ],
+     "negated": false,
+     "pass": false,
+     "rule": "surface-thin",
+     "stage": "rule",
+     "test": "env",
+     "value": "A"
+    },
+    {
+     "entity": "radar-1/T1",
+     "limit": null,
+     "negated": true,
+     "pass": false,
+     "rule": "no-type",
+     "stage": "rule",
+     "test": "has",
+     "value": true
+    }
+   ]
+  }
+ ]
 }

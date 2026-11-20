@@ -1,183 +1,183 @@
 {
  "name": "16-latest-and-empty-tick",
  "pack": "fuse-latest",
+ "snapshot": {
+  "entities": {},
+  "ref": [
+   1.0,
+   1.0
+  ]
+ },
  "steps": [
   {
-   "tick": 0,
    "expect": [],
+   "tick": 0,
    "trace": []
   },
   {
+   "expect": [
+    {
+     "entity": "radar-1/a",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
    "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "a",
-    "time_ms": 1000,
+    "callsign": "OLD",
+    "ce": 30,
+    "fuse.group": "s1",
+    "hae": 100,
     "lat": 1.0,
     "lon": 1.0,
-    "fuse.group": "s1",
-    "ce": 30,
-    "hae": 100,
-    "callsign": "OLD"
+    "time_ms": 1000,
+    "track.source_id": "radar-1",
+    "uid": "a"
    },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-1/a",
-     "group": "s1"
-    }
-   ],
    "trace": []
   },
   {
+   "expect": [
+    {
+     "entity": "radar-2/b",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
    "ingest": {
-    "track.source_id": "radar-2",
-    "uid": "b",
-    "time_ms": 2000,
+    "callsign": "NEW",
+    "ce": 30,
+    "fuse.group": "s1",
+    "hae": 200,
     "lat": 1.0,
     "lon": 1.000089946,
-    "fuse.group": "s1",
-    "ce": 30,
-    "hae": 200,
-    "callsign": "NEW"
+    "time_ms": 2000,
+    "track.source_id": "radar-2",
+    "uid": "b"
    },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-2/b",
-     "group": "s1"
-    }
-   ],
    "trace": []
   },
   {
+   "expect": [
+    {
+     "entity": "radar-3/c",
+     "ev": "new",
+     "group": "s1"
+    }
+   ],
    "ingest": {
-    "track.source_id": "radar-3",
-    "uid": "c",
-    "time_ms": 2000,
+    "ce": 30,
+    "fuse.group": "s1",
     "lat": 1.0,
     "lon": 1.000179891,
-    "fuse.group": "s1",
-    "ce": 30
+    "time_ms": 2000,
+    "track.source_id": "radar-3",
+    "uid": "c"
    },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-3/c",
-     "group": "s1"
-    }
-   ],
    "trace": []
   },
   {
-   "tick": 1500,
    "expect": [
     {
+     "attributes": {
+      "callsign": {
+       "from": "radar-2/b",
+       "value": "NEW"
+      }
+     },
+     "ce": 58.30965293156871,
+     "course": 0.0,
      "ev": "fused",
+     "from": "radar-2/b",
      "group": "s1",
+     "hae": 200.0,
+     "hae_from": "radar-2/b",
+     "lat": 1.0,
+     "lon": 1.000089946,
      "members": [
       "radar-1/a",
       "radar-2/b",
       "radar-3/c"
      ],
-     "from": "radar-2/b",
-     "lat": 1.0,
-     "lon": 1.000089946,
-     "course": 0.0,
-     "speed_ms": 0.0,
-     "ce": 58.30965293156871,
-     "hae": 200.0,
-     "hae_from": "radar-2/b",
-     "attributes": {
-      "callsign": {
-       "value": "NEW",
-       "from": "radar-2/b"
-      }
-     }
+     "speed_ms": 0.0
     }
    ],
+   "tick": 1500,
    "trace": [
     {
-     "stage": "kinematics",
-     "group": "s1",
-     "method": "latest",
      "candidates": [
       {
        "member": "radar-1/a",
-       "var": 6800.03125,
+       "rank": null,
        "time_ms": 1000,
-       "rank": null
+       "var": 6800.03125
       },
       {
        "member": "radar-2/b",
-       "var": 6800.03125,
+       "rank": null,
        "time_ms": 2000,
-       "rank": null
+       "var": 6800.03125
       },
       {
        "member": "radar-3/c",
-       "var": 6800.03125,
+       "rank": null,
        "time_ms": 2000,
-       "rank": null
+       "var": 6800.03125
       }
      ],
+     "group": "s1",
+     "method": "latest",
+     "stage": "kinematics",
      "winner": "radar-2/b"
     },
     {
-     "stage": "attribute",
-     "group": "s1",
-     "key": "callsign",
-     "rule": "latest",
      "candidates": [
       {
        "member": "radar-1/a",
-       "value": "OLD",
+       "rank": null,
        "time_ms": 1000,
-       "rank": null
+       "value": "OLD"
       },
       {
        "member": "radar-2/b",
-       "value": "NEW",
+       "rank": null,
        "time_ms": 2000,
-       "rank": null
+       "value": "NEW"
       }
      ],
-     "winner": "radar-2/b",
-     "value": "NEW"
+     "group": "s1",
+     "key": "callsign",
+     "rule": "latest",
+     "stage": "attribute",
+     "value": "NEW",
+     "winner": "radar-2/b"
     }
    ]
   },
   {
-   "tick": 122001,
    "expect": [
     {
-     "ev": "drop",
      "entity": "radar-1/a",
+     "ev": "drop",
      "group": "s1"
     },
     {
-     "ev": "drop",
      "entity": "radar-2/b",
+     "ev": "drop",
      "group": "s1"
     },
     {
-     "ev": "drop",
      "entity": "radar-3/c",
+     "ev": "drop",
      "group": "s1"
     }
    ],
+   "tick": 122001,
    "trace": []
   },
   {
-   "tick": 122002,
    "expect": [],
+   "tick": 122002,
    "trace": []
   }
- ],
- "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
-  "entities": {}
- }
+ ]
 }

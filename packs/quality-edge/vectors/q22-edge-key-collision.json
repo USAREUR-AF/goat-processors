@@ -1,237 +1,9 @@
 {
  "name": "q22-edge-key-collision",
  "pack": "quality-edge",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "a/b",
-    "uid": "c",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "a/b/c"
-    },
-    {
-     "ev": "pass",
-     "entity": "a/b/c",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "a/b",
-      "uid": "c",
-      "time_ms": 0,
-      "lat": 1.0,
-      "lon": 1.0
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "a/b/c",
-     "sample": "order",
-     "value": "first",
-     "inputs": [
-      0,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "a/b/c",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      0,
-      null
-     ]
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "a",
-    "uid": "b/c",
-    "time_ms": 1000,
-    "lat": 1.0,
-    "lon": 1.0
-   },
-   "expect": [
-    {
-     "ev": "pass",
-     "entity": "a/b/c",
-     "rules": [],
-     "withheld": false,
-     "report": {
-      "track.source_id": "a",
-      "uid": "b/c",
-      "time_ms": 1000,
-      "lat": 1.0,
-      "lon": 1.0
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "sample",
-     "entity": "a/b/c",
-     "sample": "order",
-     "value": "advance",
-     "inputs": [
-      1000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "a/b/c",
-     "sample": "interval",
-     "value": 1000,
-     "inputs": [
-      1000,
-      0
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "a/b/c",
-     "sample": "lateness",
-     "value": -1000,
-     "inputs": [
-      0,
-      1000
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "a/b/c",
-     "sample": "source_order",
-     "value": "in-order",
-     "inputs": [
-      1000,
-      null
-     ]
-    },
-    {
-     "stage": "sample",
-     "entity": "a/b/c",
-     "sample": "nis",
-     "value": 0.0,
-     "inputs": [
-      0.0,
-      0.0,
-      15000.25,
-      15000.25
-     ]
-    }
-   ]
-  },
-  {
-   "tick": 1000,
-   "expect": [
-    {
-     "ev": "quality",
-     "scope": "entity",
-     "subject": "a/b/c",
-     "measures": {
-      "reports": 2,
-      "interval_last": 1000,
-      "interval_mean": 1000.0,
-      "interval_max": 1000,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": -1000.0,
-      "lateness_max": -1000,
-      "lateness_min": -1000,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0
-     }
-    },
-    {
-     "ev": "action-start",
-     "rule": "huge",
-     "scope": "entity",
-     "subject": "a/b/c",
-     "action": "downgrade",
-     "value": 2
-    },
-    {
-     "ev": "quality",
-     "scope": "source",
-     "subject": "a/b",
-     "measures": {
-      "reports": 2,
-      "interval_last": 1000.0,
-      "interval_mean": 1000.0,
-      "interval_max": 1000,
-      "age": 0,
-      "latency_mean": null,
-      "latency_max": null,
-      "lateness_mean": -1000.0,
-      "lateness_max": -1000,
-      "lateness_min": -1000,
-      "nis_mean": 0.0,
-      "speed_err_mean": null,
-      "out_of_order": 0,
-      "duplicate": 0,
-      "source_out_of_order": 0,
-      "missing_ce": 1.0,
-      "missing_vel": 1.0,
-      "missing_hae": 1.0,
-      "time_error_mean": null,
-      "time_error_max": null,
-      "time_state_last": null,
-      "time_state_worst": null,
-      "missing_time": 1.0,
-      "entities": 1
-     }
-    }
-   ],
-   "trace": [
-    {
-     "stage": "rule",
-     "rule": "huge",
-     "subject": "a/b/c",
-     "measure": "reports",
-     "value": 2,
-     "limit": 2.0,
-     "pass": true,
-     "count": 0,
-     "active": true
-    }
-   ]
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
-  "last_tick": 1000,
   "entities": {
    "a/b/c": {
-    "source": "a/b",
-    "last_time_ms": 1000,
-    "last_pos": [
-     0.0,
-     0.0
-    ],
     "filter": {
      "east": [
       0.0,
@@ -248,49 +20,277 @@
       3333.7777703704933
      ]
     },
+    "last_pos": [
+     0.0,
+     0.0
+    ],
+    "last_time_ms": 1000,
+    "source": "a/b",
     "window": [
      {
-      "wt": 0,
-      "time_ms": 0,
-      "order": "first",
+      "ce": false,
+      "hae": false,
       "interval": null,
       "latency": null,
       "lateness": null,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": null,
+      "order": "first",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": false,
+      "time_error": null,
+      "time_ms": 0,
+      "time_state": null,
       "vel": false,
-      "hae": false
+      "wt": 0
      },
      {
-      "wt": 1000,
-      "time_ms": 1000,
-      "order": "advance",
+      "ce": false,
+      "hae": false,
       "interval": 1000,
       "latency": null,
       "lateness": -1000,
-      "source_out_of_order": false,
-      "time_error": null,
-      "time_state": null,
       "nis": 0.0,
+      "order": "advance",
+      "source_out_of_order": false,
       "speed_err": null,
-      "ce": false,
+      "time_error": null,
+      "time_ms": 1000,
+      "time_state": null,
       "vel": false,
-      "hae": false
+      "wt": 1000
      }
     ]
    }
   },
+  "last_tick": 1000,
+  "ref": [
+   1.0,
+   1.0
+  ],
   "rules": {
    "huge": {
     "a/b/c": {
-     "count": 0,
-     "active": true
+     "active": true,
+     "count": 0
     }
    }
   }
- }
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "a/b/c",
+     "ev": "new"
+    },
+    {
+     "entity": "a/b/c",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_ms": 0,
+      "track.source_id": "a/b",
+      "uid": "c"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 0,
+    "track.source_id": "a/b",
+    "uid": "c"
+   },
+   "trace": [
+    {
+     "entity": "a/b/c",
+     "inputs": [
+      0,
+      null
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "first"
+    },
+    {
+     "entity": "a/b/c",
+     "inputs": [
+      0,
+      null
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "a/b/c",
+     "ev": "pass",
+     "report": {
+      "lat": 1.0,
+      "lon": 1.0,
+      "time_ms": 1000,
+      "track.source_id": "a",
+      "uid": "b/c"
+     },
+     "rules": [],
+     "withheld": false
+    }
+   ],
+   "ingest": {
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 1000,
+    "track.source_id": "a",
+    "uid": "b/c"
+   },
+   "trace": [
+    {
+     "entity": "a/b/c",
+     "inputs": [
+      1000,
+      0
+     ],
+     "sample": "order",
+     "stage": "sample",
+     "value": "advance"
+    },
+    {
+     "entity": "a/b/c",
+     "inputs": [
+      1000,
+      0
+     ],
+     "sample": "interval",
+     "stage": "sample",
+     "value": 1000
+    },
+    {
+     "entity": "a/b/c",
+     "inputs": [
+      0,
+      1000
+     ],
+     "sample": "lateness",
+     "stage": "sample",
+     "value": -1000
+    },
+    {
+     "entity": "a/b/c",
+     "inputs": [
+      1000,
+      null
+     ],
+     "sample": "source_order",
+     "stage": "sample",
+     "value": "in-order"
+    },
+    {
+     "entity": "a/b/c",
+     "inputs": [
+      0.0,
+      0.0,
+      15000.25,
+      15000.25
+     ],
+     "sample": "nis",
+     "stage": "sample",
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "interval_last": 1000,
+      "interval_max": 1000,
+      "interval_mean": 1000.0,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": -1000,
+      "lateness_mean": -1000.0,
+      "lateness_min": -1000,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 2,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "entity",
+     "subject": "a/b/c"
+    },
+    {
+     "action": "downgrade",
+     "ev": "action-start",
+     "rule": "huge",
+     "scope": "entity",
+     "subject": "a/b/c",
+     "value": 2
+    },
+    {
+     "ev": "quality",
+     "measures": {
+      "age": 0,
+      "duplicate": 0,
+      "entities": 1,
+      "interval_last": 1000.0,
+      "interval_max": 1000,
+      "interval_mean": 1000.0,
+      "latency_max": null,
+      "latency_mean": null,
+      "lateness_max": -1000,
+      "lateness_mean": -1000.0,
+      "lateness_min": -1000,
+      "missing_ce": 1.0,
+      "missing_hae": 1.0,
+      "missing_time": 1.0,
+      "missing_vel": 1.0,
+      "nis_mean": 0.0,
+      "out_of_order": 0,
+      "reports": 2,
+      "source_out_of_order": 0,
+      "speed_err_mean": null,
+      "time_error_max": null,
+      "time_error_mean": null,
+      "time_state_last": null,
+      "time_state_worst": null
+     },
+     "scope": "source",
+     "subject": "a/b"
+    }
+   ],
+   "tick": 1000,
+   "trace": [
+    {
+     "active": true,
+     "count": 0,
+     "limit": 2.0,
+     "measure": "reports",
+     "pass": true,
+     "rule": "huge",
+     "stage": "rule",
+     "subject": "a/b/c",
+     "value": 2
+    }
+   ]
+  }
+ ]
 }

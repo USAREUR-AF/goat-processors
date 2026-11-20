@@ -1,282 +1,10 @@
 {
  "name": "50-full-margin-reports-best",
  "pack": "correlate-assign-full",
- "steps": [
-  {
-   "ingest": {
-    "track.source_id": "radar-1",
-    "uid": "T1",
-    "time_ms": 0,
-    "lat": 1.0,
-    "lon": 1.0,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "radar-1/T1"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "tick": 500,
-   "expect": [
-    {
-     "ev": "system",
-     "system": "s1",
-     "members": [
-      "radar-1/T1"
-     ],
-     "lat": 1.0,
-     "lon": 1.0,
-     "course": 0.0,
-     "speed_ms": 0.0
-    },
-    {
-     "ev": "provisional",
-     "system": "s1",
-     "members": [
-      "radar-1/T1"
-     ]
-    }
-   ],
-   "trace": [
-    {
-     "stage": "assign",
-     "a": "radar-1/T1",
-     "b": "alone",
-     "test": "cost",
-     "value": 9.21,
-     "limit": null,
-     "pass": true,
-     "h": 0
-    },
-    {
-     "stage": "assign",
-     "a": "radar-1/T1",
-     "b": "alone",
-     "test": "choice",
-     "value": 9.21,
-     "limit": null,
-     "pass": true,
-     "h": 0,
-     "r": 0
-    },
-    {
-     "stage": "history",
-     "a": 0,
-     "b": 0,
-     "test": "total",
-     "value": 9.21,
-     "limit": 9.71,
-     "pass": true
-    }
-   ]
-  },
-  {
-   "ingest": {
-    "track.source_id": "adsb",
-    "uid": "A7",
-    "time_ms": 1000,
-    "lat": 1.0,
-    "lon": 1.000089946,
-    "ce": 30,
-    "type": "a-f-A-M-F",
-    "track.simulated": 0
-   },
-   "expect": [
-    {
-     "ev": "new",
-     "entity": "adsb/A7"
-    }
-   ],
-   "trace": []
-  },
-  {
-   "tick": 1500,
-   "expect": [
-    {
-     "ev": "start",
-     "system": "s1",
-     "entity": "radar-1/T1"
-    },
-    {
-     "ev": "system",
-     "system": "s1",
-     "members": [
-      "adsb/A7",
-      "radar-1/T1"
-     ],
-     "lat": 1.0,
-     "lon": 1.0000786005947695,
-     "course": 0.0,
-     "speed_ms": 0.0
-    },
-    {
-     "ev": "provisional",
-     "system": "s1",
-     "members": [
-      "adsb/A7",
-      "radar-1/T1"
-     ]
-    }
-   ],
-   "trace": [
-    {
-     "stage": "gate",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "mahalanobis",
-     "value": 0.0009820008939689325,
-     "limit": 18.42,
-     "pass": true,
-     "h": 0
-    },
-    {
-     "stage": "gate",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "same",
-     "value": 0,
-     "limit": 0,
-     "pass": true,
-     "h": 0
-    },
-    {
-     "stage": "gate",
-     "a": "adsb/A7",
-     "b": "radar-1/T1",
-     "test": "same",
-     "value": "A",
-     "limit": "A",
-     "pass": true,
-     "h": 0
-    },
-    {
-     "stage": "assign",
-     "a": "adsb/A7",
-     "b": "s1",
-     "test": "cost",
-     "value": 0.0009820008939689325,
-     "limit": null,
-     "pass": true,
-     "h": 0
-    },
-    {
-     "stage": "assign",
-     "a": "adsb/A7",
-     "b": "alone",
-     "test": "cost",
-     "value": 9.21,
-     "limit": null,
-     "pass": true,
-     "h": 0
-    },
-    {
-     "stage": "assign",
-     "a": "adsb/A7",
-     "b": "s1",
-     "test": "choice",
-     "value": 0.0009820008939689325,
-     "limit": null,
-     "pass": true,
-     "h": 0,
-     "r": 0
-    },
-    {
-     "stage": "assign",
-     "a": "adsb/A7",
-     "b": "alone",
-     "test": "choice",
-     "value": 9.21,
-     "limit": null,
-     "pass": true,
-     "h": 0,
-     "r": 1
-    },
-    {
-     "stage": "history",
-     "a": 0,
-     "b": 0,
-     "test": "total",
-     "value": 9.210982000893969,
-     "limit": 9.710982000893969,
-     "pass": true
-    },
-    {
-     "stage": "history",
-     "a": 0,
-     "b": 1,
-     "test": "total",
-     "value": 18.42,
-     "limit": 9.710982000893969,
-     "pass": false
-    },
-    {
-     "stage": "history",
-     "a": 0,
-     "b": null,
-     "test": "commit",
-     "value": 9.210982000893969,
-     "limit": null,
-     "pass": true
-    }
-   ]
-  },
-  {
-   "tick": 2500,
-   "expect": [
-    {
-     "ev": "join",
-     "system": "s1",
-     "entity": "adsb/A7"
-    },
-    {
-     "ev": "system",
-     "system": "s1",
-     "members": [
-      "adsb/A7",
-      "radar-1/T1"
-     ],
-     "lat": 1.0,
-     "lon": 1.0000659311132032,
-     "course": 0.0,
-     "speed_ms": 0.0
-    },
-    {
-     "ev": "provisional",
-     "system": "s1",
-     "members": [
-      "adsb/A7",
-      "radar-1/T1"
-     ]
-    }
-   ],
-   "trace": [
-    {
-     "stage": "history",
-     "a": 0,
-     "b": null,
-     "test": "commit",
-     "value": 0.0009820008939689325,
-     "limit": null,
-     "pass": true
-    }
-   ]
-  }
- ],
  "snapshot": {
-  "ref": [
-   1.0,
-   1.0
-  ],
+  "bias": {},
   "entities": {
    "adsb/A7": {
-    "last_time_ms": 1000,
-    "system": "s1",
     "filter": {
      "east": [
       10.000029401756041,
@@ -293,8 +21,13 @@
       10000.0
      ]
     },
+    "last_time_ms": 1000,
+    "mode": [
+     0.6666666666666666,
+     0.3333333333333333
+    ],
     "models": {
-     "quiet": {
+     "maneuver": {
       "east": [
        10.000029401756041,
        0.0,
@@ -310,7 +43,7 @@
        10000.0
       ]
      },
-     "maneuver": {
+     "quiet": {
       "east": [
        10.000029401756041,
        0.0,
@@ -327,14 +60,9 @@
       ]
      }
     },
-    "mode": [
-     0.6666666666666666,
-     0.3333333333333333
-    ]
+    "system": "s1"
    },
    "radar-1/T1": {
-    "last_time_ms": 0,
-    "system": "s1",
     "filter": {
      "east": [
       0.0,
@@ -351,8 +79,13 @@
       10000.0
      ]
     },
+    "last_time_ms": 0,
+    "mode": [
+     0.6666666666666666,
+     0.3333333333333333
+    ],
     "models": {
-     "quiet": {
+     "maneuver": {
       "east": [
        0.0,
        0.0,
@@ -368,7 +101,7 @@
        10000.0
       ]
      },
-     "maneuver": {
+     "quiet": {
       "east": [
        0.0,
        0.0,
@@ -385,41 +118,308 @@
       ]
      }
     },
-    "mode": [
-     0.6666666666666666,
-     0.3333333333333333
-    ]
+    "system": "s1"
    }
   },
-  "systems": {
-   "s1": [
-    "adsb/A7",
-    "radar-1/T1"
-   ]
-  },
-  "next_system": 2,
-  "reported": [],
-  "restarted": [],
-  "bias": {},
-  "retiring": [],
   "histories": [
    {
-    "total": 0.0,
     "records": [
      {
-      "cost": 0.0,
       "choices": [],
+      "cost": 0.0,
       "events": [],
+      "next_system": 2,
       "systems": {
        "s1": [
         "adsb/A7",
         "radar-1/T1"
        ]
-      },
-      "next_system": 2
+      }
      }
-    ]
+    ],
+    "total": 0.0
    }
-  ]
- }
+  ],
+  "next_system": 2,
+  "ref": [
+   1.0,
+   1.0
+  ],
+  "reported": [],
+  "restarted": [],
+  "retiring": [],
+  "systems": {
+   "s1": [
+    "adsb/A7",
+    "radar-1/T1"
+   ]
+  }
+ },
+ "steps": [
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "lat": 1.0,
+    "lon": 1.0,
+    "time_ms": 0,
+    "track.simulated": 0,
+    "track.source_id": "radar-1",
+    "type": "a-f-A-M-F",
+    "uid": "T1"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "course": 0.0,
+     "ev": "system",
+     "lat": 1.0,
+     "lon": 1.0,
+     "members": [
+      "radar-1/T1"
+     ],
+     "speed_ms": 0.0,
+     "system": "s1"
+    },
+    {
+     "ev": "provisional",
+     "members": [
+      "radar-1/T1"
+     ],
+     "system": "s1"
+    }
+   ],
+   "tick": 500,
+   "trace": [
+    {
+     "a": "radar-1/T1",
+     "b": "alone",
+     "h": 0,
+     "limit": null,
+     "pass": true,
+     "stage": "assign",
+     "test": "cost",
+     "value": 9.21
+    },
+    {
+     "a": "radar-1/T1",
+     "b": "alone",
+     "h": 0,
+     "limit": null,
+     "pass": true,
+     "r": 0,
+     "stage": "assign",
+     "test": "choice",
+     "value": 9.21
+    },
+    {
+     "a": 0,
+     "b": 0,
+     "limit": 9.71,
+     "pass": true,
+     "stage": "history",
+     "test": "total",
+     "value": 9.21
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "adsb/A7",
+     "ev": "new"
+    }
+   ],
+   "ingest": {
+    "ce": 30,
+    "lat": 1.0,
+    "lon": 1.000089946,
+    "time_ms": 1000,
+    "track.simulated": 0,
+    "track.source_id": "adsb",
+    "type": "a-f-A-M-F",
+    "uid": "A7"
+   },
+   "trace": []
+  },
+  {
+   "expect": [
+    {
+     "entity": "radar-1/T1",
+     "ev": "start",
+     "system": "s1"
+    },
+    {
+     "course": 0.0,
+     "ev": "system",
+     "lat": 1.0,
+     "lon": 1.0000786005947695,
+     "members": [
+      "adsb/A7",
+      "radar-1/T1"
+     ],
+     "speed_ms": 0.0,
+     "system": "s1"
+    },
+    {
+     "ev": "provisional",
+     "members": [
+      "adsb/A7",
+      "radar-1/T1"
+     ],
+     "system": "s1"
+    }
+   ],
+   "tick": 1500,
+   "trace": [
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "h": 0,
+     "limit": 18.42,
+     "pass": true,
+     "stage": "gate",
+     "test": "mahalanobis",
+     "value": 0.0009820008939689325
+    },
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "h": 0,
+     "limit": 0,
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": 0
+    },
+    {
+     "a": "adsb/A7",
+     "b": "radar-1/T1",
+     "h": 0,
+     "limit": "A",
+     "pass": true,
+     "stage": "gate",
+     "test": "same",
+     "value": "A"
+    },
+    {
+     "a": "adsb/A7",
+     "b": "s1",
+     "h": 0,
+     "limit": null,
+     "pass": true,
+     "stage": "assign",
+     "test": "cost",
+     "value": 0.0009820008939689325
+    },
+    {
+     "a": "adsb/A7",
+     "b": "alone",
+     "h": 0,
+     "limit": null,
+     "pass": true,
+     "stage": "assign",
+     "test": "cost",
+     "value": 9.21
+    },
+    {
+     "a": "adsb/A7",
+     "b": "s1",
+     "h": 0,
+     "limit": null,
+     "pass": true,
+     "r": 0,
+     "stage": "assign",
+     "test": "choice",
+     "value": 0.0009820008939689325
+    },
+    {
+     "a": "adsb/A7",
+     "b": "alone",
+     "h": 0,
+     "limit": null,
+     "pass": true,
+     "r": 1,
+     "stage": "assign",
+     "test": "choice",
+     "value": 9.21
+    },
+    {
+     "a": 0,
+     "b": 0,
+     "limit": 9.710982000893969,
+     "pass": true,
+     "stage": "history",
+     "test": "total",
+     "value": 9.210982000893969
+    },
+    {
+     "a": 0,
+     "b": 1,
+     "limit": 9.710982000893969,
+     "pass": false,
+     "stage": "history",
+     "test": "total",
+     "value": 18.42
+    },
+    {
+     "a": 0,
+     "b": null,
+     "limit": null,
+     "pass": true,
+     "stage": "history",
+     "test": "commit",
+     "value": 9.210982000893969
+    }
+   ]
+  },
+  {
+   "expect": [
+    {
+     "entity": "adsb/A7",
+     "ev": "join",
+     "system": "s1"
+    },
+    {
+     "course": 0.0,
+     "ev": "system",
+     "lat": 1.0,
+     "lon": 1.0000659311132032,
+     "members": [
+      "adsb/A7",
+      "radar-1/T1"
+     ],
+     "speed_ms": 0.0,
+     "system": "s1"
+    },
+    {
+     "ev": "provisional",
+     "members": [
+      "adsb/A7",
+      "radar-1/T1"
+     ],
+     "system": "s1"
+    }
+   ],
+   "tick": 2500,
+   "trace": [
+    {
+     "a": 0,
+     "b": null,
+     "limit": null,
+     "pass": true,
+     "stage": "history",
+     "test": "commit",
+     "value": 0.0009820008939689325
+    }
+   ]
+  }
+ ]
 }

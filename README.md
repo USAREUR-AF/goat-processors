@@ -143,13 +143,16 @@ entry and every choice:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/seven-engines-dark.svg">
-  <img alt="121 scenario vectors (838 steps, 4333 trace records) and 218 load vectors sit at the center. each generator under tools/ states its decisions by hand and the Python engine computes the numbers; the Rust, Go, Java, C++, Erlang, Zig engines are written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot." src="docs/figures/seven-engines-light.svg">
+  <img alt="121 scenario vectors (838 steps, 4333 trace records) and 218 load vectors sit at the center. The specification and the decisions each generator under tools/ states by hand are the reference; the Rust engine computes every vector, and a vector is accepted only when all seven engines (Python, Rust, Go, Java, C++, Erlang, Zig) agree. Each engine is written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot." src="docs/figures/seven-engines-light.svg">
 </picture>
 
-The Python engine and `tools/make-*-vectors.py` write the vectors; each
-generator states its scenarios' decisions by hand and refuses to write a
-vector whose events differ from them. The other six engines are written from
-the specification and the vectors alone, never from another engine's source.
+The specification and the hand-stated decisions are the reference; every
+vector is computed by the Rust engine and accepted only when all
+seven engines agree. Each generator, `tools/make-*-vectors.py`, states its
+scenarios' decisions by hand, refuses a vector whose events differ from them,
+and writes a vector only when every engine reproduces its events, trace and
+final snapshot. Every engine is written from the specification and the
+vectors alone, never from another engine's source.
 An engine that disagrees with a vector records it in its `DISAGREEMENTS.md`;
 the vector is changed only through the specification.
 
