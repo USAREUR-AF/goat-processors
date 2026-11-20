@@ -196,4 +196,6 @@ rustup component add llvm-tools
 runner/run --function correlate --pack ../../packs/correlate-gnn --steps <steps.json> --events out.jsonl --trace
 ```
 
-Points still open under each spec are in `DISAGREEMENTS.md`.
+Points still open under each spec are in `DISAGREEMENTS.md`. `REFACTOR.md` records
+the refactor round: layout, registration points, tests and coverage, hot spots
+and the byte-identical check.
