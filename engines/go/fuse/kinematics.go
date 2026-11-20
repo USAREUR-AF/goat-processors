@@ -18,7 +18,11 @@ func (g *Engine) kinematics(name string, members []member, tr *[]Obj) (east, nor
 	case "inverse_variance":
 		east, north = inverseVariance(members)
 	case "covariance_intersection":
-		east, north = g.covarianceIntersection(name, members, tr)
+		var weights []float64
+		east, north, weights = covarianceIntersection(members)
+		for i, w := range weights {
+			*tr = append(*tr, trace.Intersect(model.OrNull(name), members[i+1].Key, w))
+		}
 	case "best":
 		from = pick(members, func(m, w member) bool { return m.variance() < w.variance() })
 	case "priority":
@@ -75,12 +79,14 @@ func inverseVariance(members []member) (Axis, Axis) {
 
 // covarianceIntersection is the method covariance_intersection: the running
 // estimate X starts as the first member, and each later member Y is folded in,
-// in key order, with the closed-form weight. Each fold is one intersect record.
-func (g *Engine) covarianceIntersection(name string, members []member, tr *[]Obj) (Axis, Axis) {
+// in key order, with the closed-form weight. It also returns the weight of
+// each fold, members[1:] in order: one intersect record each.
+func covarianceIntersection(members []member) (Axis, Axis, []float64) {
 	xe, xn := members[0].east, members[0].north
+	weights := make([]float64, 0, len(members)-1)
 	for _, y := range members[1:] {
 		w := ciWeight(xe, xn, y.east, y.north)
-		*tr = append(*tr, trace.Intersect(model.OrNull(name), y.Key, w))
+		weights = append(weights, w)
 		switch w {
 		case 1: // X unchanged
 		case 0:
@@ -89,7 +95,7 @@ func (g *Engine) covarianceIntersection(name string, members []member, tr *[]Obj
 			xe, xn = ciFold(xe, y.east, w), ciFold(xn, y.north, w)
 		}
 	}
-	return xe, xn
+	return xe, xn, weights
 }
 
 // ciWeight is covariance_intersection, Weight, steps 1 to 5.

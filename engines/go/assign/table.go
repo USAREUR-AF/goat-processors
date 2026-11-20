@@ -16,7 +16,7 @@ import (
 // output, frame is "" and neither happens.
 func (m *Method) fused(members []string, t int64, frame string) (model.Axis, model.Axis) {
 	c := m.core
-	var se, sn [4]float64 // sum 1/pp, sum p/pp, sum 1/vv, sum v/vv
+	var acc ivSum
 	for _, k := range members {
 		e, n := c.Predicted(k, t)
 		if frame != "" {
@@ -24,21 +24,38 @@ func (m *Method) fused(members []string, t int64, frame string) (model.Axis, mod
 			e, n = model.AddVariance(e, n, ve, vn)
 			e, n = m.MoveInto(c.Source(k), c.Source(frame), e, n)
 		}
-		for _, x := range []struct {
-			a model.Axis
-			s *[4]float64
-		}{{e, &se}, {n, &sn}} {
-			x.s[0] += 1 / x.a.PP
-			x.s[1] += x.a.P / x.a.PP
-			x.s[2] += 1 / x.a.VV
-			x.s[3] += x.a.V / x.a.VV
-		}
+		acc = acc.add(e, n)
 	}
+	return acc.estimate()
+}
+
+// ivSum is the running sums of the inverse-variance fused estimate, per
+// axis: sum 1/pp, sum p/pp, sum 1/vv, sum v/vv, added in member order.
+type ivSum struct{ e, n [4]float64 }
+
+// add adds one member's axes.
+func (s ivSum) add(e, n model.Axis) ivSum {
+	s.e = ivAdd(s.e, e)
+	s.n = ivAdd(s.n, n)
+	return s
+}
+
+func ivAdd(s [4]float64, a model.Axis) [4]float64 {
+	s[0] += 1 / a.PP
+	s[1] += a.P / a.PP
+	s[2] += 1 / a.VV
+	s[3] += a.V / a.VV
+	return s
+}
+
+// estimate is the fused estimate of the members added. Only P, V, PP and
+// VV are meaningful.
+func (s ivSum) estimate() (model.Axis, model.Axis) {
 	mk := func(s [4]float64) model.Axis {
 		pp, vv := 1/s[0], 1/s[2]
 		return model.Axis{P: pp * s[1], V: vv * s[3], PP: pp, VV: vv}
 	}
-	return mk(se), mk(sn)
+	return mk(s.e), mk(s.n)
 }
 
 // cost is d² of entity A against the fused estimate of M at A's time (Cost);
@@ -49,6 +66,12 @@ func (m *Method) cost(a string, members []string) float64 {
 	ae, an := c.Filter(a)
 	ve, vn := c.TimingVariance(a)
 	ae, an = model.AddVariance(ae, an, ve, vn)
+	return costOf(ae, an, fe, fn)
+}
+
+// costOf is d² of A's axes against a fused estimate: the squared distance
+// over the sum of the two pp, per axis.
+func costOf(ae, an, fe, fn model.Axis) float64 {
 	de, dn := ae.P-fe.P, an.P-fn.P
 	return de*de/(ae.PP+fe.PP) + dn*dn/(an.PP+fn.PP)
 }

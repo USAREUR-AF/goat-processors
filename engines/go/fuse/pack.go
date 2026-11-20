@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"goat-correlator/engines/go/io"
+	"goat-correlator/engines/go/model"
 )
 
 // Kinematics methods and attribute rules (spec/fuse.md: What fuse does, Attributes).
@@ -23,14 +24,11 @@ type Attribute struct{ Key, Rule string }
 // Pack is a loaded fuse pack.def (spec/fuse.md: Pack).
 type Pack struct {
 	Name, Version string
-	AccelVar      float64
-	DefaultCeM    float64
-	VelSigmaMs    float64
-	UnknownVelMs  float64
-	Kinematics    string
-	Attributes    []Attribute // pack order
-	Sources       []string    // rank order
-	StaleMs       int64
+	model.FilterParams
+	Kinematics string
+	Attributes []Attribute // pack order
+	Sources    []string    // rank order
+	StaleMs    int64
 }
 
 // Rank is the index of a source among the `source` lines, or -1 when unlisted

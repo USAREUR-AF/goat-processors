@@ -47,38 +47,58 @@ func (g *Engine) evaluate(scope, subject string, m Obj, events, tr []Obj) ([]Obj
 			g.states[i][subject] = st
 		}
 		value := m[rule.Measure]
-		v, present := asFloat(value)
-		var limit float64
-		var pass bool
-		if !st.active {
-			// Not active: count met conditions until `for`.
-			limit = rule.Limit
-			pass = present && holds(v, rule.Op, rule.Limit)
-			if pass {
-				st.count++
-			} else {
-				st.count = 0
-			}
-			if st.count >= rule.For {
-				st.active, st.count = true, 0
-				events = append(events, Obj{"ev": "action-start", "rule": rule.Name, "scope": scope,
-					"subject": subject, "action": rule.Action, "value": value})
-			}
-		} else {
-			// Active: clear on the other side of `clear`; an absent value never clears.
-			limit = rule.Clear
-			if above(rule.Op) {
-				pass = present && v < rule.Clear
-			} else {
-				pass = present && v > rule.Clear
-			}
-			if pass {
-				st.active = false
-				events = append(events, Obj{"ev": "action-end", "rule": rule.Name, "scope": scope,
-					"subject": subject, "action": rule.Action, "reason": "clear", "value": value})
-			}
+		next, s := rule.step(*st, value)
+		*st = next
+		switch {
+		case s.started:
+			events = append(events, Obj{"ev": "action-start", "rule": rule.Name, "scope": scope,
+				"subject": subject, "action": rule.Action, "value": value})
+		case s.ended:
+			events = append(events, Obj{"ev": "action-end", "rule": rule.Name, "scope": scope,
+				"subject": subject, "action": rule.Action, "reason": "clear", "value": value})
 		}
-		tr = append(tr, trace.QualityRule(rule.Name, subject, rule.Measure, value, limit, pass, st.count, st.active))
+		tr = append(tr, trace.QualityRule(rule.Name, subject, rule.Measure, value, s.limit, s.pass, st.count, st.active))
 	}
 	return events, tr
+}
+
+// stepResult is what one evaluation of a rule found.
+type stepResult struct {
+	limit          float64 // the limit or clear the value was compared with
+	pass           bool
+	started, ended bool // the action started or ended (by clear)
+}
+
+// step is Rules, Evaluation, of one rule for one subject: from the state
+// before and the measure's value (nil when absent), the state after.
+func (rule Rule) step(st ruleState, value any) (ruleState, stepResult) {
+	v, present := asFloat(value)
+	var r stepResult
+	if !st.active {
+		// Not active: count met conditions until `for`.
+		r.limit = rule.Limit
+		r.pass = present && holds(v, rule.Op, rule.Limit)
+		if r.pass {
+			st.count++
+		} else {
+			st.count = 0
+		}
+		if st.count >= rule.For {
+			st.active, st.count = true, 0
+			r.started = true
+		}
+		return st, r
+	}
+	// Active: clear on the other side of `clear`; an absent value never clears.
+	r.limit = rule.Clear
+	if above(rule.Op) {
+		r.pass = present && v < rule.Clear
+	} else {
+		r.pass = present && v > rule.Clear
+	}
+	if r.pass {
+		st.active = false
+		r.ended = true
+	}
+	return st, r
 }

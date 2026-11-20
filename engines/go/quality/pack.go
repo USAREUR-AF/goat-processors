@@ -47,7 +47,7 @@ type Pack struct {
 	Name, Version string
 
 	// filter line, the parameters of correlate.md Track estimate
-	AccelVar, DefaultCeM, VelSigmaMs, UnknownVelMs float64
+	model.FilterParams
 
 	// window line
 	WindowMs, MinSamples, ForgetMs int64

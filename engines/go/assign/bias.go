@@ -45,15 +45,20 @@ func (m *Method) MoveInto(bSource, aSource string, be, bn model.Axis) (model.Axi
 	if bSource < aSource {
 		key = bSource + "|" + aSource
 	}
-	st := m.biasState(key)
-	// The offset on each axis: o, or with time_offset o - v*tau, v being B's
-	// predicted velocity on that axis.
+	return m.biasState(key).move(be, bn, bSource < aSource, m.p.HasTimeOffset)
+}
+
+// move moves B's predicted axes by the pair's offset: plus when B's source
+// is the pair's first (S), minus when it is the second (T); the offset on
+// each axis is o, or with time offset o - v*tau, v being B's predicted
+// velocity on that axis; var is added to pp.
+func (st BiasState) move(be, bn model.Axis, bFirst, withTau bool) (model.Axis, model.Axis) {
 	oe, on := st.OEast, st.ONorth
-	if m.p.HasTimeOffset {
+	if withTau {
 		oe = st.OEast - be.V*st.Tau
 		on = st.ONorth - bn.V*st.Tau
 	}
-	if bSource < aSource {
+	if bFirst {
 		be.P, be.PP = be.P+oe, be.PP+st.Var
 		bn.P, bn.PP = bn.P+on, bn.PP+st.Var
 	} else {
@@ -87,41 +92,11 @@ func (m *Method) updateBias(now int64, rows map[string]bool) []Obj {
 					es, et = et, es
 				}
 				key := c.Source(es) + "|" + c.Source(et)
-				st := m.biasState(key)
 				se, sn := c.Predicted(es, now)
 				te, tn := c.Predicted(et, now)
-				ye, re := te.P-se.P, se.PP+te.PP
-				yn, rn := tn.P-sn.P, sn.PP+tn.PP
-
-				// 2. d² with the pair's state; with time_offset the expected
-				// offset is o - v*tau, v the mean of the two predicted velocities.
-				var de, dn, ve, vn float64
-				if p.HasTimeOffset {
-					ve, vn = (se.V+te.V)/2, (sn.V+tn.V)/2
-					de, dn = ye-(st.OEast-ve*st.Tau), yn-(st.ONorth-vn*st.Tau)
-				} else {
-					de, dn = ye-st.OEast, yn-st.ONorth
-				}
-				d2 := de*de/(st.Var+re) + dn*dn/(st.Var+rn)
-
-				// 3. Accept below the gate.
-				accepted := d2 < p.BiasGate
+				st, d2, accepted := m.biasState(key).update(p, se, sn, te, tn)
 				if accepted {
-					st.Pairs++
-					st.Var = p.BiasSigma * p.BiasSigma / float64(st.Pairs+1)
-					if floor := p.BiasFloor * p.BiasFloor; st.Var < floor {
-						st.Var = floor
-					}
-					if p.HasTimeOffset {
-						m.fitTimeOffset(&st, 1/re, 1/rn, ve, vn, ye, yn)
-					} else {
-						st.WEast = st.WEast + 1/re
-						st.OEast = st.OEast + ((1/re)/st.WEast)*(ye-st.OEast)
-						st.WNorth = st.WNorth + 1/rn
-						st.ONorth = st.ONorth + ((1/rn)/st.WNorth)*(yn-st.ONorth)
-					}
-					stored := st
-					m.bias[key] = &stored
+					m.bias[key] = &st
 				}
 
 				// 4. Trace, with the state after step 3.
@@ -137,12 +112,49 @@ func (m *Method) updateBias(now int64, rows map[string]bool) []Obj {
 	return out
 }
 
+// update is steps 2 and 3 of the Update for one pair whose members, the
+// first source's (S) and the second's (T), are predicted to now (not
+// moved): it returns the pair's state after them, d² and whether the pair
+// was accepted (below the gate).
+func (st BiasState) update(p Params, se, sn, te, tn model.Axis) (BiasState, float64, bool) {
+	ye, re := te.P-se.P, se.PP+te.PP
+	yn, rn := tn.P-sn.P, sn.PP+tn.PP
+
+	// 2. d² with the pair's state; with time_offset the expected offset is
+	// o - v*tau, v the mean of the two predicted velocities.
+	var de, dn, ve, vn float64
+	if p.HasTimeOffset {
+		ve, vn = (se.V+te.V)/2, (sn.V+tn.V)/2
+		de, dn = ye-(st.OEast-ve*st.Tau), yn-(st.ONorth-vn*st.Tau)
+	} else {
+		de, dn = ye-st.OEast, yn-st.ONorth
+	}
+	d2 := de*de/(st.Var+re) + dn*dn/(st.Var+rn)
+
+	// 3. Accept below the gate.
+	if !(d2 < p.BiasGate) {
+		return st, d2, false
+	}
+	st.Pairs++
+	st.Var = p.BiasSigma * p.BiasSigma / float64(st.Pairs+1)
+	if floor := p.BiasFloor * p.BiasFloor; st.Var < floor {
+		st.Var = floor
+	}
+	if p.HasTimeOffset {
+		return st.fitTimeOffset(p, 1/re, 1/rn, ve, vn, ye, yn), d2, true
+	}
+	st.WEast = st.WEast + 1/re
+	st.OEast = st.OEast + ((1/re)/st.WEast)*(ye-st.OEast)
+	st.WNorth = st.WNorth + 1/rn
+	st.ONorth = st.ONorth + ((1/rn)/st.WNorth)*(yn-st.ONorth)
+	return st, d2, true
+}
+
 // fitTimeOffset adds one accepted pair to the sums and solves the weighted
 // least-squares fit of y = o - v*tau (Sensor bias, Time offset). we, wn are
 // 1/r on east and north; ve, vn the mean predicted velocities; ye, yn the
 // observed offsets. n and var have already changed as in step 3.
-func (m *Method) fitTimeOffset(st *BiasState, we, wn, ve, vn, ye, yn float64) {
-	p := m.p
+func (st BiasState) fitTimeOffset(p Params, we, wn, ve, vn, ye, yn float64) BiasState {
 	S := &st.Sums
 	S[0] = S[0] + we                    // S1
 	S[1] = S[1] + wn                    // S2
@@ -168,4 +180,5 @@ func (m *Method) fitTimeOffset(st *BiasState, we, wn, ve, vn, ye, yn float64) {
 	st.OEast = (b1 - a13*st.Tau) / a11
 	st.ONorth = (b2 - a23*st.Tau) / a22
 	st.WEast, st.WNorth = S[0], S[1]
+	return st
 }

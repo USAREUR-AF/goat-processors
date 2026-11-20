@@ -85,44 +85,32 @@ func (g *Engine) Ingest(report map[string]any) (events, tr []Obj) {
 	if rec.order == orderAdvance {
 		dt := float64(r.t-e.last) / 1000
 		predE, predN = e.east.Predict(dt, p.AccelVar), e.north.Predict(dt, p.AccelVar)
-		rr := r.ce * r.ce
-		de, dn := east-predE.P, north-predN.P
-		se, sn := predE.PP+rr, predN.PP+rr
-		nis := de*de/se + dn*dn/sn
+		nis, de, dn, se, sn := nisOf(east, north, predE, predN, r.ce*r.ce)
 		rec.nis = &nis
 		tr = append(tr, trace.Sample(r.key, "nis", nis, de, dn, se, sn))
 	}
 	if rec.order == orderAdvance && r.hasSpeed {
 		dt := float64(r.t-e.last) / 1000
-		implied := math.Hypot(east-e.lastPos[0], north-e.lastPos[1]) / dt
-		speedErr := math.Abs(implied - r.speed)
+		speedErr, implied := speedErrOf(east-e.lastPos[0], north-e.lastPos[1], dt, r.speed)
 		rec.speedErr = &speedErr
 		tr = append(tr, trace.Sample(r.key, "speed_err", speedErr, implied, r.speed))
 	}
 
 	// Create the entity, or update its filter, last and last_pos
 	// (correlate.md, Track estimate).
-	var ve, vn float64
+	z := model.Measurement{East: east, North: north, REast: r.ce * r.ce, RNorth: r.ce * r.ce, HasVel: rec.vel}
 	if rec.vel {
-		ve, vn = r.speed*math.Sin(model.Rad(r.course)), r.speed*math.Cos(model.Rad(r.course))
+		z.VE, z.VN = model.Velocity(r.course, r.speed)
 	}
 	switch rec.order {
 	case orderFirst:
-		vv := p.UnknownVelMs * p.UnknownVelMs
-		if rec.vel {
-			vv = p.VelSigmaMs * p.VelSigmaMs
-		}
-		e = &entity{key: r.key, source: r.source,
-			east:  model.Axis{P: east, V: ve, PP: r.ce * r.ce, VV: vv},
-			north: model.Axis{P: north, V: vn, PP: r.ce * r.ce, VV: vv}}
+		first := p.First(z)
+		e = &entity{key: r.key, source: r.source, east: first.East, north: first.North}
 		g.entities[r.key] = e
 		events = append(events, Obj{"ev": "new", "entity": r.key})
 	case orderAdvance:
-		e.east, e.north = predE.UpdatePos(east, r.ce*r.ce), predN.UpdatePos(north, r.ce*r.ce)
-		if rec.vel {
-			rv := p.VelSigmaMs * p.VelSigmaMs
-			e.east, e.north = e.east.UpdateVel(ve, rv), e.north.UpdateVel(vn, rv)
-		}
+		m := p.Update(model.Model{East: predE, North: predN}, z)
+		e.east, e.north = m.East, m.North
 	}
 	if rec.order == orderFirst || rec.order == orderAdvance {
 		e.last, e.lastPos = r.t, [2]float64{east, north}
@@ -132,4 +120,20 @@ func (g *Engine) Ingest(report map[string]any) (events, tr []Obj) {
 	e.window = append(e.window, rec)
 	events = append(events, g.forward(e, report, r))
 	return events, tr
+}
+
+// nisOf is the normalized innovation squared of a position (east, north)
+// against a prediction with measurement variance r on both axes, with its
+// inputs de, dn, se, sn (Samples: nis).
+func nisOf(east, north float64, pe, pn model.Axis, r float64) (nis, de, dn, se, sn float64) {
+	de, dn = east-pe.P, north-pn.P
+	se, sn = pe.PP+r, pn.PP+r
+	return de*de/se + dn*dn/sn, de, dn, se, sn
+}
+
+// speedErrOf is the speed error of a report that moved (de, dn) in dt
+// seconds and reports speed, with the implied speed (Samples: speed_err).
+func speedErrOf(de, dn, dt, speed float64) (speedErr, implied float64) {
+	implied = math.Hypot(de, dn) / dt
+	return math.Abs(implied - speed), implied
 }

@@ -1,8 +1,6 @@
 package fuse
 
 import (
-	"math"
-
 	"goat-correlator/engines/go/model"
 )
 
@@ -56,27 +54,19 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 	hasVel := hasCourse && hasSpeed
 	var ve, vn float64
 	if hasVel {
-		ve = speed * math.Sin(model.Rad(course))
-		vn = speed * math.Cos(model.Rad(course))
+		ve, vn = model.Velocity(course, speed)
 	}
 
+	z := model.Measurement{East: east, North: north, REast: ce * ce, RNorth: ce * ce, HasVel: hasVel, VE: ve, VN: vn}
 	if e == nil {
-		vv := p.UnknownVelMs * p.UnknownVelMs
-		if hasVel {
-			vv = p.VelSigmaMs * p.VelSigmaMs
-		}
-		e = &Entity{Key: key, Source: source,
-			East:  Axis{P: east, V: ve, PP: ce * ce, VV: vv},
-			North: Axis{P: north, V: vn, PP: ce * ce, VV: vv}}
+		first := p.First(z)
+		e = &Entity{Key: key, Source: source, East: first.East, North: first.North}
 		g.entities[key] = e
 		events = []Obj{{"ev": "new", "entity": key, "group": model.OrNull(group)}}
 	} else {
-		e.East, e.North = e.predicted(t, p.AccelVar)
-		e.East, e.North = e.East.UpdatePos(east, ce*ce), e.North.UpdatePos(north, ce*ce)
-		if hasVel {
-			rv := p.VelSigmaMs * p.VelSigmaMs
-			e.East, e.North = e.East.UpdateVel(ve, rv), e.North.UpdateVel(vn, rv)
-		}
+		pe, pn := e.predicted(t, p.AccelVar)
+		m := p.Update(model.Model{East: pe, North: pn}, z)
+		e.East, e.North = m.East, m.North
 		events = []Obj{}
 		// Groups: a move is applied when the report is accepted, after the filter update.
 		if group != e.Group {

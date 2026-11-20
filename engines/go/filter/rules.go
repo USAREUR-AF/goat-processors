@@ -42,7 +42,7 @@ func (g *Engine) Ingest(in map[string]any) (events, tr []Obj) {
 // each, stopping at the first that does not pass.
 func (g *Engine) ruleMatches(rule Rule, r *report, tr *[]Obj) bool {
 	for _, c := range rule.Conditions {
-		res := g.evaluate(c, r)
+		res := evaluate(c, r, g.entities)
 		pass := res.passes(c.Negated)
 		*tr = append(*tr, trace.Rule(rule.Name, r.key, c.Name, c.Negated, res.value, res.limit, pass, res.truth == unknown))
 		if !pass {

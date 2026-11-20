@@ -58,13 +58,18 @@ func toFloats(xs []int64) []float64 {
 // measures computes an entity's measures over its window at now_ms
 // (spec: Entity measures). An absent measure is nil.
 func (g *Engine) measures(e *entity, now int64) Obj {
-	k := int(g.pack.MinSamples)
+	return entityMeasuresOf(e.window, now-e.last, int(g.pack.MinSamples))
+}
+
+// entityMeasuresOf computes the measures of a window, with the entity's age
+// and k = min_samples.
+func entityMeasuresOf(window []record, age int64, k int) Obj {
 	var intervals, latencies []int64
 	var nis, speedErr, timeErrors []float64
 	var lateness []any // int64 or float64
 	var stateCodes []int64
 	var outOfOrder, duplicate, sourceOutOfOrder, noCe, noVel, noHae, noTime int64
-	for _, rec := range e.window {
+	for _, rec := range window {
 		if rec.interval != nil {
 			intervals = append(intervals, *rec.interval)
 		}
@@ -107,13 +112,13 @@ func (g *Engine) measures(e *entity, now int64) Obj {
 			noHae++
 		}
 	}
-	reports := int64(len(e.window))
+	reports := int64(len(window))
 	m := Obj{
 		"reports":             reports,
 		"interval_last":       nil,
 		"interval_mean":       nil,
 		"interval_max":        nil,
-		"age":                 now - e.last,
+		"age":                 age,
 		"latency_mean":        nil,
 		"latency_max":         nil,
 		"lateness_mean":       nil,

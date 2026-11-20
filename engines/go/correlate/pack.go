@@ -64,17 +64,6 @@ type Pack struct {
 	TimeOffsetSigmaMs float64 // t
 }
 
-// testParams lists every test and its parameters (spec: Tests table).
-var testParams = map[string][]string{
-	"distance":    {"max_m"},
-	"window":      {"multiplier", "window_m", "err_min_m", "err_max_m"},
-	"mahalanobis": {"gate"},
-	"course":      {"max_deg", "min_speed_ms"},
-	"speed":       {"max_pct", "min_speed_ms"},
-	"altitude":    {"max_m"},
-	"same":        {"key"},
-}
-
 // LoadPack reads <dir>/pack.def (spec: load_pack).
 func LoadPack(dir string) (*Pack, error) {
 	text, err := io.ReadPackDef(dir)
@@ -120,17 +109,17 @@ func parseTest(fields []string) (Test, error) {
 	if len(fields) == 0 {
 		return Test{}, fmt.Errorf("test name missing")
 	}
-	names, ok := testParams[fields[0]]
+	kind, ok := testKinds[fields[0]]
 	if !ok {
 		return Test{}, fmt.Errorf("unknown test %q", fields[0])
 	}
-	params, err := io.Params(fields[1:], names, nil)
+	params, err := io.Params(fields[1:], kind.params, nil)
 	if err != nil {
 		return Test{}, err
 	}
 	t := Test{Name: fields[0], Num: map[string]float64{}}
 	for k, v := range params {
-		if t.Name == "same" {
+		if kind.text {
 			t.Key = v
 			continue
 		}

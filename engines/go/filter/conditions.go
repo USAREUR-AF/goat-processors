@@ -38,8 +38,9 @@ func (r result) passes(negated bool) bool {
 	return (r.truth == isTrue) != negated
 }
 
-// evaluate runs one condition against the report and the state before it.
-func (g *Engine) evaluate(c Condition, r *report) result {
+// evaluate runs one condition against the report and the entities' state
+// before it (read only).
+func evaluate(c Condition, r *report, states map[string]*State) result {
 	switch c.Name {
 	case "circle":
 		d := distance(r.lat, r.lon, c.Lat, c.Lon)
@@ -50,7 +51,7 @@ func (g *Engine) evaluate(c Condition, r *report) result {
 		return result{of(where != outside), where, nil}
 
 	case "near":
-		return g.near(c, r)
+		return near(c, r, states)
 
 	case "env":
 		env, ok := r.environment()
@@ -80,7 +81,7 @@ func (g *Engine) evaluate(c Condition, r *report) result {
 		return rangeOf(r.values["hae"], c)
 
 	case "interval":
-		s := g.entities[r.key]
+		s := states[r.key]
 		if s == nil || s.KeptMs == nil {
 			return result{isFalse, nil, c.MinMs}
 		}
@@ -88,7 +89,7 @@ func (g *Engine) evaluate(c Condition, r *report) result {
 		return result{of(gap < c.MinMs), gap, c.MinMs}
 
 	case "order":
-		s := g.entities[r.key]
+		s := states[r.key]
 		if s == nil || s.KeptMs == nil {
 			return result{isFalse, r.timeMs, nil}
 		}
@@ -99,9 +100,9 @@ func (g *Engine) evaluate(c Condition, r *report) result {
 
 // near: the distance from the report to the reference predicted to the
 // report's time; unknown (value null) when the reference has no state or is stale.
-func (g *Engine) near(c Condition, r *report) result {
-	ref := g.entities[c.Reference]
-	if ref == nil || g.stale(ref, r.timeMs, c.MaxAgeMs) {
+func near(c Condition, r *report, states map[string]*State) result {
+	ref := states[c.Reference]
+	if ref == nil || stale(ref, r.timeMs, c.MaxAgeMs) {
 		return result{unknown, nil, c.RadiusM}
 	}
 	lat, lon := predict(ref, r.timeMs)
@@ -110,7 +111,7 @@ func (g *Engine) near(c Condition, r *report) result {
 }
 
 // stale: abs(time_ms - ref.time_ms) > max_age_ms, or time_ms >= ref.stale_ms.
-func (g *Engine) stale(ref *State, t, maxAge int64) bool {
+func stale(ref *State, t, maxAge int64) bool {
 	age := t - ref.TimeMs
 	if age < 0 {
 		age = -age

@@ -90,6 +90,12 @@ func (g *Engine) inputClock(source string) any {
 	for _, l := range latest {
 		times = append(times, l)
 	}
+	return median(times)
+}
+
+// median is the median of times (reordered): an int64 for an odd count,
+// else the binary64 mean of the two middle values.
+func median(times []int64) any {
 	sort.Slice(times, func(i, j int) bool { return times[i] < times[j] })
 	n := len(times)
 	if n%2 == 1 {
