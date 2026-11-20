@@ -6,39 +6,18 @@
 -define(REPEATING, [<<"attribute">>, <<"source">>]).
 -define(FILTER_PARAMS, [<<"accel_var">>, <<"default_ce_m">>, <<"vel_sigma_ms">>,
                         <<"unknown_vel_ms">>]).
--define(METHODS, [<<"inverse_variance">>, <<"covariance_intersection">>, <<"best">>,
-                  <<"priority">>, <<"latest">>]).
--define(RULES, [<<"priority">>, <<"latest">>, <<"majority">>, <<"max">>, <<"min">>]).
 
-load_pack(Dir) ->
-    case file:read_file(filename:join(Dir, "pack.def")) of
-        {ok, Text} -> parse(Text);
-        {error, R} -> {error, {read, R}}
-    end.
+-import(io_pack, [fail/1]).
+
+load_pack(Dir) -> io_pack:read(Dir, fun parse/1).
 
 %% Returns {ok, Pack} or {error, Why}. Pack is
 %% #{name, version, filter => #{<<"accel_var">> => Q, ...}, kinematics => Method,
 %%   attributes => [{Key, Rule}] (pack order), sources => [SourceId] (rank order),
 %%   stale_ms => Ms}.
-parse(Text) ->
-    try
-        Lines = [split_line(L) || L <- binary:split(Text, <<"\n">>, [global])],
-        {ok, build([D || D <- Lines, D =/= []])}
-    catch
-        throw:{pack_error, Why} -> {error, Why}
-    end.
-
-fail(Why) -> throw({pack_error, Why}).
-
-%% Lines: a CR at the end is removed; "#" starts a comment; the rest is split
-%% on runs of spaces and tabs.
-split_line(Line0) ->
-    Line = case Line0 of
-               <<L:(byte_size(Line0) - 1)/binary, "\r">> -> L;
-               _ -> Line0
-           end,
-    [Code | _] = binary:split(Line, <<"#">>),
-    binary:split(Code, [<<" ">>, <<"\t">>], [global, trim_all]).
+%% Lines (io_pack:words_strip_cr/1): a CR at the end is removed; "#" starts
+%% a comment; the rest is split on runs of spaces and tabs.
+parse(Text) -> io_pack:catching(fun() -> build(io_pack:words_strip_cr(Text)) end).
 
 %% Count rules: unknown directive, once-only missing or repeated.
 build(Directives) ->
@@ -62,19 +41,25 @@ directive([<<"filter">> | Tokens], P) ->
     maps:get(<<"accel_var">>, F) >= 0 orelse fail({below_zero, accel_var}),
     P#{filter => F};
 directive([<<"kinematics">>, M], P) ->
-    lists:member(M, ?METHODS) orelse fail({unknown_method, M}),
-    P#{kinematics => binary_to_atom(M)};
+    P#{kinematics => named(M, fuse_kinematics:methods(), unknown_method)};
 directive([<<"stale_ms">>, N], P) -> P#{stale_ms => integer(N)};
 directive([<<"attribute">>, Key | Tokens], P = #{attributes := As}) ->
     binary:match(Key, <<"=">>) =:= nomatch orelse fail({key_with_equals, Key}),
     lists:keymember(Key, 1, As) andalso fail({repeated_attribute, Key}),
     #{<<"rule">> := Rule} = params(Tokens, [<<"rule">>]),
-    lists:member(Rule, ?RULES) orelse fail({unknown_rule, Rule}),
-    P#{attributes := [{Key, binary_to_atom(Rule)} | As]};
+    P#{attributes := [{Key, named(Rule, fuse_attributes:rules(), unknown_rule)} | As]};
 directive([<<"source">>, S], P = #{sources := Ss}) ->
     lists:member(S, Ss) andalso fail({repeated_source, S}),
     P#{sources := [S | Ss]};
 directive(D, _) -> fail({bad_values, D}).
+
+%% The key of Table (fuse_kinematics:methods/0, fuse_attributes:rules/0)
+%% named by the token, byte for byte.
+named(Token, Table, Why) ->
+    case [K || K <- maps:keys(Table), atom_to_binary(K) =:= Token] of
+        [K] -> K;
+        [] -> fail({Why, Token})
+    end.
 
 %% name=value parameters: each has "=", none unknown, repeated or missing.
 params(Tokens, Wanted) ->

@@ -1,17 +1,17 @@
 %% An entity's estimate: one filter (correlate.md "Track estimate"), or two
 %% models combined (correlate.md "Two-model filter") when the pack has a
-%% maneuver line. The estimate lives in the entity map under `filter`, plus
+%% maneuver line. Pure: each function returns a new estimate. The estimate lives in the entity map under `filter`, plus
 %% `models` => {Quiet, Maneuver} and `mode` => {Mu1, Mu2} with two models.
 %% R is the report's measurement variance per axis, {REast, RNorth}
 %% (correlate.md "Track estimate", Measurement variance).
--module(correlator_estimate).
+-module(model_imm).
 -export([init/4, update/6, predict/3]).
 
 %% First report. Two models: both are the first-report filter, mu1 = b / s,
 %% mu2 = a / s, and the combination is that same filter.
 init(Z, Vel, R, Pack) ->
     F = maps:get(filter, Pack),
-    Filter = correlator_filter:init_r(Z, Vel, R, F),
+    Filter = model_kalman:init_r(Z, Vel, R, F),
     case maps:find(maneuver, Pack) of
         error -> #{filter => Filter};
         {ok, M} ->
@@ -27,7 +27,7 @@ update(Est, Dt, Z, Vel, R, Pack) ->
     Q1 = maps:get(<<"accel_var">>, F),
     case maps:find(maneuver, Pack) of
         error ->
-            {Filter, _} = correlator_filter:update_r(maps:get(filter, Est), Dt, Q1, Z, Vel, R, F),
+            {Filter, _} = model_kalman:update_r(maps:get(filter, Est), Dt, Q1, Z, Vel, R, F),
             {#{filter => Filter}, []};
         {ok, M} ->
             #{<<"accel_var">> := Q2, <<"p_enter">> := A, <<"p_leave">> := B} = M,
@@ -40,8 +40,8 @@ update(Est, Dt, Z, Vel, R, Pack) ->
             Mixed1 = mix(C1, T11 * Mu1, T21 * Mu2, Model1, Model2, Model1),
             Mixed2 = mix(C2, T12 * Mu1, T22 * Mu2, Model1, Model2, Model2),
             %% Step 2, predict and update; step 3, likelihood.
-            {New1, Terms1} = correlator_filter:update_r(Mixed1, Dt, Q1, Z, Vel, R, F),
-            {New2, Terms2} = correlator_filter:update_r(Mixed2, Dt, Q2, Z, Vel, R, F),
+            {New1, Terms1} = model_kalman:update_r(Mixed1, Dt, Q1, Z, Vel, R, F),
+            {New2, Terms2} = model_kalman:update_r(Mixed2, Dt, Q2, Z, Vel, R, F),
             L1 = likelihood(Terms1),
             L2 = likelihood(Terms2),
             %% Step 4, mode probabilities.
@@ -103,10 +103,10 @@ blend_axis(W1, W2, {P1, V1, PP1, PV1, VV1}, {P2, V2, PP2, PV2, VV2}) ->
 predict(Ent, Dt, Pack) ->
     Q1 = maps:get(<<"accel_var">>, maps:get(filter, Pack)),
     case maps:find(maneuver, Pack) of
-        error -> correlator_filter:predict(maps:get(filter, Ent), Dt, Q1);
+        error -> model_kalman:predict(maps:get(filter, Ent), Dt, Q1);
         {ok, #{<<"accel_var">> := Q2}} ->
             {Model1, Model2} = maps:get(models, Ent),
             {Mu1, Mu2} = maps:get(mode, Ent),
-            blend(Mu1, Mu2, correlator_filter:predict(Model1, Dt, Q1),
-                  correlator_filter:predict(Model2, Dt, Q2))
+            blend(Mu1, Mu2, model_kalman:predict(Model1, Dt, Q1),
+                  model_kalman:predict(Model2, Dt, Q2))
     end.

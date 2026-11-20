@@ -3,28 +3,19 @@
 %% A parsed pack is
 %%   #{name, version, default => keep | drop, forget_ms => integer(),
 %%     rules => [#{name, action => keep | drop, conditions => [Condition]}]}
-%% and a condition is #{test => binary(), negated => boolean(), params => map()},
-%% with each parameter already converted to its value (Values table).
+%% and a condition is #{test => binary(), negated => boolean(), params => map(),
+%% eval => fun}, with each parameter already converted to its value (Values
+%% table) and eval the kind's function from filter_conditions:table/0.
 -module(filter_pack).
 -export([load_pack/1, parse/1, read_number/1]).
 
+-import(io_pack, [fail/1]).
+
 -define(INT64_MAX, 9223372036854775807).
 
-load_pack(Dir) ->
-    case file:read_file(filename:join(Dir, "pack.def")) of
-        {ok, Text} -> parse(Text);
-        {error, R} -> {error, {read, R}}
-    end.
+load_pack(Dir) -> io_pack:read(Dir, fun parse/1).
 
-parse(Text) ->
-    try
-        Lines = [correlator_pack:split_line(L) || L <- binary:split(Text, <<"\n">>, [global])],
-        {ok, build([L || L <- Lines, L =/= []])}
-    catch
-        throw:{pack_error, Why} -> {error, Why}
-    end.
-
-fail(Why) -> throw({pack_error, Why}).
+parse(Text) -> io_pack:catching(fun() -> build(io_pack:words(Text)) end).
 
 %% ---------------------------------------------------------------- directives
 
@@ -75,10 +66,14 @@ condition([]) -> fail(empty_when).
 condition(Negated, Test, ParamTokens) ->
     Raw = params(ParamTokens, #{}),
     Given = lists:sort(maps:keys(Raw)),
-    lists:member(Given, parameter_sets(Test)) orelse fail({bad_parameters, Test, Given}),
+    {Sets, Eval} = case maps:find(Test, filter_conditions:table()) of
+                       {ok, Kind} -> Kind;
+                       error -> fail({unknown_condition, Test})
+                   end,
+    lists:member(Given, Sets) orelse fail({bad_parameters, Test, Given}),
     Params = maps:map(fun(Name, Text) -> value(Test, Name, Text) end, Raw),
     check_bounds(Params),
-    #{test => Test, negated => Negated, params => Params}.
+    #{test => Test, negated => Negated, params => Params, eval => Eval}.
 
 %% name=value: the name is the text before the first "=", the value the rest.
 params([], Acc) -> Acc;
@@ -88,26 +83,6 @@ params([Tok | Rest], Acc) ->
             maps:is_key(Name, Acc) andalso fail({repeated_param, Name}),
             params(Rest, Acc#{Name => Value});
         [_] -> fail({param_without_equals, Tok})
-    end.
-
-%% Parameter sets, exactly (each set sorted, as Given is).
-parameter_sets(<<"circle">>) -> [[<<"lat">>, <<"lon">>, <<"radius_m">>]];
-parameter_sets(<<"polygon">>) -> [[<<"vertices">>]];
-parameter_sets(<<"near">>) -> [[<<"max_age_ms">>, <<"radius_m">>, <<"reference">>]];
-parameter_sets(<<"key">>) ->
-    [[<<"eq">>, <<"name">>], [<<"in">>, <<"name">>], [<<"min">>, <<"name">>],
-     [<<"max">>, <<"name">>], [<<"max">>, <<"min">>, <<"name">>]];
-parameter_sets(<<"has">>) -> [[<<"name">>]];
-parameter_sets(<<"interval">>) -> [[<<"min_ms">>]];
-parameter_sets(<<"order">>) -> [[]];
-parameter_sets(T) ->
-    case lists:member(T, [<<"env">>, <<"affiliation">>, <<"source">>, <<"uid">>]) of
-        true -> [[<<"in">>]];
-        false ->
-            case lists:member(T, [<<"speed">>, <<"altitude">>]) of
-                true -> [[<<"min">>], [<<"max">>], [<<"max">>, <<"min">>]];
-                false -> fail({unknown_condition, T})
-            end
     end.
 
 %% Values: convert each parameter per its grammar and limits.

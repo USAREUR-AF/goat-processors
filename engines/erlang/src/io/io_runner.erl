@@ -6,7 +6,7 @@
 %% line of counters to standard output; diagnostics go to standard error.
 %% The events file holds one JSON object per line, map keys in byte order.
 -module(io_runner).
--export([main/0]).
+-export([main/0, parse_steps/1]).
 
 main() ->
     Status = try run(init:get_plain_arguments())
@@ -24,11 +24,11 @@ args(["--events", E | Rest], Acc) -> args(Rest, Acc#{events => E});
 args(["--trace" | Rest], Acc) -> args(Rest, Acc#{trace => true});
 args([A | _], _) -> throw({usage, "unknown argument " ++ A}).
 
-engine("correlate") -> correlator;
-engine("filter") -> filter;
-engine("fuse") -> fuse;
-engine("quality") -> quality;
-engine(F) -> throw({usage, "unknown function " ++ F}).
+engine(F) ->
+    case io_engine:module(list_to_binary(F)) of
+        {ok, Mod} -> Mod;
+        error -> throw({usage, "unknown function " ++ F})
+    end.
 
 run(Argv) ->
     Opts = args(Argv, #{trace => false}),
@@ -37,9 +37,13 @@ run(Argv) ->
     #{function := Function, pack := PackDir, steps := StepsFile, trace := WithTrace} = Opts,
     Mod = engine(Function),
     T0 = now_ns(),
-    Steps = case catch parse_steps(StepsFile) of
-                L when is_list(L) -> L;
-                _ -> throw({usage, "steps file does not parse: " ++ StepsFile})
+    Steps = case file:read_file(StepsFile) of
+                {ok, Bin} ->
+                    case parse_steps(Bin) of
+                        {ok, L} -> L;
+                        {error, _} -> throw({usage, "steps file does not parse: " ++ StepsFile})
+                    end;
+                {error, _} -> throw({usage, "steps file cannot be read: " ++ StepsFile})
             end,
     T1 = now_ns(),
     Engine0 = case catch Mod:load_pack(PackDir) of
@@ -48,7 +52,7 @@ run(Argv) ->
                                                                      [PackDir, Other]))})
               end,
     T2 = now_ns(),
-    {Outputs, Engine} = steps(Mod, Steps, Engine0, []),
+    {Outputs, Engine} = io_engine:run(Mod, Steps, Engine0),
     Snapshot = Mod:snapshot(Engine),
     T3 = now_ns(),
     case Opts of
@@ -71,23 +75,21 @@ run(Argv) ->
 
 now_ns() -> erlang:monotonic_time(nanosecond).
 
-%% The steps of a JSON object whose "steps" is a list; each step holds
-%% "ingest" (a report) or "tick" (an integer now_ms); other keys are ignored.
-parse_steps(File) ->
-    {ok, Bin} = file:read_file(File),
-    #{<<"steps">> := Steps} = json:decode(Bin),
-    [case S of
-         #{<<"ingest">> := R} when is_map(R) -> {ingest, R};
-         #{<<"tick">> := N} when is_integer(N) -> {tick, N}
-     end || S <- Steps].
+%% The steps of a JSON text: an object whose "steps" is a list; each step
+%% holds "ingest" (a report object) or "tick" (an integer now_ms); any other
+%% key is ignored. {ok, [{ingest, Report} | {tick, NowMs}]} or {error, Why}.
+parse_steps(Bin) ->
+    try json:decode(Bin) of
+        #{<<"steps">> := Steps} when is_list(Steps) -> steps(Steps, []);
+        _ -> {error, no_steps}
+    catch
+        error:Why -> {error, {json, Why}}
+    end.
 
-steps(_Mod, [], Engine, Acc) -> {lists:reverse(Acc), Engine};
-steps(Mod, [{ingest, R} | Rest], E0, Acc) ->
-    {Events, Trace, E1} = Mod:ingest(R, E0),
-    steps(Mod, Rest, E1, [{Events, Trace} | Acc]);
-steps(Mod, [{tick, N} | Rest], E0, Acc) ->
-    {Events, Trace, E1} = Mod:tick(N, E0),
-    steps(Mod, Rest, E1, [{Events, Trace} | Acc]).
+steps([], Acc) -> {ok, lists:reverse(Acc)};
+steps([#{<<"ingest">> := R} | Rest], Acc) when is_map(R) -> steps(Rest, [{ingest, R} | Acc]);
+steps([#{<<"tick">> := N} | Rest], Acc) when is_integer(N) -> steps(Rest, [{tick, N} | Acc]);
+steps([S | _], _Acc) -> {error, {bad_step, S}}.
 
 write_events(File, Outputs, Snapshot, WithTrace) ->
     Lines = lines(Outputs, 0, WithTrace, []),

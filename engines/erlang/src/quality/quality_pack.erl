@@ -1,20 +1,8 @@
 %% Quality pack: load and parse pack.def (quality.md 0.2 "Pack").
 -module(quality_pack).
--export([load_pack/1, parse/1, entity_measures/0, source_measures/0]).
+-export([load_pack/2, parse/1, parse/2]).
 
-%% quality.md "Entity measures" and "Source measures": the measures, in
-%% table order. A source has every entity measure plus `entities`.
--define(ENTITY_MEASURES,
-        [<<"reports">>, <<"interval_last">>, <<"interval_mean">>, <<"interval_max">>,
-         <<"age">>, <<"latency_mean">>, <<"latency_max">>,
-         <<"lateness_mean">>, <<"lateness_max">>, <<"lateness_min">>, <<"nis_mean">>,
-         <<"speed_err_mean">>, <<"out_of_order">>, <<"duplicate">>,
-         <<"source_out_of_order">>, <<"missing_ce">>, <<"missing_vel">>, <<"missing_hae">>,
-         <<"time_error_mean">>, <<"time_error_max">>, <<"time_state_last">>,
-         <<"time_state_worst">>, <<"missing_time">>]).
-
-entity_measures() -> ?ENTITY_MEASURES.
-source_measures() -> ?ENTITY_MEASURES ++ [<<"entities">>].
+-import(io_pack, [fail/1]).
 
 -define(ONCE, [<<"pack">>, <<"version">>, <<"filter">>, <<"window">>]).
 -define(FILTER_PARAMS, [<<"accel_var">>, <<"default_ce_m">>, <<"vel_sigma_ms">>,
@@ -23,58 +11,29 @@ source_measures() -> ?ENTITY_MEASURES ++ [<<"entities">>].
 -define(RULE_PARAMS, [<<"scope">>, <<"measure">>, <<"op">>, <<"limit">>, <<"for">>,
                       <<"clear">>, <<"action">>]).
 
-load_pack(Dir) ->
-    case file:read_file(filename:join(Dir, "pack.def")) of
-        {ok, Text} -> parse(Text);
-        {error, R} -> {error, {read, R}}
-    end.
+load_pack(Dir, Extensions) -> io_pack:read(Dir, fun(Text) -> parse(Text, Extensions) end).
+
+parse(Text) -> parse(Text, #{}).
 
 %% Returns {ok, Pack} or {error, Why}. Pack:
 %% #{name, version, filter => #{<<"accel_var">> => float, ...},
 %%   window_ms, min_samples, forget_ms, rules => [Rule] in pack order,
-%%   time_default => #{Source => #{<<"error_ms">> => float, <<"state">> => State}}}.
-parse(Text) ->
-    try
-        Lines = [tokens(L) || L <- lines(Text)],
-        {ok, build([D || D <- Lines, D =/= []])}
-    catch
-        throw:{pack_error, Why} -> {error, Why}
-    end.
-
-fail(Why) -> throw({pack_error, Why}).
-
-%% Pack, step 1: lines end at LF, and a final LF does not start another line;
-%% one CR at the end of a line is removed.
-lines(Text) ->
-    Parts = binary:split(Text, <<"\n">>, [global]),
-    Lines = case lists:last(Parts) of
-                <<>> -> lists:droplast(Parts);
-                _ -> Parts
-            end,
-    [strip_cr(L) || L <- Lines].
-
-strip_cr(L) ->
-    case binary:last(<<0, L/binary>>) of
-        $\r -> binary:part(L, 0, byte_size(L) - 1);
-        _ -> L
-    end.
-
-%% Pack, steps 2 to 5: a control character other than tab (U+0000 to U+001F,
-%% or U+007F; a CR left inside the line is one) is a load error; "#" starts a
-%% comment; tokens are separated by runs of space and tab only, which also
-%% removes them at the start and end; a line left empty gives no tokens.
-tokens(Line) ->
-    [fail({control_character, C}) || <<C>> <= Line, (C < 16#20 andalso C =/= $\t) orelse C =:= 16#7F],
-    [Code | _] = binary:split(Line, <<"#">>),
-    binary:split(Code, [<<" ">>, <<"\t">>], [global, trim_all]).
+%%   time_default => #{Source => #{<<"error_ms">> => float, <<"state">> => State}},
+%%   measures => the measure table (quality_measures)}.
+%% Lines are io_pack:strict_lines/1 (Pack, steps 1 to 5). Extensions:
+%% #{measures => [Measure]}.
+parse(Text, Extensions) ->
+    Table = quality_measures:table(maps:get(measures, Extensions, [])),
+    io_pack:catching(fun() -> build(io_pack:strict_lines(Text), Table) end).
 
 %% `pack`, `version`, `filter`, `window` required, once; `rule` repeats.
-build(Directives) ->
+build(Directives, Table) ->
     Names = [N || [N | _] <- Directives],
     [fail({unknown_directive, N}) || N <- Names,
                                      not lists:member(N, [<<"rule">>, <<"time_default">> | ?ONCE])],
     [fail({repeated_or_missing, N}) || N <- ?ONCE, count(N, Names) =/= 1],
-    P = lists:foldl(fun directive/2, #{rules => [], time_default => #{}}, Directives),
+    P = lists:foldl(fun directive/2, #{rules => [], time_default => #{}, measures => Table},
+                    Directives),
     P#{rules := lists:reverse(maps:get(rules, P))}.
 
 count(N, Names) -> length([X || X <- Names, X =:= N]).
@@ -83,10 +42,11 @@ directive([<<"pack">>, Name], P) -> P#{name => Name};
 directive([<<"version">>, V], P) -> P#{version => V};
 directive([<<"filter">> | Ps], P) -> P#{filter => filter(params(Ps, ?FILTER_PARAMS, []))};
 directive([<<"window">> | Ps], P) -> maps:merge(P, window(params(Ps, ?WINDOW_PARAMS, [])));
-directive([<<"rule">> | Ts], P = #{rules := Rules}) -> P#{rules := [rule(Ts, Rules) | Rules]};
+directive([<<"rule">> | Ts], P = #{rules := Rules, measures := Table}) ->
+    P#{rules := [rule(Ts, Rules, Table) | Rules]};
 %% time_default: correlate.md "Pack" grammar, error_ms in this pack's number grammar.
 directive([<<"time_default">> | Ts], P = #{time_default := Defaults}) ->
-    P#{time_default := correlator_pack:time_default_line(Ts, Defaults, fun number/1)};
+    P#{time_default := correlate_pack:time_default_line(Ts, Defaults, fun number/1)};
 directive(D, _) -> fail({values, D}).
 
 %% filter: numbers; accel_var >= 0, the others > 0.
@@ -104,8 +64,8 @@ at_least_one(N) when N >= 1 -> N;
 at_least_one(N) -> fail({below_one, N}).
 
 %% rule <name> scope= measure= op= limit= for= clear= action= [factor=]
-rule([], _) -> fail(rule_without_name);
-rule([Name | Ps], Earlier) ->
+rule([], _, _) -> fail(rule_without_name);
+rule([Name | Ps], Earlier, Table) ->
     re:run(Name, <<"^[A-Za-z0-9._-]+$">>) =/= nomatch orelse fail({bad_name, Name}),
     [fail({repeated_name, Name}) || #{name := N} <- Earlier, N =:= Name],
     M = params(Ps, ?RULE_PARAMS, [<<"factor">>]),
@@ -115,7 +75,10 @@ rule([Name | Ps], Earlier) ->
                 S -> fail({bad_scope, S})
             end,
     Measure = maps:get(<<"measure">>, M),
-    Measures = case Scope of entity -> ?ENTITY_MEASURES; source -> source_measures() end,
+    Measures = case Scope of
+                   entity -> quality_measures:entity_names(Table);
+                   source -> quality_measures:source_names(Table)
+               end,
     lists:member(Measure, Measures) orelse fail({bad_measure, Measure}),
     Op = maps:get(<<"op">>, M),
     lists:member(Op, [<<"<">>, <<"<=">>, <<">">>, <<">=">>]) orelse fail({bad_op, Op}),
