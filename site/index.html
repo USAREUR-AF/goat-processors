@@ -167,14 +167,14 @@ python3 -I tools/bench/bench.py report  # rewrite it</pre>
 <section class="band agents" id="agents">
   <div class="wrap">
     <h2>Working with AI agents</h2>
-    <p class="sub">The processors stay fast and exact, with no model inside the engines. The design connects AI agents at the edges, through the same doors a person uses, and logs every agent action with the identity it acts for. None of these interfaces is built yet; each tile says Built only when its code and tests are on main.</p>
+    <p class="sub">The processors stay fast and exact, with no model inside the engines. AI agents connect at the edges, through the same doors a person uses, and every agent action is logged with the identity it acts for. Each tile says Built only when its code and tests are on main.</p>
     <div class="cards four">
-      <div class="card"><span class="status" data-status="mcp">Designed</span><h3>Connect an AI assistant</h3><p>An MCP server in the runner (Model Context Protocol, the common way an assistant calls a program's tools). An assistant reads tracks and quality marks and proposes changes, with no more authority than its user.</p></div>
-      <div class="card"><span class="status" data-status="source adjudicator">Designed</span><h3>Agents as sources and judges</h3><p>An agent can publish tracks under its own name, marked as agent-derived, or settle a hard case with a hint ("keep A and B apart"). The engines record and trace hints like any input, so replays stay exact.</p></div>
-      <div class="card"><span class="status" data-status="settings audit">Designed</span><h3>Proposals someone approves</h3><p>An agent proposes a settings change; a person, or a site rule within set bounds after the benchmark passes, approves it. Every call and change is logged and can be reverted.</p></div>
-      <div class="card"><span class="status" data-status="explainer">Designed</span><h3>Ask "why?"</h3><p>A plain-language answer to "why were these two tracks joined?", in which every sentence cites the trace record it comes from.</p></div>
+      <div class="card"><span class="status" data-status="mcp">Built</span><h3>Connect an AI assistant</h3><p>An MCP server in the runner (Model Context Protocol, the common way an assistant calls a program's tools). An assistant reads tracks and quality marks and proposes changes, with no more authority than its user.</p></div>
+      <div class="card"><span class="status" data-status="source">Built</span><h3>Agents as sources</h3><p>An agent publishes tracks under its own name, marked as agent-derived with its model, and the processors take them in like any sensor. Hints that settle a hard case ("keep A and B apart") are <span class="status" data-status="adjudicator">Designed</span>.</p></div>
+      <div class="card"><span class="status" data-status="settings audit">Built</span><h3>Proposals someone approves</h3><p>An agent proposes another pack; a person approves it, or a site rule does, within the packs it allows and after its gate passes. Every call and change is logged and can be reverted.</p></div>
+      <div class="card"><span class="status" data-status="explainer">Built</span><h3>Ask "why?"</h3><p>A plain-language answer to "why were these two tracks joined?", in which every sentence cites the trace record it comes from.</p></div>
     </div>
-    <p class="after">Each site chooses the model its agent features may use, local or hosted, and the highest level of data sent to it. The guide to building your own integration, one runnable example per interface, is <span class="status" data-status="guide">Designed</span>.</p>
+    <p class="after">Each site chooses the model its agent features may use, local or hosted, and the highest level of data sent to it. <a href="https://github.com/USAREUR-AF/goat-processors/blob/main/runner/examples/README.md">The guide to building your own integration</a> has one runnable example per built interface, each run in CI: <span class="status" data-status="guide">Built</span>.</p>
     <p><a href="https://github.com/USAREUR-AF/goat-processors#working-with-ai-agents">The interfaces and their status</a></p>
   </div>
 </section>
