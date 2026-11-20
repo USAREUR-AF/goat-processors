@@ -9,7 +9,7 @@ from . import bias as _bias
 from . import estimate
 from . import snapshot as _snapshot
 from . import trace as _trace
-from .correlate import Correlator
+from .tracks import Correlator
 from .model import course_deg
 from .ranking import INF, assignment_total, ranked_assignments
 
@@ -73,6 +73,8 @@ class AssignEngine(Correlator):
     """spec/correlate-assign.md: every track in one system track; per-source
     exact assignment at each tick, ranked and kept over a window of ticks;
     fused estimate by inverse-variance weights."""
+
+    keeps_restarts = True
 
     def __init__(self, pack):
         super().__init__(pack)

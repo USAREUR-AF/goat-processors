@@ -5,14 +5,16 @@ spec/fuse.md and spec/quality.md take their required keys and their frame
 from there. Pure functions and constants only."""
 
 import math
+from types import MappingProxyType
 
 R = 6371008.8
 
 TIME_STATES = ("coherent", "drifting", "free-running")
 REQUIRED = (("track.source_id", "str"), ("uid", "str"), ("time_ms", "int"),
             ("lat", "num"), ("lon", "num"))
-OPTIONAL = {"hae": "num", "ce": "num", "course": "num", "speed_ms": "num",
-            "type": "str", "stale_ms": "int", "time_error_ms": "num", "time_state": "str"}
+OPTIONAL = MappingProxyType({"hae": "num", "ce": "num", "course": "num", "speed_ms": "num",
+                             "type": "str", "stale_ms": "int", "time_error_ms": "num",
+                             "time_state": "str"})
 
 
 def is_kind(v, kind):

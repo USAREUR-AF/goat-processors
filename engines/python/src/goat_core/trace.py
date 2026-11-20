@@ -5,13 +5,9 @@ spec/correlate.md and spec/correlate-assign.md, Trace; spec/filter.md,
 spec/fuse.md and spec/quality.md, Trace. Pure functions."""
 
 
-def record(stage, a, b, test, value, limit, ok, extra=None):
-    """A correlate record: stage, a, b, test, value, limit, pass, then any
-    extra keys in their order."""
-    rec = {"stage": stage, "a": a, "b": b, "test": test, "value": value, "limit": limit, "pass": ok}
-    if extra:
-        rec.update(extra)
-    return rec
+def record(stage, a, b, test, value, limit, ok):
+    """A correlate record: stage, a, b, test, value, limit, pass."""
+    return {"stage": stage, "a": a, "b": b, "test": test, "value": value, "limit": limit, "pass": ok}
 
 
 def skipped(stage, a, b, test):

@@ -5,6 +5,8 @@ and report validation are correlate's (model.py, estimate.py)."""
 
 import math
 import re
+from types import MappingProxyType
+from typing import Callable, NamedTuple
 
 from . import estimate
 from . import snapshot as _snapshot
@@ -15,8 +17,6 @@ from .model import course_deg, missing_key, normalize, to_deg, to_plane, velocit
 from .packdef import PackError
 
 FILTER_PARAMS = ("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms")
-METHODS = ("inverse_variance", "covariance_intersection", "best", "priority", "latest")
-RULES = ("priority", "latest", "majority", "max", "min")
 ONCE = ("pack", "version", "filter", "kinematics", "stale_ms")
 NUMBER = re.compile(r"-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?\Z")
 INTEGER = re.compile(r"[0-9]+\Z")
@@ -72,8 +72,8 @@ def parse_pack(text):
                 raise PackError("line %d: filter variances must be above 0 (accel_var 0 or above)" % i)
             p.filter = kv
         elif d == "kinematics":
-            if len(args) != 1 or args[0] not in METHODS:
-                raise PackError("line %d: kinematics is one of %s" % (i, ", ".join(METHODS)))
+            if len(args) != 1 or args[0] not in KINEMATICS:
+                raise PackError("line %d: kinematics is one of %s" % (i, ", ".join(KINEMATICS)))
             p.kinematics = args[0]
         elif d == "stale_ms":
             if len(args) != 1 or not INTEGER.match(args[0]):
@@ -88,8 +88,8 @@ def parse_pack(text):
             if "=" not in prm:
                 raise PackError("line %d: parameter without '=': %s" % (i, prm))
             k, v = prm.split("=", 1)
-            if k != "rule" or v not in RULES:
-                raise PackError("line %d: attribute needs rule=%s" % (i, "|".join(RULES)))
+            if k != "rule" or v not in ATTRIBUTE_RULES:
+                raise PackError("line %d: attribute needs rule=%s" % (i, "|".join(ATTRIBUTE_RULES)))
             if any(key == a for a, _ in p.attributes):
                 raise PackError("line %d: repeated attribute %s" % (i, key))
             p.attributes.append((key, v))
@@ -117,10 +117,10 @@ def _group_of(report):
 
 
 def _usable(v, rule):
-    if isinstance(v, bool):
-        return rule not in ("max", "min")
-    if isinstance(v, str):
-        return rule not in ("max", "min")
+    """Attributes: a value the rule can use (a number; a string or boolean
+    too unless the rule takes numbers only)."""
+    if isinstance(v, (bool, str)):
+        return not ATTRIBUTE_RULES[rule].numbers_only
     return isinstance(v, (int, float))
 
 
@@ -183,28 +183,47 @@ def _latest_key(e):
     return (-e.last_time_ms, e.key)
 
 
+# --- kinematics (spec/fuse.md, Kinematics) --------------------------------
+# Each takes the group's members ents (key order), their predictions pred and
+# position variances var, and the priority order rank_key; it returns
+# (estimate, the member it came from or None, the covariance intersection
+# weights as (member, w)).
+
+def _inverse_variance(ents, pred, var, rank_key):
+    return inverse_variance([pred[e.key] for e in ents]), None, []
+
+
+def _covariance_intersection(ents, pred, var, rank_key):
+    est = pred[ents[0].key]
+    weights = []
+    for e in ents[1:]:
+        w = ci_weight(est, pred[e.key])
+        weights.append((e.key, w))
+        est = ci_fold(est, pred[e.key], w)
+    return est, None, weights
+
+
+def _choose(key_of):
+    """best, priority, latest: one member's prediction, the least by key_of."""
+    def method(ents, pred, var, rank_key):
+        src = min(ents, key=key_of(var, rank_key))
+        return pred[src.key], src, []
+    return method
+
+
+# The one table of kinematics methods.
+KINEMATICS = MappingProxyType({
+    "inverse_variance": _inverse_variance,
+    "covariance_intersection": _covariance_intersection,
+    "best": _choose(lambda var, rank_key: lambda e: (var[e.key], e.key)),
+    "priority": _choose(lambda var, rank_key: rank_key),
+    "latest": _choose(lambda var, rank_key: _latest_key),
+})
+
+
 def kinematics(method, ents, pred, var, rank_key):
-    """Kinematics: the estimate of one group by `method` from its members
-    ents (key order), their predictions pred and position variances var.
-    Returns (estimate, the member it came from or None, the covariance
-    intersection weights as (member, w))."""
-    if method == "inverse_variance":
-        return inverse_variance([pred[e.key] for e in ents]), None, []
-    if method == "covariance_intersection":
-        est = pred[ents[0].key]
-        weights = []
-        for e in ents[1:]:
-            w = ci_weight(est, pred[e.key])
-            weights.append((e.key, w))
-            est = ci_fold(est, pred[e.key], w)
-        return est, None, weights
-    if method == "best":
-        src = min(ents, key=lambda e: (var[e.key], e.key))
-    elif method == "priority":
-        src = min(ents, key=rank_key)
-    else:
-        src = min(ents, key=_latest_key)
-    return pred[src.key], src, []
+    """Kinematics: the estimate of one group by `method`."""
+    return KINEMATICS[method](ents, pred, var, rank_key)
 
 
 def height_source(ents, src):
@@ -216,28 +235,22 @@ def height_source(ents, src):
     return min(withh, key=_latest_key) if withh else None
 
 
-def attribute_winner(cands, key, rule, rank_key):
-    """Attributes: the member whose value of `key` wins by `rule`, among the
-    candidates (key order) that hold a usable value; None without one."""
-    if not cands:
-        return None
-    if rule == "priority":
-        return min(cands, key=rank_key)
-    if rule == "latest":
-        return min(cands, key=_latest_key)
-    if rule == "max":
+# --- attributes (spec/fuse.md, Attributes) --------------------------------
+# Each takes the candidates (key order, each holding a usable value of key),
+# the key and the priority order, and returns the winning member.
+
+def _max_or_min(better):
+    def rule(cands, key, rank_key):
         win = cands[0]
         for e in cands[1:]:
-            if e.report[key] > win.report[key]:
+            if better(e.report[key], win.report[key]):
                 win = e
         return win
-    if rule == "min":
-        win = cands[0]
-        for e in cands[1:]:
-            if e.report[key] < win.report[key]:
-                win = e
-        return win
-    firsts, counts = [], []  # majority
+    return rule
+
+
+def _majority(cands, key, rank_key):
+    firsts, counts = [], []
     for e in cands:
         for j, h in enumerate(firsts):
             if _same(h.report[key], e.report[key]):
@@ -251,6 +264,31 @@ def attribute_winner(cands, key, rule, rank_key):
         if counts[j] > counts[best]:
             best = j
     return firsts[best]
+
+
+class AttributeRule(NamedTuple):
+    """One attribute rule: winner(cands, key, rank_key), and whether it
+    takes numbers only (a string or boolean value is then not usable)."""
+    winner: Callable
+    numbers_only: bool = False
+
+
+# The one table of attribute rules.
+ATTRIBUTE_RULES = MappingProxyType({
+    "priority": AttributeRule(lambda cands, key, rank_key: min(cands, key=rank_key)),
+    "latest": AttributeRule(lambda cands, key, rank_key: min(cands, key=_latest_key)),
+    "majority": AttributeRule(_majority),
+    "max": AttributeRule(_max_or_min(lambda a, b: a > b), numbers_only=True),
+    "min": AttributeRule(_max_or_min(lambda a, b: a < b), numbers_only=True),
+})
+
+
+def attribute_winner(cands, key, rule, rank_key):
+    """Attributes: the member whose value of `key` wins by `rule`, or None
+    without a candidate."""
+    if not cands:
+        return None
+    return ATTRIBUTE_RULES[rule].winner(cands, key, rank_key)
 
 
 class _Entity:

@@ -4,6 +4,8 @@ drop or alert. The per-entity filter is correlate's (estimate.py)."""
 
 import math
 import re
+from types import MappingProxyType
+from typing import Callable, NamedTuple
 
 from . import estimate
 from . import snapshot as _snapshot
@@ -16,36 +18,7 @@ FILTER_PARAMS = ("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms")
 WINDOW_PARAMS = ("window_ms", "min_samples", "forget_ms")
 RULE_PARAMS = ("scope", "measure", "op", "limit", "for", "clear", "action")
 
-# Entity measures, in the order of the spec's measures table, with the way a
-# source aggregates each over its entities.
-MEASURES = (
-    ("reports", "sum"),
-    ("interval_last", "mean"),
-    ("interval_mean", "mean"),
-    ("interval_max", "max"),
-    ("age", "min"),
-    ("latency_mean", "mean"),
-    ("latency_max", "max"),
-    ("lateness_mean", "mean"),
-    ("lateness_max", "max"),
-    ("lateness_min", "min"),
-    ("nis_mean", "mean"),
-    ("speed_err_mean", "mean"),
-    ("out_of_order", "sum"),
-    ("duplicate", "sum"),
-    ("source_out_of_order", "sum"),
-    ("missing_ce", "mean"),
-    ("missing_vel", "mean"),
-    ("missing_hae", "mean"),
-    ("time_error_mean", "mean"),
-    ("time_error_max", "max"),
-    ("time_state_last", "max"),
-    ("time_state_worst", "max"),
-    ("missing_time", "mean"),
-)
-TIME_CODE = {"coherent": 0, "drifting": 1, "free-running": 2}
-ENTITY_MEASURES = tuple(m for m, _ in MEASURES)
-SOURCE_MEASURES = ENTITY_MEASURES + ("entities",)
+TIME_CODE = MappingProxyType({"coherent": 0, "drifting": 1, "free-running": 2})
 OPS = ("<", "<=", ">", ">=")
 ACTIONS = ("mark", "downgrade", "drop", "alert")
 
@@ -73,6 +46,7 @@ class Pack:
         self.forget_ms = None
         self.rules = []
         self.time_default = {}
+        self.measures = None  # the table of measures the pack was parsed with
 
 
 def _num(v, line_no):
@@ -107,8 +81,13 @@ def _params(args, line_no, allowed, required):
     return out
 
 
-def parse_pack(text):
+def parse_pack(text, measures=None):
+    """A quality pack.def, its rules naming measures of `measures` (MEASURES
+    by default); raises PackError."""
+    if measures is None:
+        measures = MEASURES
     p = Pack()
+    p.measures = measures
     seen = set()
     names = set()
     lines = text.split("\n")
@@ -157,7 +136,7 @@ def parse_pack(text):
             scope, measure, op, action = kv["scope"], kv["measure"], kv["op"], kv["action"]
             if scope not in ("entity", "source"):
                 raise PackError("line %d: scope is entity or source" % i)
-            if measure not in (ENTITY_MEASURES if scope == "entity" else SOURCE_MEASURES):
+            if measure not in measures and not (scope == "source" and measure == "entities"):
                 raise PackError("line %d: no measure %s for scope %s" % (i, measure, scope))
             if op not in OPS:
                 raise PackError("line %d: op is <, <=, > or >=" % i)
@@ -206,8 +185,8 @@ def parse_pack(text):
     return p
 
 
-def load_pack(directory):
-    return parse_pack(read_pack_def(directory))
+def load_pack(directory, measures=None):
+    return parse_pack(read_pack_def(directory), measures)
 
 
 class _Entity:
@@ -247,47 +226,125 @@ def input_clock(entities, source):
     return clock, src_latest
 
 
-def entity_measures(w, age, k):
-    """Entity measures over the window w of one entity, with k = min_samples."""
-    iv = [x["interval"] for x in w if x["interval"] is not None]
-    lt = [x["latency"] for x in w if x["latency"] is not None]
-    ln = [x["lateness"] for x in w if x["lateness"] is not None]
-    te = [x["time_error"] for x in w if x["time_error"] is not None]
-    tc = [TIME_CODE[x["time_state"]] for x in w if x["time_state"] is not None]
-    ns = [x["nis"] for x in w if x["nis"] is not None]
-    se = [x["speed_err"] for x in w if x["speed_err"] is not None]
-    enough = len(w) >= k
-    return {
-        "reports": len(w),
-        "interval_last": iv[-1] if len(iv) >= k else None,
-        "interval_mean": _mean(iv) if len(iv) >= k else None,
-        "interval_max": max(iv) if len(iv) >= k else None,
-        "age": age,
-        "latency_mean": _mean(lt) if len(lt) >= k else None,
-        "latency_max": max(lt) if len(lt) >= k else None,
-        "lateness_mean": _mean(ln) if len(ln) >= k else None,
-        "lateness_max": max(ln) if len(ln) >= k else None,
-        "lateness_min": min(ln) if len(ln) >= k else None,
-        "nis_mean": _mean(ns) if len(ns) >= k else None,
-        "speed_err_mean": _mean(se) if len(se) >= k else None,
-        "out_of_order": sum(1 for x in w if x["order"] == "out-of-order"),
-        "duplicate": sum(1 for x in w if x["order"] == "duplicate"),
-        "source_out_of_order": sum(1 for x in w if x["source_out_of_order"]),
-        "missing_ce": sum(1 for x in w if not x["ce"]) / len(w) if enough else None,
-        "missing_vel": sum(1 for x in w if not x["vel"]) / len(w) if enough else None,
-        "missing_hae": sum(1 for x in w if not x["hae"]) / len(w) if enough else None,
-        "time_error_mean": _mean(te) if len(te) >= k else None,
-        "time_error_max": max(te) if len(te) >= k else None,
-        "time_state_last": tc[-1] if len(tc) >= k else None,
-        "time_state_worst": max(tc) if len(tc) >= k else None,
-        "missing_time": sum(1 for x in w if x["time_state"] is None) / len(w) if enough else None,
-    }
+class Window:
+    """The samples of one entity's window, for its measures: `values(name)`
+    is the list of the samples' non-null `name`, in window order, built once."""
+
+    __slots__ = ("records", "age", "k", "_values")
+
+    def __init__(self, records, age, k):
+        self.records = records
+        self.age = age
+        self.k = k
+        self._values = {}
+
+    def values(self, name):
+        xs = self._values.get(name)
+        if xs is None:
+            xs = [r[name] for r in self.records if r[name] is not None]
+            self._values[name] = xs
+        return xs
+
+    def time_codes(self):
+        xs = self._values.get("@time_code")
+        if xs is None:
+            xs = [TIME_CODE[x] for x in self.values("time_state")]
+            self._values["@time_code"] = xs
+        return xs
 
 
-def source_measures(ms):
-    """Source measures: each entity measure aggregated over the source's entities."""
+class Measure(NamedTuple):
+    """One entity measure: compute(window) gives its value (None when it has
+    too few samples); `aggregate` (sum, mean, max or min) is how a source
+    combines it over its entities."""
+    aggregate: str
+    compute: Callable
+
+
+def _last(xs):
+    return xs[-1]
+
+
+def _windowed(name, reduce):
+    """A measure of the samples `name`: reduce(values) with min_samples of them, else None."""
+    def compute(w):
+        xs = w.values(name)
+        return reduce(xs) if len(xs) >= w.k else None
+    return compute
+
+
+def _time_state(reduce):
+    def compute(w):
+        xs = w.time_codes()
+        return reduce(xs) if len(xs) >= w.k else None
+    return compute
+
+
+def _count(pred):
+    """A measure that counts the window's samples for which pred holds."""
+    def compute(w):
+        return sum(1 for x in w.records if pred(x))
+    return compute
+
+
+def _fraction(pred):
+    """The fraction of the window's samples for which pred holds, with min_samples of them."""
+    def compute(w):
+        return sum(1 for x in w.records if pred(x)) / len(w.records) if len(w.records) >= w.k else None
+    return compute
+
+
+# Entity measures, in the order of the spec's measures table (and of every
+# measures object): the one table of measures.
+MEASURES = MappingProxyType({
+    "reports": Measure("sum", lambda w: len(w.records)),
+    "interval_last": Measure("mean", _windowed("interval", _last)),
+    "interval_mean": Measure("mean", _windowed("interval", _mean)),
+    "interval_max": Measure("max", _windowed("interval", max)),
+    "age": Measure("min", lambda w: w.age),
+    "latency_mean": Measure("mean", _windowed("latency", _mean)),
+    "latency_max": Measure("max", _windowed("latency", max)),
+    "lateness_mean": Measure("mean", _windowed("lateness", _mean)),
+    "lateness_max": Measure("max", _windowed("lateness", max)),
+    "lateness_min": Measure("min", _windowed("lateness", min)),
+    "nis_mean": Measure("mean", _windowed("nis", _mean)),
+    "speed_err_mean": Measure("mean", _windowed("speed_err", _mean)),
+    "out_of_order": Measure("sum", _count(lambda x: x["order"] == "out-of-order")),
+    "duplicate": Measure("sum", _count(lambda x: x["order"] == "duplicate")),
+    "source_out_of_order": Measure("sum", _count(lambda x: x["source_out_of_order"])),
+    "missing_ce": Measure("mean", _fraction(lambda x: not x["ce"])),
+    "missing_vel": Measure("mean", _fraction(lambda x: not x["vel"])),
+    "missing_hae": Measure("mean", _fraction(lambda x: not x["hae"])),
+    "time_error_mean": Measure("mean", _windowed("time_error", _mean)),
+    "time_error_max": Measure("max", _windowed("time_error", max)),
+    "time_state_last": Measure("max", _time_state(_last)),
+    "time_state_worst": Measure("max", _time_state(max)),
+    "missing_time": Measure("mean", _fraction(lambda x: x["time_state"] is None)),
+})
+
+
+def extend_measures(measures, name, measure):
+    """A new table: `measures` with one more measure (last in every
+    measures object). The table given is unchanged."""
+    if name in measures or name == "entities":
+        raise ValueError("measure %s is already in the table" % name)
+    out = dict(measures)
+    out[name] = measure
+    return MappingProxyType(out)
+
+
+def entity_measures(measures, records, age, k):
+    """Entity measures of one entity's window `records`, with k = min_samples."""
+    w = Window(records, age, k)
+    return {name: m.compute(w) for name, m in measures.items()}
+
+
+def source_measures(measures, ms):
+    """Source measures: each entity measure aggregated over the source's
+    entities, then the number of entities."""
     out = {}
-    for m, how in MEASURES:
+    for m, kind in measures.items():
+        how = kind.aggregate
         xs = [x[m] for x in ms if x[m] is not None]
         if how == "sum":
             out[m] = sum(xs)
@@ -544,12 +601,12 @@ class Engine:
         by_source = {}
         for k in sorted(self.entities):
             ent = self.entities[k]
-            m = entity_measures(ent.window, now_ms - ent.last_time_ms, self.pack.min_samples)
+            m = entity_measures(self.pack.measures, ent.window, now_ms - ent.last_time_ms, self.pack.min_samples)
             by_source.setdefault(ent.source, []).append(m)
             events.append({"ev": "quality", "scope": "entity", "subject": k, "measures": m})
             self._evaluate("entity", k, m, events, trace)
         for s in sorted(by_source):
-            m = source_measures(by_source[s])
+            m = source_measures(self.pack.measures, by_source[s])
             events.append({"ev": "quality", "scope": "source", "subject": s, "measures": m})
             self._evaluate("source", s, m, events, trace)
         return events, trace

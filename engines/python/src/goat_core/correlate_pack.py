@@ -1,9 +1,11 @@
-"""The correlate pack (spec/correlate.md, Pack; spec/correlate-assign.md, Pack)."""
+"""The correlate pack (spec/correlate.md, Pack; spec/correlate-assign.md, Pack).
+
+parse_pack takes the two tables a pack's names come from: `tests` (a test
+name and its parameters, gate.TESTS) and `methods` (a method name and the
+directives it requires and refuses, correlate.METHODS)."""
 
 import math
 
-from .gate import TESTS
-from .io import read_pack_def
 from .model import TIME_STATES
 from .packdef import PackError
 
@@ -27,6 +29,8 @@ class Pack:
         self.output = "priority"
         self.priority = {}
         self.method = "confirm"
+        self.tests = None    # the table of tests the pack was parsed with
+        self.methods = None  # the table of methods
         self.new_cost = None
         self.keep_bonus = None
         self.maneuver = None
@@ -68,8 +72,10 @@ def _int(v, line_no):
         raise PackError("line %d: not an integer: %s" % (line_no, v))
 
 
-def parse_pack(text):
+def parse_pack(text, tests, methods):
     p = Pack()
+    p.tests = tests
+    p.methods = methods
     seen = set()
     for i, raw in enumerate(text.splitlines(), 1):
         line = raw.split("#", 1)[0].strip()
@@ -98,12 +104,13 @@ def parse_pack(text):
             if not args:
                 raise PackError("line %d: %s needs a test" % (i, d))
             name = args[0]
-            if name not in TESTS:
+            kind = tests.get(name)
+            if kind is None:
                 raise PackError("line %d: unknown test %s" % (i, name))
             kv = _params(args[1:], i)
-            if set(kv) != set(TESTS[name]):
-                raise PackError("line %d: test %s needs exactly %s" % (i, name, ", ".join(TESTS[name])))
-            params = {k: (v if name == "same" else _num(v, i)) for k, v in kv.items()}
+            if set(kv) != set(kind.params):
+                raise PackError("line %d: test %s needs exactly %s" % (i, name, ", ".join(kind.params)))
+            params = {k: (v if kind.text else _num(v, i)) for k, v in kv.items()}
             getattr(p, d).append((name, params))
         elif d == "maneuver":
             kv = _params(args, i)
@@ -186,8 +193,8 @@ def parse_pack(text):
             p.priority[args[0]] = _int(args[1], i)
             seen.add("priority")
         elif d == "method":
-            if args not in (["confirm"], ["assign"]):
-                raise PackError("line %d: method is confirm or assign" % i)
+            if len(args) != 1 or args[0] not in methods:
+                raise PackError("line %d: method is one of %s" % (i, ", ".join(methods)))
             p.method = args[0]
         elif d in ("new_cost", "keep_bonus"):
             if len(args) != 1:
@@ -197,17 +204,11 @@ def parse_pack(text):
                 raise PackError("line %d: new_cost must be above 0 and keep_bonus 0 or above" % i)
         else:
             raise PackError("line %d: unknown directive %s" % (i, d))
-    if p.method == "assign":
-        required = ("pack", "version", "filter", "new_cost", "keep_bonus", "stale_ms")
-        refused = ("confirm_count", "hold_failures", "same_source", "output", "priority")
-        if p.confirm or p.hold or any(d in seen for d in refused):
-            raise PackError("method assign takes only pack, version, method, filter, maneuver, gate, "
-                            "new_cost, keep_bonus, stale_ms, window, hypotheses, margin, bias, time_offset, restart, time_default")
-    else:
-        required = ("pack", "version", "filter", "confirm_count", "hold_failures", "stale_ms")
-        if any(d in seen for d in ("new_cost", "keep_bonus", "window", "hypotheses", "bias", "margin", "time_offset")):
-            raise PackError("new_cost, keep_bonus, window, hypotheses, margin, bias and time_offset need method assign")
-    for d in required:
+    method = methods[p.method]
+    for d in method.refused:
+        if d in seen or (d in ("gate", "confirm", "hold") and getattr(p, d)):
+            raise PackError("method %s does not take %s" % (p.method, d))
+    for d in method.required:
         if d not in seen:
             raise PackError("missing directive %s" % d)
     if p.maneuver is not None and p.maneuver["accel_var"] <= p.filter["accel_var"]:
@@ -221,5 +222,3 @@ def parse_pack(text):
     return p
 
 
-def load_pack(directory):
-    return parse_pack(read_pack_def(directory))

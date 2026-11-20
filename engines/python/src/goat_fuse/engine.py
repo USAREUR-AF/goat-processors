@@ -2,3 +2,7 @@
 
 from goat_core.fuse import *  # noqa: F401,F403
 from goat_core.fuse import Engine, Pack, PackError, load_pack, make_engine, parse_pack  # noqa: F401
+from goat_core.fuse import ATTRIBUTE_RULES as _RULES, KINEMATICS as _KINEMATICS
+
+METHODS = tuple(_KINEMATICS)
+RULES = tuple(_RULES)

@@ -3,6 +3,8 @@ first rule whose conditions all hold; forget entities at a tick."""
 
 import math
 import re
+from types import MappingProxyType
+from typing import Callable, FrozenSet, NamedTuple, Tuple
 
 from . import snapshot as _snapshot
 from . import trace as _trace
@@ -16,22 +18,6 @@ NUMBER = re.compile(r"-?[0-9]+(\.[0-9]+)?\Z")
 INTEGER = re.compile(r"[0-9]+\Z")
 SINGLE = ("pack", "version", "default", "forget_ms")
 ACTIONS = ("keep", "drop")
-RANGE_SETS = ({"min"}, {"max"}, {"min", "max"})
-PARAMS = {
-    "circle": [{"lat", "lon", "radius_m"}],
-    "polygon": [{"vertices"}],
-    "near": [{"reference", "radius_m", "max_age_ms"}],
-    "env": [{"in"}],
-    "affiliation": [{"in"}],
-    "source": [{"in"}],
-    "uid": [{"in"}],
-    "key": [{"name", "eq"}, {"name", "in"}] + [{"name"} | s for s in RANGE_SETS],
-    "has": [{"name"}],
-    "speed": list(RANGE_SETS),
-    "altitude": list(RANGE_SETS),
-    "interval": [{"min_ms"}],
-    "order": [set()],
-}
 
 
 # --- pack values (spec/filter.md, Pack: Values) ---------------------------
@@ -92,10 +78,14 @@ def _vertices(v, what):
 
 
 class Condition:
-    def __init__(self, name, negated, params):
+    """One `when` line: the condition's name, its kind (from the table the
+    pack was parsed with), `not`, and its parameters."""
+
+    def __init__(self, name, negated, params, kind=None):
         self.name = name
         self.negated = negated
         self.p = params
+        self.kind = kind
 
 
 class Rule:
@@ -114,14 +104,15 @@ class Pack:
         self.rules = []
 
 
-def _condition(args, where):
+def _condition(args, where, conditions):
     negated = False
     if args and args[0] == "not":
         negated, args = True, args[1:]
     if not args:
         raise PackError("%s: when needs a condition" % where)
     name, raw = args[0], {}
-    if name not in PARAMS:
+    kind = conditions.get(name)
+    if kind is None:
         raise PackError("%s: unknown condition %s" % (where, name))
     for a in args[1:]:
         if "=" not in a:
@@ -130,7 +121,7 @@ def _condition(args, where):
         if k in raw:
             raise PackError("%s: repeated parameter %s" % (where, k))
         raw[k] = v
-    if set(raw) not in PARAMS[name]:
+    if set(raw) not in kind.params:
         raise PackError("%s: %s does not take parameters %s" % (where, name, sorted(raw)))
     p = {}
     for k, v in raw.items():
@@ -157,10 +148,14 @@ def _condition(args, where):
             p[k] = _token(v, w)
     if "min" in p and "max" in p and p["min"] > p["max"]:
         raise PackError("%s: min above max" % where)
-    return Condition(name, negated, p)
+    return Condition(name, negated, p, kind)
 
 
-def parse_pack(text):
+def parse_pack(text, conditions=None):
+    """A filter pack.def, its `when` lines naming conditions of `conditions`
+    (CONDITIONS by default); raises PackError."""
+    if conditions is None:
+        conditions = CONDITIONS
     pack = Pack()
     seen = set()
     names = set()
@@ -201,7 +196,7 @@ def parse_pack(text):
         elif d == "when":
             if not pack.rules:
                 raise PackError("%s: when before the first rule" % where)
-            pack.rules[-1].conditions.append(_condition(args, where))
+            pack.rules[-1].conditions.append(_condition(args, where, conditions))
         else:
             raise PackError("%s: unknown directive %s" % (where, d))
     for d in SINGLE:
@@ -213,8 +208,8 @@ def parse_pack(text):
     return pack
 
 
-def load_pack(directory):
-    return parse_pack(read_pack_def(directory))
+def load_pack(directory, conditions=None):
+    return parse_pack(read_pack_def(directory), conditions)
 
 
 # --- geometry (spec/filter.md, Geometry) ----------------------------------
@@ -316,65 +311,132 @@ def _in_range(v, p):
     return (lo is None or lo <= v) and (hi is None or v <= hi)
 
 
-def evaluate(cond, report, state, entities):
-    """Conditions: one condition on a report, with the entity's state (or
-    None) and every entity's state for `near`. Returns (value, limit,
-    result), result True, False or None (unknown)."""
-    p, name = cond.p, cond.name
-    lat, lon, t = float(report["lat"]), float(report["lon"]), report["time_ms"]
-    if name == "circle":
-        value = distance(lat, lon, p["lat"], p["lon"])
-        return value, p["radius_m"], value <= p["radius_m"]
-    if name == "polygon":
-        value = polygon(p["vertices"], lat, lon)
-        return value, None, value != "outside"
-    if name == "near":
-        ref = entities.get(p["reference"])
-        if (ref is None or abs(t - ref["time_ms"]) > p["max_age_ms"]
-                or (ref["stale_ms"] is not None and t >= ref["stale_ms"])):
-            return None, p["radius_m"], None
-        rlat, rlon = predict(ref, t)
-        value = distance(lat, lon, rlat, rlon)
-        return value, p["radius_m"], value <= p["radius_m"]
-    if name in ("env", "affiliation", "source", "uid"):
-        value = {"env": environment, "affiliation": affiliation,
-                 "source": lambda r: r["track.source_id"], "uid": lambda r: r["uid"]}[name](report)
+# --- conditions (spec/filter.md, Conditions) ----------------------------
+# Each takes the condition's parameters p, the report, the entity's state
+# (or None) and every entity's state (for near), and returns (value, limit,
+# result) with result True, False or None (unknown).
+
+def _circle(p, report, state, entities):
+    value = distance(float(report["lat"]), float(report["lon"]), p["lat"], p["lon"])
+    return value, p["radius_m"], value <= p["radius_m"]
+
+
+def _polygon(p, report, state, entities):
+    value = polygon(p["vertices"], float(report["lat"]), float(report["lon"]))
+    return value, None, value != "outside"
+
+
+def _near(p, report, state, entities):
+    t = report["time_ms"]
+    ref = entities.get(p["reference"])
+    if (ref is None or abs(t - ref["time_ms"]) > p["max_age_ms"]
+            or (ref["stale_ms"] is not None and t >= ref["stale_ms"])):
+        return None, p["radius_m"], None
+    rlat, rlon = predict(ref, t)
+    value = distance(float(report["lat"]), float(report["lon"]), rlat, rlon)
+    return value, p["radius_m"], value <= p["radius_m"]
+
+
+def _member_of(read):
+    """env, affiliation, source, uid: the value read from the report is in the list."""
+    def evaluate(p, report, state, entities):
+        value = read(report)
         if value is None:
             return None, list(p["in"]), None
         return value, list(p["in"]), value in p["in"]
-    if name == "key":
-        value = report.get(p["name"])
-        if "eq" in p:
-            limit = p["eq"]
-        elif "in" in p:
-            limit = list(p["in"])
-        else:
-            limit = [p.get("min"), p.get("max")]
-        if value is None:
-            return None, limit, None
-        if "eq" in p:
-            return value, limit, key_equal(value, p["eq"])
-        if "in" in p:
-            return value, limit, any(key_equal(value, x) for x in p["in"])
-        if not _is_number(value):
-            return value, limit, None
-        return value, limit, _in_range(value, p)
-    if name == "has":
-        value = report.get(p["name"]) is not None
-        return value, None, value
-    if name in ("speed", "altitude"):
-        value = report.get("speed_ms" if name == "speed" else "hae")
+    return evaluate
+
+
+def _key(p, report, state, entities):
+    value = report.get(p["name"])
+    if "eq" in p:
+        limit = p["eq"]
+    elif "in" in p:
+        limit = list(p["in"])
+    else:
+        limit = [p.get("min"), p.get("max")]
+    if value is None:
+        return None, limit, None
+    if "eq" in p:
+        return value, limit, key_equal(value, p["eq"])
+    if "in" in p:
+        return value, limit, any(key_equal(value, x) for x in p["in"])
+    if not _is_number(value):
+        return value, limit, None
+    return value, limit, _in_range(value, p)
+
+
+def _has(p, report, state, entities):
+    value = report.get(p["name"]) is not None
+    return value, None, value
+
+
+def _range_of(key):
+    """speed, altitude: the report's key is within [min, max]."""
+    def evaluate(p, report, state, entities):
+        value = report.get(key)
         limit = [p.get("min"), p.get("max")]
         if value is None:
             return None, limit, None
         return value, limit, _in_range(value, p)
+    return evaluate
+
+
+def _interval(p, report, state, entities):
     kept = state["kept_ms"] if state else None
-    if name == "interval":
-        value = None if kept is None else t - kept
-        return value, p["min_ms"], value is not None and value < p["min_ms"]
-    if name == "order":
-        return t, kept, kept is not None and t < kept
-    raise AssertionError(name)
+    value = None if kept is None else report["time_ms"] - kept
+    return value, p["min_ms"], value is not None and value < p["min_ms"]
+
+
+def _order(p, report, state, entities):
+    kept = state["kept_ms"] if state else None
+    t = report["time_ms"]
+    return t, kept, kept is not None and t < kept
+
+
+class ConditionKind(NamedTuple):
+    """One condition: the parameter sets it accepts (any one of them, by
+    name) and evaluate(p, report, state, entities)."""
+    params: Tuple[FrozenSet[str], ...]
+    evaluate: Callable
+
+
+def _sets(*sets):
+    return tuple(frozenset(x) for x in sets)
+
+
+RANGE_SETS = _sets({"min"}, {"max"}, {"min", "max"})
+
+# The one table of conditions.
+CONDITIONS = MappingProxyType({
+    "circle": ConditionKind(_sets({"lat", "lon", "radius_m"}), _circle),
+    "polygon": ConditionKind(_sets({"vertices"}), _polygon),
+    "near": ConditionKind(_sets({"reference", "radius_m", "max_age_ms"}), _near),
+    "env": ConditionKind(_sets({"in"}), _member_of(environment)),
+    "affiliation": ConditionKind(_sets({"in"}), _member_of(affiliation)),
+    "source": ConditionKind(_sets({"in"}), _member_of(lambda r: r["track.source_id"])),
+    "uid": ConditionKind(_sets({"in"}), _member_of(lambda r: r["uid"])),
+    "key": ConditionKind(_sets({"name", "eq"}, {"name", "in"}) + tuple(s | {"name"} for s in RANGE_SETS), _key),
+    "has": ConditionKind(_sets({"name"}), _has),
+    "speed": ConditionKind(RANGE_SETS, _range_of("speed_ms")),
+    "altitude": ConditionKind(RANGE_SETS, _range_of("hae")),
+    "interval": ConditionKind(_sets({"min_ms"}), _interval),
+    "order": ConditionKind(_sets(set()), _order),
+})
+
+
+def extend_conditions(conditions, name, kind):
+    """A new table: `conditions` with one more condition. The table given is unchanged."""
+    if name in conditions:
+        raise ValueError("condition %s is already in the table" % name)
+    out = dict(conditions)
+    out[name] = kind
+    return MappingProxyType(out)
+
+
+def evaluate(cond, report, state, entities):
+    """Conditions: one condition on a report. Returns (value, limit, result)."""
+    return cond.kind.evaluate(cond.p, report, state, entities)
 
 
 # --- engine ---------------------------------------------------------------

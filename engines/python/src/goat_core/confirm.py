@@ -8,7 +8,7 @@ The logic of this method is moved here unchanged; correlate 1.0 replaces it."""
 import math
 
 from . import snapshot as _snapshot
-from .correlate import Correlator
+from .tracks import Correlator
 from .gate import run_test
 from .model import course_deg
 
