@@ -26,6 +26,7 @@ modules are `io_*` and `trace_*`.
 | `src/trace/` | each function's events and trace records, and the output of one call (`trace_log`) |
 | `src/snapshot/` | each function's `snapshot()` |
 | `src/io/` | pack.def text, the function table, the runner, the vector runner |
+| `test/` | EUnit tests and test-only fixture packs |
 
 ## Entry point
 
@@ -55,6 +56,14 @@ Adding a kind is one entry in one table:
 | quality measure | `quality_measures:builtin/0` (name, entity function, source aggregation) | `quality:load_pack(Dir, #{measures => [Measure]})` |
 | filter condition | `filter_conditions:table/0` | |
 | fuse kinematics method, attribute rule | `fuse_kinematics:methods/0`, `fuse_attributes:rules/0` | |
+
+`test/registration_tests.erl` proves it for a test kind: a no-op test,
+`noop`, registered only in that test by one entry passed to
+`correlate:load_pack/2`, with its own fixture pack
+(`test/fixtures/correlate-noop`, not under `packs/`). Registered, it changes
+no output of any correlate vector; in the fixture pack it adds one passing
+record before each gate run and nothing else; unregistered, the fixture
+does not load.
 
 ## Where each spec section lives
 
