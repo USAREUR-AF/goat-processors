@@ -3,13 +3,18 @@
 vectors in spec/quality-load-vectors/.
 
 Each scenario below states its inputs and, in `decide`, the events it must
-produce, written as short tokens (see `token`). The script runs the Python
-engine, refuses to write a vector whose events differ from `decide`, and
-records the full events, trace and final snapshot as the vector. The
-decisions are stated by hand here; the numbers come from the engine and are
-checked by the other six engines.
+produce, written as short tokens (see `token`). The script computes each
+vector with the Rust engine (tools/consensus.py), refuses one whose events
+differ from `decide`, records the full events, trace and final snapshot, and
+writes the vector only when all seven engines agree with it. Each load
+vector states whether its pack text must fail to load; the Rust engine must
+agree, and then every engine's own test command must pass. The specification
+and the decisions stated by hand here are the reference; the numbers are
+computed by the Rust engine and accepted only when all seven engines agree.
 
-Run: python3 -I tools/make-quality-vectors.py
+Run: python3 -I tools/make-quality-vectors.py [--rust-only]
+(--rust-only skips the seven-engine run; CI uses it, as its seven engine jobs
+check every engine on every vector.)
 """
 
 import json
@@ -18,8 +23,8 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, "engines", "python", "src"))
-from goat_quality import Engine, PackError, load_pack, parse_pack  # noqa: E402
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+import consensus  # noqa: E402
 
 R = 6371008.8
 LAT0, LON0 = 1.0, 1.0  # notional: open ocean near 0 N 0 E
@@ -523,51 +528,32 @@ LOADS = [
 ]
 
 
-def clean(x):
-    """Write negative zero as zero."""
-    if isinstance(x, float):
-        return 0.0 if x == 0 else x
-    if isinstance(x, list):
-        return [clean(v) for v in x]
-    if isinstance(x, dict):
-        return {k: clean(v) for k, v in x.items()}
-    return x
-
-
 def main():
     ok = True
+    run_all = "--rust-only" not in sys.argv[1:]
+    candidates = {}
     for name, pack_name, steps, decide in SCENARIOS:
-        eng = Engine(load_pack(os.path.join(ROOT, "packs", pack_name)))
-        out_steps = []
-        if len(decide) != len(steps):
+        results, snapshot = consensus.compute(pack_name, steps)
+        good = len(decide) == len(steps)
+        if not good:
             print("%s: decide has %d entries for %d steps" % (name, len(decide), len(steps)))
-            ok = False
-        for (kind, arg), want in zip(steps, decide):
-            events, trace = eng.ingest(arg) if kind == "ingest" else eng.tick(arg)
+        for i, ((events, _), want) in enumerate(zip(results, decide)):
             got = [token(e) for e in events]
             if got != want:
-                print("%s step %d: events %s, decided %s" % (name, len(out_steps), got, want))
-                ok = False
-            out_steps.append({kind: arg, "expect": clean(events), "trace": clean(trace)})
-        vec = {"name": name, "pack": pack_name, "steps": out_steps, "snapshot": clean(eng.snapshot())}
-        path = os.path.join(ROOT, "packs", pack_name, "vectors", name + ".json")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(vec, f, indent=1)
-            f.write("\n")
-    for name, text, want_error in LOADS:
-        try:
-            parse_pack(text)
-            got_error = False
-        except PackError:
-            got_error = True
-        if got_error != want_error:
-            print("load %s: error %s, decided %s" % (name, got_error, want_error))
-            ok = False
-        path = os.path.join(ROOT, "spec", "quality-load-vectors", name + ".json")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump({"name": name, "pack_def": text, "expect_error": want_error}, f, indent=1)
-            f.write("\n")
-    if not ok:
+                print("%s step %d: events %s, decided %s" % (name, i, got, want))
+                good = False
+        ok = ok and good
+        if good:
+            candidates[name] = {"name": name, "pack": pack_name,
+                                "steps": consensus.vector_steps(steps, results), "snapshot": snapshot}
+    agreed = consensus.accept(candidates, run_all)
+    ok = ok and len(agreed) == len(candidates)
+    for name in agreed:
+        consensus.write_vector(os.path.join(ROOT, "packs", candidates[name]["pack"], "vectors", name + ".json"),
+                               candidates[name])
+    _, loads_ok = consensus.write_load_vectors(
+        "quality", os.path.join(ROOT, "spec", "quality-load-vectors"), LOADS, run_all)
+    if not (ok and loads_ok):
         sys.exit(1)
     print("wrote %d vectors and %d load vectors" % (len(SCENARIOS), len(LOADS)))
 
