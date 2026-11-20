@@ -4,11 +4,11 @@ package filter
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"goat-correlator/engines/go/io"
 )
 
 // Condition is one `when` line of a rule (spec: Pack, Conditions).
@@ -48,11 +48,11 @@ type Pack struct {
 
 // LoadPack reads <dir>/pack.def.
 func LoadPack(dir string) (*Pack, error) {
-	b, err := os.ReadFile(filepath.Join(dir, "pack.def"))
+	text, err := io.ReadPackDef(dir)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePack(string(b))
+	return ParsePack(text)
 }
 
 // Value grammars (spec: Pack, Values).

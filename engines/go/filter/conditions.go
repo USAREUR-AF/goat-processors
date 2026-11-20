@@ -3,7 +3,8 @@ package filter
 import (
 	"encoding/json"
 
-	correlator "goat-correlator/engines/go"
+	"goat-correlator/engines/go/model"
+	"goat-correlator/engines/go/snapshot"
 )
 
 // Conditions (spec/filter.md: Conditions). Each condition gives true, false
@@ -145,13 +146,13 @@ func inList(v string, present bool, items []string) result {
 
 // rangeLimit is [min, max], null for an omitted bound.
 func rangeLimit(c Condition) []any {
-	return []any{floatOrNull(c.Min), floatOrNull(c.Max)}
+	return []any{snapshot.OptFloat(c.Min), snapshot.OptFloat(c.Max)}
 }
 
 // rangeOf: min <= value <= max, inclusive; unknown when the value is absent
 // or not a number (true and false are not numbers).
 func rangeOf(v any, c Condition) result {
-	f, isNum := correlator.ToFloat(v)
+	f, isNum := model.ToFloat(v)
 	if v == nil || !isNum {
 		return result{unknown, v, rangeLimit(c)}
 	}
@@ -194,7 +195,7 @@ func keyEqual(v any, t string) bool {
 	case bool:
 		return (x && t == "true") || (!x && t == "false")
 	case json.Number, float64, int, int64:
-		f, _ := correlator.ToFloat(x)
+		f, _ := model.ToFloat(x)
 		p, err := parseNumber(t) // only a pack number can equal a number
 		return err == nil && p == f
 	}

@@ -1,10 +1,15 @@
-package correlator
+package assign
 
-// Sensor bias (spec/correlate-assign.md, Sensor bias): one position offset per
-// unordered pair of sources, used to move one source's predictions into the
-// other's frame, and learned at each tick from the committed system tracks.
-// With the time_offset line each pair also has a clock offset tau, fitted with
-// the position offset (Sensor bias, Time offset).
+import (
+	"goat-correlator/engines/go/model"
+	"goat-correlator/engines/go/trace"
+)
+
+// Sensor bias (spec: Sensor bias): one position offset per unordered pair of
+// sources, used to move one source's predictions into the other's frame,
+// and learned at each tick from the committed system tracks. With the
+// time_offset line each pair also has a clock offset tau, fitted with the
+// position offset (Sensor bias, Time offset).
 
 // BiasState is the stored state of one pair "<S>|<T>" (S before T in key
 // order): how far T's positions sit east and north of S's.
@@ -22,33 +27,33 @@ type BiasState struct {
 
 // biasState returns the state of pair key, or the state a pair with none
 // reads as: o = 0, w = 0, var = s², n = 0 (State).
-func (g *Engine) biasState(key string) BiasState {
-	if st, ok := g.bias[key]; ok {
+func (m *Method) biasState(key string) BiasState {
+	if st, ok := m.bias[key]; ok {
 		return *st
 	}
-	s := g.pack.BiasSigma
+	s := m.p.BiasSigma
 	return BiasState{Var: s * s}
 }
 
-// moveInto moves B's predicted axes into A's frame (Moving B into A's frame).
+// MoveInto moves B's predicted axes into A's frame (Moving B into A's frame).
 // Without the bias line, or for two entities of one source, nothing moves.
-func (g *Engine) moveInto(b, a *Entity, be, bn Axis) (Axis, Axis) {
-	if !g.pack.HasBias || a.Source == b.Source {
+func (m *Method) MoveInto(bSource, aSource string, be, bn model.Axis) (model.Axis, model.Axis) {
+	if !m.p.HasBias || aSource == bSource {
 		return be, bn
 	}
-	key := a.Source + "|" + b.Source
-	if b.Source < a.Source {
-		key = b.Source + "|" + a.Source
+	key := aSource + "|" + bSource
+	if bSource < aSource {
+		key = bSource + "|" + aSource
 	}
-	st := g.biasState(key)
+	st := m.biasState(key)
 	// The offset on each axis: o, or with time_offset o - v*tau, v being B's
 	// predicted velocity on that axis.
 	oe, on := st.OEast, st.ONorth
-	if g.pack.HasTimeOffset {
+	if m.p.HasTimeOffset {
 		oe = st.OEast - be.V*st.Tau
 		on = st.ONorth - bn.V*st.Tau
 	}
-	if b.Source < a.Source {
+	if bSource < aSource {
 		be.P, be.PP = be.P+oe, be.PP+st.Var
 		bn.P, bn.PP = bn.P+on, bn.PP+st.Var
 	} else {
@@ -58,43 +63,33 @@ func (g *Engine) moveInto(b, a *Entity, be, bn Axis) (Axis, Axis) {
 	return be, bn
 }
 
-// predictedFor returns B predicted to A's time, with B's timing variance
-// added to its pp (correlate.md Track estimate, Measurement variance) and then
-// moved into A's frame: the prediction every test between A and B reads
-// (correlate.md Tests; Sensor bias).
-func (g *Engine) predictedFor(b, a *Entity) (Axis, Axis) {
-	be, bn := g.predicted(b, a.LastTime)
-	be, bn = withTimingVariance(b, be, bn)
-	return g.moveInto(b, a, be, bn)
-}
-
 // updateBias runs the Update of Sensor bias at now over the committed
 // membership, for pairs with at least one member among the tick's rows, and
 // returns its trace records.
-func (g *Engine) updateBias(now int64, rows map[string]bool) []Obj {
-	p := g.pack
+func (m *Method) updateBias(now int64, rows map[string]bool) []Obj {
+	p, c := m.p, m.core
 	out := []Obj{}
-	for _, name := range g.committed.order() {
-		var members []*Entity // not retiring, key order
-		for _, k := range g.committed.Systems[name] {
-			if e := g.entities[k]; !e.Retiring {
-				members = append(members, e)
+	for _, name := range m.committed.order() {
+		var members []string // not retiring, key order
+		for _, k := range m.committed.Systems[name] {
+			if !m.retiring[k] {
+				members = append(members, k)
 			}
 		}
 		for i, x := range members {
 			for _, y := range members[i+1:] {
-				if x.Source == y.Source || !(rows[x.Key] || rows[y.Key]) {
+				if c.Source(x) == c.Source(y) || !(rows[x] || rows[y]) {
 					continue
 				}
 				// 1. ES has the source first in key order; predict both to now (not moved).
 				es, et := x, y
-				if et.Source < es.Source {
+				if c.Source(et) < c.Source(es) {
 					es, et = et, es
 				}
-				key := es.Source + "|" + et.Source
-				st := g.biasState(key)
-				se, sn := g.predicted(es, now)
-				te, tn := g.predicted(et, now)
+				key := c.Source(es) + "|" + c.Source(et)
+				st := m.biasState(key)
+				se, sn := c.Predicted(es, now)
+				te, tn := c.Predicted(et, now)
 				ye, re := te.P-se.P, se.PP+te.PP
 				yn, rn := tn.P-sn.P, sn.PP+tn.PP
 
@@ -118,7 +113,7 @@ func (g *Engine) updateBias(now int64, rows map[string]bool) []Obj {
 						st.Var = floor
 					}
 					if p.HasTimeOffset {
-						g.fitTimeOffset(&st, 1/re, 1/rn, ve, vn, ye, yn)
+						m.fitTimeOffset(&st, 1/re, 1/rn, ve, vn, ye, yn)
 					} else {
 						st.WEast = st.WEast + 1/re
 						st.OEast = st.OEast + ((1/re)/st.WEast)*(ye-st.OEast)
@@ -126,13 +121,12 @@ func (g *Engine) updateBias(now int64, rows map[string]bool) []Obj {
 						st.ONorth = st.ONorth + ((1/rn)/st.WNorth)*(yn-st.ONorth)
 					}
 					stored := st
-					g.bias[key] = &stored
+					m.bias[key] = &stored
 				}
 
 				// 4. Trace, with the state after step 3.
-				rec := Obj{"stage": "bias", "a": x.Key, "b": y.Key, "test": "offset",
-					"value": d2, "limit": p.BiasGate, "pass": accepted,
-					"east": st.OEast, "north": st.ONorth, "var": st.Var, "pairs": st.Pairs}
+				rec := trace.Record("bias", x, y, "offset", d2, p.BiasGate, accepted)
+				rec["east"], rec["north"], rec["var"], rec["pairs"] = st.OEast, st.ONorth, st.Var, st.Pairs
 				if p.HasTimeOffset {
 					rec["time_offset_ms"] = st.Tau * 1000
 				}
@@ -143,30 +137,12 @@ func (g *Engine) updateBias(now int64, rows map[string]bool) []Obj {
 	return out
 }
 
-// biasSnapshot maps each stored pair key to its state (Snapshot).
-func (g *Engine) biasSnapshot() Obj {
-	out := Obj{}
-	for k, st := range g.bias {
-		o := Obj{"east": st.OEast, "weight_east": st.WEast, "north": st.ONorth,
-			"weight_north": st.WNorth, "var": st.Var, "pairs": st.Pairs}
-		if g.pack.HasTimeOffset {
-			sums := make([]any, 8)
-			for i, v := range st.Sums {
-				sums[i] = v
-			}
-			o["time_offset_ms"], o["sums"] = st.Tau*1000, sums
-		}
-		out[k] = o
-	}
-	return out
-}
-
 // fitTimeOffset adds one accepted pair to the sums and solves the weighted
 // least-squares fit of y = o - v*tau (Sensor bias, Time offset). we, wn are
 // 1/r on east and north; ve, vn the mean predicted velocities; ye, yn the
 // observed offsets. n and var have already changed as in step 3.
-func (g *Engine) fitTimeOffset(st *BiasState, we, wn, ve, vn, ye, yn float64) {
-	p := g.pack
+func (m *Method) fitTimeOffset(st *BiasState, we, wn, ve, vn, ye, yn float64) {
+	p := m.p
 	S := &st.Sums
 	S[0] = S[0] + we                    // S1
 	S[1] = S[1] + wn                    // S2

@@ -1,4 +1,4 @@
-package correlator
+package assign
 
 import (
 	"math"

@@ -1,5 +1,10 @@
 package fuse
 
+import (
+	"goat-correlator/engines/go/model"
+	"goat-correlator/engines/go/trace"
+)
+
 // Kinematics: each method gives, per axis, p, v, pp, vv, and the member they came
 // from (nil for inverse_variance and covariance_intersection). East and north are
 // computed by the same formulas, east first.
@@ -7,13 +12,13 @@ package fuse
 // kinematics combines the predicted members of a group by the pack's method and
 // appends the intersect records (covariance_intersection) and the kinematics
 // record (Trace, items 1 and 2).
-func (g *Engine) kinematics(name string, members []member, trace *[]Obj) (east, north Axis, from *member) {
+func (g *Engine) kinematics(name string, members []member, tr *[]Obj) (east, north Axis, from *member) {
 	method := g.pack.Kinematics
 	switch method {
 	case "inverse_variance":
 		east, north = inverseVariance(members)
 	case "covariance_intersection":
-		east, north = g.covarianceIntersection(name, members, trace)
+		east, north = g.covarianceIntersection(name, members, tr)
 	case "best":
 		from = pick(members, func(m, w member) bool { return m.variance() < w.variance() })
 	case "priority":
@@ -27,14 +32,13 @@ func (g *Engine) kinematics(name string, members []member, trace *[]Obj) (east, 
 
 	candidates := make([]any, len(members))
 	for i, m := range members {
-		candidates[i] = Obj{"member": m.Key, "var": m.variance(), "time_ms": m.LastTime, "rank": g.rank(m.Entity)}
+		candidates[i] = trace.KinematicsCandidate(m.Key, m.variance(), m.LastTime, g.rank(m.Entity))
 	}
 	var winner any
 	if from != nil {
 		winner = from.Key
 	}
-	*trace = append(*trace, Obj{"stage": "kinematics", "group": nameOrNull(name), "method": method,
-		"candidates": candidates, "winner": winner})
+	*tr = append(*tr, trace.Kinematics(model.OrNull(name), method, candidates, winner))
 	return east, north, from
 }
 
@@ -72,11 +76,11 @@ func inverseVariance(members []member) (Axis, Axis) {
 // covarianceIntersection is the method covariance_intersection: the running
 // estimate X starts as the first member, and each later member Y is folded in,
 // in key order, with the closed-form weight. Each fold is one intersect record.
-func (g *Engine) covarianceIntersection(name string, members []member, trace *[]Obj) (Axis, Axis) {
+func (g *Engine) covarianceIntersection(name string, members []member, tr *[]Obj) (Axis, Axis) {
 	xe, xn := members[0].east, members[0].north
 	for _, y := range members[1:] {
 		w := ciWeight(xe, xn, y.east, y.north)
-		*trace = append(*trace, Obj{"stage": "intersect", "group": nameOrNull(name), "member": y.Key, "value": w})
+		*tr = append(*tr, trace.Intersect(model.OrNull(name), y.Key, w))
 		switch w {
 		case 1: // X unchanged
 		case 0:
@@ -126,4 +130,20 @@ func ciFold(x, y Axis, w float64) Axis {
 	vv := 1 / (c + d)
 	v := vv * (c*x.V + d*y.V)
 	return Axis{P: p, V: v, PP: pp, VV: vv}
+}
+
+// rank is the rank for a trace record: the index of the source, or nil when unlisted.
+func (g *Engine) rank(e *Entity) any {
+	if r := g.pack.Rank(e.Source); r >= 0 {
+		return int64(r)
+	}
+	return nil
+}
+
+// rankOrder is the rank for comparison: an unlisted source ranks after every listed one.
+func (g *Engine) rankOrder(e *Entity) int {
+	if r := g.pack.Rank(e.Source); r >= 0 {
+		return r
+	}
+	return len(g.pack.Sources)
 }

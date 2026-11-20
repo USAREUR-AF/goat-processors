@@ -1,32 +1,14 @@
 package quality
 
-func optInt(p *int64) any {
-	if p == nil {
-		return nil
-	}
-	return *p
-}
-
-func optString(p *string) any {
-	if p == nil {
-		return nil
-	}
-	return *p
-}
-
-func optFloat(p *float64) any {
-	if p == nil {
-		return nil
-	}
-	return *p
-}
+import (
+	"goat-correlator/engines/go/model"
+	"goat-correlator/engines/go/snapshot"
+)
 
 // Snapshot returns the whole state (spec: Snapshot).
 func (g *Engine) Snapshot() Obj {
-	var ref, lastTick any
-	if g.ref != nil {
-		ref = []any{g.ref[0], g.ref[1]}
-	}
+	ref := snapshot.Ref(g.ref)
+	var lastTick any
 	if g.lastTick != nil {
 		lastTick = *g.lastTick
 	}
@@ -36,10 +18,10 @@ func (g *Engine) Snapshot() Obj {
 		for _, rec := range e.window {
 			window = append(window, Obj{
 				"wt": rec.wt, "time_ms": rec.timeMs, "order": rec.order,
-				"interval": optInt(rec.interval), "latency": optInt(rec.latency),
+				"interval": snapshot.OptInt(rec.interval), "latency": snapshot.OptInt(rec.latency),
 				"lateness": rec.lateness, "source_out_of_order": rec.sourceOutOfOrder,
-				"time_error": optFloat(rec.timeError), "time_state": optString(rec.timeState),
-				"nis": optFloat(rec.nis), "speed_err": optFloat(rec.speedErr),
+				"time_error": snapshot.OptFloat(rec.timeError), "time_state": snapshot.OptString(rec.timeState),
+				"nis": snapshot.OptFloat(rec.nis), "speed_err": snapshot.OptFloat(rec.speedErr),
 				"ce": rec.ce, "vel": rec.vel, "hae": rec.hae,
 			})
 		}
@@ -47,7 +29,7 @@ func (g *Engine) Snapshot() Obj {
 			"source":       e.source,
 			"last_time_ms": e.last,
 			"last_pos":     []any{e.lastPos[0], e.lastPos[1]},
-			"filter":       Obj{"east": e.east.List(), "north": e.north.List()},
+			"filter":       snapshot.Filter(model.Model{East: e.east, North: e.north}),
 			"window":       window,
 		}
 	}

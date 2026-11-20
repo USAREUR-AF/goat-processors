@@ -2,11 +2,11 @@ package fuse
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"goat-correlator/engines/go/io"
 )
 
 // Kinematics methods and attribute rules (spec/fuse.md: What fuse does, Attributes).
@@ -46,11 +46,11 @@ func (p *Pack) Rank(source string) int {
 
 // LoadPack reads <dir>/pack.def (spec: load_pack).
 func LoadPack(dir string) (*Pack, error) {
-	b, err := os.ReadFile(filepath.Join(dir, "pack.def"))
+	text, err := io.ReadPackDef(dir)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePack(string(b))
+	return ParsePack(text)
 }
 
 // A number is an optional '-', digits, optionally '.' and digits, optionally

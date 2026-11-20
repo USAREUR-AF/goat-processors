@@ -2,28 +2,31 @@
 //
 // Each file implements named sections of the specification:
 //
-//	pack.go      Pack (the pack.def reader)
-//	engine.go    Reports, Order, Frame and filter, Samples, Ingest, Forwarding
-//	time.go      Reports, Time quality; Input clock
-//	measures.go  Window, Entity measures, Source measures
-//	tick.go      Tick, Rules
-//	snapshot.go  Snapshot
+//	pack.go        Pack (the pack.def reader)
+//	engine.go      What quality does (Engine, New, Load)
+//	reports.go     Reports
+//	time.go        Reports, Time quality; Input clock
+//	ingest.go      Order, Frame and filter, Samples, Ingest
+//	forwarding.go  Forwarding
+//	measures.go    Window, Entity measures, Source measures
+//	tick.go        Tick
+//	rules.go       Rules
+//	snapshot.go    Snapshot
 //
-// The frame, the filter, the report type checks and the time quality keys and
-// time_default line are those of the correlate engine (package correlator,
-// spec/correlate.md 0.8), as spec/quality.md cites correlate.md for them.
+// The frame, the filter, the report type checks and the time quality keys
+// and time_default line are package model's (spec/correlate.md 0.8), as
+// spec/quality.md cites correlate.md for them.
 package quality
 
 import (
 	"fmt"
 	"math"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
-	correlator "goat-correlator/engines/go"
+	"goat-correlator/engines/go/io"
+	"goat-correlator/engines/go/model"
 )
 
 // Rule is one rule line (spec: Rules, Pack).
@@ -52,7 +55,7 @@ type Pack struct {
 	Rules []Rule // pack order
 
 	// time_default lines by source id (spec: Reports, Time quality)
-	TimeDefaults map[string]correlator.TimeDefault
+	TimeDefaults map[string]model.TimeDefault
 }
 
 // entityMeasures and sourceMeasures are the measures tables, in table order
@@ -94,11 +97,11 @@ func parseInteger(s string) (int64, error) {
 
 // LoadPack reads <dir>/pack.def (spec: load_pack).
 func LoadPack(dir string) (*Pack, error) {
-	b, err := os.ReadFile(filepath.Join(dir, "pack.def"))
+	text, err := io.ReadPackDef(dir)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePack(string(b))
+	return ParsePack(text)
 }
 
 // params splits name=value tokens. Every name must be in required or optional,
@@ -136,7 +139,7 @@ func params(tokens []string, required, optional []string) (map[string]string, er
 // ParsePack parses the text of a pack.def (spec: Pack). Every row of the
 // load-error table is a returned error.
 func ParsePack(text string) (*Pack, error) {
-	p := &Pack{TimeDefaults: map[string]correlator.TimeDefault{}}
+	p := &Pack{TimeDefaults: map[string]model.TimeDefault{}}
 	seen := map[string]bool{}
 	ruleNames := map[string]bool{}
 	for n, line := range packLines(text) {
@@ -190,8 +193,8 @@ func ParsePack(text string) (*Pack, error) {
 		case "time_default":
 			// The grammar of correlate.md, Pack, with this pack's number grammar.
 			var source string
-			var d correlator.TimeDefault
-			source, d, err = correlator.ParseTimeDefault(rest, parseNumber)
+			var d model.TimeDefault
+			source, d, err = model.ParseTimeDefault(rest, parseNumber)
 			if _, given := p.TimeDefaults[source]; err == nil && given {
 				err = fmt.Errorf("source %q given on an earlier time_default", source)
 			}

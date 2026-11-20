@@ -3,7 +3,8 @@ package fuse
 import (
 	"encoding/json"
 
-	correlator "goat-correlator/engines/go"
+	"goat-correlator/engines/go/model"
+	"goat-correlator/engines/go/trace"
 )
 
 // Attributes: one rule per `attribute` line, over the group's candidates.
@@ -43,8 +44,8 @@ func equal(x, y any) bool {
 		if !isNumber(x) || !isNumber(y) {
 			return false
 		}
-		fx, _ := correlator.ToFloat(x)
-		fy, _ := correlator.ToFloat(y)
+		fx, _ := model.ToFloat(x)
+		fy, _ := model.ToFloat(y)
 		return fx == fy
 	}
 	switch xv := x.(type) {
@@ -58,11 +59,11 @@ func equal(x, y any) bool {
 	return false
 }
 
-func num(v any) float64 { f, _ := correlator.ToFloat(v); return f }
+func num(v any) float64 { f, _ := model.ToFloat(v); return f }
 
 // attribute decides one attribute for a group and appends its trace record
 // (Trace, item 3). ok is false when there is no candidate.
-func (g *Engine) attribute(name string, a Attribute, members []member, trace *[]Obj) (winner string, value any, ok bool) {
+func (g *Engine) attribute(name string, a Attribute, members []member, tr *[]Obj) (winner string, value any, ok bool) {
 	var cands []candidate
 	records := []any{}
 	for i := range members {
@@ -72,19 +73,18 @@ func (g *Engine) attribute(name string, a Attribute, members []member, trace *[]
 			continue
 		}
 		cands = append(cands, candidate{m, v})
-		records = append(records, Obj{"member": m.Key, "value": v, "time_ms": m.LastTime, "rank": g.rank(m.Entity)})
+		records = append(records, trace.AttributeCandidate(m.Key, v, m.LastTime, g.rank(m.Entity)))
 	}
 
 	var w *candidate
 	if len(cands) > 0 {
 		w = g.decide(a.Rule, cands)
 	}
-	rec := Obj{"stage": "attribute", "group": nameOrNull(name), "key": a.Key, "rule": a.Rule,
-		"candidates": records, "winner": nil, "value": nil}
+	var winnerKey, winnerValue any
 	if w != nil {
-		rec["winner"], rec["value"] = w.Key, w.value
+		winnerKey, winnerValue = w.Key, w.value
 	}
-	*trace = append(*trace, rec)
+	*tr = append(*tr, trace.Attribute(model.OrNull(name), a.Key, a.Rule, records, winnerKey, winnerValue))
 	if w == nil {
 		return "", nil, false
 	}
