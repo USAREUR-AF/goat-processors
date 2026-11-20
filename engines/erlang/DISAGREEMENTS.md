@@ -23,3 +23,15 @@ No vector covers these cases. The table gives the reading this engine takes.
 | Filter: `version` | filter.md, Pack | Checked to be one token; its semver form is not checked (no vector tests it). |
 | An integer literal outside the signed 64-bit range | quality.md, Reports | As for correlate: accepted as an arbitrary-precision integer. |
 | `hypot` in `speed_err` | quality.md, Samples | Computed as `sqrt(de*de + dn*dn)`; OTP has no `math:hypot`. Agrees with `hypot` well within the vector tolerance at these magnitudes. |
+
+## Found in the refactor (for proc-coord)
+
+The refactor changes no output byte (every vector and every recorded output
+file is byte-identical before and after). These points were found by the
+fuzz tests (`test/fuzz_tests.erl`); none is covered by a vector.
+
+| Point | Section | Before | This engine now |
+|---|---|---|---|
+| A pack number beyond binary64's range (`1e400`, or 400 digits) | correlate.md, Pack ("Numbers are decimal"); fuse.md, Pack; filter.md, Pack (number "read as the nearest binary64") | `correlate_pack`, `fuse_pack` and `filter_pack` raised `badarg` (a crash, no result) | a load error, as quality.md already states for quality's numbers. The specs do not say whether the nearest binary64 (infinity) is a value a pack may hold; OTP has no infinite float, so this engine cannot hold it. |
+| Filter: `key` `eq` or `in` with a text beyond binary64's range, against a numeric value | filter.md, Conditions | the comparison raised `badarg` during ingest | the text is not a number to this engine, so the condition is false (the value, being finite, is never equal to infinity either). |
+| A report number whose arithmetic overflows binary64 (a `lat` near 1e308, say) | correlate.md, Floats | `badarith` in the engine | unchanged: OTP has no infinite float. The fuzz tests keep report numbers in the ranges a report can hold. |

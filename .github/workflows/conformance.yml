@@ -97,13 +97,16 @@ jobs:
           python3 -I engines/cpp/coverage.py "$RUNNER_TEMP/cpp-cov" --floor 96.7
   erlang:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1
         with:
           otp-version: "27"
       - run: engines/erlang/run_tests
+      # Line coverage (OTP cover) of engines/erlang/src over the vectors and
+      # the tests; the floor is max(baseline 98.2 %, 80 %) (engines/erlang/REFACTOR.md).
+      - run: engines/erlang/coverage 98.2
   zig:
     runs-on: ubuntu-latest
     timeout-minutes: 30
