@@ -73,6 +73,7 @@ pub fn check(packs_dir: &Path, vector: &Path) -> Result<(), String> {
         let out = match step {
             Step::Ingest(r) => p.ingest(r),
             Step::Tick(t) => p.tick(*t),
+            Step::Pack { .. } => return Err(format!("steps[{i}]: a vector holds no pack step")),
         };
         let s = &out.stages[0];
         compare(&Json::Arr(s.events.clone()), w.get("expect").unwrap_or(&Json::Null), &format!("steps[{i}].expect"))?;

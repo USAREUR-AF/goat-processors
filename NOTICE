@@ -21,6 +21,9 @@ pinned to one version in runner/Cargo.toml and runner/Cargo.lock:
   zenoh 1.9.0         EPL-2.0 OR Apache-2.0  https://github.com/eclipse-zenoh/zenoh
   serde 1.0.228       MIT OR Apache-2.0      https://github.com/serde-rs/serde
   serde_norway 0.9.42 MIT OR Apache-2.0      https://github.com/cafkafk/serde-yaml
+  rustls 0.23.46      Apache-2.0 OR ISC OR MIT  https://github.com/rustls/rustls
+  rustls-pki-types 1.16.0  MIT OR Apache-2.0  https://github.com/rustls/pki-types
+  x509-parser 0.18.1  MIT OR Apache-2.0      https://github.com/rusticata/x509-parser
 
 Every crate those depend on, with its version and license, is listed in
 runner/THIRD-PARTY.md. The .deb package carries this file and LICENSE in
