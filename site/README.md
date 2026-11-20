@@ -35,6 +35,16 @@ the key from the tree and fails if the page says something else.
 | `packs` | settings packs | `ls packs/*/pack.def \| wc -l` |
 | `f1-random`, `gospa-random` | the `assign-time` row of the random set | the first `assign-time` row of `docs/benchmark.md`, which `tools/bench/bench.py check` keeps current |
 
+## Agent interface statuses
+
+Every status in the "Working with AI agents" band is in an element with
+`data-status="<id> ..."`. `build.py` checks that it shows the least-built
+status, of Built, Written and Designed, among the interfaces it names in
+`tools/readme/agentic.json`, and that every interface there appears on the
+page. The README's section "Working with AI agents" is written from the same
+file by `tools/readme/make-readme.py`, which refuses Built without a test in
+the tree.
+
 ## The hero
 
 The plan view and the lines under it replay
