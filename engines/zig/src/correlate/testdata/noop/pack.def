@@ -1,0 +1,15 @@
+# Test-only fixture (not a pack of packs/, not in the spec): the no-op test
+# kind that src/correlate/noop_test.zig registers, behind its `gate noop` line.
+# Without that registration this pack does not load.
+pack           noop-fixture
+version        0.1.0
+filter         accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+gate           noop
+gate           mahalanobis gate=9.21
+confirm_count  1
+hold           noop
+hold           mahalanobis gate=18.42
+hold_failures  2
+stale_ms       120000
+same_source    forbid
+output         priority

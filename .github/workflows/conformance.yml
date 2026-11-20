@@ -110,11 +110,18 @@ jobs:
       - run: engines/erlang/coverage 98.2
   zig:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
         with:
           version: 0.13.0
       - run: zig build test
+        working-directory: engines/zig
+      # Line coverage, measured with gdb and objdump (Zig 0.13 has no coverage
+      # of its own; see engines/zig/README.md), held at engines/zig/coverage/floor.
+      - name: zig line coverage floor
+        run: |
+          command -v gdb >/dev/null || { sudo apt-get update && sudo apt-get install -y gdb; }
+          coverage/run.sh --check
         working-directory: engines/zig
