@@ -131,7 +131,7 @@ Each extension kind is added in one place: one table entry, or one registration 
 | correlate test | `correlate/Tests.java`, `Tests.STANDARD` (a `TestKind`: name, parameters, formula) | one entry, or `Registry.STANDARD.withTest(kind)` |
 | correlate method | `correlate/Registry.java` (a `MethodKind`: name, factory, its own directives, required directives, end checks) | one `withMethod(kind)`; `Confirm.KIND` and `Assign.KIND` are the two |
 | quality measure | `quality/Measures.java`, `Measures.STANDARD` (name, value over the window, source aggregate) | one entry, or `Measures.STANDARD.with(measure)` |
-| fuse kinematics method | `fuse/Kinematics.java`, `Kinematics.TABLE` | one entry |
+| fuse kinematics method | `fuse/Kinematics.java`, the enum `Kinematics.Method` (by name: `TABLE`) | one constant |
 | function | `io/Functions.java` | one entry |
 
 The pack parsers read against a registry (`CorrelatePack.parse(text, registry)`,
