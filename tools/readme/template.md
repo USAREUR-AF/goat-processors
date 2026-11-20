@@ -7,11 +7,24 @@ translated: correlation, fusion, filtering, and quality measurement with the
 actions that follow from it. [goat-transformers](https://github.com/USAREUR-AF/goat-transformers)
 is the layer beneath it and translates messages between formats into one
 shared model; goat-processors reads that model. Each function is a written
-specification, a set of rule packs, and conformance vectors that {{n_engines}}
-independent engines (Python, Rust, Go, Java, C++, Erlang, Zig) reproduce
-exactly, down to every trace record.
+specification, a set of settings files (packs), and test cases (vectors) that
+{{n_engines}} independent engines (Python, Rust, Go, Java, C++, Erlang, Zig)
+reproduce exactly, down to the record of every test they run.
 
 {{figure:processing-layer}}
+
+## Words used here
+
+| Word | Meaning |
+|---|---|
+| report | one message from one source about one object, after translation: its time, position, reported position error (`ce`, meters) and identity keys |
+| track | the reports of one source about one object, under that source's track number; named `<source>/<uid>`, for example `radar-1/T1` |
+| motion filter | a small Kalman filter kept for each track: it predicts where the track will be, and how uncertain that prediction is |
+| tick | a call `tick(now_ms)` that moves the function's clock to `now_ms` and returns its output for that moment |
+| group, system track | the output for one object: the tracks judged to describe it, with one estimate. The per-report method makes groups of two or more tracks; the assignment method keeps one system track per object, even for a track seen by one source |
+| pack | a named settings file for one function, `packs/<function>-<name>/pack.def`: which tests run and with which limits. A pack holds no code |
+| vector | a test case: a list of inputs with the exact events, trace and final state every engine must produce |
+| trace record | one line per test the engine ran: what it compared, the value it computed, the limit and the result |
 
 ## Functions
 
@@ -20,6 +33,24 @@ exactly, down to every trace record.
 Each function runs as `load_pack`, then `ingest(report)` and `tick(now_ms)`,
 each returning events and trace records, and `snapshot()`, which returns the
 whole state.
+
+## Methods and packs
+
+The correlate function decides which tracks from different sources describe
+the same object. It has two **methods**, chosen by a line in the pack:
+
+| Method | How it decides |
+|---|---|
+| `confirm` (per report) | each new report is tested against the other sources' tracks; a pair is grouped after passing on two reports in a row, and ungrouped after failing twice |
+| `assign` (per tick) | at each tick, all of one source's tracks are placed together by the least total cost (an exact minimum-cost assignment), so one close track cannot take another's match; every track is in exactly one system track |
+
+Each **pack** below is one set of correlate settings. Most extend another
+pack and add one capability. F1 is the [benchmark](#benchmark)'s association
+score, from 0 to 1: how well a pack puts the tracks of one object together
+and keeps different objects apart, on three sets of scenarios (named, random,
+and time quality, where sensor clocks are wrong).
+
+{{methods_and_packs}}
 
 ## Quick start
 
@@ -81,7 +112,16 @@ crossing, formation, splitting and turning objects; sensors with understated
 or absent error, bias, latency, low detection, track number swaps and false
 tracks; and sensors whose clocks are offset, drifting or free-running, or
 whose reports arrive out of order. Every score and its formula is in [docs/benchmark.md](docs/benchmark.md),
-which `tools/bench/bench.py report` writes.
+which `tools/bench/bench.py report` writes. Pack names are explained in
+[Methods and packs](#methods-and-packs).
+
+| Measure | Meaning |
+|---|---|
+| pairwise F1 | at every tick, every pair of live tracks is checked: does the output put them together exactly when they are the same object? Precision is the share of output pairs that are right, recall the share of true pairs found; F1 is their harmonic mean, from 0 to 1, higher is better |
+| false merge | two tracks of different objects put in one output track; counted each time it starts |
+| missed merge | two tracks of one object kept apart for a whole stretch of at least 10 s |
+| identity swap | an object's output track changes to another while the first still exists |
+| GOSPA | the mean, over ticks, of the distance between output and true positions, with each error capped at 500 m and every missed or false track charged half the cap; lower is better |
 
 {{benchmark}}
 

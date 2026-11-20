@@ -1,10 +1,15 @@
 # Contributing
 
 goat-processors is a set of functions, each defined by a specification and
-checked by vectors that seven independent engines must reproduce exactly. A
+checked by vectors (test cases with their exact expected output) that seven
+independent engines must reproduce exactly. A
 contribution keeps three things true: every engine passes every vector, every
 decision is in the trace, and every engine is written from the specification
 alone.
+
+The words used below (pack, vector, trace record, track, tick) are defined in
+the README, [Words used here](README.md#words-used-here); the correlate methods
+and packs are in [Methods and packs](README.md#methods-and-packs).
 
 ## Before you open a pull request
 
@@ -57,7 +62,10 @@ It holds no code and no expressions.
    and why each limit has its value.
 2. Add scenarios for it to `tools/make-<function>-vectors.py`, each with its
    decisions stated by hand, and generate the vectors.
-3. Every engine must pass them. A pack that needs a test the specification
+3. For a correlate pack, add its plain description to `PACKS` in
+   `tools/readme/make-readme.py`: what it does and what it adds over the pack
+   it extends. The README generator refuses to run without it.
+4. Every engine must pass them. A pack that needs a test the specification
    does not define is a specification change: add the test to the
    specification first, with its trace record.
 

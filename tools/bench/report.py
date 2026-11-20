@@ -56,6 +56,11 @@ def short(pack):
     return pack[len("correlate-"):] if pack.startswith("correlate-") else pack
 
 
+def plink(pack):
+    """A pack name in a table, linked to its plain description in the README."""
+    return "[%s](../README.md#methods-and-packs)" % short(pack)
+
+
 # ---------------------------------------------------------------------------
 # SVG
 
@@ -210,6 +215,15 @@ def render_all(res):
     L.append("Each scenario places truth objects and sensors that report tracks of them with "
              "stated errors. Every correlate pack runs on the same report stream with the Python "
              "engine, and its output at each tick is scored against truth.\n")
+    L.append("Each pack is one set of correlate settings; what each one does, and what it adds over the "
+             "pack it extends, is in the README, [Methods and packs](../README.md#methods-and-packs). "
+             "The measures, in short: **pairwise F1** checks, at every tick, every pair of live tracks "
+             "(together in the output exactly when they are the same object?), from 0 to 1, higher is "
+             "better; a **false merge** puts tracks of two objects together; a **missed merge** keeps "
+             "one object's tracks apart for 10 s or more; an **identity swap** changes an object's "
+             "output track while the old one still exists; **GOSPA** is the mean position error with "
+             "each error capped at 500 m and every missed or false track charged half the cap, lower "
+             "is better.\n")
     L.append("## Seeded random set\n")
     L.append("%d scenarios: 2 to 4 objects (still, straight, turning, accelerating), 2 or 3 sensors, "
              "each sensor with a chance of understated or absent error, bias, latency, low detection, "
@@ -221,11 +235,11 @@ def render_all(res):
         L.append("The charts leave out %s; the tables include every pack.\n" % "; ".join(
             "%s (%s)" % (short(p), CHART_OMIT[p]) for p in omitted))
     L.append(table(["Pack"] + [lab for _, lab, _, _ in METRICS],
-                   [[short(p)] + [fmt(S[p]["random"][k], f) for k, _, f, _ in METRICS] for p in packs]))
+                   [[plink(p)] + [fmt(S[p]["random"][k], f) for k, _, f, _ in METRICS] for p in packs]))
     L.append("## Named scenarios, pooled\n")
     L.append("The %d named scenarios outside the time family.\n" % n_named)
     L.append(table(["Pack"] + [lab for _, lab, _, _ in METRICS],
-                   [[short(p)] + [fmt(S[p]["named"][k], f) for k, _, f, _ in METRICS] for p in packs]))
+                   [[plink(p)] + [fmt(S[p]["named"][k], f) for k, _, f, _ in METRICS] for p in packs]))
     if timed:
         L.append("## Time quality set, pooled\n")
         L.append("The %d scenarios of the time family, pooled on their own: a sensor whose clock is "
@@ -236,7 +250,7 @@ def render_all(res):
                  "degrees every 100 s, so a fixed position bias cannot stand in for a clock error.\n"
                  % len(timed))
         L.append(table(["Pack"] + [lab for _, lab, _, _ in METRICS],
-                       [[short(p)] + [fmt(S[p]["time"][k], f) for k, _, f, _ in METRICS] for p in packs]))
+                       [[plink(p)] + [fmt(S[p]["time"][k], f) for k, _, f, _ in METRICS] for p in packs]))
     L.append("## Scenarios\n")
     L.append(table(["Scenario", "Family", "Tests", "Objects", "Reports", "False reports", "Sensors"],
                    [[m["name"], m["family"], m["tests"], str(m["objects"]), str(m["reports"]),
