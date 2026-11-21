@@ -1,4 +1,4 @@
-%% Method assign (spec/correlate-assign.md 0.6): system tracks, per-source
+%% Method assign (spec/correlate-assign.md 0.7): system tracks, per-source
 %% ranked assignments at each tick, kept as the best `hypotheses` histories
 %% over a window of `window` ticks (only near-ties with `margin`), the
 %% optional sensor bias per pair of sources with its optional clock offset

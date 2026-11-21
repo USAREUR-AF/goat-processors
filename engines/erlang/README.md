@@ -1,7 +1,7 @@
 # goat-processors: Erlang engine
 
 Four functions, from their specifications in `spec/`: correlate
-(`correlate.md` 0.8, method `confirm`, and `correlate-assign.md` 0.6, method
+(`correlate.md` 1.0, method `confirm`, and `correlate-assign.md` 0.7, method
 `assign`), filter (`filter.md` 0.1), fuse (`fuse.md` 0.2) and quality
 (`quality.md` 0.2). Erlang/OTP 27, standard library only; JSON is read with
 OTP 27's `json` module.
@@ -52,7 +52,8 @@ Adding a kind is one entry in one table:
 | Kind | Table | Also per pack |
 |---|---|---|
 | correlate method | `correlate_methods:builtin/0` (name => module with the `correlate_methods` behaviour) | `correlate:load_pack(Dir, #{methods => #{Name => Module}})` |
-| correlate test | `correlate_test_kinds:builtin/0` (name => parameters, value grammar, function) | `correlate:load_pack(Dir, #{tests => #{Name => Kind}})` |
+| correlate test | `correlate_test_kinds:builtin/0` (name => parameters, value grammar, function, optional range check) | `correlate:load_pack(Dir, #{tests => #{Name => Kind}})` |
+| correlate output mode (method confirm) | `correlate_confirm:outputs/0` (name => function giving the primary and the estimate) | |
 | quality measure | `quality_measures:builtin/0` (name, entity function, source aggregation) | `quality:load_pack(Dir, #{measures => [Measure]})` |
 | filter condition | `filter_conditions:table/0` | |
 | fuse kinematics method, attribute rule | `fuse_kinematics:methods/0`, `fuse_attributes:rules/0` | |
@@ -78,7 +79,7 @@ does not load.
 | Two-model filter | `src/model/model_imm.erl` |
 | Restart | `src/correlate/correlate_track.erl` |
 | Tests | `src/correlate/correlate_test_kinds.erl`; distance and d² `src/correlate/correlate_gating.erl` |
-| Association | `src/correlate/correlate_confirm.erl` |
+| Association | `src/correlate/correlate_confirm.erl`; Sequential test `src/correlate/correlate_sprt.erl`; Stale time of a source `src/correlate/correlate.erl` |
 | Events, Trace | `src/trace/trace_correlate.erl` |
 | Snapshot | `src/snapshot/snapshot_correlate.erl` |
 | Pack | `src/correlate/correlate_pack.erl`; text `src/io/io_pack.erl`; methods `src/correlate/correlate_methods.erl` |

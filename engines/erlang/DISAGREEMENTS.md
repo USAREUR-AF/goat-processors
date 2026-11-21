@@ -4,7 +4,7 @@
 
 None. Every vector under `packs/*/vectors/`, `spec/correlate-load-vectors/`,
 `spec/filter-load-vectors/`, `spec/fuse-load-vectors/` and `spec/quality-load-vectors/`
-agrees with `spec/correlate.md` (0.8), `spec/correlate-assign.md` (0.6), `spec/filter.md` (0.1),
+agrees with `spec/correlate.md` (1.0), `spec/correlate-assign.md` (0.7), `spec/filter.md` (0.1),
 `spec/fuse.md` (0.2) and `spec/quality.md` (0.2) as this engine reads them.
 
 ## Open points the specifications leave undecided
@@ -14,6 +14,7 @@ No vector covers these cases. The table gives the reading this engine takes.
 | Point | Section | This engine |
 |---|---|---|
 | An integer literal outside the signed 64-bit range | correlate.md, Reports | OTP decodes it as an arbitrary-precision integer, and the engine accepts it. |
+| `stale_rate`: the interval of a report that restarts its entity | correlate.md, Association, Stale time of a source; Restart | Appended like any other: the entity already existed, and the spec names no exception. |
 | `same` between booleans, arrays or objects | correlate.md, Tests | Compared by exact term equality. |
 | A `time_error_ms` that is not finite | correlate.md, Reports, Time quality; quality.md, Time quality | OTP's JSON decoder gives no infinite or NaN number, so every numeric value 0 or above is taken; the check for finiteness has nothing to reject. |
 | An integer literal outside the signed 64-bit range | fuse.md, Reports | As for correlate: accepted as an arbitrary-precision integer. |
