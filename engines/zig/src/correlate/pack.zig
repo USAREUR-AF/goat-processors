@@ -37,7 +37,33 @@ pub const TimeOffset = struct {
 pub const TimeState = params.TimeState;
 pub const TimeDefault = params.TimeDefault;
 
-pub const Output = enum { priority, latest };
+// correlate.md 1.0 "Association", Stale time of a source: the `stale_rate` line.
+pub const StaleRate = struct {
+    factor: f64,
+    floor_ms: i64,
+    ceiling_ms: i64,
+    samples: i64,
+};
+
+// correlate.md 1.0 "Association", Sequential test: the `sprt` line.
+pub const Sprt = struct {
+    false: f64,
+    missed: f64,
+    pos_m: f64,
+    vel_ms: f64,
+    hae_sigma_m: f64,
+
+    // `up = ln((1 - missed) / false)`, `lo = ln(missed / (1 - false))`.
+    pub fn upper(self: Sprt) f64 {
+        return @log((1.0 - self.missed) / self.false);
+    }
+    pub fn lower(self: Sprt) f64 {
+        return @log(self.missed / (1.0 - self.false));
+    }
+};
+
+// correlate.md 1.0: `fused` is the default.
+pub const Output = enum { fused, priority, latest };
 
 // Spec "Pack": `method confirm` (correlate.md) or `method assign`
 // (correlate-assign.md), from the method registry (methods.zig).
@@ -63,6 +89,10 @@ pub const Pack = struct {
     confirm_count: i64,
     hold_failures: i64,
     stale_ms: i64,
+    // correlate.md 1.0: staleness from each source's update interval, in place of `stale_ms`.
+    stale_rate: ?StaleRate,
+    // correlate.md 1.0: confirmation by sequential test, in place of the counts and the hold.
+    sprt: ?Sprt,
     same_source_allow: bool,
     output: Output,
     priority: []const Priority,
@@ -119,6 +149,8 @@ pub const Directive = enum {
     confirm_count,
     hold_failures,
     stale_ms,
+    stale_rate,
+    sprt,
     same_source,
     output,
     priority,
@@ -128,6 +160,9 @@ pub const Directive = enum {
     hypotheses,
     margin,
 };
+
+// The directives a pack.def wrote.
+pub const Seen = std.EnumSet(Directive);
 
 // Spec "Pack": `gate`, `confirm`, `hold` and `priority` repeat.
 fn repeats(d: Directive) bool {
@@ -197,6 +232,8 @@ fn parseParams(comptime T: type, alloc: Allocator, tokens: []const []const u8) E
                 matched = true;
                 if (f.type == f64) {
                     @field(out, f.name) = try parseDecimal(value);
+                } else if (f.type == i64) {
+                    @field(out, f.name) = try parseCount(value);
                 } else if (f.type == []const u8) {
                     if (value.len == 0) return error.BadValue;
                     @field(out, f.name) = try alloc.dupe(u8, value);
@@ -246,7 +283,7 @@ pub fn parse(alloc: Allocator, text: []const u8) Error!Pack {
 
 // Parses a pack.def whose test lines name kinds of `registry`.
 pub fn parseWith(alloc: Allocator, text: []const u8, registry: tests.Registry) Error!Pack {
-    var seen = std.EnumSet(Directive).initEmpty();
+    var seen = Seen.initEmpty();
     var gate = std.ArrayList(Test).init(alloc);
     var confirm = std.ArrayList(Test).init(alloc);
     var hold = std.ArrayList(Test).init(alloc);
@@ -268,8 +305,10 @@ pub fn parseWith(alloc: Allocator, text: []const u8, registry: tests.Registry) E
         .confirm_count = 0,
         .hold_failures = 0,
         .stale_ms = 0,
+        .stale_rate = null,
+        .sprt = null,
         .same_source_allow = false,
-        .output = .priority,
+        .output = .fused,
         .priority = &.{},
         .new_cost = 0,
         .keep_bonus = 0,
@@ -321,6 +360,8 @@ pub fn parseWith(alloc: Allocator, text: []const u8, registry: tests.Registry) E
             .confirm_count => pack.confirm_count = try parseCount(try one(args)),
             .hold_failures => pack.hold_failures = try parseCount(try one(args)),
             .stale_ms => pack.stale_ms = try parseCount(try one(args)),
+            .stale_rate => pack.stale_rate = try parseParams(StaleRate, alloc, args),
+            .sprt => pack.sprt = try parseParams(Sprt, alloc, args),
             .same_source => {
                 const v = try one(args);
                 if (std.mem.eql(u8, v, "allow")) {
@@ -354,11 +395,18 @@ pub fn parseWith(alloc: Allocator, text: []const u8, registry: tests.Registry) E
         if (!(r.gate > 0)) return error.BadValue;
     }
 
+    // correlate.md 1.0 "Pack": one of `stale_ms` and `stale_rate`, never both,
+    // with either method; `stale_rate`'s ranges.
+    if (seen.contains(.stale_ms) == seen.contains(.stale_rate)) return error.MissingDirective;
+    if (pack.stale_rate) |sr| {
+        if (!(sr.factor > 0 and sr.floor_ms >= 0 and sr.floor_ms <= sr.ceiling_ms and sr.samples >= 1)) return error.BadValue;
+    }
+
     // The method's directives (methods.zig): required, refused, then its ranges.
     const m = pack.method;
     for (m.required) |r| if (!seen.contains(r)) return error.MissingDirective;
     for (m.refused) |r| if (seen.contains(r)) return error.DirectiveNotForMethod;
-    try m.check(pack);
+    try m.check(pack, seen);
 
     pack.gate = try gate.toOwnedSlice();
     pack.confirm = try confirm.toOwnedSlice();

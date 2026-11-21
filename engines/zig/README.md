@@ -1,10 +1,12 @@
 # goat-processors, zig engine
 
-An implementation of `spec/correlate.md` (version 0.8, method `confirm`, with
-the two-model filter, the filter restart and the time quality of a report),
-`spec/correlate-assign.md` (version 0.6, method `assign`, with the multi-frame
+An implementation of `spec/correlate.md` (version 1.0, method `confirm`, with
+the two-model filter, the filter restart, the time quality of a report, the
+`state` test, confirmation by sequential test (`sprt`), staleness from each
+source's update interval (`stale_rate`) and the `fused` output),
+`spec/correlate-assign.md` (version 0.7, method `assign`, with the multi-frame
 window and its margin, the filter restart, the sensor bias and its clock
-offset), `spec/filter.md` (version 0.1), `spec/fuse.md` (version 0.2) and
+offset, the `state` test and `stale_rate`), `spec/filter.md` (version 0.1), `spec/fuse.md` (version 0.2) and
 `spec/quality.md` (version 0.2, with time quality) in Zig 0.13.0, standard
 library only. It was written from the specifications and the vectors, not
 from another engine. Points the specifications leave open, and how this
@@ -19,7 +21,7 @@ fuse, quality, trace, snapshot, IO. Each is a directory of `src/`.
 | Module | Holds |
 |---|---|
 | `src/model/` | what more than one function shares: the Frame, the track estimate (one filter and the two-model filter), the report key readers, the shared pack parameter types |
-| `src/correlate/` | the function correlate: its pack, its entity, the test registry, the engine (`ingest`, `tick`, `snapshot`), the method registry and method `confirm` |
+| `src/correlate/` | the function correlate: its pack, its entity, the test registry, the engine (`ingest`, `tick`, `snapshot`, the stale time of a source), the method registry and method `confirm` (with its sequential test, `sprt.zig`) |
 | `src/assign/` | correlate's method `assign` (`correlate-assign.md`): ranking, window and sensor bias |
 | `src/filter/` | the function filter (`filter.md`) |
 | `src/fuse/` | the function fuse (`fuse.md`) |
@@ -68,8 +70,8 @@ There are no globals.
 | Track estimate | `src/model/kalman.zig` (the measurement variance and the timing variance: `src/correlate/estimate.zig`) |
 | Two-model filter | `src/model/imm.zig` |
 | Restart | `src/correlate/estimate.zig` |
-| Tests | `src/correlate/tests.zig` |
-| Association | `src/correlate/confirm.zig` |
+| Tests (the `state` test and its chi-square table included) | `src/correlate/tests.zig` |
+| Association | `src/correlate/confirm.zig`; the evidence of Sequential test in `src/correlate/sprt.zig`; Stale time of a source in `src/correlate/engine.zig` |
 | Events | `src/correlate/confirm.zig` (method confirm), `src/assign/assign.zig` (method assign) |
 | Trace | `src/trace/record.zig` |
 | Snapshot | `src/snapshot/correlate.zig` |
@@ -192,7 +194,7 @@ each file's `unit_tests` struct) is left out. `coverage/run.sh --check` fails be
 |---|---|---|
 | Baseline (commit a2b8791, before the refactor: vectors and runner) | 3,025 of 3,077 | 98.3 % |
 | Floor, max(baseline, 80 %) | | 98.3 % |
-| Now | 3,210 of 3,237 | 99.2 % |
+| Now (correlate 1.0, assign 0.7) | 3,468 of 3,502 | 99.0 % |
 
 ## The runner
 

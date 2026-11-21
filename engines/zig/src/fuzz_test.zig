@@ -211,7 +211,15 @@ fn randomReport(r: std.Random, a: Allocator, now: i64) !json.ObjectMap {
     try m.put("lat", if (r.uintLessThan(u8, 30) == 0) .{ .string = "50" } else .{ .float = 50.0 + (r.float(f64) - 0.5) * 0.02 });
     try m.put("lon", if (r.uintLessThan(u8, 30) == 0) .null else .{ .float = 8.0 + (r.float(f64) - 0.5) * 0.02 });
     for (report_keys) |k| {
-        if (r.uintLessThan(u8, 3) == 0) try m.put(k, try randomValue(r, a, 0));
+        if (r.uintLessThan(u8, 3) == 0) {
+            const v = try randomValue(r, a, 0);
+            // Nor a `speed_ms` of 1.2e29 (the number string): the velocity
+            // carries a prediction as far from the reference, into the same
+            // wrap loop (found when correlate 1.0 changed the packs, and so
+            // the random stream each pack gets).
+            if (std.mem.eql(u8, k, "speed_ms") and v == .number_string) continue;
+            try m.put(k, v);
+        }
     }
     // Plausible values for the optional keys, half the time.
     if (r.boolean()) try m.put("ce", .{ .float = 5 + r.float(f64) * 60 });
