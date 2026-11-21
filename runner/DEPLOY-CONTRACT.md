@@ -85,5 +85,5 @@ Within `0.x`, a later release keeps these commands, their JSON outputs, the
 file paths, the config keys, and the fabric keys and their value format; it
 may add keys and checks. A change to any of them is a new minor version and
 is marked **Breaking** in the release notes: `runner/CHANGELOG.md`, whose
-section for a release is also on its GitHub release page. 0.6.0 is such a
+section for a release is also on its GitHub release page. 0.6 is such a
 release: the fabric keys.

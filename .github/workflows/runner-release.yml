@@ -125,8 +125,6 @@ jobs:
     outputs:
       ref: ${{ steps.index.outputs.ref }}
     steps:
-      - name: every .deb's binary needs at most glibc 2.35, checked again before signing
-        run: runner/packaging/check-glibc.sh 2.35 dist/*.deb
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: one tag <version> for both architectures
         id: index
@@ -162,6 +160,11 @@ jobs:
           pattern: deb-*
           path: dist
           merge-multiple: true
+      - name: every .deb's binary needs at most glibc 2.35, checked again before signing
+        run: |
+          # readelf (binutils) and dpkg-deb, which the check uses; on the image already.
+          command -v readelf >/dev/null && command -v dpkg-deb >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q binutils dpkg; }
+          runner/packaging/check-glibc.sh 2.35 dist/*.deb
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: sign every file, keyless
         run: |
