@@ -76,6 +76,8 @@ its 95 % interval: two packs differ only when their intervals do not overlap.
 | [`assign-full`](packs/correlate-assign-full/pack.def) | `assign` | as assign-bias, with filter restart, the two-tick window with a margin, and a 20 s stale time | `assign-bias`: every option of assign 0.5 together | 0.935 (0.922 to 0.947) |
 | [`assign-time`](packs/correlate-assign-time/pack.def) | `assign` | as assign-full, also fitting a clock offset for each pair of sources | `assign-full`: clock offset: a lag along the track that grows with speed is read as a clock error, not a position bias | 0.934 (0.921 to 0.947) |
 
+**Default: `assign-time`**, the pack the runner ships. Every number here is from the evaluation set, with its 95 % interval in brackets; one pack is better than another only where the intervals do not overlap. F1 on the 500 random scenarios: 0.934 (0.921 to 0.947), equal within the interval to the highest, `assign-full` 0.935 (0.922 to 0.947); also equal within the interval: `window`. In 8 of the 9 scenario families it is highest or equal within the interval to the highest: formation, crossing, maneuver, sensor problems, clutter, mixed domains, track management, recorded ships. It has no score in scale (3 of 3 scenarios over the 300 s limit). Its position error (GOSPA, a mean position error that also charges missed and false tracks) on the random set is 268 m (250 to 287), equal within the interval to the lowest. Its weak point is identity swaps (an object's output track changing to another): 471 (371 to 580) on the random set, against `window` 122 (100 to 146) to `gnn` 321 (270 to 373) for the per-report packs, so the `confirm` method stays selectable.
+
 ## Quick start
 
 Run every vector in one language. Each engine uses only its language's
