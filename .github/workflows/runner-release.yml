@@ -1,4 +1,5 @@
-# A tag `runner-v<version>` builds the runner's .deb for amd64 and arm64,
+# A tag `runner-v<version>` builds the runner's .deb for amd64 and arm64 on
+# Ubuntu 22.04 (so it runs on 22.04 and 24.04; checked: glibc 2.35 at most),
 # signs each file with cosign (keyless: the signature names this workflow and
 # the tag), and attaches them to a GitHub Release of that tag with SHA256SUMS.
 #
@@ -35,18 +36,31 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            runner: ubuntu-24.04
+            runner: ubuntu-22.04
           - arch: arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-22.04-arm
+    # Built on the oldest Ubuntu it is for: a binary links against the build
+    # host's glibc and needs that version or newer to run.
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: the Rust toolchain (the image's rustup stable; installed if the image has none)
+        run: |
+          if ! command -v cargo >/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            "$HOME/.cargo/bin/cargo" --version
+          else
+            cargo --version
+          fi
       - name: the release binary, with build paths replaced so no build machine path appears in a site's log
         run: cargo build --release --locked
         working-directory: runner
         env:
           RUSTFLAGS: --remap-path-prefix=${{ github.workspace }}=/src --remap-path-prefix=/home/runner/.cargo=/cargo
+      - name: the binary needs at most glibc 2.35 (Ubuntu 22.04, Jetson Linux 36)
+        run: runner/packaging/check-glibc.sh 2.35 runner/target/release/goat-processors
       - run: runner/packaging/build-deb.sh ${{ matrix.arch }} runner/target/release/goat-processors dist
       - run: |
           sudo apt-get install -y -q ./dist/goat-processors_*_${{ matrix.arch }}.deb
@@ -71,6 +85,8 @@ jobs:
           pattern: deb-*
           path: dist
           merge-multiple: true
+      - name: every .deb's binary needs at most glibc 2.35, checked again before signing
+        run: runner/packaging/check-glibc.sh 2.35 dist/*.deb
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: sign every file, keyless
         run: |
@@ -96,4 +112,4 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           gh release create "$TAG" dist/* --title "goat-processors runner ${TAG#runner-v}" \
-            --notes "The goat-processors runner for Ubuntu 24.04 (amd64, arm64). Install: runner/INSTALL.md at this tag. Every file is signed with cosign (keyless); the .sigstore.json next to each file is its signature."
+            --notes "The goat-processors runner for Ubuntu 22.04 and 24.04 (amd64, arm64; built on 22.04, needs glibc 2.35 or newer). Install: runner/INSTALL.md at this tag. Every file is signed with cosign (keyless); the .sigstore.json next to each file is its signature."
