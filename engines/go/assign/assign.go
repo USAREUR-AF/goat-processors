@@ -1,4 +1,4 @@
-// Package assign is method assign of spec/correlate-assign.md (version 0.6):
+// Package assign is method assign of spec/correlate-assign.md (version 0.7):
 // system tracks, per-source ranked assignments at each tick, kept as up to
 // k histories over a window of n ticks, sensor bias and the clock offset,
 // and the inverse-variance fused estimate.
@@ -35,6 +35,7 @@ type Core interface {
 	Drop(k string)                                        // removes the entity
 	Frame() *model.Frame                                  // the reference, nil before the first report
 	EntitySnapshot(k string, out Obj) Obj                 // adds last_time_ms and the filter fields
+	Intervals() (Obj, bool)                               // with stale_rate, the snapshot's intervals
 }
 
 // Params are the pack directives of method assign (correlate-assign.md Pack).

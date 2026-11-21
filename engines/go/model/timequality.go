@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// Time quality (spec/correlate.md 0.8: Reports, "Time quality"; Track
+// Time quality (spec/correlate.md 1.0: Reports, "Time quality"; Track
 // estimate, "Measurement variance"; Pack, time_default), which quality cites.
 
 // TimeStates are the values time_state and a time_default's state may take.

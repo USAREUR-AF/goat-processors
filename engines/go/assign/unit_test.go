@@ -143,6 +143,7 @@ func (c *fakeCore) Predicted(k string, _ int64) (model.Axis, model.Axis) {
 }
 func (c *fakeCore) TimingVariance(string) (float64, float64) { return 0, 0 }
 func (c *fakeCore) Hae(string) (float64, bool)               { return 0, false }
+func (c *fakeCore) Intervals() (Obj, bool)                   { return nil, false }
 func (c *fakeCore) Stale(k string, now int64) bool           { return now > 5000 && k == "a/2" }
 func (c *fakeCore) Gate(a, b string, _ *[]Obj) bool          { return true }
 func (c *fakeCore) Drop(k string)                            { c.gone[k] = true }

@@ -18,6 +18,10 @@ hold_failures 1
 stale_ms 60000
 `
 
+const sprtLine = "sprt false=0.01 missed=0.01 pos_m=10000 vel_ms=300 hae_sigma_m=100\n"
+
+const staleRateLine = "stale_rate factor=5 floor_ms=20000 ceiling_ms=60000 samples=3\n"
+
 const assignPack = `pack t
 version 1
 method assign
@@ -84,6 +88,22 @@ func TestPackMethods(t *testing.T) {
 		"time_default twice":     confirmPack + "time_default s error_ms=1\ntime_default s state=drifting\n",
 		"one value":              confirmPack + "pack t u\n",
 		"filter range":           strings.Replace(confirmPack, "default_ce_m=50", "default_ce_m=0", 1),
+		"window test retired":    confirmPack + "gate window multiplier=1 window_m=900 err_min_m=100 err_max_m=5000\n",
+		"state probability":      confirmPack + "gate state probability=0.9 hae_sigma_m=100\n",
+		"state hae_sigma_m":      confirmPack + "gate state probability=0.99 hae_sigma_m=0\n",
+		"sprt with count":        strings.Replace(confirmPack, "hold_failures 1\n", sprtLine, 1),
+		"sprt with hold":         strings.Replace(confirmPack, "confirm_count 1\nhold_failures 1\n", sprtLine+"hold mahalanobis gate=1\n", 1),
+		"sprt false at half":     strings.Replace(confirmPack, "confirm_count 1\nhold_failures 1\n", strings.Replace(sprtLine, "false=0.01", "false=0.5", 1), 1),
+		"sprt missing param":     strings.Replace(confirmPack, "confirm_count 1\nhold_failures 1\n", "sprt false=0.01 missed=0.01 pos_m=1 vel_ms=1\n", 1),
+		"sprt with assign":       assignPack + sprtLine,
+		"confirm needs count":    strings.Replace(confirmPack, "confirm_count 1\n", "", 1),
+		"no staleness":           strings.Replace(confirmPack, "stale_ms 60000\n", "", 1),
+		"both stalenesses":       confirmPack + staleRateLine,
+		"stale_rate floor":       strings.Replace(confirmPack, "stale_ms 60000\n", "stale_rate factor=5 floor_ms=7 ceiling_ms=6 samples=9\n", 1),
+		"stale_rate samples":     strings.Replace(confirmPack, "stale_ms 60000\n", "stale_rate factor=5 floor_ms=5 ceiling_ms=6 samples=0\n", 1),
+		"stale_rate integer":     strings.Replace(confirmPack, "stale_ms 60000\n", "stale_rate factor=5 floor_ms=5.5 ceiling_ms=6 samples=1\n", 1),
+		"stale_rate factor":      strings.Replace(confirmPack, "stale_ms 60000\n", "stale_rate factor=x floor_ms=5 ceiling_ms=6 samples=1\n", 1),
+		"stale_rate parameter":   strings.Replace(confirmPack, "stale_ms 60000\n", "stale_rate factor=5 floor_ms=5 ceiling_ms=6\n", 1),
 	} {
 		if _, err := ParsePack(text); err == nil {
 			t.Errorf("%s: loads", name)
@@ -93,6 +113,13 @@ func TestPackMethods(t *testing.T) {
 	p = mustParse(t, full)
 	if !(p.HasMargin && p.HasBias && p.HasTimeOffset && p.HasRestart && p.HasManeuver && p.Window == 3 && p.Hypotheses == 2) {
 		t.Errorf("full pack = %+v", p)
+	}
+	p = mustParse(t, strings.Replace(confirmPack, "confirm_count 1\nhold_failures 1\n", sprtLine, 1)+"output fused\n")
+	if !p.HasSprt || p.Output != "fused" {
+		t.Errorf("sprt pack = %+v", p)
+	}
+	if p = mustParse(t, confirmPack); p.Output != "fused" {
+		t.Errorf("default output = %q", p.Output)
 	}
 	if _, err := LoadPack("testdata/none"); err == nil {
 		t.Error("a missing pack loads")
@@ -120,9 +147,14 @@ func TestTestKinds(t *testing.T) {
 	if o := run("distance", map[string]float64{"max_m": 5}, ""); o.Value != 5.0 || o.Pass {
 		t.Errorf("distance %+v", o)
 	}
-	o := run("window", map[string]float64{"multiplier": 1, "window_m": 0, "err_min_m": 20, "err_max_m": 40}, "")
-	if lim := o.Limit.(float64); !(math.Abs(lim-math.Sqrt(20*20+30*30)) < 1e-12) || !o.Pass {
-		t.Errorf("window %+v", o)
+	// state: A at rest with unit covariance, B's prediction at (3, 4) with
+	// pp 3 and 8, no velocity difference and no cross terms; both have hae.
+	a.East.PP, a.North.PP, a.East.VV, a.North.VV = 1, 1, 1, 1
+	p.BE.VV, p.BN.VV = 1, 1
+	o := run("state", map[string]float64{"probability": 0.99, "hae_sigma_m": 30}, "")
+	want := 9.0/4 + 16.0/9 + 60.0*60/(2*30*30)
+	if v := o.Value.(float64); math.Abs(v-want) > 1e-12 || o.Limit != 15.0863 || o.Extra["dof"] != int64(5) || !o.Pass {
+		t.Errorf("state %+v", o)
 	}
 	if o := run("mahalanobis", map[string]float64{"gate": 5}, ""); o.Value != 9.0/4+16.0/9 || !o.Pass {
 		t.Errorf("mahalanobis %+v", o)
@@ -152,6 +184,9 @@ func TestTestKinds(t *testing.T) {
 	b.setLast(b.Last)
 	if o := run("altitude", map[string]float64{"max_m": 60}, ""); !o.Skipped {
 		t.Errorf("altitude without hae %+v", o)
+	}
+	if o := run("state", map[string]float64{"probability": 0.95, "hae_sigma_m": 30}, ""); o.Limit != 9.4877 || o.Extra["dof"] != int64(4) || !o.Pass {
+		t.Errorf("state without hae %+v", o)
 	}
 	if o := run("speed", map[string]float64{"max_pct": 40, "min_speed_ms": 0}, ""); o.Value != 0.0 || !o.Pass {
 		t.Errorf("speed of two still tracks %+v", o)
@@ -269,5 +304,80 @@ func TestAssignCore(t *testing.T) {
 	c.Drop("a/1")
 	if len(c.Keys()) != 1 {
 		t.Error("Drop")
+	}
+}
+
+// TestStaleRate: the last n intervals per source, the lower median times
+// the factor between floor and ceiling, the ceiling with none; also with
+// method assign, where the snapshot holds intervals.
+func TestStaleRate(t *testing.T) {
+	g := New(mustParse(t, strings.Replace(confirmPack, "stale_ms 60000\n", staleRateLine, 1)))
+	if st := g.staleTime("a"); st != 60000 {
+		t.Errorf("no interval: %v", st)
+	}
+	for _, tm := range []int64{0, 1000, 9000, 14000, 16000} {
+		g.Ingest(report("a", "1", tm, 50, 8))
+	}
+	// intervals 1000, 8000, 5000, 2000: the last 3 are 8000 5000 2000, lower median 5000.
+	iv := g.Snapshot()["intervals"].(Obj)["a"].([]any)
+	if len(iv) != 3 || iv[0] != int64(8000) || g.staleTime("a") != 25000 {
+		t.Errorf("intervals %v, stale time %v", iv, g.staleTime("a"))
+	}
+	g.Ingest(report("a", "1", 16100, 50, 8))
+	g.Ingest(report("a", "1", 16200, 50, 8))
+	if st := g.staleTime("a"); st != 20000 {
+		t.Errorf("floor: %v", st)
+	}
+	ga := New(mustParse(t, strings.Replace(assignPack, "stale_ms 60000\n", staleRateLine, 1)))
+	ga.Ingest(report("a", "1", 0, 50, 8))
+	ga.Ingest(report("a", "1", 500, 50, 8))
+	if iv := ga.Snapshot()["intervals"].(Obj)["a"].([]any); len(iv) != 1 || iv[0] != int64(500) {
+		t.Errorf("assign intervals %v", iv)
+	}
+	if _, ok := New(mustParse(t, assignPack)).Snapshot()["intervals"]; ok {
+		t.Error("intervals without stale_rate")
+	}
+}
+
+// TestSprtForced: a pair with an L whose gate fails and whose same test
+// fails is forced to lo and removed; in a group, a failing same test
+// releases the member.
+func TestSprtForced(t *testing.T) {
+	text := strings.Replace(confirmPack, "confirm_count 1\nhold_failures 1\n", sprtLine+"gate same key=k\n", 1)
+	g := New(mustParse(t, text))
+	g.Ingest(report("a", "1", 0, 50, 8, "k", "x"))
+	ev, _ := g.Ingest(report("b", "1", 0, 50, 8, "k", "x"))
+	if len(ev) != 2 || ev[1]["ev"] != "correlate" {
+		t.Fatalf("correlate: %v", ev)
+	}
+	ev, tr := g.Ingest(report("b", "1", 1000, 50, 8, "k", "y"))
+	last := tr[len(tr)-1]
+	if len(ev) != 2 || ev[0]["reason"] != "release" || last["increment"] != nil || last["d2"] != nil {
+		t.Fatalf("release: %v %v", ev, tr)
+	}
+	if len(g.llr) != 0 {
+		t.Errorf("llr after release %v", g.llr)
+	}
+	// Ungrouped again: a pair with an L that fails the gate (far away) but
+	// passes the same test adds evidence; one that fails the same test is forced.
+	g.llr[pairKey("a/1", "b/1")] = 1
+	_, tr = g.Ingest(report("b", "1", 2000, 51, 8, "k", "x"))
+	if last := tr[len(tr)-1]; last["stage"] != "sprt" || last["increment"] == nil {
+		t.Errorf("evidence after a failed gate: %v", tr)
+	}
+	g.llr[pairKey("a/1", "b/1")] = 1
+	_, tr = g.Ingest(report("b", "1", 3000, 51, 8, "k", "y"))
+	if last := tr[len(tr)-1]; last["increment"] != nil || len(g.llr) != 0 {
+		t.Errorf("forced after a failed gate: %v %v", tr, g.llr)
+	}
+	_, tr = g.Ingest(report("b", "1", 4000, 51, 8, "k", "y"))
+	if len(tr) == 0 || tr[len(tr)-1]["stage"] == "sprt" {
+		t.Errorf("no update without an L: %v", tr)
+	}
+	// Stale entities take their pairs' L with them.
+	g.llr[pairKey("a/1", "b/1")] = 1
+	g.Tick(100000)
+	if len(g.llr) != 0 || len(g.entities) != 0 {
+		t.Errorf("after staleness: %v", g.llr)
 	}
 }
