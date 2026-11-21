@@ -162,12 +162,12 @@ the vector is changed only through the specification.
 | Language | Engine | Lines of source | Runs every vector with |
 |---|---|---:|---|
 | Python | [`engines/python`](engines/python) | 3,665 | `cd engines/python && PYTHONPATH=src python3 -m unittest discover -s tests` |
-| Rust | [`engines/rust`](engines/rust) | 7,470 | `cd engines/rust && cargo test` |
-| Go | [`engines/go`](engines/go) | 6,134 | `cd engines/go && go test ./...` |
-| Java | [`engines/java`](engines/java) | 5,476 | `engines/java/build.sh` |
-| C++ | [`engines/cpp`](engines/cpp) | 5,762 | `cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir build/cpp` |
-| Erlang | [`engines/erlang`](engines/erlang) | 3,838 | `engines/erlang/run_tests` |
-| Zig | [`engines/zig`](engines/zig) | 7,751 | `cd engines/zig && zig build test` |
+| Rust | [`engines/rust`](engines/rust) | 7,961 | `cd engines/rust && cargo test` |
+| Go | [`engines/go`](engines/go) | 6,504 | `cd engines/go && go test ./...` |
+| Java | [`engines/java`](engines/java) | 5,823 | `engines/java/build.sh` |
+| C++ | [`engines/cpp`](engines/cpp) | 6,102 | `cmake -S engines/cpp -B build/cpp && cmake --build build/cpp && ctest --test-dir build/cpp` |
+| Erlang | [`engines/erlang`](engines/erlang) | 4,153 | `engines/erlang/run_tests` |
+| Zig | [`engines/zig`](engines/zig) | 8,223 | `cd engines/zig && zig build test` |
 
 Each engine runs all 124 scenario vectors (867 steps, 4,426 trace records) and 235 load vectors (pack files every engine must accept, or must refuse) on every pull request and every push to `main`.
 
