@@ -231,7 +231,7 @@ pub fn call(addr: &str, method: &str, path: &str, token: Option<&str>, body: Opt
 /// What is wrong with a PEM file, by kind only. The parser's own message can
 /// quote a line of the file, which for a private key is the key itself, and
 /// these messages reach the journal: never pass it on.
-fn pem_problem(path: &Path, e: &rustls_pki_types::pem::Error) -> String {
+pub fn pem_problem(path: &Path, e: &rustls_pki_types::pem::Error) -> String {
     use rustls_pki_types::pem::Error as E;
     let kind = match e {
         E::Io(io) => format!("cannot be read ({})", io.kind()),
@@ -242,6 +242,25 @@ fn pem_problem(path: &Path, e: &rustls_pki_types::pem::Error) -> String {
         _ => "is not a readable PEM file".into(),
     };
     format!("{} {kind}", path.display())
+}
+
+/// Reads a CA, a certificate and its private key as PEM, and says what is
+/// wrong by file and kind only. Used before the fabric session opens: zenoh
+/// reads the same files with a parser whose message quotes the line it could
+/// not read, and its error reaches the journal; after this check it only
+/// reads files that parse.
+pub fn check_tls_files(root_ca: &Path, certificate: &Path, private_key: &Path) -> Result<(), String> {
+    use rustls_pki_types::pem::PemObject;
+    use rustls_pki_types::{CertificateDer, PrivateKeyDer};
+    for path in [root_ca, certificate] {
+        let certs: Vec<CertificateDer<'static>> =
+            CertificateDer::pem_file_iter(path).map_err(|e| pem_problem(path, &e))?.collect::<Result<_, _>>().map_err(|e| pem_problem(path, &e))?;
+        if certs.is_empty() {
+            return Err(format!("{} holds no certificate", path.display()));
+        }
+    }
+    PrivateKeyDer::from_pem_file(private_key).map_err(|e| pem_problem(private_key, &e))?;
+    Ok(())
 }
 
 /// The server side of mutual TLS: the runner's certificate, and the CA whose
@@ -311,11 +330,13 @@ mod tests {
             // The CA and certificate are this same file: each is refused by name.
             for (ca, cert) in [(&key, &key), (&d.join("missing.pem"), &key)] {
                 let e = super::tls_config(ca, cert, &key, None).unwrap_err();
-                assert!(!e.contains(secret) && !e.contains("SECRET"), "case {i}: {e}");
-                assert!(e.contains(".pem"), "case {i}: the file is named: {e}");
+                assert!(!e.contains(secret) && !e.contains("SECRET"), "case {i}: the error holds file content");
+                assert!(e.contains(".pem"), "case {i}: the error does not name the file");
             }
             let e = super::tls_config(&key, &key, &key, Some(&key)).unwrap_err();
-            assert!(!e.contains(secret), "case {i}: {e}");
+            assert!(!e.contains(secret), "case {i}: the error holds file content (with a revocation list)");
+            let e = super::check_tls_files(&key, &key, &key).unwrap_err();
+            assert!(!e.contains(secret) && e.contains(".pem"), "case {i}: the fabric check holds file content or names no file");
         }
         let _ = std::fs::remove_dir_all(&d);
     }

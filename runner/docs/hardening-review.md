@@ -150,9 +150,15 @@ Docker access as you would give `sudo`.
 message, which quotes the line it could not read. A key file with a broken
 BEGIN line or bad base64 put that line, key material, into the error the
 service writes to the journal at start, and when the revocation list was read
-again. Found by CodeQL (rust/cleartext-logging). Errors now name the file and
-the kind of problem only, and the revocation list reload logs only the list's
-path. Test: `http::tests::a_bad_key_file_is_named_but_none_of_its_content_is_said`.
+again. zenoh's TLS code does the same with the fabric's certificate and key
+("Error processing client key: illegal section start: ..."), and that error
+reached the journal through the runner's start error; the hosted model
+endpoint's `ca_file` did too. Found by CodeQL (rust/cleartext-logging).
+Errors now name the file and the kind of problem only; the runner reads the
+fabric's three TLS files with the same content-free check before the fabric
+session opens, so zenoh only reads files that parse; the revocation list
+reload logs only the list's path. Test:
+`http::tests::a_bad_key_file_is_named_but_none_of_its_content_is_said`.
 
 ## Checked and sound
 

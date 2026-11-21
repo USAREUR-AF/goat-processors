@@ -68,8 +68,10 @@ fn tls_client(e: &Endpoint) -> Result<Arc<rustls::ClientConfig>, String> {
     let mut roots = rustls::RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     if let Some(ca) = &e.ca_file {
-        for c in CertificateDer::pem_file_iter(ca).map_err(|x| format!("{}: {x}", ca.display()))? {
-            roots.add(c.map_err(|x| format!("{}: {x}", ca.display()))?).map_err(|x| x.to_string())?;
+        // By file and kind only: the parser's message can quote the file.
+        for c in CertificateDer::pem_file_iter(ca).map_err(|x| crate::http::pem_problem(ca, &x))? {
+            let c = c.map_err(|x| crate::http::pem_problem(ca, &x))?;
+            roots.add(c).map_err(|_| format!("{} holds a certificate that cannot be used as a certificate authority", ca.display()))?;
         }
     }
     let provider = Arc::new(rustls::crypto::ring::default_provider());
