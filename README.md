@@ -145,7 +145,7 @@ entry and every choice:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/seven-engines-dark.svg">
-  <img alt="121 scenario vectors (838 steps, 4333 trace records) and 218 load vectors sit at the center. The specification and the decisions each generator under tools/ states by hand are the reference; the Rust engine computes every vector, and a vector is accepted only when all seven engines (Python, Rust, Go, Java, C++, Erlang, Zig) agree. Each engine is written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot." src="docs/figures/seven-engines-light.svg">
+  <img alt="124 scenario vectors (867 steps, 4426 trace records) and 235 load vectors sit at the center. The specification and the decisions each generator under tools/ states by hand are the reference; the Rust engine computes every vector, and a vector is accepted only when all seven engines (Python, Rust, Go, Java, C++, Erlang, Zig) agree. Each engine is written from the specification and the vectors alone and must reproduce every event, trace record and final snapshot." src="docs/figures/seven-engines-light.svg">
 </picture>
 
 The specification and the hand-stated decisions are the reference; every

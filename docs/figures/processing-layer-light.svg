@@ -49,7 +49,7 @@
 <rect x="530" y="194" width="206" height="50" rx="6" fill="#dafbe1" stroke="#1a7f37" stroke-width="1"/>
 <text x="542" y="215" font-size="15" fill="#1f2328" text-anchor="start" font-weight="600" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">correlate</text>
 <text x="724" y="215" font-size="13" fill="#1a7f37" text-anchor="end" font-weight="600">Built</text>
-<text x="542" y="234" font-size="13" fill="#59636e" text-anchor="start">12 packs, 56 vectors</text>
+<text x="542" y="234" font-size="13" fill="#59636e" text-anchor="start">14 packs, 59 vectors</text>
 <rect x="530" y="252" width="206" height="50" rx="6" fill="#dafbe1" stroke="#1a7f37" stroke-width="1"/>
 <text x="542" y="273" font-size="15" fill="#1f2328" text-anchor="start" font-weight="600" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">fuse</text>
 <text x="724" y="273" font-size="13" fill="#1a7f37" text-anchor="end" font-weight="600">Built</text>
