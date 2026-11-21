@@ -46,7 +46,8 @@ how to troubleshoot it.
 | Agent interfaces ([docs/design/agentic-ai.md](../docs/design/agentic-ai.md), [examples/README.md](examples/README.md)): MCP server and `goat-processors mcp`; model endpoints with data levels; agent as a source; settings proposals with a site auto-approval policy; the `why` explainer; audit of every agent call | Built. Tests: `tests/agents.rs` |
 | Agent as an adjudicator (association and fusion hints) | Designed |
 | Operator page, Fieldkit Processors ([below](#the-operator-page-fieldkit-processors), [fieldkit/](fieldkit/README.md)) | Built. Tested: a browser drives all eight actions against a running runner, signed in with a client certificate, and checks each change through the API (`fieldkit/e2e/`); the scope guard checks every action is a CLI verb; `tests/api.rs` checks the page's headers and the cross-site refusals |
-| Container image | Designed |
+| Container image for amd64 and arm64 ([below](#the-container-image), `packaging/container/Containerfile`) | Built. Tested: `packaging/ci-container-test.sh` runs it locked down against a mutual-TLS router with a scenario (CI on amd64 and arm64) |
+| Container image published to `ghcr.io/usareur-af/goat-processors` and signed (cosign, keyless) | Written: `runner-release.yml`; first published by the next `runner-v` tag |
 
 ## How the runner works
 
@@ -332,6 +333,80 @@ and every record), replay a recorded file with `tools/explain`
 (`../tools/explain/README.md`). The page's Explain shows the recent steps the
 runner keeps in memory.
 
+## The container image
+
+The image holds the same files as the `.deb`, in the same places: the binary
+`/usr/bin/goat-processors` (with the operator page built in), every pack and its
+vectors, the example config, and the docs, NOTICE and LICENSE. It is built on a
+distroless base image (Debian 13, glibc), runs as user 65532, and has no shell
+and no package manager. Both base images are pinned by digest in the
+Containerfile.
+
+Each release from the next `runner-v` tag on publishes the image for amd64 and
+arm64 as one tag, `ghcr.io/usareur-af/goat-processors:<version>`, signed with
+cosign (keyless). The release notes name its digest. Check the signature
+before you run it:
+
+```sh
+cosign verify ghcr.io/usareur-af/goat-processors:<version> \
+  --certificate-identity-regexp '^https://github.com/USAREUR-AF/goat-processors/.github/workflows/runner-release.yml@refs/tags/runner-v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Until then, build it from the repository root:
+`docker build -f runner/packaging/container/Containerfile -t goat-processors .`
+
+**What to mount.** The image's example config says CHANGE-ME, so the container
+refuses to start until you mount your own. Put `runner.yaml` and its `tls/`
+directory in one directory on the host, readable by user 65532 and nobody else:
+
+```sh
+sudo chown -R root:65532 /srv/goat-processors/etc
+sudo chmod 0750 /srv/goat-processors/etc /srv/goat-processors/etc/tls
+sudo chmod 0640 /srv/goat-processors/etc/runner.yaml /srv/goat-processors/etc/tls/*
+```
+
+**Run it locked down.** These are the flags the container proof uses: a
+read-only root file system, no Linux capabilities, no new privileges, and
+limits on memory and processes. The runner writes only to
+`/run/goat-processors` (a tmpfs: its status and API token) and
+`/var/lib/goat-processors` (a volume: `outputs.file`, `record`, the audit log
+and proposals).
+
+```sh
+docker run -d --name goat-processors --restart unless-stopped --net host \
+  --read-only --cap-drop ALL --security-opt no-new-privileges \
+  --memory 512m --pids-limit 256 \
+  --tmpfs /run/goat-processors:rw,noexec,nosuid,nodev,size=1m,uid=65532,gid=65532,mode=0750 \
+  -v goat-processors-state:/var/lib/goat-processors \
+  -v /srv/goat-processors/etc:/etc/goat-processors:ro \
+  ghcr.io/usareur-af/goat-processors:<version>
+```
+
+`--net host` gives the runner the host's network, as the `.deb` has: it
+reaches the router, receives UDP, and its local API answers on the host's
+`127.0.0.1:8470`. To keep it in its own network instead, leave out `--net host`
+and publish only what other hosts use: the mesh listener (`api.mesh.listen`,
+mutual TLS, for example `-p 8471:8471`) and any UDP input port
+(`-p 5000:5000/udp`). Inside the container, set those listeners to
+`0.0.0.0:<port>`. The local API stays on the container's own loopback (`config
+check` refuses any other address), so you reach it with `docker exec` only. The metrics port (`api.metrics_listen`) has no
+caller check and `config check` refuses it on every address, so a metrics port needs `--net host` and this host's mesh address.
+
+**Operate it.** Every verb runs inside the container:
+`docker exec goat-processors goat-processors status`, and the same for
+`doctor`, `tracks`, `stop`, `start`, `audit` and the rest. The API token is in
+the container's tmpfs, readable only by its user, so `docker exec` can change
+things and a host user without access to Docker can only read. Anyone who can
+run `docker exec` can operate the runner: give Docker access as you would give
+`sudo`. The image's health check runs `goat-processors health`, so
+`docker ps` shows `healthy` while the runner runs and ticks. Logs:
+`docker logs goat-processors`.
+
+**Upgrade** by pulling the next tag, checking its signature, and starting a new
+container with the same mounts; the state volume keeps the audit log,
+proposals and recorded files.
+
 ## Troubleshoot
 
 Run `sudo goat-processors doctor` first (`sudo`, so that it can read the config and the certificates). Each line is `ok`, `warn` or `FAIL`, and
@@ -364,6 +439,8 @@ cd runner
 cargo build --release --locked     # target/release/goat-processors
 cargo test --locked                 # every vector, config, doctor, service and fabric tests
 cd .. && runner/packaging/build-deb.sh amd64 runner/target/release/goat-processors dist
+docker build -f runner/packaging/container/Containerfile -t goat-processors .   # the image
+runner/packaging/ci-container-test.sh goat-processors                          # its proof
 ```
 
 Every third-party crate the runner uses is pinned in `runner/Cargo.lock` and

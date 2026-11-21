@@ -1,6 +1,7 @@
 # The runner (runner/): its tests, its dependency checks, its .deb for both
 # architectures, and the install proof: install.sh on a fresh Ubuntu 24.04 VM,
-# then a scenario through the running service.
+# then a scenario through the running service; the container image for both
+# architectures and its proof, locked down, on the same scenario.
 name: runner
 on:
   pull_request:
@@ -117,3 +118,24 @@ jobs:
           path: dist
       - name: install.sh on this fresh VM, a TLS fabric router, then a scenario through the service
         run: sudo runner/packaging/ci-install-test.sh dist/goat-processors_*_${{ matrix.arch }}.deb
+
+  container:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: the image, built natively for this architecture (base images pinned by digest)
+        run: |
+          docker build -f runner/packaging/container/Containerfile \
+            --build-arg VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' runner/Cargo.toml | head -1)" \
+            --build-arg REVISION="${{ github.sha }}" -t goat-processors:ci .
+      - name: locked down (read-only, no capabilities, its own user), a TLS fabric router, then a scenario through it
+        run: runner/packaging/ci-container-test.sh goat-processors:ci

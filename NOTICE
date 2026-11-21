@@ -37,6 +37,14 @@ license and copyright holder. Its browser test uses @playwright/test 1.65.1
 runner/fieldkit/e2e/package-lock.json and fetched in CI; it is test tooling
 and not part of the runner or its package.
 
+The runner's container image (runner/packaging/container/Containerfile) is
+built on the distroless base image gcr.io/distroless/cc-debian13 (Apache-2.0,
+https://github.com/GoogleContainerTools/distroless), pinned by digest. That
+image carries Debian 13 packages (among them the GNU C library and the GCC
+runtime library) under their own licenses, whose copyright files are under
+/usr/share/doc in the image. The build stage uses the rust:1.99-slim-trixie
+image and is not part of the published image.
+
 The .deb package carries this file and LICENSE in
 /usr/share/doc/goat-processors/. The packs and vectors are original work;
 coordinates in the vectors are notional points in open ocean.
