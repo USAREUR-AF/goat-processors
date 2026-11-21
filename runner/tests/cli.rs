@@ -383,4 +383,7 @@ fn doctor_fails_when_the_certificate_names_another_peer() {
     assert!(level("    peer: cert-name\n").starts_with("ok "));
     // Another name, set by hand: the operator's choice, so a warning.
     assert!(level("    peer: other\n").starts_with("warn "));
+    // A prefix set by hand, with no peer: also the operator's choice.
+    let l = level("    prefix: volatile/slot-1/stream/processors/rou\n");
+    assert!(l.starts_with("warn ") && l.contains("volatile/slot-1/"), "{l}");
 }

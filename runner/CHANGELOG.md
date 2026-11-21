@@ -21,7 +21,7 @@ GitHub release page.
   for this release with a warning, and 0.7.0 removes it.
 - `config check` refuses an input key that subscribes to the whole fabric,
   and prints warnings (`-o json`: a new `warnings` list). Doctor shows the
-  warnings, and fails `output prefix` when `peer` is not set and the
+  warnings, and fails `output prefix` when neither `peer` nor `prefix` is set and the
   certificate names another peer. The service logs the same at start.
 - The package no longer ships `/etc/goat-processors/runner.yaml` as a dpkg
   conffile: it writes it from `/usr/share/goat-processors/runner.yaml` on a

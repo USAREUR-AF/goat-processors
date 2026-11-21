@@ -273,11 +273,12 @@ pub fn output_peer_check(c: &Config) -> Option<Finding> {
     });
     Some(match cn {
         Some(cn) if cn == peer => f("output prefix", Level::Ok, format!("publishes under {prefix}; the certificate's name is {cn}"), ""),
-        // peer not set: it is the site only by default, which is wrong for
-        // this certificate (typically a config kept from 0.5.0). Set by hand
-        // to another name: the operator chose it, so warn.
+        // Neither peer nor prefix set: the peer is the site only by default,
+        // which is wrong for this certificate (typically a config kept from
+        // 0.5.0), so fail. A peer or a prefix set by hand: the operator chose
+        // it, so warn. The service's start log follows the same rule.
         Some(cn) => {
-            let chosen = c.outputs.fabric.as_ref().is_some_and(|f| f.peer.is_some());
+            let chosen = c.outputs.fabric.as_ref().is_some_and(|f| f.peer.is_some() || f.prefix.is_some());
             f(
                 "output prefix",
                 if chosen { Level::Warn } else { Level::Fail },

@@ -64,7 +64,7 @@ fabric's access rules must allow the runner's certificate to subscribe to its
 input keys and to publish under its prefix: in goat, the peer's write grant
 `volatile/<peer>/**` (goat ADR 1032), so `<peer>` is the certificate's name.
 `install.sh` sets it from the certificate, on a first install and on an
-update; doctor fails `output prefix` when `peer` is not set and the
+update; doctor fails `output prefix` when neither `peer` nor `prefix` is set and the
 certificate names another peer.
 
 Up to 0.5.0 the default was `data/processed/<site>/<name>` with a key per

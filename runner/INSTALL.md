@@ -227,7 +227,7 @@ subject=CN = site-a
 If the name after `CN =` is not your site name, change `    # peer: site-a-processors-1`
 to `    peer: ` followed by that name (remove the `#`, keep the four spaces).
 `install.sh` does this for you, on a first install and on an update. When
-`peer` is not set and the two differ, doctor (step 8) fails with
+neither `peer` nor `prefix` is set and the two differ, doctor (step 8) fails with
 `output prefix`, and the service writes the same line to its log at start.
 
 Leave the rest as it is for a first install. Save with `Ctrl+O`, `Enter`,
