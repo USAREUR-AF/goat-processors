@@ -32,10 +32,53 @@ pub struct Bias {
     pub gate: f64,
 }
 
+/// The `output` line (correlate.md Association, On each tick, step 2);
+/// `fused` when the pack has none (correlate.md 1.0).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Output {
+    Fused,
     Priority,
     Latest,
+}
+
+/// `stale_rate factor=<k> floor_ms=<f> ceiling_ms=<c> samples=<n>`
+/// (correlate.md 1.0, Stale time of a source).
+#[derive(Debug, Clone, PartialEq)]
+pub struct StaleRate {
+    pub factor: f64,
+    pub floor_ms: i64,
+    pub ceiling_ms: i64,
+    pub samples: usize,
+}
+
+/// How a source's stale time is found: `stale_ms` or `stale_rate`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Staleness {
+    Fixed(i64),
+    Rate(StaleRate),
+}
+
+/// `sprt false=<p> missed=<p> pos_m=<m> vel_ms=<m/s> hae_sigma_m=<m>`
+/// (correlate.md 1.0 Association, Sequential test).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Sprt {
+    pub false_p: f64,
+    pub missed: f64,
+    pub pos_m: f64,
+    pub vel_ms: f64,
+    pub hae_sigma_m: f64,
+}
+
+impl Sprt {
+    /// `up = ln((1 - missed) / false)`.
+    pub fn up(&self) -> f64 {
+        ((1.0 - self.missed) / self.false_p).ln()
+    }
+
+    /// `lo = ln(missed / (1 - false))`.
+    pub fn lo(&self) -> f64 {
+        (self.missed / (1.0 - self.false_p)).ln()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -54,7 +97,10 @@ pub struct Pack {
     pub hold: Vec<Test>,
     pub confirm_count: u64,
     pub hold_failures: u64,
-    pub stale_ms: i64,
+    /// `stale_ms` or `stale_rate`, with either method.
+    pub stale: Staleness,
+    /// `method confirm` only: `sprt`, which replaces the counts and the hold.
+    pub sprt: Option<Sprt>,
     pub same_source_allow: bool,
     pub output: Output,
     /// `(source_id, priority)` in pack order.
@@ -202,6 +248,8 @@ pub(crate) struct Draft {
     pub(crate) confirm_count: Option<u64>,
     pub(crate) hold_failures: Option<u64>,
     pub(crate) stale_ms: Option<i64>,
+    pub(crate) stale_rate: Option<StaleRate>,
+    pub(crate) sprt: Option<Sprt>,
     pub(crate) same_source_allow: bool,
     pub(crate) output: Output,
     pub(crate) priority: Vec<(String, i64)>,
@@ -232,8 +280,10 @@ pub fn parse_pack_with(text: &str, registry: &Registry) -> Result<Pack, String> 
     let mut confirm_count = None;
     let mut hold_failures = None;
     let mut stale_ms = None;
+    let mut stale_rate = None;
+    let mut sprt = None;
     let mut same_source_allow = false;
-    let mut output = Output::Priority;
+    let mut output = Output::Fused;
     let mut priority: Vec<(String, i64)> = Vec::new();
     let mut method = registry.method("confirm").expect("the confirm method is registered");
     let mut new_cost = None;
@@ -348,6 +398,38 @@ pub fn parse_pack_with(text: &str, registry: &Registry) -> Result<Pack, String> 
             "confirm_count" => confirm_count = Some(count(one_arg(directive, args).map_err(at)?).map_err(at)?),
             "hold_failures" => hold_failures = Some(count(one_arg(directive, args).map_err(at)?).map_err(at)?),
             "stale_ms" => stale_ms = Some(integer(one_arg(directive, args).map_err(at)?).map_err(at)?),
+            "stale_rate" => {
+                // correlate.md 1.0: factor above 0, 0 <= floor_ms <= ceiling_ms
+                // (integers), samples an integer 1 or above.
+                let p = Params::parse(args, &["factor", "floor_ms", "ceiling_ms", "samples"]).map_err(at)?;
+                let r = StaleRate {
+                    factor: p.num("factor").map_err(at)?,
+                    floor_ms: integer(&p.0["floor_ms"]).map_err(at)?,
+                    ceiling_ms: integer(&p.0["ceiling_ms"]).map_err(at)?,
+                    samples: positive(&p.0["samples"]).map_err(at)?,
+                };
+                if !(r.factor > 0.0 && 0 <= r.floor_ms && r.floor_ms <= r.ceiling_ms) {
+                    return Err(at("stale_rate needs factor above 0 and 0 <= floor_ms <= ceiling_ms".to_string()));
+                }
+                stale_rate = Some(r);
+            }
+            "sprt" => {
+                // correlate.md 1.0: false and missed above 0 and below 0.5;
+                // pos_m, vel_ms, hae_sigma_m above 0.
+                let p = Params::parse(args, &["false", "missed", "pos_m", "vel_ms", "hae_sigma_m"]).map_err(at)?;
+                let t = Sprt {
+                    false_p: p.num("false").map_err(at)?,
+                    missed: p.num("missed").map_err(at)?,
+                    pos_m: p.num("pos_m").map_err(at)?,
+                    vel_ms: p.num("vel_ms").map_err(at)?,
+                    hae_sigma_m: p.num("hae_sigma_m").map_err(at)?,
+                };
+                let prob = |x: f64| x > 0.0 && x < 0.5;
+                if !(prob(t.false_p) && prob(t.missed) && t.pos_m > 0.0 && t.vel_ms > 0.0 && t.hae_sigma_m > 0.0) {
+                    return Err(at("sprt needs false and missed above 0 and below 0.5, pos_m, vel_ms and hae_sigma_m above 0".to_string()));
+                }
+                sprt = Some(t);
+            }
             "same_source" => {
                 same_source_allow = match one_arg(directive, args).map_err(at)? {
                     "forbid" => false,
@@ -357,9 +439,10 @@ pub fn parse_pack_with(text: &str, registry: &Registry) -> Result<Pack, String> 
             }
             "output" => {
                 output = match one_arg(directive, args).map_err(at)? {
+                    "fused" => Output::Fused,
                     "priority" => Output::Priority,
                     "latest" => Output::Latest,
-                    v => return Err(at(format!("output must be priority or latest, not {:?}", v))),
+                    v => return Err(at(format!("output must be fused, priority or latest, not {:?}", v))),
                 }
             }
             "priority" => match args {
@@ -391,6 +474,8 @@ pub fn parse_pack_with(text: &str, registry: &Registry) -> Result<Pack, String> 
         confirm_count,
         hold_failures,
         stale_ms,
+        stale_rate,
+        sprt,
         same_source_allow,
         output,
         priority,
@@ -406,9 +491,28 @@ pub fn parse_pack_with(text: &str, registry: &Registry) -> Result<Pack, String> 
     })
 }
 
-/// `method confirm`: `confirm_count`, `hold_failures` and `stale_ms` are
-/// required; the assign directives take their defaults.
+/// One of `stale_ms` and `stale_rate`, never both (correlate.md 1.0 Pack).
+fn staleness(stale_ms: Option<i64>, stale_rate: Option<StaleRate>) -> Result<Staleness, String> {
+    match (stale_ms, stale_rate) {
+        (Some(ms), None) => Ok(Staleness::Fixed(ms)),
+        (None, Some(r)) => Ok(Staleness::Rate(r)),
+        (Some(_), Some(_)) => Err("stale_ms and stale_rate are exclusive".to_string()),
+        (None, None) => Err(need("stale_ms or stale_rate")),
+    }
+}
+
+/// `method confirm`: `confirm_count` and `hold_failures` are required, or,
+/// with `sprt`, refused together with `hold`; one of `stale_ms` and
+/// `stale_rate`; the assign directives take their defaults.
 pub(crate) fn finish_confirm(d: Draft) -> Result<Pack, String> {
+    let (confirm_count, hold_failures) = if d.sprt.is_some() {
+        if d.confirm_count.is_some() || d.hold_failures.is_some() || !d.hold.is_empty() {
+            return Err("confirm_count, hold_failures and hold are not allowed with sprt".to_string());
+        }
+        (0, 0)
+    } else {
+        (d.confirm_count.ok_or_else(|| need("confirm_count"))?, d.hold_failures.ok_or_else(|| need("hold_failures"))?)
+    };
     Ok(Pack {
         method: d.method,
         new_cost: 0.0,
@@ -427,9 +531,10 @@ pub(crate) fn finish_confirm(d: Draft) -> Result<Pack, String> {
         gate: d.gate,
         confirm: d.confirm,
         hold: d.hold,
-        confirm_count: d.confirm_count.ok_or_else(|| need("confirm_count"))?,
-        hold_failures: d.hold_failures.ok_or_else(|| need("hold_failures"))?,
-        stale_ms: d.stale_ms.ok_or_else(|| need("stale_ms"))?,
+        confirm_count,
+        hold_failures,
+        stale: staleness(d.stale_ms, d.stale_rate)?,
+        sprt: d.sprt,
         same_source_allow: d.same_source_allow,
         output: d.output,
         priority: d.priority,
@@ -477,7 +582,8 @@ pub(crate) fn finish_assign(d: Draft) -> Result<Pack, String> {
         hold: d.hold,
         confirm_count: 0,
         hold_failures: 0,
-        stale_ms: d.stale_ms.ok_or_else(|| need("stale_ms"))?,
+        stale: staleness(d.stale_ms, d.stale_rate)?,
+        sprt: None,
         same_source_allow: d.same_source_allow,
         output: d.output,
         priority: d.priority,
@@ -551,8 +657,32 @@ mod tests {
         assert!(confirm("maneuver accel_var=0.5 p_enter=0.1 p_leave=0.2\n").unwrap_err().contains("above filter"));
         assert!(confirm("restart gate=0\n").is_err());
         assert!(confirm("output newest\n").is_err());
+        assert_eq!(confirm("").unwrap().output, Output::Fused);
+        assert_eq!(confirm("output fused\n").unwrap().output, Output::Fused);
         assert!(confirm("hold_failures 2\n").unwrap_err().contains("repeated"));
         assert!(parse_pack("pack p\n").unwrap_err().contains("filter"));
+    }
+
+    #[test]
+    fn staleness_and_sprt() {
+        let base = BASE.replace("stale_ms 1000\n", "");
+        let rate = "stale_rate factor=5 floor_ms=5000 ceiling_ms=60000 samples=9\n";
+        let p = parse_pack(&format!("{}confirm_count 2\nhold_failures 1\n{}", base, rate)).unwrap();
+        assert_eq!(p.stale, Staleness::Rate(StaleRate { factor: 5.0, floor_ms: 5000, ceiling_ms: 60000, samples: 9 }));
+        assert_eq!(confirm("").unwrap().stale, Staleness::Fixed(1000));
+        assert!(confirm(rate).unwrap_err().contains("exclusive"));
+        assert!(parse_pack(&format!("{}confirm_count 2\nhold_failures 1\n", base)).unwrap_err().contains("stale_ms or stale_rate"));
+        for bad in ["factor=0 floor_ms=1 ceiling_ms=2 samples=1", "factor=1 floor_ms=3 ceiling_ms=2 samples=1", "factor=1 floor_ms=1 ceiling_ms=2 samples=0", "factor=1 floor_ms=1.5 ceiling_ms=2 samples=1"] {
+            assert!(parse_pack(&format!("{}confirm_count 2\nhold_failures 1\nstale_rate {}\n", base, bad)).is_err(), "{}", bad);
+        }
+        let sprt = "sprt false=0.01 missed=0.02 pos_m=10000 vel_ms=300 hae_sigma_m=100\n";
+        let p = parse_pack(&format!("{}{}", BASE, sprt)).unwrap();
+        let t = p.sprt.unwrap();
+        assert_eq!((t.up(), t.lo()), ((0.98f64 / 0.01).ln(), (0.02f64 / 0.99).ln()));
+        assert!(confirm(sprt).unwrap_err().contains("not allowed with sprt"));
+        assert!(parse_pack(&format!("{}{}hold mahalanobis gate=9\n", BASE, sprt)).unwrap_err().contains("not allowed with sprt"));
+        assert!(parse_pack(&format!("{}sprt false=0.5 missed=0.01 pos_m=1 vel_ms=1 hae_sigma_m=1\n", BASE)).is_err());
+        assert!(assign(sprt).unwrap_err().contains("not allowed with method assign"));
     }
 
     #[test]

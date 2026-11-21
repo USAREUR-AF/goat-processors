@@ -192,6 +192,37 @@ pub fn d2(z: (f64, f64), (pe, pn): (&Axis, &Axis), r: (f64, f64)) -> f64 {
     (z.0 - pe.p) * (z.0 - pe.p) / (pe.pp + r.0) + (z.1 - pn.p) * (z.1 - pn.p) / (pn.pp + r.1)
 }
 
+/// The difference of two tracks' whole state on one axis (correlate.md 1.0
+/// Tests, the `state` test): A's filter `a` with A's timing variance `ta`,
+/// and B's prediction to A's time `b` (B's timing variance already in `pp`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StateDifference {
+    pub dp: f64,
+    pub dv: f64,
+    pub spp: f64,
+    pub spv: f64,
+    pub svv: f64,
+    pub det: f64,
+    pub q: f64,
+}
+
+/// `q = (svv*dp*dp - 2*spv*dp*dv + spp*dv*dv) / det`, in that order.
+pub fn state_quadratic(dp: f64, dv: f64, spp: f64, spv: f64, svv: f64, det: f64) -> f64 {
+    (svv * dp * dp - 2.0 * spv * dp * dv + spp * dv * dv) / det
+}
+
+impl StateDifference {
+    pub fn of(a: &Axis, ta: f64, b: &Axis) -> StateDifference {
+        let dp = a.p - b.p;
+        let dv = a.v - b.v;
+        let spp = a.pp + ta + b.pp;
+        let spv = a.pv + b.pv;
+        let svv = a.vv + b.vv;
+        let det = spp * svv - spv * spv;
+        StateDifference { dp, dv, spp, spv, svv, det, q: state_quadratic(dp, dv, spp, spv, svv, det) }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,6 +295,15 @@ mod tests {
         assert_eq!(none, MeasurementVariance { r: (100.0, 100.0), time_var: None });
         let v = measurement_variance(10.0, 500.0, || (4.0, -2.0));
         assert_eq!(v, MeasurementVariance { r: (104.0, 101.0), time_var: Some((4.0, 1.0)) });
+    }
+
+    #[test]
+    fn state_difference_of_independent_axes() {
+        let a = Axis { p: 3.0, v: 1.0, pp: 2.0, pv: 0.0, vv: 1.0 };
+        let b = Axis { p: 0.0, v: 0.0, pp: 1.0, pv: 0.0, vv: 1.0 };
+        let s = StateDifference::of(&a, 1.0, &b);
+        assert_eq!((s.spp, s.svv, s.det), (4.0, 2.0, 8.0));
+        assert_eq!(s.q, 9.0 / 4.0 + 1.0 / 2.0);
     }
 
     #[test]

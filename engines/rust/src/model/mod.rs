@@ -12,5 +12,5 @@ pub mod two_model;
 
 pub use frame::{deg, rad, wrap180, Frame, R};
 pub use json::{obj, Json};
-pub use track::{measurement_variance, velocity, Axis, Innovation, Measurement, MeasurementVariance, Model};
+pub use track::{measurement_variance, state_quadratic, velocity, Axis, StateDifference, Innovation, Measurement, MeasurementVariance, Model};
 pub use two_model::{ModeUpdate, TwoModel};

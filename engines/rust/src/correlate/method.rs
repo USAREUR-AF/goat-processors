@@ -35,16 +35,19 @@ impl fmt::Debug for MethodKind {
     }
 }
 
-/// `confirm`: gate, confirm, hold and groups (correlate.md Association).
+/// `confirm`: gate, confirm, hold (or `sprt`) and groups (correlate.md Association).
 pub const CONFIRM: MethodKind = MethodKind {
     name: "confirm",
     refuses: &["new_cost", "keep_bonus", "window", "hypotheses", "margin", "bias", "time_offset"],
     finish: finish_confirm,
     ingested: |engine, key, _restarted, out| {
-        if engine.entities[&key].group.is_some() {
-            engine.hold(&key, out);
-        } else {
-            engine.associate(&key, out);
+        // With `sprt`, the sequential test replaces counts and hold
+        // (correlate.md 1.0 Association, Sequential test).
+        match (engine.entities[&key].group.is_some(), engine.pack.sprt.is_some()) {
+            (true, false) => engine.hold(&key, out),
+            (false, false) => engine.associate(&key, out),
+            (true, true) => engine.sprt_hold(&key, out),
+            (false, true) => engine.sprt_associate(&key, out),
         }
     },
     tick: Engine::tick_confirm,
@@ -55,7 +58,7 @@ pub const CONFIRM: MethodKind = MethodKind {
 /// (correlate-assign.md). Assignment waits for the next tick.
 pub const ASSIGN: MethodKind = MethodKind {
     name: "assign",
-    refuses: &["confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority"],
+    refuses: &["confirm", "hold", "confirm_count", "hold_failures", "same_source", "output", "priority", "sprt"],
     finish: finish_assign,
     ingested: |engine, key, restarted, _out| {
         // The entity is restarted until the next tick.

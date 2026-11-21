@@ -5,8 +5,8 @@
 //! | Module | What |
 //! |---|---|
 //! | `model` | JSON values, reports, frame, track estimate, two-model filter, shared pack values |
-//! | `correlate` | spec/correlate.md 0.8: the engine, the `confirm` method, tests, restart |
-//! | `assign` | spec/correlate-assign.md 0.6: the `assign` method of correlate |
+//! | `correlate` | spec/correlate.md 1.0: the engine, the `confirm` method (with `sprt`), tests, restart, stale time |
+//! | `assign` | spec/correlate-assign.md 0.7: the `assign` method of correlate |
 //! | `filter` | spec/filter.md 0.1 |
 //! | `fuse` | spec/fuse.md 0.2 |
 //! | `quality` | spec/quality.md 0.2 |

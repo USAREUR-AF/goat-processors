@@ -1,7 +1,7 @@
 # goat-processors, rust engine
 
-An implementation in Rust of `spec/correlate.md` (version 0.8),
-`spec/correlate-assign.md` (version 0.6), `spec/filter.md` (version 0.1),
+An implementation in Rust of `spec/correlate.md` (version 1.0),
+`spec/correlate-assign.md` (version 0.7), `spec/filter.md` (version 0.1),
 `spec/fuse.md` (version 0.2) and `spec/quality.md` (version 0.2), written from
 the specifications and the vectors only. Standard library only; it carries its
 own small JSON reader (`src/model/json.rs`).
@@ -13,7 +13,7 @@ One module per concern, the same names as the other engines use:
 | Module | What it holds |
 |---|---|
 | `src/model/` | the shared data model: JSON values, reports, frame, track estimate, two-model filter, shared pack values. Values and pure functions only |
-| `src/correlate/` | correlate: the engine both methods share, its pack, the tests, restart, and the `confirm` method |
+| `src/correlate/` | correlate: the engine both methods share, its pack, the tests, restart, the stale time of a source, and the `confirm` method with its sequential test (`sprt.rs`) |
 | `src/assign/` | correlate's `assign` method (correlate-assign.md) |
 | `src/filter/` | the filter function |
 | `src/fuse/` | the fuse function |
@@ -52,8 +52,8 @@ five calls. `Function::NAME` is the name the runner's `--function` takes.
 | Track estimate | `src/model/track.rs` (the per-axis steps, velocity, Measurement variance, `d²`); `src/correlate/entity.rs` (an entity's prediction, first and later reports) |
 | Two-model filter | `src/model/two_model.rs` |
 | Restart | `src/correlate/restart.rs` |
-| Tests | `src/correlate/pair_tests.rs` (the test kinds, `BUILTIN_TESTS`) |
-| Association | `src/correlate/confirm.rs` |
+| Tests | `src/correlate/pair_tests.rs` (the test kinds, `BUILTIN_TESTS`); `src/model/track.rs` (`StateDifference`, the per-axis quantities of the `state` test) |
+| Association | `src/correlate/confirm.rs` (associate, hold, the tick, the fused output); `src/correlate/sprt.rs` (Sequential test); `src/correlate/mod.rs` (`stale_time`, Stale time of a source) |
 | Events | `src/correlate/confirm.rs`; `src/trace.rs` |
 | Trace | `src/trace.rs` (the record shape); written where each stage runs |
 | Snapshot | `src/correlate/confirm.rs`; `src/correlate/mod.rs` (`filter_json`); `src/snapshot.rs` |

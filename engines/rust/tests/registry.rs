@@ -21,7 +21,7 @@ impl PairTest for Noop {
         "noop"
     }
     fn evaluate(&self, _pair: &Pair) -> Outcome {
-        Outcome { value: Json::Null, limit: Json::Null, pass: true, skipped: false }
+        Outcome { value: Json::Null, limit: Json::Null, pass: true, skipped: false, extra: Vec::new() }
     }
 }
 
