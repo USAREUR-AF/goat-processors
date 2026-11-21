@@ -242,6 +242,12 @@ pub struct ApiMesh {
     pub tls: Option<Tls>,
     /// Who may call: the common name (CN) of a client certificate, and its role.
     pub allow: Vec<Allow>,
+    /// A certificate revocation list (PEM) from the CA that signs client
+    /// certificates. A client certificate it lists is refused. Read again
+    /// when the file changes, so a revocation needs no restart. Off when
+    /// absent.
+    #[serde(default)]
+    pub crl: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

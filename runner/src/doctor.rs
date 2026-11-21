@@ -63,6 +63,7 @@ pub fn run(config_path: &Path) -> Vec<Finding> {
     out.extend(certificate_checks(&c));
     out.extend(fabric_checks(&c));
     out.extend(file_checks(&c));
+    out.extend(c.api.mesh.as_ref().and_then(|m| m.crl.as_deref()).and_then(crl_check));
     out.extend(service_checks(Some(&c)));
     out
 }
@@ -253,6 +254,25 @@ fn fabric_checks(c: &Config) -> Vec<Finding> {
 }
 
 /// Reads the status file the service writes after every tick.
+/// `api.mesh.crl`: it must read as a revocation list; one past its next
+/// update still applies, but the CA has likely issued a newer one.
+fn crl_check(path: &Path) -> Option<Finding> {
+    use rustls_pki_types::pem::PemObject;
+    let check = "certificates: api.mesh.crl";
+    let fix = "copy the CA's current revocation list (PEM) to the path in api.mesh.crl; the service reads it again on its own";
+    let ders = rustls_pki_types::CertificateRevocationListDer::pem_file_iter(path).ok().and_then(|i| i.collect::<Result<Vec<_>, _>>().ok()).unwrap_or_default();
+    let lists: Vec<_> = ders.iter().filter_map(|d| x509_parser::parse_x509_crl(d.as_ref()).ok().map(|(_, c)| c)).collect();
+    if lists.is_empty() || lists.len() != ders.len() {
+        return Some(f(check, Level::Fail, format!("{} does not read as a certificate revocation list (PEM)", path.display()), fix));
+    }
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64;
+    if lists.iter().any(|c| c.next_update().is_some_and(|t| t.timestamp() < now)) {
+        return Some(f(check, Level::Warn, format!("{} is past its next update; the CA has likely issued a newer list", path.display()), fix));
+    }
+    let revoked: usize = lists.iter().map(|c| c.iter_revoked_certificates().count()).sum();
+    Some(f(check, Level::Ok, format!("{} reads; it revokes {revoked} certificate(s)", path.display()), ""))
+}
+
 /// A file the service appends to without a size limit that has grown past
 /// 1 GiB, and a disk holding one of those files that is 90% full or more.
 fn file_checks(c: &Config) -> Vec<Finding> {

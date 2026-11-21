@@ -326,6 +326,47 @@ fn mesh_api_needs_an_allowed_certificate() {
 }
 
 #[test]
+fn mesh_api_refuses_a_revoked_certificate_without_a_restart() {
+    if Command::new("openssl").arg("version").output().is_err() || Command::new("curl").arg("--version").output().is_err() {
+        eprintln!("skipped: openssl or curl missing");
+        return;
+    }
+    let certs = tmp("api-mesh-crl-certs");
+    openssl(&["ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", "ca.key"], &certs);
+    openssl(&["req", "-x509", "-new", "-key", "ca.key", "-sha256", "-days", "2", "-subj", "/CN=test-ca", "-out", "ca.pem", "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign,cRLSign"], &certs);
+    for who in ["server", "ops", "viewer"] {
+        openssl(&["ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", &format!("{who}.key")], &certs);
+        openssl(&["req", "-new", "-key", &format!("{who}.key"), "-subj", &format!("/CN={who}"), "-out", &format!("{who}.csr")], &certs);
+        std::fs::write(certs.join(format!("{who}.ext")), "subjectAltName=DNS:localhost,IP:127.0.0.1\nextendedKeyUsage=serverAuth,clientAuth\n").unwrap();
+        openssl(&["x509", "-req", "-in", &format!("{who}.csr"), "-CA", "ca.pem", "-CAkey", "ca.key", "-CAcreateserial", "-days", "2", "-sha256", "-extfile", &format!("{who}.ext"), "-out", &format!("{who}.pem")], &certs);
+    }
+    // A minimal CA database, so that openssl can write revocation lists.
+    std::fs::write(certs.join("ca.cnf"), "[ca]\ndefault_ca = d\n[d]\ndatabase = index.txt\ncrlnumber = crlnumber\ndefault_md = sha256\ndefault_crl_days = 2\n").unwrap();
+    std::fs::write(certs.join("index.txt"), "").unwrap();
+    std::fs::write(certs.join("crlnumber"), "01\n").unwrap();
+    let gencrl = |dir: &Path| openssl(&["ca", "-config", "ca.cnf", "-keyfile", "ca.key", "-cert", "ca.pem", "-gencrl", "-out", "crl.pem"], dir);
+    gencrl(&certs);
+    let port = free_port();
+    let extra = format!(
+        "  mesh:\n    listen: \"127.0.0.1:{port}\"\n    tls:\n      root_ca: {c}/ca.pem\n      certificate: {c}/server.pem\n      private_key: {c}/server.key\n    crl: {c}/crl.pem\n    allow:\n      - {{name: ops, role: operate}}\n      - {{name: viewer, role: read}}\n",
+        c = certs.display()
+    );
+    let _svc = Service::start("api-mesh-crl", &extra);
+    assert_eq!(curl(&certs, port, Some("ops"), "GET", "/v1/status").0, "200", "an empty list refuses no one");
+    // Revoke ops while the service runs.
+    std::thread::sleep(Duration::from_millis(1100));
+    openssl(&["ca", "-config", "ca.cnf", "-keyfile", "ca.key", "-cert", "ca.pem", "-revoke", "ops.pem"], &certs);
+    gencrl(&certs);
+    assert_ne!(curl(&certs, port, Some("ops"), "GET", "/v1/status").0, "200", "a revoked certificate was answered");
+    assert_eq!(curl(&certs, port, Some("viewer"), "GET", "/v1/status").0, "200");
+    // A list that no longer reads leaves the previous one in force.
+    std::thread::sleep(Duration::from_millis(1100));
+    std::fs::write(certs.join("crl.pem"), "not a list").unwrap();
+    assert_ne!(curl(&certs, port, Some("ops"), "GET", "/v1/status").0, "200", "a bad list let a revoked certificate back in");
+    assert_eq!(curl(&certs, port, Some("viewer"), "GET", "/v1/status").0, "200");
+}
+
+#[test]
 fn metrics_port_serves_only_prometheus_text() {
     let port = free_port();
     let svc = Service::start("api-metrics-port", &format!("  metrics_listen: \"127.0.0.1:{port}\"\n"));

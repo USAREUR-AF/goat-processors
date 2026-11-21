@@ -48,7 +48,7 @@ how to troubleshoot it.
 | Operator page, Fieldkit Processors ([below](#the-operator-page-fieldkit-processors), [fieldkit/](fieldkit/README.md)) | Built. Tested: a browser drives all eight actions against a running runner, signed in with a client certificate, and checks each change through the API (`fieldkit/e2e/`); the scope guard checks every action is a CLI verb; `tests/api.rs` checks the page's headers and the cross-site refusals |
 | Container image for amd64 and arm64 ([below](#the-container-image), `packaging/container/Containerfile`) | Built. Tested: `packaging/ci-container-test.sh` runs it locked down against a mutual-TLS router with a scenario (CI on amd64 and arm64) |
 | Container image published to `ghcr.io/usareur-af/goat-processors` and signed (cosign, keyless) | Written: `runner-release.yml`; first published by the next `runner-v` tag |
-| Hardening review ([docs/hardening-review.md](docs/hardening-review.md)) | Written. Six findings fixed with tests (a crash and a stall from one report, API lockout, memory flood, hosted endpoint over plain HTTP, doctor without openssl); file growth fixed in 0.6.0 (size limits and rotation); two Open (the engines' unbounded wrap and parser, certificate revocation) |
+| Hardening review ([docs/hardening-review.md](docs/hardening-review.md)) | Written. Six findings fixed with tests (a crash and a stall from one report, API lockout, memory flood, hosted endpoint over plain HTTP, doctor without openssl); file growth and certificate revocation fixed in 0.6.0; one Open (the engines' unbounded wrap and parser, taken to the next spec round) |
 
 ## How the runner works
 
@@ -156,7 +156,8 @@ exits 1. The service runs the same check before it starts.
 | `api.mesh.listen` | no | | `<ip>:<port>` for callers on other hosts, over mutual TLS |
 | `api.metrics_listen` | no | off | `<mesh ip>:<port>` that serves only `GET /metrics` (the Prometheus text), plain HTTP with no caller check, for an obs host's scraper. `config check` refuses an address that listens on every interface |
 | `api.mesh.tls` | no | the `fabric.tls` files | `root_ca` (signs callers' certificates), `certificate`, `private_key` |
-| `api.mesh.allow[]` | with `api.mesh` | | `{name: <certificate CN>, role: read or operate}`; a CN not listed is refused. Any certificate the site CA signs with that CN gets the role, so the site CA should give each person and program its own name. The list is read at start: to take access away, remove the name and restart the service |
+| `api.mesh.allow[]` | with `api.mesh` | | `{name: <certificate CN>, role: read or operate}`; a CN not listed is refused. Any certificate the site CA signs with that CN gets the role, so the site CA should give each person and program its own name. The list is read at start: to take access away, remove the name and restart the service, or revoke the certificate (`api.mesh.crl`) |
+| `api.mesh.crl` | no | | the site CA's certificate revocation list (PEM). A client certificate it lists is refused at the TLS handshake. The service reads the file again when it changes, so a revocation needs no restart; a copy that does not read leaves the previous list in force |
 | `agents.mcp` | no | `true` | serve the MCP endpoint, `POST /mcp` (examples/README.md) |
 | `agents.data_levels` | no | `[public, site]` | the site's data levels, least sensitive first |
 | `agents.local_level` | no | the highest level | the highest level a local caller may receive |
@@ -441,6 +442,8 @@ each FAIL is followed by its fix. Doctor changes nothing.
 | `service` warn: unreadable inputs | samples on the input keys are not reports, or hold a value out of range | see the first ones with `sudo journalctl -u goat-processors`; correct the key expression or the publisher |
 | `service` warn: reports dropped because the service was behind its inputs | reports arrived faster than the pipeline ran, and more than 65536 waited; the fabric and UDP inputs dropped the rest (`counters.dropped_backlog`) | check the host's load (`top`) and each source's rate (`goat-processors metrics`); a source that floods the input is the usual cause |
 | `service` warn: the running pipeline differs | the config was edited but not applied, or an operator ran `pack use` | to keep the running packs, write them in the config; to return to the config, `sudo systemctl restart goat-processors` |
+| `certificates: api.mesh.crl` FAIL: does not read | the file is missing or is not a PEM revocation list; the service keeps the list it last read (at start, it does not start) | copy the CA's current list there |
+| `certificates: api.mesh.crl` warn: past its next update | the list still applies, but the CA has likely issued a newer one | copy the CA's current list there |
 | `files` warn: a file has no size limit | an output, record or audit file without `max_mb` has passed 1 GiB | set its `max_mb` and `keep` in the config, then `sudo systemctl restart goat-processors` |
 | `files` warn: the disk is 90% full or more | the disk holding a file the service writes is nearly full; when it is full, writes fail (`output_errors`) | free space there, or set `max_mb` on the files |
 | `api` FAIL: the API does not answer | the service is not running, or failed to open its API port | `sudo journalctl -u goat-processors -n 50`; another program may hold port 8470 (`api.listen`) |

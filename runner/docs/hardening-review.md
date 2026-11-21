@@ -32,10 +32,10 @@ safely), or **Open** (not fixed; the next step is named).
 | 4 | A flood of reports could use up memory | Medium | Fixed |
 | 5 | A hosted model endpoint was allowed over plain HTTP | Medium | Fixed |
 | 6 | `doctor` needed the openssl command to check certificates | Low | Fixed |
-| 7 | The engines' longitude wrap and JSON parser have no bound | High (engines) | Open: reported to the engines' owner |
+| 7 | The engines' longitude wrap and JSON parser have no bound | High (engines) | Open: in the next spec round (proc-correlate) |
 | 8 | UDP input accepts reports from anyone who reaches it | Medium | Documented |
 | 9 | Output, record and audit files grow without limit | Medium | Fixed in 0.6.0 |
-| 10 | No certificate revocation on the mesh API | Low | Open |
+| 10 | No certificate revocation on the mesh API | Low | Fixed in 0.6.0 |
 | 11 | The mesh role follows the certificate's common name alone | Low | Documented |
 | 12 | In the container, anyone who can `docker exec` operates the runner | Low | Documented |
 
@@ -120,11 +120,15 @@ one starts, never splitting a line. Without a limit a file grows as before;
 file is 90% full (where the host has `df`). Tests: `rotate::tests` and
 `file_size_limits_are_checked` in `tests/api.rs`.
 
-**10. No certificate revocation on the mesh API (Open).** The mesh listener
-checks that the site CA signed a certificate but reads no revocation list.
-To take access away, remove the name from `api.mesh.allow` and restart the
-service; the allow list is read at start. Next: optional `api.mesh.tls.crl`,
-or short-lived certificates issued by the site CA.
+**10. No certificate revocation on the mesh API (Fixed in 0.6.0).** The
+mesh listener checked that the site CA signed a certificate but read no
+revocation list, so taking access away meant editing `api.mesh.allow` and
+restarting. `api.mesh.crl` now names the CA's revocation list: a client
+certificate it lists is refused at the handshake. The service reads the file
+again when it changes, so a revocation takes effect on the next connection
+without a restart, and a copy that does not read leaves the previous list
+in force. `doctor` checks the list reads and warns when it is past its next
+update. Test: `mesh_api_refuses_a_revoked_certificate_without_a_restart`.
 
 **11. The mesh role follows the certificate's common name alone
 (Documented).** Any certificate the site CA signs with the common name `ops`

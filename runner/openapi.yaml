@@ -9,7 +9,8 @@ info:
     `operate`; any other local caller has the role `read`. The mesh listener
     (api.mesh.listen) requires a client certificate signed by the site CA; the
     role of each certificate's common name is set in api.mesh.allow, and a name
-    not listed is refused. Every change, and every refused request, is written
+    not listed is refused, and so is a certificate on the revocation list in
+    api.mesh.crl when one is set. Every change, and every refused request, is written
     to the audit log (api.audit_file). Each CLI verb is one of these routes
     (`goat-processors --help`). Errors are `{"error": text, "fix": text}`.
 

@@ -230,17 +230,29 @@ pub fn call(addr: &str, method: &str, path: &str, token: Option<&str>, body: Opt
 
 /// The server side of mutual TLS: the runner's certificate, and the CA whose
 /// signature a client certificate must carry.
-pub fn tls_config(root_ca: &Path, certificate: &Path, private_key: &Path) -> Result<Arc<rustls::ServerConfig>, String> {
+pub fn tls_config(root_ca: &Path, certificate: &Path, private_key: &Path, crl: Option<&Path>) -> Result<Arc<rustls::ServerConfig>, String> {
     use rustls_pki_types::pem::PemObject;
-    use rustls_pki_types::{CertificateDer, PrivateKeyDer};
+    use rustls_pki_types::{CertificateDer, CertificateRevocationListDer, PrivateKeyDer};
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let mut roots = rustls::RootCertStore::empty();
     for c in CertificateDer::pem_file_iter(root_ca).map_err(|e| format!("{}: {e}", root_ca.display()))? {
         roots.add(c.map_err(|e| format!("{}: {e}", root_ca.display()))?).map_err(|e| format!("{}: {e}", root_ca.display()))?;
     }
-    let verifier = rustls::server::WebPkiClientVerifier::builder_with_provider(Arc::new(roots), provider.clone())
-        .build()
-        .map_err(|e| format!("client verifier: {e}"))?;
+    let mut builder = rustls::server::WebPkiClientVerifier::builder_with_provider(Arc::new(roots), provider.clone());
+    if let Some(crl) = crl {
+        let crls: Vec<CertificateRevocationListDer<'static>> = CertificateRevocationListDer::pem_file_iter(crl)
+            .map_err(|e| format!("{}: {e}", crl.display()))?
+            .collect::<Result<_, _>>()
+            .map_err(|e| format!("{}: {e}", crl.display()))?;
+        if crls.is_empty() {
+            return Err(format!("{}: no certificate revocation list in the file", crl.display()));
+        }
+        // The client's own certificate is checked; one the list does not
+        // cover (another CA's) is refused. A list past its next update
+        // still applies: doctor warns about it rather than locking everyone out.
+        builder = builder.with_crls(crls).only_check_end_entity_revocation();
+    }
+    let verifier = builder.build().map_err(|e| format!("client verifier: {e}"))?;
     let chain: Vec<CertificateDer<'static>> = CertificateDer::pem_file_iter(certificate)
         .map_err(|e| format!("{}: {e}", certificate.display()))?
         .collect::<Result<_, _>>()
