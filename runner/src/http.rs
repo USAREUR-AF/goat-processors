@@ -139,8 +139,15 @@ pub fn read_request(stream: &mut impl Read) -> Result<Request, (u16, String)> {
 }
 
 pub fn write_response(stream: &mut impl Write, r: &Response) -> std::io::Result<()> {
+    // A page (only the operator page is HTML) may load nothing from anywhere,
+    // may call only this origin, and may not be framed.
+    let page = if r.content_type.starts_with("text/html") {
+        "Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\r\nX-Frame-Options: DENY\r\nReferrer-Policy: no-referrer\r\n"
+    } else {
+        ""
+    };
     let head = format!(
-        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n{page}Connection: close\r\n\r\n",
         r.status,
         reason(r.status),
         r.content_type,

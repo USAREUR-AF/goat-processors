@@ -202,6 +202,17 @@ fn track_stage(out: &Output) -> Option<usize> {
 }
 
 /// The system tracks in one output: (id, event).
+fn q_entry<'a>(sources: &'a mut BTreeMap<String, BTreeMap<String, Json>>, src: &str) -> &'a mut BTreeMap<String, Json> {
+    sources.entry(src.to_string()).or_insert_with(|| {
+        let mut m = BTreeMap::new();
+        m.insert("measures".into(), Json::Null);
+        m.insert("actions".into(), Json::Arr(vec![]));
+        m.insert("entity_actions".into(), Json::Int(0));
+        m.insert("reports".into(), Json::Int(0));
+        m
+    })
+}
+
 fn track_events(out: &Output) -> Vec<(String, Json)> {
     let Some(i) = track_stage(out) else { return vec![] };
     out.stages[i]
@@ -362,6 +373,11 @@ struct Runner {
     events: BTreeMap<(String, String), u64>,
     /// Quality events about a source, by (source, `ev`, measure or action).
     quality_sources: BTreeMap<(String, String, String), u64>,
+    /// The latest quality measures of each source, and the quality actions
+    /// now active, by (subject, rule): what the operator page shows. Bounded
+    /// by the quality engine, which forgets sources and ends their actions.
+    quality_latest: BTreeMap<String, Json>,
+    quality_active: BTreeMap<(String, String), Json>,
     tracks_now_ms: Option<i64>,
     recent: VecDeque<Recent>,
     recent_records: usize,
@@ -420,6 +436,23 @@ impl Runner {
                         }
                     } else {
                         *self.quality_sources.entry((txt("subject"), ev.clone(), txt("action"))).or_default() += 1;
+                    }
+                }
+                if st.function == "quality" {
+                    match ev.as_str() {
+                        "quality" if txt("scope") == "source" => {
+                            self.quality_latest.insert(txt("subject"), e.get("measures").cloned().unwrap_or(Json::Null));
+                        }
+                        "action-start" => {
+                            self.quality_active.insert((txt("subject"), txt("rule")), e.clone());
+                        }
+                        "action-end" => {
+                            self.quality_active.remove(&(txt("subject"), txt("rule")));
+                        }
+                        "forget" if !txt("source").is_empty() => {
+                            self.quality_latest.remove(&txt("source"));
+                        }
+                        _ => {}
                     }
                 }
                 *self.events.entry((st.function.clone(), ev)).or_default() += 1;
@@ -570,6 +603,72 @@ impl Runner {
         o
     }
 
+    /// Everything the operator page shows (GET /v1/view).
+    fn view(&self, who: &crate::api::Identity) -> Json {
+        let installed = crate::api::installed_packs(&self.c.packs_dir);
+        let pipeline: Vec<Json> = self
+            .p
+            .stages
+            .iter()
+            .map(|st| {
+                let mut m = BTreeMap::new();
+                m.insert("function".into(), Json::Str(st.function.clone()));
+                m.insert("pack".into(), Json::Str(st.pack.clone()));
+                m.insert("packs".into(), Json::Arr(installed.iter().filter(|(f, _)| *f == st.function).map(|(_, n)| Json::Str(n.clone())).collect()));
+                Json::Obj(m)
+            })
+            .collect();
+        // Quality per source: its latest measures, its own active actions, and
+        // how many of its entities have an active action.
+        let mut sources: BTreeMap<String, BTreeMap<String, Json>> = BTreeMap::new();
+        for (src, measures) in &self.quality_latest {
+            q_entry(&mut sources, src).insert("measures".into(), measures.clone());
+        }
+        for ((subject, _), e) in &self.quality_active {
+            if e.get("scope").and_then(|v| v.as_str()) == Some("source") {
+                if let Some(Json::Arr(a)) = q_entry(&mut sources, subject).get_mut("actions") {
+                    a.push(e.clone());
+                }
+            } else {
+                let src = subject.split('/').next().unwrap_or(subject);
+                if let Some(Json::Int(n)) = q_entry(&mut sources, src).get_mut("entity_actions") {
+                    *n += 1;
+                }
+            }
+        }
+        for (src, n) in &self.p.counters.per_source {
+            q_entry(&mut sources, src).insert("reports".into(), Json::Int(*n as i64));
+        }
+        let quality: Vec<Json> = sources
+            .into_iter()
+            .map(|(src, m)| {
+                let mut m: BTreeMap<_, _> = m.into_iter().map(|(k, v)| (k.into(), v)).collect();
+                m.insert("source".into(), Json::Str(src));
+                Json::Obj(m)
+            })
+            .collect();
+        let mut you = BTreeMap::new();
+        you.insert("name".into(), Json::Str(who.name.clone()));
+        you.insert("role".into(), Json::Str(who.role.name().into()));
+        you.insert("via".into(), Json::Str(who.via.into()));
+        let mut m = BTreeMap::new();
+        m.insert("status".into(), self.status());
+        m.insert("health".into(), {
+            let (good, why) = self.healthy();
+            let mut h = BTreeMap::new();
+            h.insert("healthy".into(), Json::Bool(good));
+            h.insert("detail".into(), Json::Str(why));
+            Json::Obj(h)
+        });
+        m.insert("pipeline".into(), Json::Arr(pipeline));
+        m.insert("now_ms".into(), self.tracks_now_ms.map(Json::Int).unwrap_or(Json::Null));
+        m.insert("tracks".into(), Json::Arr(self.tracks.values().cloned().collect()));
+        m.insert("quality".into(), Json::Arr(quality));
+        m.insert("proposals".into(), self.book.to_json());
+        m.insert("you".into(), Json::Obj(you));
+        Json::Obj(m)
+    }
+
     fn tracks_json(&self) -> Json {
         let mut m = BTreeMap::new();
         m.insert("now_ms".into(), self.tracks_now_ms.map(Json::Int).unwrap_or(Json::Null));
@@ -637,6 +736,7 @@ impl Runner {
             Ask::Metrics => ok(self.metrics()),
             Ask::Prometheus => crate::http::Response::text(200, "text/plain; version=0.0.4", self.prometheus()),
             Ask::Tracks => ok(self.tracks_json()),
+            Ask::View => ok(self.view(&call.who)),
             Ask::Explain(id) => match self.explain(&id) {
                 Some(v) => ok(v),
                 None => error(404, &format!("no system track {id:?} in the latest tick"), "goat-processors tracks lists them"),
@@ -889,6 +989,8 @@ pub fn run(c: Config) -> Result<(), String> {
         tracks: BTreeMap::new(),
         events: BTreeMap::new(),
         quality_sources: BTreeMap::new(),
+        quality_latest: BTreeMap::new(),
+        quality_active: BTreeMap::new(),
         tracks_now_ms: None,
         recent: VecDeque::new(),
         recent_records: 0,

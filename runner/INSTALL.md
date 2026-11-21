@@ -28,7 +28,7 @@ repository it is `runner/docs/install-card.pdf`.
 | goatcore | the goat project's core repository, `USAREUR-AF/goatcore` on GitHub. It holds the project's design documents, including the operating-system guidance this page points to. Ask the site's goat administrator for access |
 | host class | the kind of machine a host is (for example an x86 server or an ARM edge board). goatcore gives each host class its own operating-system and disk-encryption setup |
 | goatbuilder | goat's tool that builds and installs whole hosts. It will install runners by itself; until then, this page and `install.sh` do |
-| Fieldkit | goat's family of small, offline browser tools for operators. "Fieldkit Processors" is the runner's visual UI, not in this release (step 10) |
+| Fieldkit | goat's family of small, offline browser tools for operators. "Fieldkit Processors" is the runner's web page (step 10) |
 
 In the commands below, `$` is the prompt: type what follows it. Lines without
 `$` are what you should see.
@@ -50,7 +50,7 @@ with SSH as a user who may use `sudo`.
 | the router's name and port | `router.site-a:7447` | the site's fabric administrator |
 | the site name to use | `site-a` | the site's fabric administrator |
 | three certificate files, PEM | `ca.pem`, `runner.pem`, `runner.key` | the site's certificate authority, issued for this runner |
-| the release version | `0.3.1` | the [releases page](https://github.com/USAREUR-AF/goat-processors/releases) (tags `runner-v…`) |
+| the release version | `0.4.0` | the [releases page](https://github.com/USAREUR-AF/goat-processors/releases) (tags `runner-v…`) |
 
 ## Two ways
 
@@ -97,24 +97,24 @@ machine is on.
 ## 2. Get the release
 
 Make a directory and download the five files of the release (replace
-`0.3.1` and `amd64` with yours). Keep this shell open until step 4: the
+`0.4.0` and `amd64` with yours). Keep this shell open until step 4: the
 names `V` and `A` set here are used in steps 3 and 4, and a new shell
 forgets them. In a new shell, type the `V=… A=…` line again first.
 
 ```
 $ mkdir ~/goat-processors && cd ~/goat-processors
-$ V=0.3.1 A=amd64
+$ V=0.4.0 A=amd64
 $ B=https://github.com/USAREUR-AF/goat-processors/releases/download/runner-v$V
 $ for f in goat-processors_${V}_$A.deb goat-processors_${V}_$A.deb.sigstore.json install.sh install-card.pdf SHA256SUMS; do curl -fLO $B/$f; done
 $ ls
-goat-processors_0.3.1_amd64.deb  goat-processors_0.3.1_amd64.deb.sigstore.json  install-card.pdf  install.sh  SHA256SUMS
+goat-processors_0.4.0_amd64.deb  goat-processors_0.4.0_amd64.deb.sigstore.json  install-card.pdf  install.sh  SHA256SUMS
 ```
 
 **If not:** if `curl` reports 404, check the version on the releases page.
 If the machine has no internet access, download the files on another
 computer and copy them over with `scp`. If the repository is private to
 you, download with the GitHub command-line tool on a computer where you are
-signed in: `gh release download runner-v0.3.1 -R USAREUR-AF/goat-processors`.
+signed in: `gh release download runner-v0.4.0 -R USAREUR-AF/goat-processors`.
 
 ## 3. Check the release signature
 
@@ -122,7 +122,7 @@ First the checksum: it proves the files are complete.
 
 ```
 $ sha256sum -c --ignore-missing SHA256SUMS
-goat-processors_0.3.1_amd64.deb: OK
+goat-processors_0.4.0_amd64.deb: OK
 install.sh: OK
 install-card.pdf: OK
 ```
@@ -155,7 +155,7 @@ $ sudo apt install ./goat-processors_${V}_$A.deb
 goat-processors: edit /etc/goat-processors/runner.yaml, then run
   sudo goat-processors config check && sudo systemctl enable --now goat-processors
 $ goat-processors version
-goat-processors 0.3.1
+goat-processors 0.4.0
 $ goat-processors selftest
 121 of 121 vectors under /usr/share/goat-processors/packs replay exactly
 ```
@@ -283,7 +283,7 @@ The runner's state, pipeline and counters:
 
 ```
 $ goat-processors status
-processors-1 at site-a: running (version 0.3.1, clock wall, tick 1000 ms)
+processors-1 at site-a: running (version 0.4.0, clock wall, tick 1000 ms)
 pipeline: correlate = correlate-assign-time, quality = quality-feed
 reports in 1840, passed 1840, ticks 95, published 2210, unreadable 0, dropped while stopped 0
   adsb                     920
@@ -323,11 +323,34 @@ $ goat-processors replay /usr/share/goat-processors/packs/correlate-assign-time/
 Each line is one step: the report or tick that went in, and the events that
 came out.
 
-## 10. The visual UI
+## 10. Open the web page
 
-The visual UI (Fieldkit Processors) is not in this release; its status is
-Designed (README.md, What exists). Until it is, `goat-processors doctor` and
-the status file in step 9 are the view of the runner.
+The runner serves a web page, Fieldkit Processors, at `/ui`. It shows the
+system tracks on a plan, quality per source and the pipeline, and lets a
+person allowed to change the runner pick packs, pause, resume, replay a file
+and decide proposals. Each button shows the command it equals.
+
+The API listens only on the machine itself (`127.0.0.1:8470`), so open the
+page through an SSH tunnel: a forwarded port from your computer to the
+machine. On your computer, type:
+
+```
+ssh -L 8470:127.0.0.1:8470 <your user>@<the machine's address>
+```
+
+Leave that window open, and open `http://localhost:8470/ui` in a browser on
+your computer.
+
+You should see "Fieldkit Processors", a green "Running." banner, and "Signed
+in as local". If the browser says it cannot connect, check that the SSH
+window is still open and that step 8's doctor reports the API as OK.
+
+Opened this way, the page can look but not change anything: the change
+buttons are off, because a browser cannot show the root-only token. To make
+changes from a browser, the site's administrator turns on the mesh listener
+(`api.mesh` in the config file) and gives your certificate the `operate` role;
+README.md, "The operator page", says how. Without that, make changes with the
+commands the page shows, run with `sudo` on the machine.
 
 ## Update, stop, remove
 

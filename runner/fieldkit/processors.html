@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0
+     Fieldkit Processors: watch and steer the goat-processors runner on this machine.
+     Served by the runner at /ui. One file, no build step, no outside assets.
+     The Bleating Edge blocks below are written by runner/fieldkit/inline.py;
+     edit runner/fieldkit/bleating-edge/ and run it.
+     Every action is declared once, on its element: data-action, data-cli (the
+     goat-processors verb it equals) and data-api (the runner route). The runner
+     answers each one with the caller's own role, so this page can do nothing the
+     CLI cannot. runner/fieldkit/check-scope.py refuses an action that is not on
+     runner/fieldkit/cli-allowlist.txt. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Fieldkit Processors</title>
+<style data-bleating-edge>
+/* SPDX-License-Identifier: Apache-2.0
+ * Bleating Edge — the design system for Fieldkit tools.
+ * docs/design/fieldkit-and-bleating-edge.md §4.
+ *
+ * Tokens: one high-contrast palette with a sunlight mode (default) and a dark
+ * mode, one type scale, touch targets of at least 44 px. Components are the
+ * eight in §4; each is a class prefixed `be-`. Inlined into each tool by
+ * ops/fieldkit/inline.py, so a tool is one file with no outside assets.
+ */
+
+:root {
+  /* Sunlight: black on white, saturated signal colors, nothing pale. */
+  --be-bg: #ffffff;
+  --be-surface: #f2f2f2;
+  --be-text: #000000;
+  --be-muted: #2b2b2b;
+  --be-line: #000000;
+  --be-accent: #0033cc;
+  --be-on-accent: #ffffff;
+  --be-ok: #005a1e;
+  --be-ok-bg: #d9f2df;
+  --be-warn: #6b4500;
+  --be-warn-bg: #ffe08a;
+  --be-bad: #a10000;
+  --be-bad-bg: #ffd6d6;
+  --be-focus: #ff6a00;
+
+  /* One type scale (ratio 1.25 on an 18 px base: readable at arm's length). */
+  --be-size-small: 0.9rem;
+  --be-size-base: 1.125rem;
+  --be-size-large: 1.4rem;
+  --be-size-title: 1.75rem;
+  --be-font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  --be-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --be-target: 48px; /* never below 44 px */
+  --be-gap: 12px;
+  --be-radius: 6px;
+  --be-border: 2px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="sunlight"]) {
+    --be-bg: #000000;
+    --be-surface: #161616;
+    --be-text: #ffffff;
+    --be-muted: #d6d6d6;
+    --be-line: #ffffff;
+    --be-accent: #7fb2ff;
+    --be-on-accent: #000000;
+    --be-ok: #7dffa0;
+    --be-ok-bg: #003d14;
+    --be-warn: #ffd34d;
+    --be-warn-bg: #3d2b00;
+    --be-bad: #ff8a8a;
+    --be-bad-bg: #4a0000;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --be-bg: #000000;
+  --be-surface: #161616;
+  --be-text: #ffffff;
+  --be-muted: #d6d6d6;
+  --be-line: #ffffff;
+  --be-accent: #7fb2ff;
+  --be-on-accent: #000000;
+  --be-ok: #7dffa0;
+  --be-ok-bg: #003d14;
+  --be-warn: #ffd34d;
+  --be-warn-bg: #3d2b00;
+  --be-bad: #ff8a8a;
+  --be-bad-bg: #4a0000;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--be-bg);
+  color: var(--be-text);
+  font-family: var(--be-font);
+  font-size: var(--be-size-base);
+  line-height: 1.45;
+}
+
+.be-page { max-width: 760px; margin: 0 auto; padding: 16px; }
+.be-title { font-size: var(--be-size-title); margin: 0 0 4px; }
+.be-subtitle { font-size: var(--be-size-small); color: var(--be-muted); margin: 0 0 var(--be-gap); }
+h2 { font-size: var(--be-size-large); margin: 24px 0 8px; }
+p { margin: 8px 0; }
+code, .be-mono { font-family: var(--be-mono); font-size: 0.95em; overflow-wrap: anywhere; }
+
+:focus-visible { outline: 4px solid var(--be-focus); outline-offset: 2px; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+/* Every control is at least one target tall. */
+button, .be-button, input[type="text"], select, textarea {
+  min-height: var(--be-target);
+  border: var(--be-border) solid var(--be-line);
+  border-radius: var(--be-radius);
+  background: var(--be-bg);
+  padding: 8px 14px;
+}
+input[type="text"], textarea { width: 100%; }
+label { display: block; font-weight: 600; margin: 12px 0 4px; }
+button { cursor: pointer; font-weight: 600; }
+button.be-primary { background: var(--be-accent); color: var(--be-on-accent); border-color: var(--be-accent); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* 1. Connected or cut-off banner */
+.be-banner {
+  border: var(--be-border) solid var(--be-line);
+  border-radius: var(--be-radius);
+  padding: 12px 14px;
+  margin: 0 0 var(--be-gap);
+  font-weight: 600;
+}
+.be-banner[data-state="connected"] { background: var(--be-ok-bg); color: var(--be-ok); border-color: var(--be-ok); }
+.be-banner[data-state="cutoff"] { background: var(--be-warn-bg); color: var(--be-warn); border-color: var(--be-warn); }
+.be-banner[data-state="unknown"] { background: var(--be-surface); }
+.be-banner small { display: block; font-weight: 400; color: inherit; }
+
+/* Action list: the tool's fixed actions, as big buttons. */
+.be-actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 0 0 var(--be-gap); }
+.be-actions button[aria-pressed="true"] { background: var(--be-accent); color: var(--be-on-accent); border-color: var(--be-accent); }
+
+/* 2. List row for a source or rule */
+.be-list { list-style: none; margin: 0; padding: 0; }
+.be-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  min-height: var(--be-target);
+  padding: 10px 12px;
+  border: var(--be-border) solid var(--be-line);
+  border-radius: var(--be-radius);
+  margin: 0 0 8px;
+}
+.be-row-main { flex: 1 1 240px; min-width: 0; }
+.be-row-title { font-weight: 600; overflow-wrap: anywhere; }
+.be-row-meta { font-size: var(--be-size-small); color: var(--be-muted); }
+.be-row[aria-selected="true"] { outline: 4px solid var(--be-accent); }
+.be-row button { flex: 0 0 auto; }
+.be-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: var(--be-size-small); font-weight: 700; border: var(--be-border) solid currentColor; }
+.be-badge[data-tone="ok"] { color: var(--be-ok); background: var(--be-ok-bg); }
+.be-badge[data-tone="warn"] { color: var(--be-warn); background: var(--be-warn-bg); }
+.be-badge[data-tone="bad"] { color: var(--be-bad); background: var(--be-bad-bg); }
+
+/* 3. Action button with a result preview */
+.be-preview {
+  border-left: 6px solid var(--be-accent);
+  background: var(--be-surface);
+  padding: 10px 12px;
+  margin: 12px 0;
+}
+.be-preview:empty { display: none; }
+
+/* 4. Duration picker (4, 24, 72 hours) */
+.be-duration { display: flex; gap: 8px; border: 0; padding: 0; margin: 0; }
+.be-duration legend { font-weight: 600; margin-bottom: 4px; padding: 0; }
+.be-duration label { margin: 0; font-weight: 600; }
+.be-duration input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.be-duration span {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 88px; min-height: var(--be-target);
+  border: var(--be-border) solid var(--be-line); border-radius: var(--be-radius);
+  padding: 0 12px; cursor: pointer;
+}
+.be-duration input:checked + span { background: var(--be-accent); color: var(--be-on-accent); border-color: var(--be-accent); }
+.be-duration input:focus-visible + span { outline: 4px solid var(--be-focus); outline-offset: 2px; }
+.be-duration input:disabled + span { opacity: 0.45; cursor: not-allowed; }
+
+/* 5. Confirm sheet */
+.be-sheet {
+  border: var(--be-border) solid var(--be-line);
+  border-radius: var(--be-radius);
+  background: var(--be-bg);
+  color: var(--be-text);
+  padding: 16px;
+  width: min(560px, calc(100vw - 32px));
+}
+.be-sheet::backdrop { background: rgba(0, 0, 0, 0.6); }
+.be-sheet-buttons { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 16px; }
+
+/* 6. "Same as" CLI strip */
+.be-cli {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--be-surface);
+  border: var(--be-border) dashed var(--be-line);
+  border-radius: var(--be-radius);
+  padding: 8px 12px;
+  margin: 12px 0;
+}
+.be-cli-label { font-size: var(--be-size-small); font-weight: 700; }
+.be-cli code { flex: 1 1 200px; }
+
+/* 7. Waiting list */
+.be-waiting .be-row { border-style: dashed; }
+
+/* 8. Error with what-to-do text */
+.be-error {
+  border: var(--be-border) solid var(--be-bad);
+  background: var(--be-bad-bg);
+  color: var(--be-text);
+  border-radius: var(--be-radius);
+  padding: 12px 14px;
+  margin: 12px 0;
+}
+.be-error:empty { display: none; }
+.be-error dt { font-weight: 700; color: var(--be-bad); }
+.be-error dd { margin: 0 0 8px; }
+.be-ok-note {
+  border: var(--be-border) solid var(--be-ok);
+  background: var(--be-ok-bg);
+  border-radius: var(--be-radius);
+  padding: 12px 14px;
+  margin: 12px 0;
+}
+.be-ok-note:empty { display: none; }
+
+[hidden] { display: none !important; }
+.be-hint { font-size: var(--be-size-small); color: var(--be-muted); }
+</style>
+<style>
+  .fp-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+  .fp-panel { border-top: var(--be-border) solid var(--be-line); padding-top: 8px; }
+  .fp-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .fp-plan { width: 100%; aspect-ratio: 4 / 3; border: var(--be-border) solid var(--be-line); border-radius: var(--be-radius); background: var(--be-surface); display: block; }
+  .fp-plan text { font-family: var(--be-font); font-size: 13px; fill: var(--be-text); }
+  .fp-plan .fp-track { fill: var(--be-bg); stroke: var(--be-text); stroke-width: 2; }
+  .fp-plan .fp-track.fp-multi { fill: var(--be-accent); stroke: var(--be-accent); }
+  .fp-plan .fp-leader { stroke: var(--be-text); stroke-width: 2; }
+  .fp-plan .fp-src { stroke: var(--be-bg); stroke-width: 1.5; }
+  .fp-plan .fp-scale { stroke: var(--be-text); stroke-width: 2; }
+  .fp-plan .fp-sel { fill: none; stroke: var(--be-focus); stroke-width: 3; }
+  .fp-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: var(--be-size-small); margin: 6px 0; }
+  .fp-legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+  .fp-table { width: 100%; border-collapse: collapse; font-size: var(--be-size-small); }
+  .fp-table th, .fp-table td { border-bottom: 1px solid var(--be-line); padding: 4px 6px; text-align: left; vertical-align: top; }
+  .fp-table th { white-space: nowrap; position: sticky; top: 0; background: var(--be-bg); }
+  .fp-table td { font-family: var(--be-mono); white-space: nowrap; max-width: 24em; overflow: hidden; text-overflow: ellipsis; }
+  .fp-scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+  .fp-kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; font-size: var(--be-size-small); margin: 6px 0; }
+  .fp-kv dt { font-weight: 600; }
+  .fp-kv dd { margin: 0; font-family: var(--be-mono); overflow-wrap: anywhere; }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; }
+  select, input[type="file"] { width: 100%; }
+</style>
+</head>
+<body>
+<main class="be-page">
+  <div class="fp-top">
+    <div>
+      <h1 class="be-title">Fieldkit Processors</h1>
+      <p class="be-subtitle">The processing runner on this machine: what it sees, and how it runs.</p>
+    </div>
+    <button type="button" id="theme">Dark screen</button>
+  </div>
+
+  <div id="banner" class="be-banner" data-state="unknown" role="status">Runner state not known yet.</div>
+  <p id="who" class="be-hint"></p>
+  <div id="error" class="be-error"></div>
+  <div id="done" class="be-ok-note"></div>
+
+  <nav class="be-actions" aria-label="Actions">
+    <button type="button" data-action="view" data-cli="view" data-api="GET /v1/view" data-panel="p-view">Now</button>
+    <button type="button" data-action="use" data-cli="pack use" data-api="PUT /v1/pipeline/{function}" data-panel="p-use" data-change>Pick packs</button>
+    <button type="button" data-action="stop" data-cli="stop" data-api="POST /v1/stop" data-panel="p-run" data-change>Pause</button>
+    <button type="button" data-action="start" data-cli="start" data-api="POST /v1/start" data-panel="p-run" data-change>Resume</button>
+    <button type="button" data-action="replay" data-cli="replay" data-api="POST /v1/replay" data-panel="p-replay">Replay a file</button>
+    <button type="button" data-action="explain" data-cli="explain" data-api="GET /v1/explain/{track}" data-panel="p-explain">Explain a track</button>
+  </nav>
+  <!-- Approve and reject are buttons on each waiting proposal, in the Now panel. They are declared here like the rest. -->
+  <template data-action="approve" data-cli="proposal approve" data-api="POST /v1/proposals/{id}/approve"></template>
+  <template data-action="reject" data-cli="proposal reject" data-api="POST /v1/proposals/{id}/reject"></template>
+
+  <section id="p-view" class="fp-panel" aria-labelledby="h-view">
+    <h2 id="h-view">Now</h2>
+    <p id="view-time" class="be-hint"></p>
+    <svg id="plan" class="fp-plan" viewBox="0 0 800 600" role="img" aria-labelledby="plan-title"><title id="plan-title">Plan view of the system tracks</title></svg>
+    <div id="legend" class="fp-legend" aria-label="Sources"></div>
+    <p class="be-hint">Each circle is one system track. A filled circle joins reports from more than one source. The small dots around it are its sources; the line shows its direction and speed (one minute of travel). North is up.</p>
+    <h2>System tracks</h2>
+    <ul id="tracks" class="be-list"></ul>
+    <h2>Quality per source</h2>
+    <ul id="quality" class="be-list"></ul>
+    <h2>Pipeline</h2>
+    <ul id="pipeline" class="be-list"></ul>
+    <h2>Proposals waiting</h2>
+    <p class="be-hint">A person or an agent proposed a different pack. Nothing changes until someone allowed to change the runner approves it.</p>
+    <ul id="proposals" class="be-list be-waiting"></ul>
+    <div class="be-cli" data-strip="view"></div>
+    <div class="fp-buttons">
+      <button type="button" id="refresh">Refresh</button>
+      <button type="button" id="live" aria-pressed="true">Live: on</button>
+    </div>
+  </section>
+
+  <section id="p-use" class="fp-panel" aria-labelledby="h-use" hidden>
+    <h2 id="h-use">Pick packs</h2>
+    <p>A pack is the set of rules one function runs with. Pick the pack for one function; the runner uses it from the next report on, and records the change so a replay of the record gives the same result.</p>
+    <label for="use-function">Function</label>
+    <select id="use-function"></select>
+    <label for="use-pack">Pack</label>
+    <select id="use-pack"></select>
+    <div id="use-preview" class="be-preview"></div>
+    <div class="be-cli" data-strip="use"></div>
+    <div class="fp-buttons"><button type="button" class="be-primary" id="use-go">Use this pack</button></div>
+  </section>
+
+  <section id="p-run" class="fp-panel" aria-labelledby="h-run" hidden>
+    <h2 id="h-run">Pause or resume</h2>
+    <p id="run-state"></p>
+    <div id="run-preview" class="be-preview"></div>
+    <div class="be-cli" data-strip="run"></div>
+    <div class="fp-buttons"><button type="button" class="be-primary" id="run-go">Pause</button></div>
+  </section>
+
+  <section id="p-replay" class="fp-panel" aria-labelledby="h-replay" hidden>
+    <h2 id="h-replay">Replay a file</h2>
+    <p>Run a recorded file through a separate copy of the pipeline. The live runner and its output do not change. A file can be a scenario vector, JSON lines of reports, or a record the runner wrote.</p>
+    <label for="replay-file">File</label>
+    <input type="file" id="replay-file" accept=".json,.jsonl,.ndjson,application/json">
+    <div id="replay-preview" class="be-preview"></div>
+    <div class="be-cli" data-strip="replay"></div>
+    <div class="fp-buttons"><button type="button" class="be-primary" id="replay-go">Replay</button></div>
+    <div id="replay-out"></div>
+  </section>
+
+  <section id="p-explain" class="fp-panel" aria-labelledby="h-explain" hidden>
+    <h2 id="h-explain">Explain a track</h2>
+    <p>Why the runner made one system track: the events and the checks (trace records) behind it, from the recent steps the runner keeps.</p>
+    <label for="explain-track">System track</label>
+    <select id="explain-track"></select>
+    <div class="be-cli" data-strip="explain"></div>
+    <div class="fp-buttons"><button type="button" class="be-primary" id="explain-go">Explain</button></div>
+    <div id="explain-out"></div>
+    <p class="be-hint">For the full step-by-step viewer (plan, slider, every record), run the command above with <code>-o json</code> on the runner, or replay a record with <code>tools/explain</code>.</p>
+  </section>
+</main>
+
+<script data-bleating-edge>
+/* SPDX-License-Identifier: Apache-2.0
+ * Bleating Edge — the one small script every Fieldkit tool includes.
+ * docs/design/fieldkit-and-bleating-edge.md §4.
+ *
+ * A tool declares its actions in its own HTML, one element per action:
+ *   <button data-action="allow" data-cli="pod rules allow" data-api="POST /v1/rules">
+ * BE.call(name, params, body) is the ONLY way a tool reaches its API, and it
+ * can reach only a route an action declares. ops/ci/check-fieldkit-scope.py
+ * checks every declared action against the allow list of CLI verbs, so a tool
+ * cannot do anything the CLI cannot.
+ *
+ * No state is kept here: every list is read fresh from the API.
+ */
+(function () {
+  "use strict";
+
+  function h(tag, attrs) {
+    var el = document.createElement(tag);
+    var a = attrs || {};
+    Object.keys(a).forEach(function (k) {
+      var v = a[k];
+      if (v === null || v === undefined || v === false) return;
+      if (k === "text") el.textContent = v;
+      else if (k.slice(0, 2) === "on" && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? "" : String(v));
+    });
+    for (var i = 2; i < arguments.length; i++) {
+      var c = arguments[i];
+      if (c === null || c === undefined || c === false) continue;
+      (Array.isArray(c) ? c : [c]).forEach(function (x) {
+        el.append(x instanceof Node ? x : document.createTextNode(String(x)));
+      });
+    }
+    return el;
+  }
+
+  // The action table, read from the page: name -> {cli, method, route, el}.
+  function actions() {
+    var out = {};
+    document.querySelectorAll("[data-action]").forEach(function (el) {
+      var api = (el.getAttribute("data-api") || "").trim().split(/\s+/);
+      out[el.getAttribute("data-action")] = {
+        cli: el.getAttribute("data-cli") || "",
+        method: api[0] || "GET",
+        route: api[1] || "",
+        el: el,
+      };
+    });
+    return out;
+  }
+
+  function fillRoute(route, params) {
+    return route.replace(/\{(\w+)\}/g, function (_, k) {
+      if (!params || params[k] === undefined || params[k] === "") throw plainError("The page is missing a value: " + k + ".");
+      return encodeURIComponent(params[k]);
+    });
+  }
+
+  function plainError(what, why, fix, code) {
+    var e = new Error(what);
+    e.what = what;
+    e.why = why || "";
+    e.fix = fix || "";
+    e.code = code || "";
+    return e;
+  }
+
+  // Call one declared action. Resolves to the parsed JSON body.
+  function call(name, params, body) {
+    var a = actions()[name];
+    if (!a || !a.route) return Promise.reject(plainError("This page has no action named " + name + "."));
+    var path;
+    try { path = fillRoute(a.route, params); } catch (e) { return Promise.reject(e); }
+    var opts = { method: a.method, headers: { Accept: "application/json" }, credentials: "same-origin", cache: "no-store" };
+    if (body !== undefined) {
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    return fetch(path, opts).then(function (res) {
+      return res.text().then(function (text) {
+        var data = null;
+        try { data = text ? JSON.parse(text) : {}; } catch (_) { data = null; }
+        if (res.ok && data) return data;
+        // An API may answer {"error": {"code", "what", "why", "fix"}} or
+        // {"error": "what happened", "fix": "what to do"}.
+        var err = data && data.error ? (typeof data.error === "string" ? { what: data.error, fix: data.fix } : data.error) : {};
+        throw plainError(
+          err.what || err.message || ("The " + BE.thing + " refused (" + res.status + ")."),
+          err.why || "",
+          err.fix || (res.status === 401 || res.status === 403
+            ? "Sign in with your goat certificate or card. Only a person named as local authority can change rules."
+            : "Try again. If it fails again, give the code below to your goat operator."),
+          err.code || ("HTTP " + res.status)
+        );
+      });
+    }, function () {
+      var t = BE.thing;
+      throw plainError(
+        "The " + t + " did not answer.",
+        "This page talks only to the " + t + " that served it. The " + t + " service may have stopped or restarted.",
+        "Wait one minute and press Refresh. If it still fails, check the " + t + " has power and its service is running.",
+        "NO-ANSWER"
+      );
+    });
+  }
+
+  // ---- time --------------------------------------------------------------
+  function untilFromHours(hours, now) {
+    var t = new Date((now || Date.now()) + hours * 3600 * 1000);
+    t.setUTCSeconds(0, 0);
+    return t.toISOString().replace(".000Z", "Z");
+  }
+
+  function age(seconds) {
+    var s = Math.max(0, Math.round(seconds));
+    if (s < 90) return s + " seconds";
+    if (s < 90 * 60) return Math.round(s / 60) + " minutes";
+    if (s < 48 * 3600) return Math.round(s / 3600) + " hours";
+    return Math.round(s / 86400) + " days";
+  }
+
+  function when(iso) {
+    if (!iso) return "no end date";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    var diff = (d.getTime() - Date.now()) / 1000;
+    var rel = diff >= 0 ? "in " + age(diff) : age(-diff) + " ago";
+    var two = function (n) { return (n < 10 ? "0" : "") + n; };
+    var abs = d.getFullYear() + "-" + two(d.getMonth() + 1) + "-" + two(d.getDate()) + " " + two(d.getHours()) + ":" + two(d.getMinutes());
+    return abs + " (" + rel + ")";
+  }
+
+  // ---- components ----------------------------------------------------------
+
+  // 1. Connected or cut-off banner.
+  function banner(el, s) {
+    el.replaceChildren();
+    if (!s) {
+      el.setAttribute("data-state", "unknown");
+      el.append("Pod state not known yet.");
+      return;
+    }
+    el.setAttribute("data-state", s.connected ? "connected" : "cutoff");
+    el.append(s.connected ? "Connected to goat." : "Cut off from goat. This pod works on its own.");
+    var detail = s.connected
+      ? "Rules came from goat " + age(s.generation_age_seconds || 0) + " ago."
+      : "Last rules from goat are " + age(s.generation_age_seconds || 0) + " old. Changes made here wait for an org lead to check them.";
+    el.append(h("small", { text: detail }));
+  }
+
+  // 2. List row for a source or rule.
+  function row(o) {
+    var li = h("li", { class: "be-row", "data-key": o.key || null },
+      h("div", { class: "be-row-main" },
+        h("div", { class: "be-row-title", text: o.title }),
+        o.meta ? h("div", { class: "be-row-meta", text: o.meta }) : null),
+      o.badge ? h("span", { class: "be-badge", "data-tone": o.badge.tone || "", text: o.badge.text }) : null,
+      o.button ? h("button", { type: "button", text: o.button.label, onclick: o.button.onClick }) : null);
+    return li;
+  }
+
+  // 4. Duration picker. Hours above `max` are disabled.
+  function duration(container, name, max, choices) {
+    var hours = choices || [4, 24, 72];
+    var fs = h("fieldset", { class: "be-duration" }, h("legend", { text: "For how long" }));
+    var first = true;
+    hours.forEach(function (n) {
+      var off = typeof max === "number" && n > max;
+      var input = h("input", { type: "radio", name: name, value: String(n), disabled: off, checked: !off && first });
+      if (!off) first = false;
+      fs.append(h("label", null, input, h("span", { text: n + " hours" })));
+    });
+    container.replaceChildren(fs);
+    return {
+      hours: function () {
+        var c = fs.querySelector("input:checked");
+        return c ? Number(c.value) : null;
+      },
+      onChange: function (fn) { fs.addEventListener("change", fn); },
+    };
+  }
+
+  // Shell-quote one argument for the CLI strip.
+  function quote(s) {
+    s = String(s);
+    if (/^[A-Za-z0-9._:\/=@+-]+$/.test(s)) return s;
+    return "'" + s.replace(/'/g, "'\\''") + "'";
+  }
+
+  // 6. "Same as" CLI strip. `words` are the arguments after the verb.
+  function cli(el, verb, words) {
+    var text = BE.program + " " + verb + (words && words.length ? " " + words.map(quote).join(" ") : "");
+    el.replaceChildren(
+      h("span", { class: "be-cli-label", text: "Same as" }),
+      h("code", { text: text }),
+      h("button", {
+        type: "button", text: "Copy", "aria-label": "Copy the command",
+        onclick: function (ev) {
+          var b = ev.currentTarget;
+          var done = function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1500); };
+          if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, function () {});
+        },
+      }));
+    return text;
+  }
+
+  // 5. Confirm sheet. Resolves true only when the person presses the yes button.
+  function confirm(o) {
+    return new Promise(function (resolve) {
+      var dlg = h("dialog", { class: "be-sheet", "aria-labelledby": "be-sheet-title" });
+      var stripEl = h("div", { class: "be-cli" });
+      var yes = h("button", { type: "button", class: "be-primary", text: o.yes || "Yes, do it" });
+      var no = h("button", { type: "button", text: "No, go back" });
+      dlg.append(
+        h("h2", { id: "be-sheet-title", text: o.title }),
+        h("div", { class: "be-preview", text: o.preview }),
+        stripEl,
+        h("div", { class: "be-sheet-buttons" }, no, yes));
+      if (o.verb) cli(stripEl, o.verb, o.words || []);
+      else stripEl.remove();
+      var finish = function (v) { dlg.close(); dlg.remove(); resolve(v); };
+      yes.addEventListener("click", function () { finish(true); });
+      no.addEventListener("click", function () { finish(false); });
+      dlg.addEventListener("cancel", function (ev) { ev.preventDefault(); finish(false); });
+      document.body.append(dlg);
+      if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
+      no.focus();
+    });
+  }
+
+  // 8. Error with what-to-do text.
+  function error(el, e) {
+    el.replaceChildren();
+    if (!e) return;
+    var dl = h("dl", null,
+      h("dt", { text: "What happened" }), h("dd", { text: e.what || e.message || "Something went wrong." }));
+    if (e.why) dl.append(h("dt", { text: "Why" }), h("dd", { text: e.why }));
+    dl.append(h("dt", { text: "What to do" }), h("dd", { text: e.fix || "Try again." }));
+    if (e.code) dl.append(h("dt", { text: "Code" }), h("dd", null, h("code", { text: e.code })));
+    el.append(dl);
+    el.setAttribute("role", "alert");
+  }
+
+  function note(el, text) {
+    el.textContent = text || "";
+    if (text) el.setAttribute("role", "status");
+  }
+
+  // A tool served by another goat program sets these two before its first call:
+  // the command its "Same as" strip names, and the word for the thing it talks to.
+  var BE = window.BE = {
+    program: "goat", thing: "pod",
+    h: h, actions: actions, call: call, untilFromHours: untilFromHours, age: age, when: when,
+    banner: banner, row: row, duration: duration, quote: quote, cli: cli, confirm: confirm,
+    error: error, note: note,
+  };
+})();
+</script>
+<script>
+(function () {
+  "use strict";
+  var BE = window.BE, h = BE.h;
+  BE.program = "goat-processors";
+  BE.thing = "runner";
+  var $ = function (id) { return document.getElementById(id); };
+  var A = BE.actions();
+  var view = null;        // the last answer to view; shown, never trusted for decisions
+  var selected = null;    // the track the person picked
+  var liveTimer = null;
+  var live = true;
+  var replayText = null, replayName = "";
+  var PALETTE = ["#0b6bcb", "#c2410c", "#15803d", "#7e22ce", "#b91c1c", "#0f766e", "#a16207", "#be185d"];
+
+  function fail(e) { BE.note($("done"), ""); BE.error($("error"), e); }
+  function ok(text) { BE.error($("error"), null); BE.note($("done"), text); }
+  function strip(name, verb, words) {
+    return BE.cli(document.querySelector('[data-strip="' + name + '"]'), verb, words || []);
+  }
+  function mayChange() { return !!(view && view.you && view.you.role === "operate"); }
+  function sourceOf(member) { var i = String(member).indexOf("/"); return i < 0 ? String(member) : String(member).slice(0, i); }
+  function trackId(t) { return t.group || t.system || ""; }
+  function num(v, digits) { return typeof v === "number" ? (Number.isInteger(v) ? String(v) : v.toFixed(digits === undefined ? 2 : digits)) : (v === null || v === undefined ? "none" : String(v)); }
+
+  // ---- theme ------------------------------------------------------------
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem("fieldkit-theme"); } catch (_) {}
+    function apply() {
+      if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme");
+      var dark = t ? t === "dark" : window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      $("theme").textContent = dark ? "Sunlight screen" : "Dark screen";
+    }
+    $("theme").addEventListener("click", function () {
+      var dark = document.documentElement.getAttribute("data-theme") === "dark" ||
+        (!document.documentElement.getAttribute("data-theme") && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      t = dark ? "sunlight" : "dark";
+      try { localStorage.setItem("fieldkit-theme", t); } catch (_) {}
+      apply();
+      if (view) drawPlan();
+    });
+    apply();
+  })();
+
+  // ---- panels -------------------------------------------------------------
+  function show(panelId) {
+    document.querySelectorAll(".fp-panel").forEach(function (p) { p.hidden = p.id !== panelId; });
+    document.querySelectorAll("nav [data-panel]").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-panel") === panelId && b.getAttribute("data-action") !== "start" && b.getAttribute("data-action") !== "stop" ? "true" : "false");
+    });
+    if (panelId === "p-use") fillUse();
+    if (panelId === "p-run") fillRun();
+    if (panelId === "p-replay") fillReplay();
+    if (panelId === "p-explain") fillExplain();
+    if (panelId === "p-view") startLive(); else stopLive();
+  }
+  document.querySelectorAll("nav [data-panel]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var a = b.getAttribute("data-action");
+      if (a === "stop" || a === "start") runWanted = a;
+      show(b.getAttribute("data-panel"));
+    });
+  });
+
+  // ---- view -------------------------------------------------------------------
+  function load() {
+    return BE.call("view").then(function (v) {
+      view = v;
+      BE.error($("error"), null);
+      render();
+      return v;
+    }, function (e) { fail(e); banner(null); });
+  }
+
+  function banner(v) {
+    var el = $("banner");
+    el.replaceChildren();
+    if (!v) {
+      el.setAttribute("data-state", "unknown");
+      el.append("Runner state not known.");
+      return;
+    }
+    var st = v.status || {}, hl = v.health || {};
+    var paused = st.state === "paused";
+    el.setAttribute("data-state", hl.healthy ? "connected" : "cutoff");
+    el.append(paused ? "Paused. Reports are counted and dropped." : hl.healthy ? "Running." : "Not healthy.");
+    var fabric = st.fabric_routers === undefined || st.fabric_routers === null ? "" :
+      (st.fabric_routers > 0 ? " Connected to the fabric (" + st.fabric_routers + " router" + (st.fabric_routers === 1 ? "" : "s") + ")." : " Not connected to the fabric.");
+    var detail = hl.detail || "";
+    el.append(h("small", { text: detail.charAt(0).toUpperCase() + detail.slice(1) + "." + fabric }));
+  }
+
+  function render() {
+    var v = view;
+    banner(v);
+    var you = v.you || {};
+    $("who").textContent = "Signed in as " + (you.name || "unknown") + " (" + (you.via || "") + "). " +
+      (mayChange() ? "You may change the runner." : "You may look; changes need the operate role (sudo on this machine, or a certificate the runner's administrator allows).");
+    document.querySelectorAll("nav [data-change]").forEach(function (b) { b.disabled = !mayChange(); });
+    $("view-time").textContent = (v.tracks || []).length + " system tracks" + (typeof v.now_ms === "number" ? " at " + new Date(v.now_ms).toISOString().replace(".000Z", "Z") : "") + ".";
+    strip("view", A.view.cli, []);
+    drawPlan();
+    renderTracks();
+    renderQuality();
+    renderPipeline();
+    renderProposals();
+  }
+
+  function sourceColors() {
+    var names = {};
+    (view.quality || []).forEach(function (q) { names[q.source] = true; });
+    (view.tracks || []).forEach(function (t) { (t.members || []).forEach(function (m) { names[sourceOf(m)] = true; }); });
+    var out = {};
+    Object.keys(names).sort().forEach(function (n, i) { out[n] = PALETTE[i % PALETTE.length]; });
+    return out;
+  }
+
+  function drawPlan() {
+    var svg = $("plan"), NS = "http://www.w3.org/2000/svg";
+    var keep = svg.querySelector("title");
+    svg.replaceChildren(keep);
+    function el(tag, attrs, text) {
+      var e = document.createElementNS(NS, tag);
+      Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+      if (text !== undefined) e.textContent = text;
+      svg.append(e);
+      return e;
+    }
+    var tracks = (view.tracks || []).filter(function (t) { return typeof t.lat === "number" && typeof t.lon === "number"; });
+    var colors = sourceColors();
+    var legend = $("legend");
+    legend.replaceChildren();
+    Object.keys(colors).forEach(function (s) {
+      var sp = h("span", { text: s });
+      sp.style.setProperty("--c", colors[s]);
+      legend.append(sp);
+    });
+    if (!tracks.length) {
+      el("text", { x: 400, y: 300, "text-anchor": "middle" }, "No system tracks yet.");
+      return;
+    }
+    // Meters east and north of the middle of the tracks.
+    var lat0 = 0, lon0 = 0;
+    tracks.forEach(function (t) { lat0 += t.lat; lon0 += t.lon; });
+    lat0 /= tracks.length; lon0 /= tracks.length;
+    var R = 6371008.8, k = Math.PI / 180, cos0 = Math.cos(lat0 * k);
+    var pts = tracks.map(function (t) { return { t: t, x: (t.lon - lon0) * k * R * cos0, y: (t.lat - lat0) * k * R }; });
+    var span = 200;
+    pts.forEach(function (p) { span = Math.max(span, Math.abs(p.x) * 2, Math.abs(p.y) * 2 * 4 / 3); });
+    var scale = 640 / (span * 1.15);
+    var px = function (x) { return 400 + x * scale; }, py = function (y) { return 300 - y * scale; };
+    // Scale bar: a round number of meters near a quarter of the width.
+    var target = 200 / scale, pow = Math.pow(10, Math.floor(Math.log10(target)));
+    var bar = [1, 2, 5, 10].map(function (m) { return m * pow; }).filter(function (m) { return m <= target; }).pop() || pow;
+    el("line", { x1: 24, y1: 576, x2: 24 + bar * scale, y2: 576, class: "fp-scale" });
+    el("text", { x: 24, y: 566 }, bar >= 1000 ? (bar / 1000) + " km" : bar + " m");
+    el("text", { x: 776, y: 24, "text-anchor": "end" }, "N ↑");
+    pts.forEach(function (p) {
+      var t = p.t, id = trackId(t), x = px(p.x), y = py(p.y);
+      var srcs = [];
+      (t.members || []).forEach(function (m) { var s = sourceOf(m); if (srcs.indexOf(s) < 0) srcs.push(s); });
+      if (typeof t.course === "number" && typeof t.speed_ms === "number" && t.speed_ms > 0) {
+        var d = t.speed_ms * 60 * scale, c = t.course * k;
+        el("line", { x1: x, y1: y, x2: x + Math.sin(c) * d, y2: y - Math.cos(c) * d, class: "fp-leader" });
+      }
+      var g = el("circle", { cx: x, cy: y, r: 9, class: "fp-track" + (srcs.length > 1 ? " fp-multi" : ""), tabindex: 0, role: "button", "aria-label": "Track " + id + ", " + srcs.length + " sources" });
+      g.addEventListener("click", function () { pick(id); });
+      g.addEventListener("keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pick(id); } });
+      srcs.forEach(function (s, i) {
+        var a = (i / srcs.length) * 2 * Math.PI - Math.PI / 2;
+        el("circle", { cx: x + Math.cos(a) * 15, cy: y + Math.sin(a) * 15, r: 4.5, fill: colors[s] || "#888", class: "fp-src" });
+      });
+      if (id === selected) el("circle", { cx: x, cy: y, r: 22, class: "fp-sel" });
+      el("text", { x: x + 22, y: y + 5 }, id);
+    });
+  }
+
+  function pick(id) {
+    selected = id;
+    drawPlan();
+    document.querySelectorAll("#tracks .be-row").forEach(function (r) { r.setAttribute("aria-selected", r.getAttribute("data-key") === id ? "true" : "false"); });
+  }
+
+  function renderTracks() {
+    var list = $("tracks");
+    list.replaceChildren();
+    var tracks = view.tracks || [];
+    if (!tracks.length) { list.append(BE.row({ title: "No system tracks yet.", meta: "Tracks appear after the first tick with reports." })); return; }
+    tracks.forEach(function (t) {
+      var id = trackId(t), srcs = [];
+      (t.members || []).forEach(function (m) { var s = sourceOf(m); if (srcs.indexOf(s) < 0) srcs.push(s); });
+      var where = typeof t.lat === "number" ? t.lat.toFixed(5) + ", " + t.lon.toFixed(5) : "no position";
+      var course = typeof t.course === "number" ? Math.round(((t.course % 360) + 360) % 360) % 360 : null;
+      var move = typeof t.speed_ms === "number" ? ", " + num(t.speed_ms, 1) + " m/s toward " + (course === null ? "an unknown direction" : course + "°") : "";
+      var row = BE.row({
+        key: id,
+        title: "Track " + id,
+        meta: where + move + ". Members: " + (t.members || []).join(", "),
+        badge: { text: srcs.length + (srcs.length === 1 ? " source" : " sources"), tone: srcs.length > 1 ? "ok" : "" },
+        button: { label: "Explain", onClick: function () { selected = id; show("p-explain"); explain(); } },
+      });
+      row.setAttribute("aria-selected", id === selected ? "true" : "false");
+      list.append(row);
+    });
+  }
+
+  function renderQuality() {
+    var list = $("quality");
+    list.replaceChildren();
+    var q = view.quality || [];
+    if (!q.length) { list.append(BE.row({ title: "No sources yet.", meta: "A source appears with its first report." })); return; }
+    q.forEach(function (s) {
+      var m = s.measures || {};
+      var bits = ["reports: " + num(s.reports)];
+      if (m && typeof m === "object") {
+        if ("age" in m) bits.push("age " + num(m.age, 0) + " ms");
+        if ("interval_mean" in m) bits.push("interval " + num(m.interval_mean, 0) + " ms");
+        if ("missing_ce" in m) bits.push("missing error " + Math.round((m.missing_ce || 0) * 100) + " %");
+        if ("out_of_order" in m) bits.push("out of order " + num(m.out_of_order));
+        if ("entities" in m) bits.push("objects " + num(m.entities));
+      }
+      var active = (s.actions || []).map(function (a) { return a.action + " (" + a.rule + ")"; });
+      if (s.entity_actions) active.push(s.entity_actions + " object" + (s.entity_actions === 1 ? "" : "s") + " marked");
+      var tone = (s.actions || []).length ? "bad" : s.entity_actions ? "warn" : "ok";
+      list.append(BE.row({
+        key: s.source,
+        title: s.source,
+        meta: bits.join(", ") + (active.length ? ". Active: " + active.join(", ") : ""),
+        badge: { text: tone === "ok" ? "Good" : tone === "warn" ? "Check" : "Action", tone: tone },
+      }));
+    });
+  }
+
+  function renderPipeline() {
+    var list = $("pipeline");
+    list.replaceChildren();
+    (view.pipeline || []).forEach(function (p, i) {
+      list.append(BE.row({ title: (i + 1) + ". " + p.function, meta: "pack " + p.pack + " (" + (p.packs || []).length + " installed)" }));
+    });
+  }
+
+  function renderProposals() {
+    var list = $("proposals");
+    list.replaceChildren();
+    var waiting = (view.proposals || []).filter(function (p) { return p.state === "pending"; });
+    if (!waiting.length) { list.append(BE.row({ title: "Nothing waiting." })); return; }
+    waiting.forEach(function (p) {
+      var row = BE.row({
+        key: p.id,
+        title: p.function + ": " + p.previous_pack + " → " + p.pack,
+        meta: "Proposed by " + p.by + (p.reason ? ": " + p.reason : "") + " (" + p.id + ")",
+      });
+      var approve = h("button", { type: "button", text: "Approve", disabled: !mayChange(), onclick: function () { decide("approve", p); } });
+      var reject = h("button", { type: "button", text: "Reject", disabled: !mayChange(), onclick: function () { decide("reject", p); } });
+      row.append(approve, reject);
+      list.append(row);
+    });
+  }
+
+  function decide(verb, p) {
+    var preview = verb === "approve"
+      ? p.function + " will run pack " + p.pack + " instead of " + p.previous_pack + ", from the next report on."
+      : "The proposal is closed. " + p.function + " keeps pack " + p.previous_pack + ".";
+    BE.confirm({ title: (verb === "approve" ? "Approve" : "Reject") + " this proposal?", preview: preview, verb: A[verb].cli, words: [p.id], yes: verb === "approve" ? "Yes, approve" : "Yes, reject" })
+      .then(function (yes) {
+        if (!yes) return;
+        return BE.call(verb, { id: p.id }).then(function (r) {
+          ok("Proposal " + p.id + ": " + (r.state || verb) + ".");
+          return load();
+        }, fail);
+      });
+  }
+
+  function startLive() {
+    stopLive();
+    load();
+    if (live) liveTimer = setInterval(function () { if (!document.hidden) load(); }, 2000);
+  }
+  function stopLive() { if (liveTimer) clearInterval(liveTimer); liveTimer = null; }
+  $("refresh").addEventListener("click", load);
+  $("live").addEventListener("click", function () {
+    live = !live;
+    $("live").setAttribute("aria-pressed", live ? "true" : "false");
+    $("live").textContent = live ? "Live: on" : "Live: off";
+    startLive();
+  });
+
+  // ---- pick packs ---------------------------------------------------------
+  function fillUse() {
+    var f = $("use-function"), cur = f.value;
+    f.replaceChildren();
+    (view && view.pipeline || []).forEach(function (p) { f.append(h("option", { value: p.function, text: p.function + " (now " + p.pack + ")" })); });
+    if (cur) f.value = cur;
+    fillPacks();
+  }
+  function fillPacks() {
+    var fn = $("use-function").value, sel = $("use-pack"), cur = sel.value;
+    var p = (view && view.pipeline || []).filter(function (x) { return x.function === fn; })[0];
+    sel.replaceChildren();
+    (p ? p.packs : []).forEach(function (n) { sel.append(h("option", { value: n, text: n + (n === p.pack ? " (in use)" : "") })); });
+    if (cur && p && p.packs.indexOf(cur) >= 0) sel.value = cur;
+    usePreview();
+  }
+  function usePreview() {
+    var fn = $("use-function").value, pk = $("use-pack").value;
+    var p = (view && view.pipeline || []).filter(function (x) { return x.function === fn; })[0];
+    $("use-preview").textContent = !fn ? "The pipeline has no functions." : pk === (p && p.pack) ? fn + " already runs " + pk + "." :
+      fn + " will run pack " + pk + " instead of " + (p ? p.pack : "its pack") + ", from the next report on.";
+    strip("use", A.use.cli, fn && pk ? [fn, pk] : []);
+    $("use-go").disabled = !mayChange() || !fn || !pk || pk === (p && p.pack);
+  }
+  $("use-function").addEventListener("change", fillPacks);
+  $("use-pack").addEventListener("change", usePreview);
+  $("use-go").addEventListener("click", function () {
+    var fn = $("use-function").value, pk = $("use-pack").value;
+    BE.confirm({ title: "Use pack " + pk + "?", preview: $("use-preview").textContent, verb: A.use.cli, words: [fn, pk], yes: "Yes, use it" }).then(function (yes) {
+      if (!yes) return;
+      return BE.call("use", { function: fn }, { pack: pk }).then(function () {
+        ok(fn + " now runs pack " + pk + ".");
+        return load().then(fillUse);
+      }, fail);
+    });
+  });
+
+  // ---- pause and resume ---------------------------------------------------
+  var runWanted = null;
+  function fillRun() {
+    var paused = view && view.status && view.status.state === "paused";
+    var verb = runWanted || (paused ? "start" : "stop");
+    $("run-state").textContent = paused ? "The runner is paused." : "The runner is running.";
+    $("run-preview").textContent = verb === "stop"
+      ? (paused ? "It is already paused." : "Processing stops at once. Reports that arrive are counted and dropped; no tracks are made until you resume. Health reports not healthy while paused.")
+      : (paused ? "Processing starts again with the next report." : "It is already running.");
+    $("run-go").textContent = verb === "stop" ? "Pause" : "Resume";
+    $("run-go").setAttribute("data-verb", verb);
+    $("run-go").disabled = !mayChange() || (verb === "stop") === !!paused;
+    strip("run", A[verb].cli, []);
+  }
+  $("run-go").addEventListener("click", function () {
+    var verb = $("run-go").getAttribute("data-verb");
+    BE.confirm({ title: verb === "stop" ? "Pause the runner?" : "Resume the runner?", preview: $("run-preview").textContent, verb: A[verb].cli, words: [], yes: verb === "stop" ? "Yes, pause" : "Yes, resume" }).then(function (yes) {
+      if (!yes) return;
+      return BE.call(verb).then(function () {
+        ok(verb === "stop" ? "Paused." : "Running again.");
+        runWanted = null;
+        return load().then(fillRun);
+      }, fail);
+    });
+  });
+
+  // ---- replay -------------------------------------------------------------
+  function fillReplay() {
+    $("replay-preview").textContent = replayText === null ? "Pick a file. Nothing runs until you press Replay." :
+      replayName + " (" + replayText.length + " bytes) will run through a copy of the pipeline. The live runner does not change.";
+    strip("replay", A.replay.cli, [replayName || "FILE", "--api"]);
+    $("replay-go").disabled = replayText === null;
+  }
+  $("replay-file").addEventListener("change", function () {
+    var f = $("replay-file").files[0];
+    replayText = null; replayName = f ? f.name : "";
+    $("replay-out").replaceChildren();
+    if (!f) { fillReplay(); return; }
+    var rd = new FileReader();
+    rd.onload = function () { replayText = String(rd.result); fillReplay(); };
+    rd.onerror = function () { fail({ what: "The file could not be read.", fix: "Pick the file again." }); };
+    rd.readAsText(f);
+  });
+  $("replay-go").addEventListener("click", function () {
+    $("replay-go").disabled = true;
+    BE.call("replay", null, replayText).then(function (r) {
+      ok("Replayed " + replayName + ": " + r.lines + " output lines.");
+      var out = $("replay-out");
+      out.replaceChildren(h("h2", { text: "Result" }));
+      var dl = h("dl", { class: "fp-kv" });
+      Object.keys(r.events || {}).forEach(function (k) { dl.append(h("dt", { text: k }), h("dd", { text: String(r.events[k]) })); });
+      out.append(h("p", { text: "Events, per function and event:" }), dl);
+      var ul = h("ul", { class: "be-list" });
+      (r.tracks || []).forEach(function (t) { ul.append(BE.row({ title: "Track " + trackId(t), meta: (t.members || []).join(", ") })); });
+      out.append(h("p", { text: (r.tracks || []).length + " system tracks at the end" + (typeof r.now_ms === "number" ? " (" + new Date(r.now_ms).toISOString() + ")" : "") + ":" }), ul);
+      fillReplay();
+    }, function (e) { fail(e); fillReplay(); });
+  });
+
+  // ---- explain ------------------------------------------------------------
+  function fillExplain() {
+    var sel = $("explain-track");
+    sel.replaceChildren();
+    (view && view.tracks || []).forEach(function (t) { sel.append(h("option", { value: trackId(t), text: "Track " + trackId(t) + " (" + (t.members || []).length + " members)" })); });
+    if (selected) sel.value = selected;
+    strip("explain", A.explain.cli, sel.value ? [sel.value] : []);
+    $("explain-go").disabled = !sel.value;
+  }
+  $("explain-track").addEventListener("change", function () { selected = $("explain-track").value; strip("explain", A.explain.cli, [selected]); });
+  $("explain-go").addEventListener("click", explain);
+  function explain() {
+    var id = $("explain-track").value || selected;
+    if (!id) return;
+    strip("explain", A.explain.cli, [id]);
+    BE.call("explain", { track: id }).then(function (x) {
+      BE.error($("error"), null);
+      var out = $("explain-out");
+      out.replaceChildren(h("h2", { text: "Track " + id }));
+      var t = x.track || {};
+      var dl = h("dl", { class: "fp-kv" });
+      Object.keys(t).sort().forEach(function (k) {
+        if (k === "trace") return;
+        dl.append(h("dt", { text: k }), h("dd", { text: typeof t[k] === "object" ? JSON.stringify(t[k]) : String(t[k]) }));
+      });
+      out.append(dl);
+      out.append(h("p", { text: (x.events || []).length + " events and " + (x.trace || []).length + " trace records name this track or its members, from step " + num(x.from_step) + " on." + (x.truncated ? " Only the latest 1000 of each are shown." : "") }));
+      out.append(h("h2", { text: "Events" }), table(flat(x.events, "event")));
+      out.append(h("h2", { text: "Trace records" }), table(flat(x.trace, "record")));
+    }, fail);
+  }
+  // Each cited item is {step, now_ms, stage, event or record}: one flat row.
+  function flat(items, key) {
+    return (items || []).map(function (it) {
+      var row = { step: it.step, stage: it.stage };
+      var inner = it[key] || {};
+      Object.keys(inner).forEach(function (k) { row[k] = inner[k]; });
+      return row;
+    });
+  }
+  // One row per item, one column per key the items carry, in a stated order.
+  function table(items) {
+    if (!items.length) return h("p", { text: "None." });
+    var first = ["step", "stage", "ev", "test", "a", "b", "value", "limit", "result"];
+    var keys = {};
+    items.forEach(function (it) { Object.keys(it).forEach(function (k) { keys[k] = true; }); });
+    var cols = first.filter(function (k) { return keys[k]; }).concat(Object.keys(keys).filter(function (k) { return first.indexOf(k) < 0; }).sort());
+    var head = h("tr", null, cols.map(function (c) { return h("th", { scope: "col", text: c }); }));
+    var body = items.map(function (it) {
+      return h("tr", null, cols.map(function (c) { var v = it[c]; var text = v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v); return h("td", { text: text, title: text.length > 40 ? text : null }); }));
+    });
+    return h("div", { class: "fp-scroll" }, h("table", { class: "fp-table" }, h("thead", null, head), h("tbody", null, body)));
+  }
+
+  show("p-view");
+})();
+</script>
+</body>
+</html>

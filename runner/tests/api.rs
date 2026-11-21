@@ -361,3 +361,102 @@ fn metrics_port_on_every_address_is_refused() {
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stdout).contains("mesh address"), "{}", String::from_utf8_lossy(&out.stdout));
 }
+
+/// One request with extra header lines; returns (status, head, body).
+fn raw_with(api: &str, method: &str, path: &str, headers: &str, body: &str) -> (u16, String, String) {
+    let mut s = TcpStream::connect(api).unwrap();
+    let host = if headers.to_ascii_lowercase().contains("host:") { String::new() } else { format!("Host: {api}\r\n") };
+    write!(s, "{method} {path} HTTP/1.1\r\n{host}{headers}Content-Length: {}\r\n\r\n{body}", body.len()).unwrap();
+    let mut out = String::new();
+    s.read_to_string(&mut out).unwrap();
+    let status = out.split(' ').nth(1).and_then(|c| c.parse().ok()).unwrap();
+    let (head, body) = out.split_once("\r\n\r\n").map(|(h, b)| (h.to_string(), b.to_string())).unwrap();
+    (status, head, body)
+}
+
+/// The operator page, its one read, the browser rules, and replay in the
+/// form the page sends.
+#[test]
+fn operator_page_view_and_browser_rules() {
+    let svc = Service::start("fieldkit", "");
+    svc.feed(10);
+    let token = svc.token();
+    let auth = format!("Authorization: Bearer {token}\r\n");
+
+    // GET /v1/view: everything the page shows.
+    let v = svc.get("/v1/view");
+    assert_eq!(s(v.get("you").unwrap(), "role"), "read");
+    assert_eq!(s(v.get("status").unwrap(), "state"), "running");
+    let pipe = v.get("pipeline").unwrap().as_array().unwrap();
+    let corr = pipe.iter().find(|p| s(p, "function") == "correlate").unwrap();
+    assert_eq!(s(corr, "pack"), "correlate-assign-time");
+    let packs: Vec<&str> = corr.get("packs").unwrap().as_array().unwrap().iter().filter_map(|x| x.as_str()).collect();
+    assert!(packs.contains(&"correlate-assign-time") && packs.contains(&"correlate-gnn") && packs.iter().all(|p| p.starts_with("correlate-")), "{packs:?}");
+    let tracks = v.get("tracks").unwrap().as_array().unwrap();
+    assert!(tracks.iter().any(|t| t.get("members").unwrap().as_array().unwrap().len() == 2), "{v}");
+    let quality = v.get("quality").unwrap().as_array().unwrap();
+    for src in ["adsb", "radar-1"] {
+        let q = quality.iter().find(|q| s(q, "source") == src).unwrap_or_else(|| panic!("no quality for {src}: {v}"));
+        assert!(matches!(q.get("reports"), Some(Json::Int(n)) if *n >= 10), "{q}");
+        assert!(matches!(q.get("measures"), Some(Json::Obj(m)) if m.contains_key("reports")), "the latest source measures: {q}");
+    }
+    let (st, _, b) = raw_with(&svc.api, "GET", "/v1/view", &auth, "");
+    assert_eq!(st, 200);
+    assert_eq!(s(json::parse(&b).unwrap().get("you").unwrap(), "role"), "operate");
+    let (ok, text) = svc.cli(&["view"]);
+    assert!(ok && text.contains("pipeline:") && text.contains("quality per source:") && text.contains("radar-1"), "{text}");
+
+    // GET /ui: one file, nothing from outside, no framing.
+    let (st, head, page) = raw_with(&svc.api, "GET", "/ui", "", "");
+    assert_eq!(st, 200);
+    let head = head.to_ascii_lowercase();
+    assert!(head.contains("content-type: text/html"));
+    assert!(head.contains("content-security-policy: default-src 'none';") && head.contains("frame-ancestors 'none'") && head.contains("connect-src 'self'"), "{head}");
+    assert!(head.contains("x-frame-options: deny"));
+    assert!(page.contains("<title>Fieldkit Processors</title>") && page.contains("window.BE") && page.contains("data-action=\"view\""));
+    assert!(!page.contains(" src=") && !page.contains("<link"), "the page loads nothing from outside");
+    // JSON answers carry no page policy.
+    let (_, head, _) = raw_with(&svc.api, "GET", "/v1/status", "", "");
+    assert!(!head.to_ascii_lowercase().contains("content-security-policy"));
+
+    // A page from another site may not call the API, even with the operate role.
+    for h in ["Sec-Fetch-Site: cross-site\r\n", "Sec-Fetch-Site: same-site\r\n", "Origin: http://elsewhere.example\r\n", "Origin: null\r\n"] {
+        let (st, _, b) = raw_with(&svc.api, "POST", "/v1/stop", &format!("{auth}{h}"), "");
+        assert_eq!(st, 403, "{h}: {b}");
+        assert!(b.contains("another site"), "{b}");
+    }
+    assert_eq!(s(&svc.get("/v1/status"), "state"), "running", "a refused stop changed nothing");
+    assert!(svc.audit().iter().any(|a| s(a, "path") == "/v1/stop" && a.get("status") == Some(&Json::Int(403))));
+    // The page itself (same origin) may, with the role.
+    let same = format!("{auth}Sec-Fetch-Site: same-origin\r\nSec-Fetch-Mode: cors\r\nOrigin: http://{}\r\n", svc.api);
+    let (st, _, b) = raw_with(&svc.api, "POST", "/v1/stop", &same, "");
+    assert_eq!(st, 200, "{b}");
+    let (st, _, _) = raw_with(&svc.api, "POST", "/v1/start", &same, "");
+    assert_eq!(st, 200);
+    // And without the role it may only read.
+    let (st, _, _) = raw_with(&svc.api, "POST", "/v1/stop", "Sec-Fetch-Site: same-origin\r\n", "");
+    assert_eq!(st, 403);
+
+    // A browser that reached 127.0.0.1 under another site's name is refused.
+    let (st, _, b) = raw_with(&svc.api, "GET", "/v1/tracks", "Host: rebound.example\r\nSec-Fetch-Site: same-origin\r\nSec-Fetch-Mode: cors\r\n", "");
+    assert_eq!(st, 403, "{b}");
+    let port = svc.api.rsplit(':').next().unwrap();
+    let (st, _, _) = raw_with(&svc.api, "GET", "/v1/tracks", &format!("Host: localhost:{port}\r\nSec-Fetch-Site: same-origin\r\n"), "");
+    assert_eq!(st, 200);
+    // A program that names the host as it likes is not a browser.
+    let (st, _, _) = raw_with(&svc.api, "GET", "/v1/tracks", "Host: any-name\r\n", "");
+    assert_eq!(st, 200);
+
+    // Replay as the page sends it: the file as one JSON string, a JSON answer.
+    let file = std::fs::read_to_string(repo().join("packs/correlate-assign-time/vectors/56-assign-time-offset-fit.json")).unwrap();
+    let body = Json::Str(file.clone()).to_string();
+    let (st, _, b) = raw_with(&svc.api, "POST", "/v1/replay", "Accept: application/json\r\nContent-Type: application/json\r\n", &body);
+    assert_eq!(st, 200, "{b}");
+    let r = json::parse(&b).unwrap();
+    assert!(matches!(r.get("lines"), Some(Json::Int(n)) if *n > 0), "{r}");
+    assert!(!r.get("events").unwrap().as_object().unwrap().is_empty());
+    // Without Accept JSON, the same lines the CLI prints.
+    let (st, _, lines) = raw_with(&svc.api, "POST", "/v1/replay", "", &file);
+    assert_eq!(st, 200);
+    assert_eq!(lines.lines().count() as i64, match r.get("lines") { Some(Json::Int(n)) => *n, _ => 0 });
+}

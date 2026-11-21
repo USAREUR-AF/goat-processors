@@ -5,6 +5,7 @@ mod api;
 mod config;
 mod doctor;
 mod fabric;
+mod fieldkit;
 mod http;
 mod mcp;
 mod model;
@@ -35,6 +36,8 @@ usage:
 
 The running service, through its API (each verb is one API route; -o json prints the API's reply):
   goat-processors status                       state, pipeline and counters        GET  /v1/status
+  goat-processors view                         what the operator page shows: state, packs per function,
+                                               tracks, quality per source, proposals, your role  GET  /v1/view
   goat-processors health                       exit 0 when running and ticking     GET  /v1/health
   goat-processors pipeline                     each function and its running pack  GET  /v1/pipeline
   goat-processors pack use FUNCTION PACK       select a function's pack (sudo)     PUT  /v1/pipeline/FUNCTION
@@ -50,6 +53,7 @@ The running service, through its API (each verb is one API route; -o json prints
   goat-processors proposal approve|reject|revert ID     decide a proposal (sudo)   POST /v1/proposals/ID/VERB
   goat-processors why TRACK [--endpoint NAME]  a model explains one track, citing trace records  GET /v1/why/TRACK
   goat-processors mcp                          an MCP server on stdin and stdout, for agents on this host  POST /mcp
+  The operator page (Fieldkit Processors) is at http://API/ui: each of its actions is one of these verbs.
   options: [-c CONFIG] [--api HOST:PORT] [-o json]. The API address and the token file come from
   CONFIG's api section. Changing anything needs the token, which only root can read: use sudo.
 
@@ -142,6 +146,7 @@ fn main() -> ExitCode {
         ["pack", "ls"] => cmd_pack_ls(&a),
         ["selftest"] => cmd_selftest(&a),
         ["status"] => api_verb(&a, "GET", "/v1/status".into(), None, Some(show_status)),
+        ["view"] => api_verb(&a, "GET", "/v1/view".into(), None, Some(show_view)),
         ["health"] => api_verb(&a, "GET", "/v1/health".into(), None, Some(show_kv)),
         ["pipeline"] => api_verb(&a, "GET", "/v1/pipeline".into(), None, Some(show_pipeline)),
         ["pack", "use", function, pack] => {
@@ -437,6 +442,37 @@ fn show_status(v: &Json) -> String {
         }
     }
     out.push_str(&format!("output prefix {}, fabric routers {}\n", s_of(v, "output_prefix"), s_of(v, "fabric_routers")));
+    out
+}
+
+/// `view`: the operator page's one read, as text.
+fn show_view(v: &Json) -> String {
+    let st = v.get("status").cloned().unwrap_or(Json::Null);
+    let hl = v.get("health").cloned().unwrap_or(Json::Null);
+    let you = v.get("you").cloned().unwrap_or(Json::Null);
+    let mut out = format!(
+        "{} at {}: {} ({})\nyou: {} via {}, role {}\n\npipeline:\n",
+        s_of(&st, "name"), s_of(&st, "site"), s_of(&st, "state"), s_of(&hl, "detail"), s_of(&you, "name"), s_of(&you, "via"), s_of(&you, "role")
+    );
+    for p in v.get("pipeline").and_then(|x| x.as_array()).cloned().unwrap_or_default() {
+        let packs = p.get("packs").and_then(|x| x.as_array()).map(|a| a.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>().join(" ")).unwrap_or_default();
+        out.push_str(&format!("  {:<10} {}  (installed: {packs})\n", s_of(&p, "function"), s_of(&p, "pack")));
+    }
+    out.push('\n');
+    out.push_str(&show_tracks(v));
+    out.push_str("\nquality per source:\n");
+    for q in v.get("quality").and_then(|x| x.as_array()).cloned().unwrap_or_default() {
+        let active = q.get("actions").and_then(|x| x.as_array()).map(|a| a.iter().map(|e| format!("{} ({})", s_of(e, "action"), s_of(e, "rule"))).collect::<Vec<_>>().join(", ")).unwrap_or_default();
+        out.push_str(&format!(
+            "  {:<24} reports {}, objects with an action {}{}\n",
+            s_of(&q, "source"), s_of(&q, "reports"), s_of(&q, "entity_actions"), if active.is_empty() { String::new() } else { format!(", active: {active}") }
+        ));
+    }
+    let waiting: Vec<Json> = v.get("proposals").and_then(|x| x.as_array()).cloned().unwrap_or_default().into_iter().filter(|p| s_of(p, "state") == "pending").collect();
+    out.push_str(&format!("\nproposals waiting: {}\n", waiting.len()));
+    for p in waiting {
+        out.push_str(&format!("  {} {}: {} -> {} by {}: {}\n", s_of(&p, "id"), s_of(&p, "function"), s_of(&p, "previous_pack"), s_of(&p, "pack"), s_of(&p, "by"), s_of(&p, "reason")));
+    }
     out
 }
 
