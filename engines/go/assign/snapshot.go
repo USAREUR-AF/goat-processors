@@ -28,6 +28,9 @@ func (m *Method) Snapshot() Obj {
 	}
 	snap := Obj{"ref": snapshot.Ref(c.Frame()), "entities": ents, "systems": systemsObj(m.committed),
 		"next_system": int64(m.committed.Next), "reported": model.Strings(model.SortedKeys(m.reported))}
+	if iv, ok := c.Intervals(); ok {
+		snap["intervals"] = iv
+	}
 	if m.p.HasRestart {
 		snap["restarted"] = model.Strings(model.SortedKeys(m.restarted))
 	}

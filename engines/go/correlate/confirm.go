@@ -4,17 +4,15 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strings"
 
 	"goat-correlator/engines/go/model"
 	"goat-correlator/engines/go/snapshot"
 )
 
-// Method confirm (spec/correlate.md: Association, On each tick, Fused
-// output, Snapshot): gate and confirm tests, confirm_count, hold and
-// hold_failures, fixed staleness, output priority|latest. This pipeline is
-// left as it was until correlate 1.0 replaces it; it is only moved here
-// and called through the method table.
+// Method confirm (spec/correlate.md 1.0: Association, On each tick, Fused
+// output, Snapshot): gate and confirm tests, then either confirm_count with
+// hold and hold_failures, or the sequential test (sprt.go); output fused,
+// priority or latest.
 
 // confirmMethod is the confirm row of the method table.
 type confirmMethod struct{ g *Engine }
@@ -22,7 +20,10 @@ type confirmMethod struct{ g *Engine }
 func (confirmMethod) reject(*Entity) string { return "" }
 func (confirmMethod) restarted(string)      {}
 func (m confirmMethod) ingested(e *Entity, events []Obj, trace *[]Obj) []Obj {
-	if e.Group != "" {
+	switch {
+	case e.Group != "" && m.g.pack.HasSprt:
+		return m.g.sprtGroup(e, events, trace)
+	case e.Group != "":
 		return m.g.hold(e, events, trace)
 	}
 	return m.g.associate(e, events, trace)
@@ -119,6 +120,12 @@ func (g *Engine) associate(a *Entity, events []Obj, trace *[]Obj) []Obj {
 		if ok {
 			ok = g.runTests("confirm", p.Confirm, a, b, trace)
 		}
+		if p.HasSprt {
+			if g.sprtCandidate(a, b, ok, trace) {
+				ready = append(ready, b)
+			}
+			continue
+		}
 		pk := pairKey(a.Key, b.Key)
 		n := int64(0)
 		if ok {
@@ -160,7 +167,9 @@ func (g *Engine) associate(a *Entity, events []Obj, trace *[]Obj) []Obj {
 		a.Group, b.Group, a.HoldFailures, b.HoldFailures = name, name, 0, 0
 		events = append(events, Obj{"ev": "correlate", "group": name, "members": model.Strings(members)})
 	}
-	g.counts[pairKey(a.Key, b.Key)] = 0
+	if !p.HasSprt {
+		g.counts[pairKey(a.Key, b.Key)] = 0
+	}
 	return events
 }
 
@@ -176,16 +185,31 @@ func (g *Engine) tickConfirm(now int64) (events, trace []Obj) {
 			events = g.leave(e, "stale", events)
 		}
 		delete(g.entities, k)
-		for pk := range g.counts {
-			a, b, _ := strings.Cut(pk, "|")
-			if a == k || b == k {
-				delete(g.counts, pk)
-			}
-		}
+		deletePairs(g.counts, k)
+		deletePairs(g.llr, k)
 		events = append(events, Obj{"ev": "drop", "entity": k})
 	}
 	for _, name := range g.groupOrder {
-		members := g.groups[name]
+		events = append(events, g.fusedEvent(name, now))
+	}
+	return events, trace
+}
+
+// deletePairs removes every pair entry naming entity k.
+func deletePairs[V any](pairs map[string]V, k string) {
+	for pk := range pairs {
+		if pairNames(pk, k) {
+			delete(pairs, pk)
+		}
+	}
+}
+
+// fusedEvent is the fused event of one group at now (On each tick, Fused
+// output): with output fused the information-weighted combination of every
+// member's prediction, otherwise the primary member's prediction.
+func (g *Engine) fusedEvent(name string, now int64) Obj {
+	members := g.groups[name]
+	if g.pack.Output != "fused" {
 		var primary *Entity
 		for _, k := range members {
 			e := g.entities[k]
@@ -194,25 +218,40 @@ func (g *Engine) tickConfirm(now int64) (events, trace []Obj) {
 			}
 		}
 		pe, pn := g.predicted(primary, now)
-		lat, lon := g.ref.ToDegrees(pe.P, pn.P)
-		course := model.Course(pe.V, pn.V)
-		ev := Obj{"ev": "fused", "group": name, "primary": primary.Key, "members": model.Strings(members),
-			"lat": lat, "lon": lon, "course": course, "speed_ms": math.Hypot(pe.V, pn.V)}
+		ev := g.fusedObj(name, primary.Key, members, pe, pn)
 		if h, ok := primary.num("hae"); ok {
 			ev["hae"] = h
 		}
-		events = append(events, ev)
+		return ev
 	}
-	return events, trace
+	// p = (sum of p_i/pp_i) / (sum of 1/pp_i), v likewise with vv; members
+	// in key order, sums left to right from 0, no timing variance.
+	var spE, wpE, spN, wpN, svE, wvE, svN, wvN float64
+	var haeFrom *Entity
+	for _, k := range members {
+		e := g.entities[k]
+		pe, pn := g.predicted(e, now)
+		spE, wpE = spE+pe.P/pe.PP, wpE+1/pe.PP
+		spN, wpN = spN+pn.P/pn.PP, wpN+1/pn.PP
+		svE, wvE = svE+pe.V/pe.VV, wvE+1/pe.VV
+		svN, wvN = svN+pn.V/pn.VV, wvN+1/pn.VV
+		if _, ok := e.num("hae"); ok && (haeFrom == nil || e.LastTime > haeFrom.LastTime) {
+			haeFrom = e
+		}
+	}
+	ev := g.fusedObj(name, nil, members,
+		model.Axis{P: spE / wpE, V: svE / wvE}, model.Axis{P: spN / wpN, V: svN / wvN})
+	if haeFrom != nil {
+		ev["hae"], _ = haeFrom.num("hae")
+	}
+	return ev
 }
 
-// isStale reports whether an entity is stale at now (spec: On each tick, Staleness).
-func (g *Engine) isStale(e *Entity, now int64) bool {
-	if now-e.LastTime > g.pack.StaleMs {
-		return true
-	}
-	s, ok := model.ToInt(e.Last["stale_ms"])
-	return ok && now >= s
+// fusedObj is a fused event without hae, from a position and velocity in the plane.
+func (g *Engine) fusedObj(name string, primary any, members []string, pe, pn model.Axis) Obj {
+	lat, lon := g.ref.ToDegrees(pe.P, pn.P)
+	return Obj{"ev": "fused", "group": name, "primary": primary, "members": model.Strings(members),
+		"lat": lat, "lon": lon, "course": model.Course(pe.V, pn.V), "speed_ms": math.Hypot(pe.V, pn.V)}
 }
 
 // better reports whether e beats the current primary c; members arrive in key order,
@@ -249,5 +288,16 @@ func (g *Engine) snapshotConfirm() Obj {
 	for k, n := range g.counts {
 		counts[k] = n
 	}
-	return Obj{"ref": snapshot.Ref(g.ref), "entities": ents, "groups": groups, "counts": counts, "next_group": int64(g.nextGroup)}
+	snap := Obj{"ref": snapshot.Ref(g.ref), "entities": ents, "groups": groups, "counts": counts, "next_group": int64(g.nextGroup)}
+	if g.pack.HasSprt {
+		llr := Obj{}
+		for k, l := range g.llr {
+			llr[k] = l
+		}
+		snap["llr"] = llr
+	}
+	if iv, ok := g.intervalsSnapshot(); ok {
+		snap["intervals"] = iv
+	}
+	return snap
 }

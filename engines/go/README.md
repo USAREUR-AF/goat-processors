@@ -2,8 +2,8 @@
 
 The Go engine of every function, standard library only:
 
-- `spec/correlate.md` version 0.8 (method `confirm`, the optional two-model filter, filter restart and time quality);
-- `spec/correlate-assign.md` version 0.6 (method `assign`, with the multi-frame window, its margin, sensor bias and the clock offset);
+- `spec/correlate.md` version 1.0 (method `confirm` with confirmation by count or by sequential test, the `state` test, staleness by fixed time or by each source's update rate, the fused, priority and latest outputs, the optional two-model filter, filter restart and time quality);
+- `spec/correlate-assign.md` version 0.7 (method `assign`, with the multi-frame window, its margin, sensor bias, the clock offset and `stale_rate`);
 - `spec/filter.md` version 0.1;
 - `spec/fuse.md` version 0.2;
 - `spec/quality.md` version 0.2.
@@ -21,8 +21,8 @@ and `Tick(now_ms)`, each returning its events and trace records, and
 
 | Package | Holds |
 |---|---|
-| `model/` | what every function shares, all of it pure: `Obj`, `Engine`, the frame, the constant-velocity filter, the two-model math, the report rules, time quality |
-| `correlate/` | `correlate.md`: the engine (reports, filter state, restart, tests), the method table, method `confirm` |
+| `model/` | what every function shares, all of it pure: `Obj`, `Engine`, the frame, the constant-velocity filter, the two-model math, the state statistic and sequential-test evidence, the report rules, time quality |
+| `correlate/` | `correlate.md`: the engine (reports, filter state, restart, tests, staleness), the method table, method `confirm` and its sequential test |
 | `assign/` | `correlate-assign.md`: method `assign`, which reads the correlate engine's entities only through `assign.Core` |
 | `filter/` | `filter.md` |
 | `fuse/` | `fuse.md` |
@@ -64,8 +64,11 @@ in `correlate/testdata/`), and the measure `always_one` only in
 | Track estimate | `model/kalman.go` (the steps), `correlate/track.go` (the entity's filter) |
 | Two-model filter | `model/imm.go` (the math), `correlate/track.go` (the entity's models) |
 | Restart | `correlate/restart.go` |
-| Tests | `correlate/tests.go` |
+| Tests | `correlate/tests.go` (the `state` test's math in `model/state.go`) |
 | Association | `correlate/confirm.go` |
+| Association, Sequential test | `correlate/sprt.go` (evidence in `model/state.go`) |
+| Association, On each tick (Staleness, Stale time of a source) | `correlate/stale.go` |
+| Association, On each tick (Fused output) | `correlate/confirm.go` (`fusedEvent`) |
 | Events | `correlate/engine.go` (`new`, `reject`), `correlate/confirm.go` (the rest) |
 | Trace | `trace/correlate.go` |
 | Snapshot | `correlate/confirm.go` (`snapshotConfirm`), `correlate/track.go` (`filterSnapshot`) |
@@ -86,7 +89,7 @@ in `correlate/testdata/`), and the measure `always_one` only in
 | Events | `assign/window.go`, `assign/membership.go` |
 | Trace | `trace/correlate.go` |
 | Snapshot | `assign/snapshot.go` |
-| Pack | `correlate/pack.go`, `correlate/methods.go` (row `assign`) |
+| Pack | `correlate/pack.go`, `correlate/methods.go` (row `assign`); `stale_rate` in `correlate/stale.go` |
 
 ### `spec/filter.md`
 

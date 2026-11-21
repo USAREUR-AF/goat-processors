@@ -62,6 +62,7 @@ func (c core) Hae(k string) (float64, bool) { return c.g.entities[k].num("hae") 
 func (c core) Gate(a, b string, trace *[]Obj) bool {
 	return c.g.runTests("gate", c.g.pack.Gate, c.g.entities[a], c.g.entities[b], trace)
 }
+func (c core) Intervals() (Obj, bool) { return c.g.intervalsSnapshot() }
 func (c core) EntitySnapshot(k string, out Obj) Obj {
 	e := c.g.entities[k]
 	out["last_time_ms"] = e.LastTime
