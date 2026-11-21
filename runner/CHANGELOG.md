@@ -6,7 +6,29 @@ their JSON outputs, the file paths, the config keys, and the fabric keys and
 their value format. The release workflow puts a release's section on its
 GitHub release page.
 
-## 0.6.0
+## 0.6.1
+
+The first published 0.6 release: the same runner as 0.6.0, with everything
+listed under 0.6.0 in `runner/CHANGELOG.md`.
+
+- **Breaking, as in 0.6.0: the fabric keys.** Updating from 0.5.0 or
+  earlier moves the runner's output to new keys; readers of the old keys get
+  nothing until they move. Read the 0.6.0 notes in `runner/CHANGELOG.md`, README.md "Moving from
+  the layout before 0.6.0", and INSTALL.md "Updating from 0.5.0 or earlier"
+  before updating.
+- The tag `runner-v0.6.0` has no release: the release workflow failed before
+  publishing (the glibc check of the `.deb` files ran in a job that had no
+  copy of the repository). Nothing was signed or published for it, and no
+  `.deb` exists. The container image tags `0.6.0-amd64` and `0.6.0-arm64`
+  in `ghcr.io/usareur-af/goat-processors` were pushed but never indexed or
+  signed: **do not use them**; use the signed `0.6.1` image.
+- The release workflow runs that check in the job that signs the release,
+  after the `.deb` files are downloaded. A new CI check
+  (`packaging/check-workflows.py`) fails a pull request when a workflow step
+  runs a repository script in a job without a checkout, or reads `dist/`
+  before anything fills it.
+
+## 0.6.0 (tag only, never released; see 0.6.1)
 
 - **Breaking: the fabric keys.** The runner publishes on five fixed keys,
   `tracks`, `quality`, `events`, `status` and `trace`, under the new default

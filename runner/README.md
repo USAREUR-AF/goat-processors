@@ -248,7 +248,7 @@ system track (`tracks/<id>`), per quality subject
 (`quality/<scope>/<subject>`), per function for events (`events/<function>`)
 and, when enabled, for the trace (`trace/<function>`). Each value was one
 JSON object. Either move the readers to the five keys above, splitting each
-value into lines; or keep the old keys for 0.6.0 with these two lines, with
+value into lines; or keep the old keys for 0.6 with these two lines, with
 the site's own site and name written out (`prefix` is used as written,
 nothing in it is filled in):
 
@@ -284,7 +284,7 @@ is right. A fabric that has no `volatile/` write grant for this runner yet
 needs `prefix` set to a key the runner may write.
 
 **0.7.0 removes `layout: per-entity`**: `config check` then refuses a config
-that still has it. Move the readers during 0.6.0.
+that still has it. Move the readers during 0.6.
 
 The events are described in each function's specification under `spec/`.
 

@@ -34,6 +34,10 @@ jobs:
         run: python3 -I runner/packaging/third-party.py --check
       - name: the shell scripts pass shellcheck
         run: shellcheck -s sh runner/install.sh runner/packaging/*.sh runner/packaging/deb/*
+      - name: every workflow step's script exists and its job checks out first; dist/ is filled before it is read
+        run: |
+          python3 -I runner/packaging/check-workflows.py --self-test
+          python3 -I runner/packaging/check-workflows.py .github/workflows/*.yml
 
   fieldkit:
     runs-on: ubuntu-24.04
