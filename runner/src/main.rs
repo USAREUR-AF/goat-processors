@@ -4,6 +4,7 @@ mod agentic;
 mod api;
 mod config;
 mod doctor;
+mod explain_html;
 mod fabric;
 mod fieldkit;
 mod http;
@@ -18,7 +19,7 @@ mod selftest;
 mod service;
 
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 const USAGE: &str = "goat-processors: runs a declared pipeline of processing functions on the goat fabric
@@ -31,6 +32,10 @@ usage:
                                  [--tick-ms N] [--trace] [--snapshot] [--out FILE]
                                  run a file through the pipeline, offline; one JSON line per stage per step;
                                  --snapshot ends with one line holding every stage's whole state
+  goat-processors replay FILE --html PAGE [--stage FUNCTION] [-c CONFIG] [--pack ...]
+                                 write one self-contained HTML page: a plan with a step slider, each
+                                 step's input, events, trace records and the stage's state after it
+                                 (stage: correlate if the pipeline has one, else the first)
   goat-processors selftest       [-c CONFIG | --packs-dir DIR] [-o json]
                                  replay every vector shipped with the packs; exit 1 on any difference
   goat-processors pack ls        [-c CONFIG | --packs-dir DIR] [-o json]
@@ -48,6 +53,9 @@ The running service, through its API (each verb is one API route; -o json prints
   goat-processors metrics                      rate, latency, counts per source    GET  /v1/metrics
   goat-processors tracks                       the system tracks of the last tick  GET  /v1/tracks
   goat-processors explain TRACK                what led to one system track        GET  /v1/explain/TRACK
+  goat-processors explain TRACK --html PAGE [--stage FUNCTION]
+                                               the same page for the service's record file, naming the
+                                               track and its members (reads the record: sudo)
   goat-processors replay FILE --api            run a file on a copy of the running pipeline  POST /v1/replay
   goat-processors audit                        the latest audit lines (sudo)       GET  /v1/audit
   goat-processors proposals                    every settings proposal              GET  /v1/proposals
@@ -75,10 +83,12 @@ struct Args {
     use_api: bool,
     endpoint: Option<String>,
     reason: Option<String>,
+    html: Option<PathBuf>,
+    stage: Option<String>,
 }
 
 fn parse_args(argv: Vec<String>) -> Result<Args, String> {
-    let mut a = Args { rest: vec![], config: None, output: None, packs: vec![], packs_dir: None, tick_ms: None, trace: false, snapshot: false, out: None, api: None, use_api: false, endpoint: None, reason: None };
+    let mut a = Args { rest: vec![], config: None, output: None, packs: vec![], packs_dir: None, tick_ms: None, trace: false, snapshot: false, out: None, api: None, use_api: false, endpoint: None, reason: None, html: None, stage: None };
     let mut it = argv.into_iter();
     while let Some(x) = it.next() {
         let mut val = |name: &str| it.next().ok_or(format!("{name} needs a value"));
@@ -97,6 +107,8 @@ fn parse_args(argv: Vec<String>) -> Result<Args, String> {
             "--reason" => a.reason = Some(val(&x)?),
             "--snapshot" => a.snapshot = true,
             "--out" => a.out = Some(val(&x)?.into()),
+            "--html" => a.html = Some(val(&x)?.into()),
+            "--stage" => a.stage = Some(val(&x)?),
             "--api" => {
                 a.use_api = true;
                 // An address may follow: HOST:PORT.
@@ -159,6 +171,7 @@ fn main() -> ExitCode {
         ["start"] => api_verb(&a, "POST", "/v1/start".into(), None, Some(show_status)),
         ["metrics"] => api_verb(&a, "GET", "/v1/metrics".into(), None, Some(show_kv)),
         ["tracks"] => api_verb(&a, "GET", "/v1/tracks".into(), None, Some(show_tracks)),
+        ["explain", track] if a.html.is_some() => cmd_explain_html(&a, track),
         ["explain", track] => api_verb(&a, "GET", format!("/v1/explain/{}", http::encode(track)), None, Some(show_explain)),
         ["audit"] => api_verb(&a, "GET", "/v1/audit".into(), None, Some(show_lines)),
         ["why", track] => {
@@ -249,18 +262,13 @@ fn packs_dir(a: &Args, c: Option<&config::Config>) -> PathBuf {
     a.packs_dir.clone().or_else(|| c.map(|c| c.packs_dir.clone())).unwrap_or_else(|| PathBuf::from(config::DEFAULT_PACKS_DIR))
 }
 
-fn cmd_replay(a: &Args, file: &str) -> Result<ExitCode, String> {
-    let text = std::fs::read_to_string(file).map_err(|e| format!("cannot read {file}: {e}"))?;
-    let rf = replay::read(&text).map_err(|e| format!("{file}: {e}"))?;
-    let c = match &a.config {
-        Some(p) => Some(config::load(p).map_err(|e| format!("{} is not valid:\n  {}", p.display(), e.join("\n  ")))?),
-        None => None,
-    };
-    let dir = packs_dir(a, c.as_ref());
-    // The pipeline: --pack lines; else the config's; else the vector's own pack.
+/// The pipeline a replay runs: `--pack` lines; else the config's; else the
+/// vector's own pack. Returns it with the packs directory and the tick.
+fn replay_pipeline(a: &Args, c: Option<&config::Config>, rf: &replay::ReplayFile) -> Result<(pipeline::Pipeline, PathBuf, i64), String> {
+    let dir = packs_dir(a, c);
     let stages: Vec<(String, String)> = if !a.packs.is_empty() {
         a.packs.clone()
-    } else if let Some(c) = &c {
+    } else if let Some(c) = c {
         c.pipeline.iter().map(|s| (s.function.clone(), s.pack.clone())).collect()
     } else if let Some(p) = &rf.vector_pack {
         let function = p.split('-').next().unwrap_or("").to_string();
@@ -274,8 +282,42 @@ fn cmd_replay(a: &Args, file: &str) -> Result<ExitCode, String> {
         let engine = pipeline::load_stage(function, &pdir).map_err(|e| format!("{function} pack {pack} ({}): {e}", pdir.display()))?;
         built.push(pipeline::Stage { function: function.clone(), pack: pack.clone(), engine });
     }
-    let mut p = pipeline::Pipeline::new(built);
-    let tick_ms = a.tick_ms.or(c.as_ref().map(|c| c.tick_ms)).unwrap_or(1000);
+    let tick_ms = a.tick_ms.or(c.map(|c| c.tick_ms)).unwrap_or(1000);
+    Ok((pipeline::Pipeline::new(built), dir, tick_ms))
+}
+
+/// The stage a page shows: `--stage`, else correlate, else the first.
+fn page_stage(a: &Args, p: &pipeline::Pipeline) -> String {
+    a.stage.clone().unwrap_or_else(|| {
+        if p.stages.iter().any(|s| s.function == "correlate") {
+            "correlate".into()
+        } else {
+            p.stages.first().map(|s| s.function.clone()).unwrap_or_default()
+        }
+    })
+}
+
+fn write_page(path: &Path, html: &str) -> Result<(), String> {
+    std::fs::write(path, html).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+    eprintln!("wrote {} ({} KiB); open it in a browser, it loads nothing from anywhere", path.display(), html.len() / 1024);
+    Ok(())
+}
+
+fn cmd_replay(a: &Args, file: &str) -> Result<ExitCode, String> {
+    let text = std::fs::read_to_string(file).map_err(|e| format!("cannot read {file}: {e}"))?;
+    let rf = replay::read(&text).map_err(|e| format!("{file}: {e}"))?;
+    let c = match &a.config {
+        Some(p) => Some(config::load(p).map_err(|e| format!("{} is not valid:\n  {}", p.display(), e.join("\n  ")))?),
+        None => None,
+    };
+    let (mut p, dir, tick_ms) = replay_pipeline(a, c.as_ref(), &rf)?;
+    if let Some(html) = &a.html {
+        let stage = page_stage(a, &p);
+        let name = Path::new(file).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| file.to_string());
+        let page = explain_html::Page { name, file: file.to_string(), focus: vec![] };
+        write_page(html, &explain_html::render(&mut p, &rf, tick_ms, &dir, &stage, &page)?)?;
+        return Ok(ExitCode::SUCCESS);
+    }
     let mut sink: Box<dyn Write> = match &a.out {
         Some(path) => Box::new(std::fs::File::create(path).map_err(|e| format!("cannot write {}: {e}", path.display()))?),
         None => Box::new(std::io::stdout().lock()),
@@ -305,6 +347,30 @@ fn cmd_replay(a: &Args, file: &str) -> Result<ExitCode, String> {
         p.counters.ticks,
         p.counters.reports_out
     );
+    Ok(ExitCode::SUCCESS)
+}
+
+/// `explain TRACK --html PAGE`: replays the service's record file (its
+/// current file, from its first line) through the configured pipeline and
+/// writes the step-by-step page, naming the track and its members.
+fn cmd_explain_html(a: &Args, track: &str) -> Result<ExitCode, String> {
+    let cfg = config_path(a);
+    let c = config::load(&cfg).map_err(|e| format!("{} is not valid:\n  {}", cfg.display(), e.join("\n  ")))?;
+    let rec = c.record.as_ref().ok_or("the config has no record file, so there is nothing to replay. Set record.path and restart the service, or replay a file you have: goat-processors replay FILE --html PAGE")?;
+    let text = std::fs::read_to_string(&rec.path).map_err(|e| format!("cannot read the record {}: {e} (run with sudo)", rec.path.display()))?;
+    let rf = replay::read(&text).map_err(|e| format!("{}: {e}", rec.path.display()))?;
+    // The running service knows the track's members; without it, the id alone.
+    let addr = a.api.clone().unwrap_or_else(|| c.api.listen.clone());
+    let focus = match http::call(&addr, "GET", &format!("/v1/explain/{}", http::encode(track)), None, None) {
+        Ok((200, body)) => json::parse(&String::from_utf8_lossy(&body)).ok().and_then(|v| v.get("track").map(explain_html::names_of)).unwrap_or_default(),
+        _ => vec![],
+    };
+    let focus = if focus.is_empty() { vec![track.to_string()] } else { focus };
+    let (mut p, dir, tick_ms) = replay_pipeline(a, Some(&c), &rf)?;
+    let stage = page_stage(a, &p);
+    let page = explain_html::Page { name: format!("track {track}"), file: rec.path.display().to_string(), focus };
+    let html = explain_html::render(&mut p, &rf, tick_ms, &dir, &stage, &page)?;
+    write_page(a.html.as_deref().unwrap_or(Path::new("explain.html")), &html)?;
     Ok(ExitCode::SUCCESS)
 }
 

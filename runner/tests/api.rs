@@ -245,6 +245,26 @@ fn every_route_and_verb() {
     assert!(n > 50, "only {n} lines to compare");
     assert_eq!(&replayed[..n], &served[..n]);
     assert!(std::fs::read_to_string(svc.dir.join("record.jsonl")).unwrap().contains("{\"pack\":{\"function\":\"quality\",\"pack\":\"quality-time\"}}"));
+
+    // explain --html: the step-by-step page of the recorded run, naming the
+    // track and its members (asked of the running service)
+    let page = svc.dir.join("explain.html");
+    let (ok, out) = svc.cli(&["explain", id.as_str(), "--html", page.to_str().unwrap()]);
+    assert!(ok, "{out}");
+    let html = std::fs::read_to_string(&page).unwrap();
+    assert!(html.contains("through its correlate stage") && html.contains("radar-1/T1") && html.contains(&format!("look for {id}")), "page note");
+    assert!(html.contains("\"snapshot\":{"), "a snapshot per step");
+    let (ok, out) = svc.cli(&["explain", id.as_str(), "--html", page.to_str().unwrap(), "--stage", "quality"]);
+    assert!(ok && std::fs::read_to_string(&page).unwrap().contains("through its quality stage"), "{out}");
+    let (ok, out) = svc.cli(&["explain", id.as_str(), "--html", page.to_str().unwrap(), "--stage", "fuse"]);
+    assert!(!ok && out.contains("no fuse stage"), "{out}");
+
+    // replay --html: the same page from any file, without a service
+    let page2 = svc.dir.join("replay.html");
+    let out = bin().arg("replay").arg(svc.dir.join("record.jsonl")).args(["-c"]).arg(svc.dir.join("r.yaml")).arg("--html").arg(&page2).output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(out.stdout.is_empty(), "the page goes to the file, not stdout");
+    assert!(std::fs::read_to_string(&page2).unwrap().contains("through its correlate stage"));
 }
 
 #[test]

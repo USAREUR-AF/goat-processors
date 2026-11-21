@@ -43,6 +43,7 @@ how to troubleshoot it.
 | Signed release (cosign, keyless) | Written: `.github/workflows/runner-release.yml`, run by a tag `runner-v<version>` |
 | HTTP API ([openapi.yaml](openapi.yaml)): local with a root-only token, mesh with mutual TLS and an allow list; audit log | Built. Tested: every route, both roles, refusals audited, mTLS allow list |
 | CLI verbs on the API: `status`, `view`, `health`, `pipeline`, `pack use`, `stop`, `start`, `metrics`, `tracks`, `explain`, `replay --api`, `audit` | Built. Tested: each verb against a running service |
+| Explain pages: `explain <id> --html`, `replay FILE --html` | Built. Tested: a page per vector step with no network reference; both verbs against a running service |
 | Agent interfaces ([docs/design/agentic-ai.md](../docs/design/agentic-ai.md), [examples/README.md](examples/README.md)): MCP server and `goat-processors mcp`; model endpoints with data levels; agent as a source; settings proposals with a site auto-approval policy; the `why` explainer; audit of every agent call | Built. Tests: `tests/agents.rs` |
 | Agent as an adjudicator (association and fusion hints) | Designed |
 | Operator page, Fieldkit Processors ([below](#the-operator-page-fieldkit-processors), [fieldkit/](fieldkit/README.md)) | Built. Tested: a browser drives all eight actions against a running runner, signed in with a client certificate, and checks each change through the API (`fieldkit/e2e/`); the scope guard checks every action is a CLI verb; `tests/api.rs` checks the page's headers and the cross-site refusals |
@@ -193,6 +194,7 @@ identity by source priority.
 | the same for a Prometheus scraper: reports per source, system tracks, system tracks with members from more than one source, source tracks per source, events per function and event, quality events per source, latency quantiles | `GET /v1/metrics/prometheus` (role read), or `GET /metrics` on `api.metrics_listen` |
 | the system tracks now | `goat-processors tracks` |
 | what led to one system track | `goat-processors explain <id>` (the id from `tracks`) |
+| the same, step by step, as a page to open in a browser | `sudo goat-processors explain <id> --html explain.html` (needs `record.path`) |
 | list packs | `goat-processors pack ls` |
 | run another pack for one function, now | `sudo goat-processors pack use <function> <pack>` |
 | pause, and resume, processing | `sudo goat-processors stop`, `sudo goat-processors start` |
@@ -202,6 +204,7 @@ identity by source priority.
 | connect an agent on this host | `goat-processors mcp` (an MCP server on stdin and stdout) |
 | check the program against its test cases | `goat-processors selftest` |
 | run a file through a pipeline, offline | `goat-processors replay FILE -c /etc/goat-processors/runner.yaml` |
+| a file's run as a step-by-step page | `goat-processors replay FILE -c /etc/goat-processors/runner.yaml --html run.html` |
 
 **What the runner publishes**, under the prefix (default
 `data/processed/<site>/<name>`), each value one JSON object:
@@ -340,10 +343,31 @@ browser (by its `Sec-Fetch-Site` or `Origin`), so a page elsewhere cannot use
 your certificate to change the runner. The page itself is sent with a policy
 that lets it load nothing and call only the runner that served it.
 
-For the full step-by-step viewer of one scenario (a plan with a time slider
-and every record), replay a recorded file with `tools/explain`
-(`../tools/explain/README.md`). The page's Explain shows the recent steps the
-runner keeps in memory.
+The page's Explain shows the recent steps the runner keeps in memory. For
+the full step-by-step view of a run, write an explain page (next section).
+
+## Explain pages: a run, step by step, in one HTML file
+
+An explain page is one HTML file that shows a run step by step: a plan of the
+reports and the stage's estimates with a slider over the steps, and for each
+step its input, the events and trace records it produced, and the stage's whole
+state after it. It is the viewer of `tools/explain` (`../tools/explain/README.md`),
+built into the binary and filled by the runner's own pipeline. The page loads
+nothing from anywhere, so it can be copied off the machine and opened offline.
+
+| You want | Type |
+|---|---|
+| one track of the running service | `sudo goat-processors explain <id> --html explain.html` |
+| any recorded or scenario file | `goat-processors replay FILE -c /etc/goat-processors/runner.yaml --html run.html` |
+| another stage than correlate | add `--stage quality` (or `filter`, `fuse`); without it the page shows correlate if the pipeline has it, else the first stage |
+
+`explain --html` replays the service's record file (`record.path`; reading it
+needs `sudo`) through the configured pipeline, and asks the running service
+which source tracks make up the track, so the page's note names them. Without
+a record file it says so. It reads only the current record file from its first
+line: after a rotation (`record.max_mb`) a track that formed before it shows
+from the rotation on. A page holds at most the last 3000 steps of a run; its
+note says when steps were left out.
 
 ## The container image
 

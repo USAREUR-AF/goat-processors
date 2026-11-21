@@ -193,28 +193,56 @@ pub fn output_lines(step: usize, call: &Step, out: &Output, trace: bool) -> Vec<
 /// Runs a replay file through a pipeline. `on_line` gets every output line.
 /// With `tick_ms`, a file without ticks is ticked by the input clock.
 pub fn run(p: &mut Pipeline, file: &ReplayFile, tick_ms: i64, packs_dir: &std::path::Path, trace: bool, mut on_line: impl FnMut(String)) {
+    run_steps(p, file, tick_ms, packs_dir, |n, step, done, _| match (step, done) {
+        (_, Done::Output(out)) => {
+            for l in output_lines(n, step, out, trace) {
+                on_line(l);
+            }
+        }
+        (Step::Pack { function, pack }, Done::Pack(err)) => {
+            let mut m = BTreeMap::new();
+            m.insert("step".into(), Json::Int(n as i64));
+            m.insert("call".into(), Json::Str("pack".into()));
+            m.insert("stage".into(), Json::Str(function.clone()));
+            m.insert("pack".into(), Json::Str(pack.clone()));
+            if let Some(e) = err {
+                m.insert("error".into(), Json::Str(e.clone()));
+            }
+            on_line(Json::Obj(m).to_string());
+        }
+        _ => {}
+    });
+}
+
+/// What one step of `run_steps` did.
+pub enum Done<'a> {
+    /// An ingest or a tick, and what the pipeline returned.
+    Output(&'a crate::pipeline::Output),
+    /// A pack change, and its error if it did not apply.
+    Pack(Option<String>),
+}
+
+/// Runs a replay file through a pipeline, calling `on_step` after every
+/// step with its number, the step, what it did and the pipeline itself, so
+/// that a caller can take its state. With `tick_ms`, a file without ticks
+/// is ticked by the input clock.
+pub fn run_steps(p: &mut Pipeline, file: &ReplayFile, tick_ms: i64, packs_dir: &std::path::Path, mut on_step: impl FnMut(usize, &Step, Done, &Pipeline)) {
     let mut clock = (!file.has_ticks).then(|| InputClock::new(tick_ms));
     let mut n = 0usize;
-    let mut call = |p: &mut Pipeline, step: Step, on_line: &mut dyn FnMut(String)| {
-        let out = match &step {
-            Step::Ingest(r) => p.ingest(r),
-            Step::Tick(t) => p.tick(*t),
-            Step::Pack { function, pack } => {
-                let mut m = BTreeMap::new();
-                m.insert("step".into(), Json::Int(n as i64));
-                m.insert("call".into(), Json::Str("pack".into()));
-                m.insert("stage".into(), Json::Str(function.clone()));
-                m.insert("pack".into(), Json::Str(pack.clone()));
-                if let Err(e) = p.use_pack(function, pack, packs_dir) {
-                    m.insert("error".into(), Json::Str(e));
-                }
-                on_line(Json::Obj(m).to_string());
-                n += 1;
-                return;
+    let mut call = |p: &mut Pipeline, step: Step| {
+        match &step {
+            Step::Ingest(r) => {
+                let out = p.ingest(r);
+                on_step(n, &step, Done::Output(&out), p);
             }
-        };
-        for l in output_lines(n, &step, &out, trace) {
-            on_line(l);
+            Step::Tick(t) => {
+                let out = p.tick(*t);
+                on_step(n, &step, Done::Output(&out), p);
+            }
+            Step::Pack { function, pack } => {
+                let err = p.use_pack(function, pack, packs_dir).err();
+                on_step(n, &step, Done::Pack(err), p);
+            }
         }
         n += 1;
     };
@@ -222,14 +250,14 @@ pub fn run(p: &mut Pipeline, file: &ReplayFile, tick_ms: i64, packs_dir: &std::p
         if let (Some(c), Step::Ingest(r)) = (clock.as_mut(), step) {
             if let Some(t) = report_time(r) {
                 for now in c.before(t) {
-                    call(p, Step::Tick(now), &mut on_line);
+                    call(p, Step::Tick(now));
                 }
             }
         }
-        call(p, step.clone(), &mut on_line);
+        call(p, step.clone());
     }
     if let Some(now) = clock.as_mut().and_then(|c| c.close()) {
-        call(p, Step::Tick(now), &mut on_line);
+        call(p, Step::Tick(now));
     }
 }
 

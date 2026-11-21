@@ -22,6 +22,8 @@ WORKDIR /src
 COPY engines/rust engines/rust
 COPY packs packs
 COPY runner runner
+# The explain page viewer, built into the binary (explain --html).
+COPY tools/explain/viewer.html tools/explain/viewer.html
 COPY NOTICE LICENSE ./
 # Build paths are replaced so that no build machine path appears in a log.
 ENV RUSTFLAGS="--remap-path-prefix=/src=/src --remap-path-prefix=/usr/local/cargo=/cargo"
