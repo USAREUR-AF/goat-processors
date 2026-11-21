@@ -362,6 +362,70 @@ fn metrics_port_on_every_address_is_refused() {
     assert!(String::from_utf8_lossy(&out.stdout).contains("mesh address"), "{}", String::from_utf8_lossy(&out.stdout));
 }
 
+#[test]
+fn slow_callers_on_one_port_do_not_lock_out_the_local_api() {
+    // Before each listener had its own budget, 32 connections held open on
+    // any port (no certificate needed on the mesh port, no caller check on
+    // the metrics port) filled the one shared budget, and the local API,
+    // where `health` and the operator's verbs arrive, stopped answering.
+    let port = free_port();
+    let svc = Service::start("api-slow-callers", &format!("  metrics_listen: \"127.0.0.1:{port}\"\n"));
+    let held: Vec<TcpStream> = (0..48)
+        .map(|_| {
+            let mut s = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+            s.write_all(b"GET /met").unwrap(); // and nothing more
+            s
+        })
+        .collect();
+    std::thread::sleep(Duration::from_millis(300));
+    for _ in 0..5 {
+        assert_eq!(svc.raw("GET", "/v1/health", None, None).unwrap().0, 200);
+    }
+    let st = svc.get("/v1/status");
+    assert_eq!(st.get("counters").unwrap().get("dropped_backlog").unwrap().as_i64(), Some(0));
+    drop(held);
+}
+
+#[test]
+fn hostile_reports_are_refused_and_the_runner_stays_up() {
+    // The engine's parser descends once per bracket: one datagram or body of
+    // open brackets used to overflow the stack and abort the runner.
+    let svc = Service::start("api-deep-json", "");
+    let deep = "[".repeat(200_000);
+    UdpSocket::bind("127.0.0.1:0").unwrap().send_to("[".repeat(60_000).as_bytes(), &svc.udp).unwrap(); // under the datagram limit
+    let _ = svc.raw("POST", "/mcp", None, Some(&deep));
+    let _ = svc.raw("POST", "/v1/proposals", None, Some(&deep));
+    // A longitude of 1e308 next to another track: the engines' longitude
+    // wrap (add or subtract 360 until it fits) never ended, and the service
+    // loop stopped answering.
+    let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
+    for (uid, lat, lon) in [("A", "1.0", "1.0"), ("B", "1e308", "-1e308"), ("C", "1.0", "1e999")] {
+        let r = format!("{{\"track.source_id\":\"x\",\"uid\":\"{uid}\",\"time_ms\":{},\"lat\":{lat},\"lon\":{lon},\"ce\":30.0}}", now_ms());
+        sock.send_to(r.as_bytes(), &svc.udp).unwrap();
+    }
+    std::thread::sleep(Duration::from_millis(800));
+    assert_eq!(svc.raw("GET", "/v1/health", None, None).unwrap().0, 200);
+    let st = svc.get("/v1/status");
+    assert!(st.get("counters").unwrap().get("unreadable").unwrap().as_i64().unwrap() >= 3, "{st:?}");
+    assert_eq!(st.get("counters").unwrap().get("reports_in").unwrap().as_i64(), Some(1), "only A goes in");
+}
+
+#[test]
+fn hosted_endpoint_over_plain_http_is_refused() {
+    let d = tmp("hosted-http");
+    let cfg = format!(
+        "name: t\nsite: s\npacks_dir: {}\ninputs:\n  udp:\n    - listen: \"127.0.0.1:{}\"\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\nstatus_file: {}/status.json\nagents:\n  endpoints:\n    - {{name: provider, url: \"http://models.example.net/v1/chat/completions\", kind: hosted, data_level: public}}\n",
+        repo().join("packs").display(),
+        free_port(),
+        d.display()
+    );
+    std::fs::write(d.join("r.yaml"), cfg).unwrap();
+    let out = bin().args(["config", "check", "-c"]).arg(d.join("r.yaml")).output().unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(!out.status.success(), "{text}");
+    assert!(text.contains("hosted endpoint over plain http"), "{text}");
+}
+
 /// One request with extra header lines; returns (status, head, body).
 fn raw_with(api: &str, method: &str, path: &str, headers: &str, body: &str) -> (u16, String, String) {
     let mut s = TcpStream::connect(api).unwrap();

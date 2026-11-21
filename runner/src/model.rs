@@ -11,7 +11,7 @@ use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::Arc;
 use std::time::Duration;
 
-use goat_correlator::json::{self, Json};
+use crate::json::{self, Json};
 
 use crate::config::{Agents, Endpoint};
 

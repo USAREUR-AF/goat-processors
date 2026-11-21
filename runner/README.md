@@ -48,6 +48,7 @@ how to troubleshoot it.
 | Operator page, Fieldkit Processors ([below](#the-operator-page-fieldkit-processors), [fieldkit/](fieldkit/README.md)) | Built. Tested: a browser drives all eight actions against a running runner, signed in with a client certificate, and checks each change through the API (`fieldkit/e2e/`); the scope guard checks every action is a CLI verb; `tests/api.rs` checks the page's headers and the cross-site refusals |
 | Container image for amd64 and arm64 ([below](#the-container-image), `packaging/container/Containerfile`) | Built. Tested: `packaging/ci-container-test.sh` runs it locked down against a mutual-TLS router with a scenario (CI on amd64 and arm64) |
 | Container image published to `ghcr.io/usareur-af/goat-processors` and signed (cosign, keyless) | Written: `runner-release.yml`; first published by the next `runner-v` tag |
+| Hardening review ([docs/hardening-review.md](docs/hardening-review.md)) | Written. Six findings fixed with tests (a crash and a stall from one report, API lockout, memory flood, hosted endpoint over plain HTTP, doctor without openssl); three Open (the engines' unbounded wrap and parser, file growth, certificate revocation) |
 
 ## How the runner works
 
@@ -60,7 +61,10 @@ how to troubleshoot it.
 
 **Reports.** Each input delivers reports. A fabric sample or a UDP datagram
 holds one report as a JSON object, a JSON array of reports, or JSON lines.
-Anything else is counted as unreadable and skipped. A report written with
+Anything else is counted as unreadable and skipped, and so is JSON nested
+more than 64 levels deep, and a report no real object could send: a number
+that is not finite, `lat` beyond 90, or `lon` beyond 360 (`journalctl` names
+the first ones). A report written with
 nested objects (`{"track": {"source_id": "r1"}}`, as a JSON encoder that
 cannot write a member name holding `.` produces it) is read with dotted keys
 (`"track.source_id"`); a dotted key already present wins. Reports are passed to the
@@ -128,7 +132,7 @@ exits 1. The service runs the same check before it starts.
 | `fabric.tls.certificate` | for `tls/` locators | | this runner's certificate, PEM |
 | `fabric.tls.private_key` | for `tls/` locators | | its private key, PEM |
 | `inputs.fabric.keys` | one input is required | | key expressions to subscribe to, for example `data/entity/track/**` |
-| `inputs.udp[].listen` | | | `<ip>:<port>` to receive reports on |
+| `inputs.udp[].listen` | | | `<ip>:<port>` to receive reports on. UDP has no sender check: anyone who reaches the port can send reports. Bind it to `127.0.0.1` or to an interface that only trusted senders reach; prefer the fabric (mutual TLS) for reports from other hosts |
 | `inputs.file.path` | | | a file to play once at start (replay formats below); needs `clock: input` |
 | `inputs.file.speed` | no | `1` | `1` real time, `10` ten times faster, `0` as fast as possible |
 | `pipeline[].function` | yes | | `filter`, `correlate`, `fuse` or `quality`; each at most once, in that order |
@@ -148,7 +152,7 @@ exits 1. The service runs the same check before it starts.
 | `api.mesh.listen` | no | | `<ip>:<port>` for callers on other hosts, over mutual TLS |
 | `api.metrics_listen` | no | off | `<mesh ip>:<port>` that serves only `GET /metrics` (the Prometheus text), plain HTTP with no caller check, for an obs host's scraper. `config check` refuses an address that listens on every interface |
 | `api.mesh.tls` | no | the `fabric.tls` files | `root_ca` (signs callers' certificates), `certificate`, `private_key` |
-| `api.mesh.allow[]` | with `api.mesh` | | `{name: <certificate CN>, role: read or operate}`; a CN not listed is refused |
+| `api.mesh.allow[]` | with `api.mesh` | | `{name: <certificate CN>, role: read or operate}`; a CN not listed is refused. Any certificate the site CA signs with that CN gets the role, so the site CA should give each person and program its own name. The list is read at start: to take access away, remove the name and restart the service |
 | `agents.mcp` | no | `true` | serve the MCP endpoint, `POST /mcp` (examples/README.md) |
 | `agents.data_levels` | no | `[public, site]` | the site's data levels, least sensitive first |
 | `agents.local_level` | no | the highest level | the highest level a local caller may receive |
@@ -266,6 +270,9 @@ answer as a table, or as the API's JSON with `-o json`.
 
 `operate` adds `pack use`, `stop`, `start` and `audit`. Each change, and each
 refused request, is written to `api.audit_file` with who made it.
+Each listener handles a fixed number of connections at once (local 16, mesh
+32, metrics 4), and a request must arrive whole within 30 s, so slow or many
+callers on the mesh or metrics port cannot shut out the local API.
 `pack use` takes effect at once and is written to the record file, so a
 replay of the record makes the same change at the same step. It lasts until
 the service restarts; to keep it, write the pack in the config file.
@@ -427,7 +434,8 @@ each FAIL is followed by its fix. Doctor changes nothing.
 | `service` FAIL: no status at /run/goat-processors/status.json | the service has not completed a tick since it started: it is not running, or is failing at start | `sudo journalctl -u goat-processors -n 50`; then `sudo systemctl restart goat-processors` |
 | `service` FAIL: the status is old | the service is not ticking | `sudo systemctl restart goat-processors` |
 | `input` warn: no report read yet | nothing arrives on the input keys | compare `inputs.fabric.keys` with the keys the translators publish |
-| `service` warn: unreadable inputs | samples on the input keys are not reports | see the first ones with `sudo journalctl -u goat-processors`; correct the key expression or the publisher |
+| `service` warn: unreadable inputs | samples on the input keys are not reports, or hold a value out of range | see the first ones with `sudo journalctl -u goat-processors`; correct the key expression or the publisher |
+| `service` warn: reports dropped because the service was behind its inputs | reports arrived faster than the pipeline ran, and more than 65536 waited; the fabric and UDP inputs dropped the rest (`counters.dropped_backlog`) | check the host's load (`top`) and each source's rate (`goat-processors metrics`); a source that floods the input is the usual cause |
 | `service` warn: the running pipeline differs | the config was edited but not applied, or an operator ran `pack use` | to keep the running packs, write them in the config; to return to the config, `sudo systemctl restart goat-processors` |
 | `api` FAIL: the API does not answer | the service is not running, or failed to open its API port | `sudo journalctl -u goat-processors -n 50`; another program may hold port 8470 (`api.listen`) |
 | `api` FAIL: not healthy: paused | an operator ran `goat-processors stop` | `sudo goat-processors start` |

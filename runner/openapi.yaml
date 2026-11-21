@@ -19,6 +19,13 @@ info:
     (it carries Sec-Fetch-*) must name this machine in its Host (localhost,
     a loopback address, the listen address or the host name). The operator
     page at /ui calls only routes listed for it in runner/fieldkit/cli-allowlist.txt.
+
+    Limits: one request per connection; headers at most 16 KiB, a body at
+    most 16 MiB (413 above), sent with Content-Length; the whole request,
+    with the TLS handshake on the mesh listener, must arrive within 30 s.
+    Each listener handles a fixed number of connections at once (local 16,
+    mesh 32, metrics 4) and closes any more, so callers on one listener
+    cannot use up another's.
 servers:
   - url: http://127.0.0.1:8470
 components:
@@ -56,7 +63,13 @@ components:
         tick_ms: {type: integer}
         last_tick_ms: {type: [integer, "null"]}
         pipeline: {type: array, items: {type: object}}
-        counters: {type: object}
+        counters:
+          type: object
+          description: >-
+            reports_in, reports_out, ticks, published, unreadable,
+            output_errors, per_source, dropped_paused (arrived while stopped),
+            dropped_backlog (dropped at the fabric or UDP input because the
+            service loop was behind by 65536 inputs), pipeline_changes.
         output_prefix: {type: string}
         fabric_routers: {type: [integer, "null"]}
     Track:

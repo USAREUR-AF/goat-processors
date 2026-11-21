@@ -666,6 +666,10 @@ pub fn check(c: &Config) -> Vec<String> {
         }
         if !(e.url.starts_with("http://") || e.url.starts_with("https://")) {
             p.push(format!("agents.endpoints[{i}].url: {:?} is not an http or https URL.", e.url));
+        } else if e.kind == "hosted" && !e.url.starts_with("https://") {
+            // Plain HTTP would send the tracks and the key in the clear
+            // across networks the site does not control.
+            p.push(format!("agents.endpoints[{i}].url: {:?} is a hosted endpoint over plain http. Use its https URL.", e.url));
         }
     }
     for (i, r) in ag.auto_approve.iter().enumerate() {

@@ -14,7 +14,7 @@
 
 use std::collections::BTreeMap;
 
-use goat_correlator::json::{self, Json};
+use crate::json::{self, Json};
 
 use crate::pipeline::{Output, Pipeline};
 
@@ -47,7 +47,20 @@ pub struct ReplayFile {
     pub has_ticks: bool,
 }
 
+/// Reads a replay file, and refuses one holding a report out of range
+/// (`fabric::in_range`): the service loop refuses those live, and the same
+/// value in a replayed file would stop the replay the same way.
 pub fn read(text: &str) -> Result<ReplayFile, String> {
+    let f = read_steps(text)?;
+    for (i, s) in f.steps.iter().enumerate() {
+        if let Step::Ingest(r) = s {
+            crate::fabric::in_range(r).map_err(|why| format!("step {}: a report out of range: {why}", i + 1))?;
+        }
+    }
+    Ok(f)
+}
+
+fn read_steps(text: &str) -> Result<ReplayFile, String> {
     let trimmed = text.trim_start();
     if trimmed.starts_with('{') {
         // A whole-file JSON object is a vector; otherwise fall through to lines.

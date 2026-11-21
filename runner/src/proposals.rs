@@ -15,7 +15,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use goat_correlator::json::{self, Json};
+use crate::json::{self, Json};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum State {

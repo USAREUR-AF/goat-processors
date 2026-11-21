@@ -7,7 +7,7 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
-use goat_correlator::json::{self, Json};
+use crate::json::{self, Json};
 
 use crate::config::{self, Config};
 
@@ -105,7 +105,7 @@ fn certificate_checks(c: &Config) -> Vec<Finding> {
         }
         match parses(what, path) {
             Some(false) => {
-                out.push(f(&check, Level::Fail, format!("{} does not parse (openssl cannot read it)", path.display()), "ask the site's certificate authority for the file again, in PEM form"));
+                out.push(f(&check, Level::Fail, format!("{} does not parse", path.display()), "ask the site's certificate authority for the file again, in PEM form"));
                 continue;
             }
             _ => {}
@@ -184,11 +184,20 @@ fn readable_by(_: &Path, _: &User) -> Result<(), String> {
     Ok(())
 }
 
-/// Whether openssl reads the file as a certificate or a private key. None without openssl.
+/// Whether the file reads as a certificate (every one in it) or a private
+/// key, with the same libraries the service uses: no openssl needed, so the
+/// check also runs in the container image.
 fn parses(what: &str, path: &Path) -> Option<bool> {
-    let args: &[&str] = if what == "private_key" { &["pkey", "-noout", "-in"] } else { &["x509", "-noout", "-in"] };
-    let out = Command::new("openssl").args(args).arg(path).output().ok()?;
-    Some(out.status.success())
+    use rustls_pki_types::pem::PemObject;
+    if what == "private_key" {
+        return Some(rustls_pki_types::PrivateKeyDer::from_pem_file(path).is_ok());
+    }
+    Some(certificates(path).is_some_and(|c| !c.is_empty() && c.iter().all(|d| x509_parser::parse_x509_certificate(d.as_ref()).is_ok())))
+}
+
+fn certificates(path: &Path) -> Option<Vec<rustls_pki_types::CertificateDer<'static>>> {
+    use rustls_pki_types::pem::PemObject;
+    rustls_pki_types::CertificateDer::pem_file_iter(path).ok()?.collect::<Result<Vec<_>, _>>().ok()
 }
 
 #[cfg(unix)]
@@ -198,18 +207,22 @@ fn key_mode(path: &Path) -> Option<Finding> {
     (mode & 0o007 != 0).then(|| f("certificates: private_key", Level::Warn, format!("{} can be read by every user (mode {:o})", path.display(), mode & 0o777), format!("sudo chmod 0640 {}", path.display())))
 }
 
-/// Uses `openssl`, when the host has it, to read the certificate's end date.
+/// The earliest end date of the certificates in the file: a warning within
+/// 14 days, a failure once it has passed.
 fn expiry(check: &str, path: &Path) -> Option<Finding> {
-    let out = Command::new("openssl").args(["x509", "-noout", "-checkend", "1209600", "-in"]).arg(path).output().ok()?;
-    if out.status.success() {
-        return None;
-    }
-    let ended = Command::new("openssl").args(["x509", "-noout", "-checkend", "0", "-in"]).arg(path).output().ok()?;
-    Some(if ended.status.success() {
-        f(check, Level::Warn, format!("{} expires within 14 days", path.display()), "request a new certificate for this runner from the site's certificate authority")
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64;
+    let end = certificates(path)?
+        .iter()
+        .filter_map(|d| x509_parser::parse_x509_certificate(d.as_ref()).ok().map(|(_, x)| x.validity().not_after.timestamp()))
+        .min()?;
+    let fix = "request a new certificate for this runner from the site's certificate authority";
+    if end <= now {
+        Some(f(check, Level::Fail, format!("{} has expired", path.display()), fix))
+    } else if end - now <= 14 * 86_400 {
+        Some(f(check, Level::Warn, format!("{} expires within 14 days", path.display()), fix))
     } else {
-        f(check, Level::Fail, format!("{} has expired, or openssl cannot read it", path.display()), "request a new certificate for this runner from the site's certificate authority")
-    })
+        None
+    }
 }
 
 fn fabric_checks(c: &Config) -> Vec<Finding> {
@@ -283,10 +296,16 @@ fn service_checks(c: Option<&Config>) -> Vec<Finding> {
     } else {
         out.push(f("input", Level::Ok, format!("{rin} reports read, {} passed every stage", cnt("reports_out")), ""));
     }
-    for (k, why) in [("unreadable", "inputs that were not a report"), ("output_errors", "outputs that could not be written or published")] {
+    let journal = format!("sudo journalctl -u {SERVICE} names the first ones");
+    let behind = "the inputs sent faster than the pipeline ran: check the host's load, and the rate of the sources (goat-processors metrics)".to_string();
+    for (k, why, fix) in [
+        ("unreadable", "inputs that were not a report, or held a value out of range", &journal),
+        ("output_errors", "outputs that could not be written or published", &journal),
+        ("dropped_backlog", "reports dropped because the service was behind its inputs", &behind),
+    ] {
         let n = cnt(k);
         if n > 0 {
-            out.push(f("service", Level::Warn, format!("{n} {why}"), format!("sudo journalctl -u {SERVICE} names the first ones")));
+            out.push(f("service", Level::Warn, format!("{n} {why}"), fix.clone()));
         }
     }
     if c.api.enabled {
@@ -347,4 +366,55 @@ pub fn to_text(findings: &[Finding]) -> String {
         Level::Fail => "\nNOT HEALTHY: fix each FAIL line above, then run doctor again\n",
     });
     s
+}
+
+#[cfg(test)]
+mod certificate_tests {
+    use super::*;
+
+    // Test certificates, made once with openssl and kept here so the test
+    // needs no openssl: one that ended on 2 January 2020, one valid to 2099.
+    const ENDED: &str = "-----BEGIN CERTIFICATE-----
+MIIBgzCCASmgAwIBAgIUe4HkrnGj9vnrIxP/4WJAOXjDNoswCgYIKoZIzj0EAwIw
+FzEVMBMGA1UEAwwMZXhwaXJlZC10ZXN0MB4XDTIwMDEwMTAwMDAwMFoXDTIwMDEw
+MjAwMDAwMFowFzEVMBMGA1UEAwwMZXhwaXJlZC10ZXN0MFkwEwYHKoZIzj0CAQYI
+KoZIzj0DAQcDQgAERN2bzn0XDxIFLJd+4OJVvlcVYOn14n8OZDDGt77LNSPBYo7c
+3vrCsYbRID/T9AJWemKafdb5XepuRzzMUi8v6aNTMFEwHQYDVR0OBBYEFGi9UihO
+pW0GYa7LG57JB03Y750OMB8GA1UdIwQYMBaAFGi9UihOpW0GYa7LG57JB03Y750O
+MA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDSAAwRQIgZp43aCp93AR9khB9
+bntIc0kteRRurHPz2lY7r8G6O3cCIQD3CREwhBierDan5IsBpP346I2ZDJ0W5vgX
+8DdtP6tB3g==
+-----END CERTIFICATE-----\n";
+    const VALID: &str = "-----BEGIN CERTIFICATE-----
+MIIBgjCCASegAwIBAgIUdU0eS2vzi4PBlVPsgIeWavr8aHQwCgYIKoZIzj0EAwIw
+FTETMBEGA1UEAwwKdmFsaWQtdGVzdDAgFw0yNTAxMDEwMDAwMDBaGA8yMDk5MTIz
+MTAwMDAwMFowFTETMBEGA1UEAwwKdmFsaWQtdGVzdDBZMBMGByqGSM49AgEGCCqG
+SM49AwEHA0IABETdm859Fw8SBSyXfuDiVb5XFWDp9eJ/DmQwxre+yzUjwWKO3N76
+wrGG0SA/0/QCVnpimn3W+V3qbkc8zFIvL+mjUzBRMB0GA1UdDgQWBBRovVIoTqVt
+BmGuyxueyQdN2O+dDjAfBgNVHSMEGDAWgBRovVIoTqVtBmGuyxueyQdN2O+dDjAP
+BgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0kAMEYCIQDRUP24505QTQrGdYuP
+G5zlVOH0KpWH97n+C6srELNv1QIhANEgDVBNPe07tgMKWsNyhfoHrSEwiayBjwRM
+q5EKZ2Py
+-----END CERTIFICATE-----\n";
+
+    fn file(name: &str, text: &str) -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(format!("doctor-cert-{}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        let p = d.join(name);
+        std::fs::write(&p, text).unwrap();
+        p
+    }
+
+    #[test]
+    fn certificates_are_read_without_openssl() {
+        let (ended, valid) = (file("ended.pem", ENDED), file("valid.pem", VALID));
+        let bad = file("bad.pem", "-----BEGIN CERTIFICATE-----\nbm90IGEgY2VydGlmaWNhdGU=\n-----END CERTIFICATE-----\n");
+        assert_eq!(parses("certificate", &valid), Some(true));
+        assert_eq!(parses("certificate", &bad), Some(false));
+        assert_eq!(parses("private_key", &valid), Some(false));
+        assert!(expiry("certificates: certificate", &valid).is_none());
+        let e = expiry("certificates: certificate", &ended).expect("an ended certificate is reported");
+        assert!(matches!(e.level, Level::Fail), "{:?}", e.detail);
+        assert!(e.detail.contains("has expired"));
+    }
 }

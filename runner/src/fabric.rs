@@ -4,9 +4,9 @@
 //! array of reports, or JSON lines of reports. Anything else is counted as
 //! unreadable and skipped.
 
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::SyncSender;
 
-use goat_correlator::json::{self, Json};
+use crate::json::{self, Json};
 use zenoh::Wait;
 
 use crate::config::Fabric;
@@ -62,7 +62,7 @@ pub struct Session {
 }
 
 /// Opens the session and subscribes to `keys`; every sample goes to `tx`.
-pub fn open(f: &Fabric, keys: &[String], tx: Sender<Input>) -> Result<Session, String> {
+pub fn open(f: &Fabric, keys: &[String], tx: SyncSender<Input>) -> Result<Session, String> {
     let session = zenoh::open(zenoh_config(f)?).wait().map_err(|e| format!("cannot open the fabric session: {e}"))?;
     let mut subs = Vec::new();
     for k in keys {
@@ -72,7 +72,7 @@ pub fn open(f: &Fabric, keys: &[String], tx: Sender<Input>) -> Result<Session, S
             .callback(move |sample| {
                 let from = sample.key_expr().as_str().to_string();
                 let bytes = sample.payload().to_bytes();
-                let _ = tx.send(decode(&from, &bytes));
+                crate::service::offer(&tx, decode(&from, &bytes));
             })
             .wait()
             .map_err(|e| format!("cannot subscribe to {k}: {e}"))?;
@@ -98,6 +98,34 @@ impl Session {
 }
 
 /// Reads a payload: a report, an array of reports, or JSON lines of reports.
+/// Refuses a report whose position or kinematics no real object has: a
+/// number that is not finite, `lat` beyond 90, or `lon` beyond 360. The
+/// engines bring longitudes into (-180, 180] by adding or subtracting 360
+/// until they fit, which for a value like 1e308 never ends and stops the
+/// service loop; the spec leaves such values open, so the runner refuses
+/// them before any engine sees them. Every value a real source sends,
+/// including a longitude written in 0 to 360, passes.
+pub fn in_range(r: &Json) -> Result<(), String> {
+    for k in ["lat", "lon", "hae", "ce", "course", "speed_ms", "time_error_ms"] {
+        if let Some(Json::Num(x)) = r.get(k) {
+            if !x.is_finite() {
+                return Err(format!("{k} is not a finite number"));
+            }
+        }
+    }
+    if let Some(x) = r.get("lat").and_then(Json::as_f64) {
+        if x.abs() > 90.0 {
+            return Err(format!("lat {x} is beyond 90"));
+        }
+    }
+    if let Some(x) = r.get("lon").and_then(Json::as_f64) {
+        if x.abs() > 360.0 {
+            return Err(format!("lon {x} is beyond 360"));
+        }
+    }
+    Ok(())
+}
+
 pub fn decode(from: &str, bytes: &[u8]) -> Input {
     match decode_raw(from, bytes) {
         Input::Reports(v) => Input::Reports(v.into_iter().map(flatten).collect()),

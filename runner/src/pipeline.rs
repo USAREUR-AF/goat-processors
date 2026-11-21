@@ -17,7 +17,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use goat_correlator::json::Json;
+use crate::json::Json;
 use goat_correlator::{filter_fn, fuse, quality, StepResult};
 
 pub enum Engine {
@@ -188,7 +188,7 @@ impl Pipeline {
                 Some(Json::Arr(m)) => m.iter().filter_map(|x| x.as_str().map(str::to_string)).collect(),
                 _ => continue,
             };
-            let marks: goat_correlator::json::Map = members.iter().filter_map(|m| self.provenance.get(m).map(|p| (m.clone().into(), p.clone()))).collect();
+            let marks: crate::json::Map = members.iter().filter_map(|m| self.provenance.get(m).map(|p| (m.clone().into(), p.clone()))).collect();
             if let (Json::Obj(map), false) = (e, marks.is_empty()) {
                 map.insert("agent_provenance".into(), Json::Obj(marks));
             }

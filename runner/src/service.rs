@@ -20,10 +20,11 @@ use std::collections::{BTreeMap, VecDeque};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::net::UdpSocket;
-use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
+use std::sync::mpsc::{sync_channel, RecvTimeoutError, SyncSender, TrySendError};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use goat_correlator::json::Json;
+use crate::json::Json;
 
 use crate::config::{Clock, Config};
 use crate::fabric::{self, Input};
@@ -244,13 +245,35 @@ fn with_now(e: &Json, now: Option<i64>) -> Json {
     e
 }
 
-fn spawn_udp(listen: &str, tx: Sender<Input>) -> Result<(), String> {
+/// Inputs waiting for the service loop. A burst larger than this (the loop
+/// is behind) is dropped at the fabric and UDP inputs and counted in
+/// `counters.dropped_backlog`, so a flood of reports cannot use up memory.
+/// The file input, the API and the agents wait instead.
+pub const INPUT_QUEUE: usize = 65_536;
+
+/// Reports dropped because the input queue was full.
+pub static DROPPED_BACKLOG: AtomicU64 = AtomicU64::new(0);
+
+/// Sends an input from a source that must not wait (a fabric callback, a
+/// UDP socket). Returns false when the service loop has ended.
+pub fn offer(tx: &SyncSender<Input>, input: Input) -> bool {
+    match tx.try_send(input) {
+        Ok(()) => true,
+        Err(TrySendError::Full(_)) => {
+            DROPPED_BACKLOG.fetch_add(1, Ordering::Relaxed);
+            true
+        }
+        Err(TrySendError::Disconnected(_)) => false,
+    }
+}
+
+fn spawn_udp(listen: &str, tx: SyncSender<Input>) -> Result<(), String> {
     let sock = UdpSocket::bind(listen).map_err(|e| format!("cannot listen on UDP {listen}: {e}"))?;
     let from = format!("udp/{listen}");
     std::thread::spawn(move || {
         let mut buf = vec![0u8; 65536];
         while let Ok((n, _)) = sock.recv_from(&mut buf) {
-            if tx.send(fabric::decode(&from, &buf[..n])).is_err() {
+            if !offer(&tx, fabric::decode(&from, &buf[..n])) {
                 break;
             }
         }
@@ -259,7 +282,7 @@ fn spawn_udp(listen: &str, tx: Sender<Input>) -> Result<(), String> {
 }
 
 /// Plays a file into the service at `speed` times the pace of its report times.
-fn spawn_file(path: &std::path::Path, speed: f64, tx: Sender<Input>) -> Result<(), String> {
+fn spawn_file(path: &std::path::Path, speed: f64, tx: SyncSender<Input>) -> Result<(), String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let file = replay::read(&text).map_err(|e| format!("{}: {e}", path.display()))?;
     std::thread::spawn(move || {
@@ -390,7 +413,7 @@ struct Runner {
     /// Settings proposals (proposals.rs).
     book: crate::proposals::Book,
     /// For the policy gates, which report back to the loop.
-    tx: Sender<Input>,
+    tx: SyncSender<Input>,
 }
 
 impl Runner {
@@ -427,9 +450,9 @@ impl Runner {
                     if ev == "quality" {
                         // A quality event carries every measure in its `measures` object;
                         // count one per measure it states (a null measure is absent).
-                        if let Some(goat_correlator::json::Json::Obj(ms)) = e.get("measures") {
+                        if let Some(crate::json::Json::Obj(ms)) = e.get("measures") {
                             for (name, value) in ms.iter() {
-                                if !matches!(value, goat_correlator::json::Json::Null) {
+                                if !matches!(value, crate::json::Json::Null) {
                                     *self.quality_sources.entry((txt("subject"), ev.clone(), name.to_string())).or_default() += 1;
                                 }
                             }
@@ -489,6 +512,7 @@ impl Runner {
             m.insert("state".into(), Json::Str(if self.paused { "paused" } else { "running" }.into()));
             if let Some(Json::Obj(cnt)) = m.get_mut("counters") {
                 cnt.insert("dropped_paused".into(), Json::Int(self.dropped_paused as i64));
+                cnt.insert("dropped_backlog".into(), Json::Int(DROPPED_BACKLOG.load(Ordering::Relaxed) as i64));
                 cnt.insert("pipeline_changes".into(), Json::Int(self.pipeline_changes as i64));
             }
         }
@@ -917,7 +941,7 @@ fn quantiles(v: &[i64]) -> Json {
 
 pub fn run(c: Config) -> Result<(), String> {
     let p = Pipeline::from_config(&c)?;
-    let (tx, rx) = channel::<Input>();
+    let (tx, rx) = sync_channel::<Input>(INPUT_QUEUE);
 
     let session = match &c.fabric {
         Some(f) if c.inputs.fabric.is_some() || c.outputs.fabric.is_some() => {
@@ -1037,6 +1061,13 @@ pub fn run(c: Config) -> Result<(), String> {
                             m.remove("provenance.checked");
                         }
                     }
+                    if let Err(why) = fabric::in_range(&rep) {
+                        r.unreadable += 1;
+                        if r.unreadable <= 10 || r.unreadable % 1000 == 0 {
+                            eprintln!("refused a report out of range: {why} ({} unreadable so far)", r.unreadable);
+                        }
+                        continue;
+                    }
                     if r.paused {
                         r.dropped_paused += 1;
                         continue;
@@ -1105,7 +1136,7 @@ mod batch_tests {
 
     #[test]
     fn a_track_keeps_its_number_and_an_ended_track_frees_it() {
-        use goat_correlator::json::{self, Json};
+        use crate::json::{self, Json};
         let mut b = Batch { heartbeat_ms: 1000, tracks: None, quality: None, numbers: Default::default(), next_number: 1 };
         let set = |ids: &[&str]| -> Vec<Json> { ids.iter().map(|i| json::parse(&format!("{{\"group\":\"{i}\"}}")).unwrap()).collect() };
         let num = |t: &Json| t.get("track_number").and_then(|v| v.as_i64()).unwrap();
@@ -1119,5 +1150,21 @@ mod batch_tests {
         let mut a = set(&["s2", "s3", "s4", "s5"]);
         b.number(&mut a);
         assert_eq!((num(&a[2]), num(&a[3])), (65535, 1), "wraps past 65535, skipping 0; 1 is free again");
+    }
+}
+
+#[cfg(test)]
+mod input_queue_tests {
+    use super::*;
+
+    #[test]
+    fn a_full_input_queue_drops_and_counts_instead_of_growing() {
+        let (tx, rx) = sync_channel::<Input>(1);
+        let before = DROPPED_BACKLOG.load(Ordering::Relaxed);
+        assert!(offer(&tx, Input::Ended));
+        assert!(offer(&tx, Input::Ended), "full: dropped, but the input keeps running");
+        assert!(DROPPED_BACKLOG.load(Ordering::Relaxed) > before);
+        drop(rx);
+        assert!(!offer(&tx, Input::Ended), "the service loop has ended: the input stops");
     }
 }
