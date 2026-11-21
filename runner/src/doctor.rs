@@ -261,7 +261,7 @@ fn fabric_checks(c: &Config) -> Vec<Finding> {
 /// the identity the fabric grants this runner, which is usually its
 /// certificate's common name. A router drops a write it does not allow
 /// without telling the writer, so say so here.
-fn output_peer_check(c: &Config) -> Option<Finding> {
+pub fn output_peer_check(c: &Config) -> Option<Finding> {
     c.outputs.fabric.as_ref()?;
     let prefix = c.output_prefix();
     let peer = prefix.strip_prefix("volatile/")?.split('/').next()?.to_string();
@@ -273,12 +273,18 @@ fn output_peer_check(c: &Config) -> Option<Finding> {
     });
     Some(match cn {
         Some(cn) if cn == peer => f("output prefix", Level::Ok, format!("publishes under {prefix}; the certificate's name is {cn}"), ""),
-        Some(cn) => f(
-            "output prefix",
-            Level::Warn,
-            format!("publishes under {prefix}, but the certificate's name is {cn}: the fabric may grant writes only under volatile/{cn}/**, and drops others without an error"),
-            format!("set outputs.fabric.peer: {cn} (or the identity the fabric's access rules grant this runner), then restart"),
-        ),
+        // peer not set: it is the site only by default, which is wrong for
+        // this certificate (typically a config kept from 0.5.0). Set by hand
+        // to another name: the operator chose it, so warn.
+        Some(cn) => {
+            let chosen = c.outputs.fabric.as_ref().is_some_and(|f| f.peer.is_some());
+            f(
+                "output prefix",
+                if chosen { Level::Warn } else { Level::Fail },
+                format!("publishes under {prefix}, but the certificate's name is {cn}: a fabric that grants this runner writes only under volatile/{cn}/** drops, without an error, everything it publishes, and readers see nothing"),
+                format!("add `peer: {cn}` under outputs: fabric: in the config (or the identity the fabric's access rules grant this runner), then `sudo systemctl restart goat-processors`"),
+            )
+        }
         None => f("output prefix", Level::Ok, format!("publishes under {prefix}"), ""),
     })
 }

@@ -32,9 +32,10 @@ RUN cd runner && cargo build --release --locked && strip target/release/goat-pro
 RUN set -eu; r=/out; umask 022; \
     install -D -m 0755 runner/target/release/goat-processors $r/usr/bin/goat-processors; \
     install -D -m 0644 runner/config/runner.yaml $r/etc/goat-processors/runner.yaml; \
+    install -D -m 0644 runner/config/runner.yaml $r/usr/share/goat-processors/runner.yaml; \
     install -d -m 0755 $r/etc/goat-processors/tls; \
     mkdir -p $r/usr/share/goat-processors; cp -r packs $r/usr/share/goat-processors/packs; \
-    for f in runner/README.md runner/INSTALL.md runner/DEPLOY-CONTRACT.md NOTICE LICENSE; do \
+    for f in runner/README.md runner/INSTALL.md runner/DEPLOY-CONTRACT.md runner/CHANGELOG.md NOTICE LICENSE; do \
       install -D -m 0644 "$f" "$r/usr/share/doc/goat-processors/$(basename "$f")"; done; \
     find $r/usr/share -type d -exec chmod 0755 {} + -o -type f -exec chmod 0644 {} +; \
     install -d -m 0750 /state/run/goat-processors /state/var/lib/goat-processors; \

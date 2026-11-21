@@ -349,3 +349,38 @@ fn service_publishes_a_fixed_key_set_by_default() {
         assert!(fixed.contains(k), "a key outside the fixed set: {k}");
     }
 }
+
+#[test]
+fn doctor_fails_when_the_certificate_names_another_peer() {
+    let d = tmp("doctor-peer");
+    let ok = Command::new("openssl")
+        .args(["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes", "-days", "2", "-subj", "/CN=cert-name"])
+        .arg("-keyout")
+        .arg(d.join("k.pem"))
+        .arg("-out")
+        .arg(d.join("c.pem"))
+        .output()
+        .unwrap();
+    assert!(ok.status.success());
+    let level = |peer: &str| -> String {
+        let cfg = format!(
+            "name: t\nsite: site-a\npacks_dir: {packs}\nfabric:\n  connect: [\"tls/127.0.0.1:9\"]\n  tls: {{root_ca: {c}, certificate: {c}, private_key: {k}}}\ninputs:\n  fabric:\n    keys: [\"data/entity/track/**\"]\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\noutputs:\n  fabric:\n{peer}    trace: false\nstatus_file: {d}/status.json\napi:\n  enabled: false\n",
+            packs = repo().join("packs").display(),
+            c = d.join("c.pem").display(),
+            k = d.join("k.pem").display(),
+            d = d.display(),
+        );
+        std::fs::write(d.join("r.yaml"), cfg).unwrap();
+        let out = bin().args(["doctor", "-o", "json", "-c"]).arg(d.join("r.yaml")).output().unwrap();
+        let v = json::parse(String::from_utf8_lossy(&out.stdout).trim()).unwrap();
+        let Json::Arr(fs) = v else { panic!() };
+        let x = fs.iter().find(|x| x.get("check").and_then(|c| c.as_str()) == Some("output prefix")).expect("an output prefix line").clone();
+        format!("{} {}", x.get("level").and_then(|l| l.as_str()).unwrap(), x.get("detail").and_then(|l| l.as_str()).unwrap())
+    };
+    // A config kept from 0.5.0 has no peer: the site, not the certificate's name.
+    let l = level("");
+    assert!(l.starts_with("fail ") && l.contains("volatile/site-a/") && l.contains("cert-name"), "{l}");
+    assert!(level("    peer: cert-name\n").starts_with("ok "));
+    // Another name, set by hand: the operator's choice, so a warning.
+    assert!(level("    peer: other\n").starts_with("warn "));
+}

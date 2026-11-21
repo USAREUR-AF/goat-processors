@@ -5,6 +5,12 @@ if [ "$1" = configure ]; then
   if ! getent passwd goat-processors >/dev/null; then
     adduser --system --group --no-create-home --home /var/lib/goat-processors goat-processors >/dev/null
   fi
+  # The config: written from the template on a first install only. Up to
+  # 0.5.0 it was a dpkg conffile; dpkg keeps that file on an update, and
+  # this package no longer ships one, so dpkg asks nothing about it.
+  if [ ! -e /etc/goat-processors/runner.yaml ]; then
+    install -m 0640 -o root -g goat-processors /usr/share/goat-processors/runner.yaml /etc/goat-processors/runner.yaml
+  fi
   # The config and the certificates: root writes them, the service reads them.
   chown root:goat-processors /etc/goat-processors /etc/goat-processors/runner.yaml /etc/goat-processors/tls
   chmod 0750 /etc/goat-processors /etc/goat-processors/tls
@@ -20,7 +26,15 @@ if [ "$1" = configure ]; then
       systemctl restart goat-processors || true
     fi
   fi
-  if grep -q CHANGE-ME /etc/goat-processors/runner.yaml; then
+  # An update from 0.5.0 or earlier: the fabric keys move.
+  if [ -n "${2:-}" ] && dpkg --compare-versions "$2" lt 0.6.0; then
+    echo "goat-processors: from 0.6.0 the runner publishes on new fabric keys:"
+    echo "  volatile/<peer>/stream/processors/<name>/{tracks,quality,events,status}."
+    echo "  Readers of the keys before 0.6.0 get nothing until they move, or until"
+    echo "  you keep the old keys. Read README.md, 'Moving from the layout before 0.6.0'"
+    echo "  (/usr/share/doc/goat-processors/README.md), then run: sudo goat-processors doctor"
+  fi
+  if grep -v '^[[:space:]]*#' /etc/goat-processors/runner.yaml | grep -q CHANGE-ME; then
     echo "goat-processors: edit /etc/goat-processors/runner.yaml, then run"
     echo "  sudo goat-processors config check && sudo systemctl enable --now goat-processors"
   fi

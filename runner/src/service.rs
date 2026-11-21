@@ -1141,6 +1141,11 @@ fn quantiles(v: &[i64]) -> Json {
 
 pub fn run(c: Config) -> Result<(), String> {
     let p = Pipeline::from_config(&c)?;
+    // A certificate that names another peer than the output prefix: the
+    // fabric may drop everything published. Say so where the log is read.
+    if let Some(x) = crate::doctor::output_peer_check(&c).filter(|x| x.level != crate::doctor::Level::Ok) {
+        eprintln!("{}: {}; fix: {}", if x.level == crate::doctor::Level::Fail { "ERROR" } else { "warning" }, x.detail, x.fix);
+    }
     let (tx, rx) = sync_channel::<Input>(INPUT_QUEUE);
 
     let session = match &c.fabric {

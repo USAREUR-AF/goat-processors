@@ -5,7 +5,9 @@ if [ -d /run/systemd/system ]; then
 fi
 if [ "$1" = purge ]; then
   rm -rf /var/lib/goat-processors
-  # /etc/goat-processors/tls holds certificates the site placed; it is kept.
+  # The config (postinst wrote it, so dpkg does not remove it); the
+  # certificates in /etc/goat-processors/tls, placed by the site, are kept.
+  rm -f /etc/goat-processors/runner.yaml /etc/goat-processors/runner.yaml.dpkg-old /etc/goat-processors/runner.yaml.dpkg-dist
   if getent passwd goat-processors >/dev/null; then
     deluser --system goat-processors >/dev/null 2>&1 || true
   fi
