@@ -74,7 +74,7 @@ td, th { text-wrap: pretty; }
 </style></head><body>
 <main>
 <header>
-<p class="kicker">goat-processors runner · install card · release 0.3.0</p>
+<p class="kicker">goat-processors runner · install card · release 0.3.1</p>
 <h1>Eight steps from Ubuntu 24.04 to a healthy runner</h1>
 <p class="dek">For a person at the machine. Each step: what to type, what you should see, what to do if you do not. The full guide, with every term explained, is <code>/usr/share/doc/goat-processors/INSTALL.md</code> once installed, and <code>runner/INSTALL.md</code> in the repository.</p>
 </header>
@@ -93,9 +93,9 @@ td, th { text-wrap: pretty; }
 <table class="steps">
 <tr><th class="n">#</th><th>Do</th><th>Type</th><th>You should see</th><th>If not</th></tr>
 <tr><td class="n">1</td><td>Log in and check the system</td><td><code>ssh ops@10.20.0.15</code><br><code>dpkg --print-architecture</code></td><td><code>amd64</code> or <code>arm64</code></td><td>other: not supported</td></tr>
-<tr><td class="n">2</td><td>Get the five release files: <code>.deb</code>, <code>.sigstore.json</code>, <code>install.sh</code>, <code>install-card.pdf</code>, <code>SHA256SUMS</code></td><td>download from the releases page, tag <code>runner-v0.3.0</code> (INSTALL.md step 2)</td><td>five files in <code>~/goat-processors</code></td><td>without internet: copy the five files over</td></tr>
+<tr><td class="n">2</td><td>Get the five release files: <code>.deb</code>, <code>.sigstore.json</code>, <code>install.sh</code>, <code>install-card.pdf</code>, <code>SHA256SUMS</code></td><td>download from the releases page, tag <code>runner-v0.3.1</code> (INSTALL.md step 2)</td><td>five files in <code>~/goat-processors</code></td><td>without internet: copy the five files over</td></tr>
 <tr><td class="n">3</td><td>Check the checksums and the signature</td><td><code>sha256sum -c --ignore-missing SHA256SUMS</code><br><code>cosign verify-blob …</code> (INSTALL.md step 3)</td><td><code>OK</code> per file; <code>Verified OK</code></td><td>do not install; download again</td></tr>
-<tr><td class="n">4</td><td>Install the package and test it</td><td><code>sudo apt install ./goat-processors_0.3.0_amd64.deb</code><br><code>goat-processors selftest</code></td><td><code>121 of 121 vectors … replay exactly</code></td><td><code>sudo apt-get install -f</code>; on FAIL lines, stop and report them</td></tr>
+<tr><td class="n">4</td><td>Install the package and test it</td><td><code>sudo apt install ./goat-processors_0.3.1_amd64.deb</code><br><code>goat-processors selftest</code></td><td><code>121 of 121 vectors … replay exactly</code></td><td><code>sudo apt-get install -f</code>; on FAIL lines, stop and report them</td></tr>
 <tr><td class="n">5</td><td>Place the certificates</td><td><code>sudo install -m 0640 -g goat-processors ca.pem runner.pem runner.key /etc/goat-processors/tls/</code></td><td>three files, <code>root goat-processors</code>; then <code>rm runner.key</code></td><td>rename to exactly these names</td></tr>
 <tr><td class="n">6</td><td>Replace each word <code>CHANGE-ME</code>: site name; router name (keep <code>tls/</code> and <code>:7447</code>)</td><td><code>sudo nano /etc/goat-processors/runner.yaml</code><br><code>sudo goat-processors config check</code></td><td><code>valid</code></td><td>fix each line it prints, check again</td></tr>
 <tr><td class="n">7</td><td>Start the service, now and at every boot</td><td><code>sudo systemctl enable --now goat-processors</code></td><td><code>systemctl is-active goat-processors</code> prints <code>active</code></td><td><code>sudo journalctl -u goat-processors -n 30</code></td></tr>
