@@ -40,18 +40,31 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            runner: ubuntu-24.04
+            runner: ubuntu-22.04
           - arch: arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-22.04-arm
+    # Built on the oldest Ubuntu it is for: a binary links against the build
+    # host's glibc and needs that version or newer to run.
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: the Rust toolchain (the image's rustup stable; installed if the image has none)
+        run: |
+          if ! command -v cargo >/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            "$HOME/.cargo/bin/cargo" --version
+          else
+            cargo --version
+          fi
       - name: the release binary, with build paths replaced so no build machine path appears in a site's log
         run: cargo build --release --locked
         working-directory: runner
         env:
           RUSTFLAGS: --remap-path-prefix=${{ github.workspace }}=/src --remap-path-prefix=/home/runner/.cargo=/cargo
+      - name: the binary needs at most glibc 2.35 (Ubuntu 22.04, Jetson Linux 36)
+        run: runner/packaging/check-glibc.sh 2.35 runner/target/release/goat-processors
       - run: runner/packaging/build-deb.sh ${{ matrix.arch }} runner/target/release/goat-processors dist
       - name: the package installs and its selftest passes
         run: |
@@ -68,7 +81,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # The same .deb (built on 22.04) on both Ubuntu releases it is for.
         include:
+          - arch: amd64
+            runner: ubuntu-22.04
+          - arch: arm64
+            runner: ubuntu-22.04-arm
           - arch: amd64
             runner: ubuntu-24.04
           - arch: arm64
