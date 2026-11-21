@@ -9,12 +9,12 @@ Standard library only. Run every command with `python3 -I`.
 
 | Command | What it does |
 |---|---|
-| `python3 -I tools/bench/bench.py report` | generate every scenario, run every pack, score, write `docs/benchmark.md` and `docs/figures/bench/` |
+| `python3 -I tools/bench/bench.py report` | generate every tuning scenario, run every pack, score, write `docs/benchmark.md` and `docs/figures/bench/` |
 | `python3 -I tools/bench/bench.py check` | re-run a short subset and confirm the committed results and documents are what the tool writes (CI) |
 | `python3 -I tools/bench/bench.py generate [--set tuning\|evaluation] [--out DIR] [--only NAME ...]` | write the scenario files of a set (default the tuning set, `build/bench/scenarios/`); the evaluation set needs the private seeds |
 | `python3 -I tools/bench/bench.py run [--scenarios DIR] [--out DIR]` | run every pack and write its events files (default `build/bench/events/<pack>/`) |
 | `python3 -I tools/bench/bench.py score --events DIR [--scenarios DIR]` | score the events files of any engine; prints JSON |
-| `python3 -I tools/bench/bench.py report [--jobs N] [--timeout S] [--no-eval]` | run every pack on the tuning set and, with the private seeds, the evaluation set, in parallel; write the results, this page's document and the charts |
+| `python3 -I tools/bench/bench.py report [--jobs N] [--timeout S] [--eval]` | run every pack on the tuning set in parallel and write the results, this page's document and the charts; the evaluation block of the results is kept as it is. `--eval` also runs the evaluation set: benchmark maintainer only (it needs the private seeds and `BENCH_EVAL_OWNER=proc-bench`, and refuses otherwise) |
 | `python3 -I tools/bench/bench.py diff OLD.json NEW.json [--set tuning\|evaluation] [--group G]` | every pooled measure that changed beyond its 95 % interval between two results files |
 
 | File | What |
@@ -106,6 +106,16 @@ family's two halves are the same generator on unrelated seeds. The evaluation
 set's per-scenario results stay with the maintainer
 (`~/re/bench-eval-results/`); the repository gets its pooled measures and
 intervals only.
+
+**Who runs the evaluation set.** Only the benchmark maintainer. Every command that
+reads the evaluation seeds (`report --eval`, `generate --set evaluation`,
+`detections.py generate --set evaluation`) refuses unless the environment sets
+`BENCH_EVAL_OWNER=proc-bench`. On the benchmark machine every session runs as one
+user, so the seed file's mode alone does not keep a tuning session out. A session
+that develops or tunes a pack runs `report` (tuning set only) and judges its work
+there. The results record which rotation of the seeds produced the evaluation
+block (`evaluation.rotation`). When a set of seeds has been seen by a tuning
+session, it is replaced before the next decision that rests on it.
 
 **Families.** Each is a generator in `dataset.py` with its truth stated by
 construction; 20 scenarios per set (scale: 3).
