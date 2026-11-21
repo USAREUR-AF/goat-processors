@@ -7,7 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
-use goat_correlator::json::{self, Json};
+use crate::json::{self, Json};
 
 use crate::pipeline::{load_stage, Pipeline, Stage};
 use crate::replay::{self, Step};

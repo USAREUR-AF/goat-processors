@@ -8,10 +8,48 @@ use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub const MAX_HEADER: usize = 16 * 1024;
 pub const MAX_BODY: usize = 16 * 1024 * 1024;
+/// The whole request (for the mesh listener, the TLS handshake too) must
+/// arrive within this time, however slowly the bytes come.
+pub const REQUEST_DEADLINE: Duration = Duration::from_secs(30);
+
+/// A TCP stream whose reads share one deadline, and whose writes time out:
+/// a client that sends or reads a byte at a time cannot hold a connection
+/// slot for longer than the deadline.
+pub struct Deadline {
+    inner: TcpStream,
+    end: Instant,
+}
+
+impl Deadline {
+    pub fn new(inner: TcpStream, total: Duration) -> Deadline {
+        inner.set_write_timeout(Some(Duration::from_secs(10))).ok();
+        Deadline { inner, end: Instant::now() + total }
+    }
+}
+
+impl Read for Deadline {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let left = self.end.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "the request did not arrive in time"));
+        }
+        self.inner.set_read_timeout(Some(left))?;
+        self.inner.read(buf)
+    }
+}
+
+impl Write for Deadline {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.inner.write(buf)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Request {
@@ -227,6 +265,29 @@ pub fn peer_name(conn: &rustls::ServerConnection) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_request_sent_a_byte_at_a_time_ends_at_the_deadline() {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = l.local_addr().unwrap();
+        let slow = std::thread::spawn(move || {
+            let mut c = TcpStream::connect(addr).unwrap();
+            for b in b"GET /v1/status HTTP/1.1\r\n".iter() {
+                if c.write_all(&[*b]).is_err() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        });
+        let (s, _) = l.accept().unwrap();
+        let t = Instant::now();
+        let mut d = Deadline::new(s, Duration::from_millis(400));
+        assert!(read_request(&mut d).is_err());
+        let took = t.elapsed();
+        assert!(took >= Duration::from_millis(350) && took < Duration::from_secs(2), "{took:?}");
+        drop(d);
+        slow.join().unwrap();
+    }
+
     use super::*;
 
     #[test]

@@ -46,7 +46,9 @@ how to troubleshoot it.
 | Agent interfaces ([docs/design/agentic-ai.md](../docs/design/agentic-ai.md), [examples/README.md](examples/README.md)): MCP server and `goat-processors mcp`; model endpoints with data levels; agent as a source; settings proposals with a site auto-approval policy; the `why` explainer; audit of every agent call | Built. Tests: `tests/agents.rs` |
 | Agent as an adjudicator (association and fusion hints) | Designed |
 | Operator page, Fieldkit Processors ([below](#the-operator-page-fieldkit-processors), [fieldkit/](fieldkit/README.md)) | Built. Tested: a browser drives all eight actions against a running runner, signed in with a client certificate, and checks each change through the API (`fieldkit/e2e/`); the scope guard checks every action is a CLI verb; `tests/api.rs` checks the page's headers and the cross-site refusals |
-| Container image | Designed |
+| Container image for amd64 and arm64 ([below](#the-container-image), `packaging/container/Containerfile`) | Built. Tested: `packaging/ci-container-test.sh` runs it locked down against a mutual-TLS router with a scenario (CI on amd64 and arm64) |
+| Container image published to `ghcr.io/usareur-af/goat-processors` and signed (cosign, keyless) | Written: `runner-release.yml`; first published by the next `runner-v` tag |
+| Hardening review ([docs/hardening-review.md](docs/hardening-review.md)) | Written. Six findings fixed with tests (a crash and a stall from one report, API lockout, memory flood, hosted endpoint over plain HTTP, doctor without openssl); three Open (the engines' unbounded wrap and parser, file growth, certificate revocation) |
 
 ## How the runner works
 
@@ -59,7 +61,10 @@ how to troubleshoot it.
 
 **Reports.** Each input delivers reports. A fabric sample or a UDP datagram
 holds one report as a JSON object, a JSON array of reports, or JSON lines.
-Anything else is counted as unreadable and skipped. A report written with
+Anything else is counted as unreadable and skipped, and so is JSON nested
+more than 64 levels deep, and a report no real object could send: a number
+that is not finite, `lat` beyond 90, or `lon` beyond 360 (`journalctl` names
+the first ones). A report written with
 nested objects (`{"track": {"source_id": "r1"}}`, as a JSON encoder that
 cannot write a member name holding `.` produces it) is read with dotted keys
 (`"track.source_id"`); a dotted key already present wins. Reports are passed to the
@@ -127,7 +132,7 @@ exits 1. The service runs the same check before it starts.
 | `fabric.tls.certificate` | for `tls/` locators | | this runner's certificate, PEM |
 | `fabric.tls.private_key` | for `tls/` locators | | its private key, PEM |
 | `inputs.fabric.keys` | one input is required | | key expressions to subscribe to, for example `data/entity/track/**` |
-| `inputs.udp[].listen` | | | `<ip>:<port>` to receive reports on |
+| `inputs.udp[].listen` | | | `<ip>:<port>` to receive reports on. UDP has no sender check: anyone who reaches the port can send reports. Bind it to `127.0.0.1` or to an interface that only trusted senders reach; prefer the fabric (mutual TLS) for reports from other hosts |
 | `inputs.file.path` | | | a file to play once at start (replay formats below); needs `clock: input` |
 | `inputs.file.speed` | no | `1` | `1` real time, `10` ten times faster, `0` as fast as possible |
 | `pipeline[].function` | yes | | `filter`, `correlate`, `fuse` or `quality`; each at most once, in that order |
@@ -147,7 +152,7 @@ exits 1. The service runs the same check before it starts.
 | `api.mesh.listen` | no | | `<ip>:<port>` for callers on other hosts, over mutual TLS |
 | `api.metrics_listen` | no | off | `<mesh ip>:<port>` that serves only `GET /metrics` (the Prometheus text), plain HTTP with no caller check, for an obs host's scraper. `config check` refuses an address that listens on every interface |
 | `api.mesh.tls` | no | the `fabric.tls` files | `root_ca` (signs callers' certificates), `certificate`, `private_key` |
-| `api.mesh.allow[]` | with `api.mesh` | | `{name: <certificate CN>, role: read or operate}`; a CN not listed is refused |
+| `api.mesh.allow[]` | with `api.mesh` | | `{name: <certificate CN>, role: read or operate}`; a CN not listed is refused. Any certificate the site CA signs with that CN gets the role, so the site CA should give each person and program its own name. The list is read at start: to take access away, remove the name and restart the service |
 | `agents.mcp` | no | `true` | serve the MCP endpoint, `POST /mcp` (examples/README.md) |
 | `agents.data_levels` | no | `[public, site]` | the site's data levels, least sensitive first |
 | `agents.local_level` | no | the highest level | the highest level a local caller may receive |
@@ -265,6 +270,9 @@ answer as a table, or as the API's JSON with `-o json`.
 
 `operate` adds `pack use`, `stop`, `start` and `audit`. Each change, and each
 refused request, is written to `api.audit_file` with who made it.
+Each listener handles a fixed number of connections at once (local 16, mesh
+32, metrics 4), and a request must arrive whole within 30 s, so slow or many
+callers on the mesh or metrics port cannot shut out the local API.
 `pack use` takes effect at once and is written to the record file, so a
 replay of the record makes the same change at the same step. It lasts until
 the service restarts; to keep it, write the pack in the config file.
@@ -332,6 +340,80 @@ and every record), replay a recorded file with `tools/explain`
 (`../tools/explain/README.md`). The page's Explain shows the recent steps the
 runner keeps in memory.
 
+## The container image
+
+The image holds the same files as the `.deb`, in the same places: the binary
+`/usr/bin/goat-processors` (with the operator page built in), every pack and its
+vectors, the example config, and the docs, NOTICE and LICENSE. It is built on a
+distroless base image (Debian 13, glibc), runs as user 65532, and has no shell
+and no package manager. Both base images are pinned by digest in the
+Containerfile.
+
+Each release from the next `runner-v` tag on publishes the image for amd64 and
+arm64 as one tag, `ghcr.io/usareur-af/goat-processors:<version>`, signed with
+cosign (keyless). The release notes name its digest. Check the signature
+before you run it:
+
+```sh
+cosign verify ghcr.io/usareur-af/goat-processors:<version> \
+  --certificate-identity-regexp '^https://github.com/USAREUR-AF/goat-processors/.github/workflows/runner-release.yml@refs/tags/runner-v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Until then, build it from the repository root:
+`docker build -f runner/packaging/container/Containerfile -t goat-processors .`
+
+**What to mount.** The image's example config says CHANGE-ME, so the container
+refuses to start until you mount your own. Put `runner.yaml` and its `tls/`
+directory in one directory on the host, readable by user 65532 and nobody else:
+
+```sh
+sudo chown -R root:65532 /srv/goat-processors/etc
+sudo chmod 0750 /srv/goat-processors/etc /srv/goat-processors/etc/tls
+sudo chmod 0640 /srv/goat-processors/etc/runner.yaml /srv/goat-processors/etc/tls/*
+```
+
+**Run it locked down.** These are the flags the container proof uses: a
+read-only root file system, no Linux capabilities, no new privileges, and
+limits on memory and processes. The runner writes only to
+`/run/goat-processors` (a tmpfs: its status and API token) and
+`/var/lib/goat-processors` (a volume: `outputs.file`, `record`, the audit log
+and proposals).
+
+```sh
+docker run -d --name goat-processors --restart unless-stopped --net host \
+  --read-only --cap-drop ALL --security-opt no-new-privileges \
+  --memory 512m --pids-limit 256 \
+  --tmpfs /run/goat-processors:rw,noexec,nosuid,nodev,size=1m,uid=65532,gid=65532,mode=0750 \
+  -v goat-processors-state:/var/lib/goat-processors \
+  -v /srv/goat-processors/etc:/etc/goat-processors:ro \
+  ghcr.io/usareur-af/goat-processors:<version>
+```
+
+`--net host` gives the runner the host's network, as the `.deb` has: it
+reaches the router, receives UDP, and its local API answers on the host's
+`127.0.0.1:8470`. To keep it in its own network instead, leave out `--net host`
+and publish only what other hosts use: the mesh listener (`api.mesh.listen`,
+mutual TLS, for example `-p 8471:8471`) and any UDP input port
+(`-p 5000:5000/udp`). Inside the container, set those listeners to
+`0.0.0.0:<port>`. The local API stays on the container's own loopback (`config
+check` refuses any other address), so you reach it with `docker exec` only. The metrics port (`api.metrics_listen`) has no
+caller check and `config check` refuses it on every address, so a metrics port needs `--net host` and this host's mesh address.
+
+**Operate it.** Every verb runs inside the container:
+`docker exec goat-processors goat-processors status`, and the same for
+`doctor`, `tracks`, `stop`, `start`, `audit` and the rest. The API token is in
+the container's tmpfs, readable only by its user, so `docker exec` can change
+things and a host user without access to Docker can only read. Anyone who can
+run `docker exec` can operate the runner: give Docker access as you would give
+`sudo`. The image's health check runs `goat-processors health`, so
+`docker ps` shows `healthy` while the runner runs and ticks. Logs:
+`docker logs goat-processors`.
+
+**Upgrade** by pulling the next tag, checking its signature, and starting a new
+container with the same mounts; the state volume keeps the audit log,
+proposals and recorded files.
+
 ## Troubleshoot
 
 Run `sudo goat-processors doctor` first (`sudo`, so that it can read the config and the certificates). Each line is `ok`, `warn` or `FAIL`, and
@@ -352,7 +434,8 @@ each FAIL is followed by its fix. Doctor changes nothing.
 | `service` FAIL: no status at /run/goat-processors/status.json | the service has not completed a tick since it started: it is not running, or is failing at start | `sudo journalctl -u goat-processors -n 50`; then `sudo systemctl restart goat-processors` |
 | `service` FAIL: the status is old | the service is not ticking | `sudo systemctl restart goat-processors` |
 | `input` warn: no report read yet | nothing arrives on the input keys | compare `inputs.fabric.keys` with the keys the translators publish |
-| `service` warn: unreadable inputs | samples on the input keys are not reports | see the first ones with `sudo journalctl -u goat-processors`; correct the key expression or the publisher |
+| `service` warn: unreadable inputs | samples on the input keys are not reports, or hold a value out of range | see the first ones with `sudo journalctl -u goat-processors`; correct the key expression or the publisher |
+| `service` warn: reports dropped because the service was behind its inputs | reports arrived faster than the pipeline ran, and more than 65536 waited; the fabric and UDP inputs dropped the rest (`counters.dropped_backlog`) | check the host's load (`top`) and each source's rate (`goat-processors metrics`); a source that floods the input is the usual cause |
 | `service` warn: the running pipeline differs | the config was edited but not applied, or an operator ran `pack use` | to keep the running packs, write them in the config; to return to the config, `sudo systemctl restart goat-processors` |
 | `api` FAIL: the API does not answer | the service is not running, or failed to open its API port | `sudo journalctl -u goat-processors -n 50`; another program may hold port 8470 (`api.listen`) |
 | `api` FAIL: not healthy: paused | an operator ran `goat-processors stop` | `sudo goat-processors start` |
@@ -364,6 +447,8 @@ cd runner
 cargo build --release --locked     # target/release/goat-processors
 cargo test --locked                 # every vector, config, doctor, service and fabric tests
 cd .. && runner/packaging/build-deb.sh amd64 runner/target/release/goat-processors dist
+docker build -f runner/packaging/container/Containerfile -t goat-processors .   # the image
+runner/packaging/ci-container-test.sh goat-processors                          # its proof
 ```
 
 Every third-party crate the runner uses is pinned in `runner/Cargo.lock` and

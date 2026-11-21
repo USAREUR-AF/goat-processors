@@ -1,0 +1,12 @@
+# Only what the build copies: engines/rust, packs, runner (without its build
+# output and test tooling), NOTICE and LICENSE.
+*
+!engines/rust
+!packs
+!runner
+!NOTICE
+!LICENSE
+**/target
+runner/fieldkit/e2e/node_modules
+runner/fieldkit/e2e/.run
+runner/fieldkit/e2e/test-results

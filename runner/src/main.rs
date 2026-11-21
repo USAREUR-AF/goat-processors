@@ -7,6 +7,7 @@ mod doctor;
 mod fabric;
 mod fieldkit;
 mod http;
+mod json;
 mod mcp;
 mod model;
 mod pipeline;
@@ -150,7 +151,7 @@ fn main() -> ExitCode {
         ["health"] => api_verb(&a, "GET", "/v1/health".into(), None, Some(show_kv)),
         ["pipeline"] => api_verb(&a, "GET", "/v1/pipeline".into(), None, Some(show_pipeline)),
         ["pack", "use", function, pack] => {
-            let body = format!("{{\"pack\":{}}}", goat_correlator::json::Json::Str(pack.to_string()));
+            let body = format!("{{\"pack\":{}}}", crate::json::Json::Str(pack.to_string()));
             api_verb(&a, "PUT", format!("/v1/pipeline/{}", http::encode(function)), Some(body.into_bytes()), Some(show_pipeline))
         }
         ["stop"] => api_verb(&a, "POST", "/v1/stop".into(), None, Some(show_status)),
@@ -207,8 +208,8 @@ fn cmd_config_check(a: &Args, path: Option<&&str>) -> Result<ExitCode, String> {
     let res = config::load(&path);
     if json {
         let problems = res.as_ref().err().cloned().unwrap_or_default();
-        let list = goat_correlator::json::Json::Arr(problems.iter().map(|p| goat_correlator::json::Json::Str(p.clone())).collect());
-        println!("{{\"file\":{},\"valid\":{},\"problems\":{}}}", goat_correlator::json::Json::Str(path.display().to_string()), res.is_ok(), list);
+        let list = crate::json::Json::Arr(problems.iter().map(|p| crate::json::Json::Str(p.clone())).collect());
+        println!("{{\"file\":{},\"valid\":{},\"problems\":{}}}", crate::json::Json::Str(path.display().to_string()), res.is_ok(), list);
     }
     match res {
         Ok(c) => {
@@ -325,7 +326,7 @@ fn cmd_pack_ls(a: &Args) -> Result<ExitCode, String> {
         })
         .collect();
     if a.output.as_deref() == Some("json") {
-        use goat_correlator::json::Json;
+        use crate::json::Json;
         let list = rows
             .iter()
             .map(|(f, n, u)| {
@@ -351,7 +352,7 @@ fn cmd_selftest(a: &Args) -> Result<ExitCode, String> {
     let (passed, failed) = selftest::run(&dir);
     let total = passed + failed.len();
     if a.output.as_deref() == Some("json") {
-        use goat_correlator::json::Json;
+        use crate::json::Json;
         let list = Json::Arr(failed.iter().map(|f| Json::Str(f.clone())).collect());
         println!("{{\"packs_dir\":{},\"vectors\":{total},\"passed\":{passed},\"failed\":{list}}}", Json::Str(dir.display().to_string()));
     } else {
@@ -366,7 +367,7 @@ fn cmd_selftest(a: &Args) -> Result<ExitCode, String> {
     Ok(if failed.is_empty() { ExitCode::SUCCESS } else { ExitCode::from(1) })
 }
 
-use goat_correlator::json::Json;
+use crate::json::Json;
 
 /// The API address and the token, from the config when it can be read.
 fn api_target(a: &Args) -> (String, Option<String>) {
@@ -386,7 +387,7 @@ fn api_verb(a: &Args, method: &str, path: String, body: Option<Vec<u8>>, show: O
         if !text.ends_with('\n') {
             println!();
         }
-    } else if let Ok(v) = goat_correlator::json::parse(&text) {
+    } else if let Ok(v) = crate::json::parse(&text) {
         if (200..300).contains(&status) {
             print!("{}", show.map(|f| f(&v)).unwrap_or_default());
         } else {
@@ -432,8 +433,8 @@ fn show_status(v: &Json) -> String {
     }
     if let Some(c) = v.get("counters") {
         out.push_str(&format!(
-            "reports in {}, passed {}, ticks {}, published {}, unreadable {}, dropped while stopped {}\n",
-            s_of(c, "reports_in"), s_of(c, "reports_out"), s_of(c, "ticks"), s_of(c, "published"), s_of(c, "unreadable"), s_of(c, "dropped_paused")
+            "reports in {}, passed {}, ticks {}, published {}, unreadable {}, dropped while stopped {}, dropped while behind {}\n",
+            s_of(c, "reports_in"), s_of(c, "reports_out"), s_of(c, "ticks"), s_of(c, "published"), s_of(c, "unreadable"), s_of(c, "dropped_paused"), s_of(c, "dropped_backlog")
         ));
         if let Some(Json::Obj(ps)) = c.get("per_source") {
             for (k, n) in ps {
@@ -567,7 +568,7 @@ fn cmd_mcp(a: &Args) -> Result<ExitCode, String> {
                 }
             }
             Err(e) => {
-                let id = goat_correlator::json::parse(&line).ok().and_then(|v| v.get("id").cloned()).unwrap_or(Json::Null);
+                let id = crate::json::parse(&line).ok().and_then(|v| v.get("id").cloned()).unwrap_or(Json::Null);
                 writeln!(stdout, "{{\"jsonrpc\":\"2.0\",\"id\":{id},\"error\":{{\"code\":-32000,\"message\":{}}}}}", Json::Str(e)).map_err(|e| e.to_string())?;
                 stdout.flush().ok();
             }

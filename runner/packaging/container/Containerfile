@@ -1,0 +1,59 @@
+# syntax=docker/dockerfile:1
+# SPDX-License-Identifier: Apache-2.0
+#
+# The goat-processors runner as a container image, for amd64 and arm64.
+# Build from the repository root (the build needs engines/, packs/ and runner/):
+#
+#   docker build -f runner/packaging/container/Containerfile -t goat-processors .
+#
+# The image holds the same files as the .deb, in the same places: the binary
+# at /usr/bin/goat-processors, every pack and its vectors under
+# /usr/share/goat-processors/packs, the example config at
+# /etc/goat-processors/runner.yaml (it says CHANGE-ME, so mount your own), and
+# the docs, NOTICE and LICENSE under /usr/share/doc/goat-processors. It runs
+# as the distroless `nonroot` user (65532), with no shell and no package
+# manager. How to run it: runner/README.md, "The container image".
+#
+# Both base images are pinned by digest. To move to newer ones, look the
+# digests up (docker buildx imagetools inspect IMAGE) and change both lines.
+
+FROM docker.io/library/rust:1.99-slim-trixie@sha256:f6c4a35d21dbb3c89d7a8d056c193e94fc09037f2b58dd858b09c39a47dd02d7 AS build
+WORKDIR /src
+COPY engines/rust engines/rust
+COPY packs packs
+COPY runner runner
+COPY NOTICE LICENSE ./
+# Build paths are replaced so that no build machine path appears in a log.
+ENV RUSTFLAGS="--remap-path-prefix=/src=/src --remap-path-prefix=/usr/local/cargo=/cargo"
+RUN cd runner && cargo build --release --locked && strip target/release/goat-processors
+# The image's file tree, built here because the runtime image has no shell.
+RUN set -eu; r=/out; umask 022; \
+    install -D -m 0755 runner/target/release/goat-processors $r/usr/bin/goat-processors; \
+    install -D -m 0644 runner/config/runner.yaml $r/etc/goat-processors/runner.yaml; \
+    install -d -m 0755 $r/etc/goat-processors/tls; \
+    mkdir -p $r/usr/share/goat-processors; cp -r packs $r/usr/share/goat-processors/packs; \
+    for f in runner/README.md runner/INSTALL.md runner/DEPLOY-CONTRACT.md NOTICE LICENSE; do \
+      install -D -m 0644 "$f" "$r/usr/share/doc/goat-processors/$(basename "$f")"; done; \
+    find $r/usr/share -type d -exec chmod 0755 {} + -o -type f -exec chmod 0644 {} +; \
+    install -d -m 0750 /state/run/goat-processors /state/var/lib/goat-processors; \
+    /out/usr/bin/goat-processors selftest --packs-dir $r/usr/share/goat-processors/packs
+
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:cb87acc574abe719b6e5c547384defa2f7b1f24af9605d3f618cf852495d8be2
+ARG VERSION=dev
+ARG REVISION=unknown
+LABEL org.opencontainers.image.title="goat-processors" \
+      org.opencontainers.image.description="goat-processors runner: a declared pipeline of processing functions on the goat fabric" \
+      org.opencontainers.image.source="https://github.com/USAREUR-AF/goat-processors" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}"
+COPY --from=build /out/ /
+# The two places the runner writes: /run/goat-processors (status.json, the API
+# token) and /var/lib/goat-processors (outputs.file, record, audit, proposals).
+COPY --from=build --chown=65532:65532 /state/ /
+USER 65532:65532
+WORKDIR /var/lib/goat-processors
+VOLUME ["/var/lib/goat-processors"]
+ENTRYPOINT ["/usr/bin/goat-processors"]
+CMD ["run", "-c", "/etc/goat-processors/runner.yaml"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --start-interval=2s CMD ["/usr/bin/goat-processors", "health"]

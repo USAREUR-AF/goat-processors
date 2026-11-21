@@ -20,7 +20,7 @@
 
 use std::collections::BTreeMap;
 
-use goat_correlator::json::{self, Json};
+use crate::json::{self, Json};
 
 use crate::api::{Identity, Server};
 use crate::http::{Request, Response};

@@ -26,11 +26,11 @@ use std::io::Write;
 use std::net::TcpListener;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{channel, Sender, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use goat_correlator::json::{self, Json};
+use crate::json::{self, Json};
 
 use crate::config::{Config, Role};
 use crate::fabric::Input;
@@ -240,13 +240,17 @@ pub fn error(status: u16, what: &str, fix: &str) -> Response {
 
 pub struct Server {
     config: Config,
-    tx: Mutex<Sender<Input>>,
+    tx: Mutex<SyncSender<Input>>,
     token: String,
     audit: Mutex<Option<std::fs::File>>,
-    busy: AtomicUsize,
 }
 
-const MAX_CONNECTIONS: usize = 32;
+/// Connections handled at once, per listener. Each listener has its own
+/// budget, so callers on the mesh or the metrics port cannot use up the
+/// local listener's (where `health` and the operator's verbs arrive).
+const LOCAL_CONNECTIONS: usize = 16;
+const MESH_CONNECTIONS: usize = 32;
+const METRICS_CONNECTIONS: usize = 4;
 
 impl Server {
     pub fn config(&self) -> &Config {
@@ -535,7 +539,7 @@ fn constant_eq(a: &[u8], b: &[u8]) -> bool {
 }
 
 /// Starts the listeners. Requests that need the service loop go to `tx`.
-pub fn start(c: &Config, tx: Sender<Input>) -> Result<Arc<Server>, String> {
+pub fn start(c: &Config, tx: SyncSender<Input>) -> Result<Arc<Server>, String> {
     let token = new_token()?;
     write_token(&c.api.token_file, &token)?;
     let audit = if let Some(d) = c.api.audit_file.parent() {
@@ -547,16 +551,16 @@ pub fn start(c: &Config, tx: Sender<Input>) -> Result<Arc<Server>, String> {
     if audit.is_none() {
         eprintln!("warning: cannot open the audit file {}; requests are not audited", c.api.audit_file.display());
     }
-    let server = Arc::new(Server { config: c.clone(), tx: Mutex::new(tx), token, audit: Mutex::new(audit), busy: AtomicUsize::new(0) });
+    let server = Arc::new(Server { config: c.clone(), tx: Mutex::new(tx), token, audit: Mutex::new(audit) });
 
     let local = TcpListener::bind(&c.api.listen).map_err(|e| format!("cannot listen for the API on {}: {e}", c.api.listen))?;
     let s = server.clone();
+    let budget = Arc::new(AtomicUsize::new(0));
     std::thread::spawn(move || {
         for stream in local.incoming().flatten() {
             let s = s.clone();
-            spawn_limited(&s.clone(), move || {
-                let mut stream = stream;
-                stream.set_read_timeout(Some(Duration::from_secs(10))).ok();
+            spawn_limited(&budget, LOCAL_CONNECTIONS, move || {
+                let mut stream = http::Deadline::new(stream, http::REQUEST_DEADLINE);
                 let resp = match http::read_request(&mut stream) {
                     Ok(req) => {
                         let who = local_identity(&s, &req);
@@ -572,12 +576,12 @@ pub fn start(c: &Config, tx: Sender<Input>) -> Result<Arc<Server>, String> {
     if let Some(ml) = &c.api.metrics_listen {
         let listener = TcpListener::bind(ml).map_err(|e| format!("cannot listen for metrics on {ml}: {e}"))?;
         let s = server.clone();
+        let budget = Arc::new(AtomicUsize::new(0));
         std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
                 let s = s.clone();
-                spawn_limited(&s.clone(), move || {
-                    let mut stream = stream;
-                    stream.set_read_timeout(Some(Duration::from_secs(10))).ok();
+                spawn_limited(&budget, METRICS_CONNECTIONS, move || {
+                    let mut stream = http::Deadline::new(stream, http::REQUEST_DEADLINE);
                     // Only GET /metrics; every other request is refused here,
                     // so this port can never reach a route that reads tracks
                     // or changes anything.
@@ -602,12 +606,12 @@ pub fn start(c: &Config, tx: Sender<Input>) -> Result<Arc<Server>, String> {
         let allow: BTreeMap<String, Role> = m.allow.iter().map(|a| (a.name.clone(), a.role)).collect();
         let listener = TcpListener::bind(&m.listen).map_err(|e| format!("cannot listen for the mesh API on {}: {e}", m.listen))?;
         let s = server.clone();
+        let budget = Arc::new(AtomicUsize::new(0));
         std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
                 let (s, cfg, allow) = (s.clone(), cfg.clone(), allow.clone());
-                spawn_limited(&s.clone(), move || {
-                    let tcp = stream;
-                    tcp.set_read_timeout(Some(Duration::from_secs(10))).ok();
+                spawn_limited(&budget, MESH_CONNECTIONS, move || {
+                    let tcp = http::Deadline::new(stream, http::REQUEST_DEADLINE);
                     let Ok(conn) = rustls::ServerConnection::new(cfg) else { return };
                     let mut tls = rustls::StreamOwned::new(conn, tcp);
                     // The handshake completes on the first read; a client
@@ -636,15 +640,15 @@ pub fn start(c: &Config, tx: Sender<Input>) -> Result<Arc<Server>, String> {
     Ok(server)
 }
 
-fn spawn_limited(s: &Arc<Server>, f: impl FnOnce() + Send + 'static) {
-    if s.busy.fetch_add(1, Ordering::SeqCst) >= MAX_CONNECTIONS {
-        s.busy.fetch_sub(1, Ordering::SeqCst);
+fn spawn_limited(busy: &Arc<AtomicUsize>, max: usize, f: impl FnOnce() + Send + 'static) {
+    if busy.fetch_add(1, Ordering::SeqCst) >= max {
+        busy.fetch_sub(1, Ordering::SeqCst);
         return; // dropped: the connection closes
     }
-    let s = s.clone();
+    let busy = busy.clone();
     std::thread::spawn(move || {
         f();
-        s.busy.fetch_sub(1, Ordering::SeqCst);
+        busy.fetch_sub(1, Ordering::SeqCst);
     });
 }
 
