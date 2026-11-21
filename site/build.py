@@ -31,6 +31,16 @@ FIGURES = [
 HERO_VECTOR = "packs/correlate-gnn/vectors/04-separation-dissolves.json"
 
 
+def f1_ties(pack):
+    """The packs whose F1 interval on the evaluation set's random scenarios overlaps pack's, as the page names them."""
+    with open(os.path.join(ROOT, "docs/figures/bench/results.json")) as f:
+        g = json.load(f)["evaluation"]["groups"]
+    lo, hi = g[pack]["random"]["ci95"]["f1"]
+    ties = [p[len("correlate-"):] for p in g if p != pack and g[p]["random"].get("ci95", {}).get("f1")
+            and g[p]["random"]["ci95"]["f1"][1] >= lo and g[p]["random"]["ci95"]["f1"][0] <= hi]
+    return " and ".join(ties) if ties else "no other pack"
+
+
 def measure():
     vectors = sorted(glob.glob(os.path.join(ROOT, "packs/*/vectors/*.json")))
     traces = 0
@@ -43,10 +53,12 @@ def measure():
     with open(os.path.join(ROOT, "docs/benchmark.md")) as f:
         for line in f:
             if line.startswith("| [assign-time]") and "random" not in bench:
+                # the first assign-time row: the evaluation set's random scenarios, each cell "value (low to high)"
                 cells = [c.strip() for c in line.strip().strip("|").split("|")]
                 bench["random"] = cells[1]
-                bench["gospa"] = cells[-1].split(".")[0]
+                bench["gospa"] = f"{float(cells[-1].split()[0]):.0f}"
                 break
+    bench["ties"] = f1_ties("correlate-assign-time")
     return {
         "engines": f"{len(engines)}",
         "vectors": f"{len(vectors)}",
@@ -54,6 +66,7 @@ def measure():
         "packs": f"{len(glob.glob(os.path.join(ROOT, 'packs/*/pack.def')))}",
         "f1-random": bench["random"],
         "gospa-random": bench["gospa"],
+        "f1-ties": bench["ties"],
     }
 
 

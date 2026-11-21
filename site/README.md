@@ -33,7 +33,8 @@ the key from the tree and fails if the page says something else.
 | `vectors` | scenario vectors | `ls packs/*/vectors/*.json \| wc -l` |
 | `traces` | trace records | the sum of `len(step["trace"])` over every step of every vector |
 | `packs` | settings packs | `ls packs/*/pack.def \| wc -l` |
-| `f1-random`, `gospa-random` | the `assign-time` row of the random set | the first `assign-time` row of `docs/benchmark.md`, which `tools/bench/bench.py check` keeps current |
+| `f1-random`, `gospa-random` | the `assign-time` row of the evaluation set's random scenarios: F1 with its 95 % interval, GOSPA | the first `assign-time` row of `docs/benchmark.md`, which `tools/bench/bench.py check` keeps current |
+| `f1-ties` | the packs equal to `assign-time` within the interval | the packs whose F1 interval on the evaluation set's random scenarios overlaps `assign-time`'s, from `docs/figures/bench/results.json` |
 
 ## Agent interface statuses
 
