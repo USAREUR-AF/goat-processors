@@ -126,18 +126,42 @@ def bench_results():
     return d
 
 
-def default_pack(d):
-    """The pack at the top of F1 on every benchmark set (ties allowed), the sets, and who it ties with per set."""
-    sets = [k for k in ("named", "random", "time") if all(k in d["scenarios"][p] for p in d["packs"])]
-    tops = {}
-    for k in sets:
-        best = max(d["scenarios"][p][k]["f1"] for p in d["packs"])
-        tops[k] = [p for p in d["packs"] if d["scenarios"][p][k]["f1"] == best]
-    common = [p for p in d["packs"] if all(p in tops[k] for k in sets)]
-    if len(common) != 1:
-        return None, sets, {}
-    best = common[0]
-    return best, sets, {k: [p for p in tops[k] if p != best] for k in sets}
+def runner_default(kind="correlate"):
+    """The pack the runner ships for a function (runner/config/runner.yaml), or None."""
+    p = rel("runner", "config", "runner.yaml")
+    if not os.path.isfile(p):
+        return None
+    m = re.search(r"function: %s\s*\n\s*pack: (%s-[\w-]+)" % (kind, kind), read("runner", "config", "runner.yaml"))
+    return m.group(1) if m else None
+
+
+def ev_cell(s, key, f, unit=""):
+    """A pooled value with its 95 % interval, or None when the group did not finish."""
+    if not s or not s.get("pooled") or s["pooled"].get(key) is None:
+        return None
+    v, c = s["pooled"][key], (s.get("ci95") or {}).get(key)
+    return (f % v) + unit + (" (%s to %s)" % (f % c[0], f % c[1]) if c else "")
+
+
+def standing(g, packs, pack, group, key, higher):
+    """Where pack stands on key in group, by 95 % interval: ("top", []), ("equal", [leaders]) when its interval
+    overlaps the best pack's, ("below", [leaders]) when it does not, or (None, []) when it has no score there."""
+    def val(p):
+        s = g[p].get(group) or {}
+        return (s.get("pooled") or {}).get(key), (s.get("ci95") or {}).get(key)
+    scored = [p for p in packs if val(p)[0] is not None]
+    if pack not in scored:
+        return None, []
+    best = (max if higher else min)(scored, key=lambda p: val(p)[0])
+    if best == pack or val(best)[0] == val(pack)[0]:
+        return "top", []
+    (_, cp), (_, cb) = val(pack), val(best)
+    overlap = cp and cb and (cp[1] >= cb[0] if higher else cp[0] <= cb[1])
+    return ("equal" if overlap else "below"), [best]
+
+
+def group_name(k):
+    return k[len("family: "):] if k.startswith("family: ") else k
 
 
 def methods_and_packs():
@@ -148,38 +172,81 @@ def methods_and_packs():
         raise SystemExit("make-readme.py PACKS: no entry for %s; entry for missing pack %s" % (missing, extra))
     d = bench_results()
     order = [n for n in PACKS]
-    out = ["| Pack | Method | What it does | Adds over the pack it extends | F1, named / random / time |",
+    ev = (d or {}).get("evaluation") or {}
+    g = ev.get("groups")
+    nr = g[d["packs"][0]]["random"]["n"] if g else 0
+    out = ["| Pack | Method | What it does | Adds over the pack it extends | F1, %d random scenarios (95 %% interval) |" % nr,
            "|---|---|---|---|---|"]
     for n in order:
         parent, what, adds = PACKS[n]
         m = method_of(rel("packs", "correlate-" + n)) or "confirm"
         f1 = "not scored"
-        if d and "correlate-" + n in d["scenarios"]:
-            sc = d["scenarios"]["correlate-" + n]
-            f1 = " / ".join("%.3f" % sc[k]["f1"] for k in ("named", "random", "time") if k in sc)
+        if g and "correlate-" + n in g:
+            f1 = ev_cell(g["correlate-" + n]["random"], "f1", "%.3f") or "not finished"
         ext = "%s: %s" % (("`%s`" % parent), adds) if parent else adds
         out.append("| [`%s`](packs/correlate-%s/pack.def) | `%s` | %s | %s | %s |" % (n, n, m, what, ext, f1))
     text = "\n".join(out)
-    if d:
-        best, sets, ties = default_pack(d)
-        confirm = [p for p in d["packs"] if method_of(rel("packs", p)) != "assign"]
-        if best:
-            sb = d["scenarios"][best]
-            short = lambda p: p[len("correlate-"):]
-            per_set = ", ".join("%s %.3f%s" % (k, sb[k]["f1"], " (equal with %s)" % ", ".join("`%s`" % short(t) for t in ties[k])
-                                                if ties[k] else "") for k in sets)
-            g = sb["random"]["gospa_m"]
-            lowest = all(g <= d["scenarios"][p]["random"]["gospa_m"] for p in d["packs"])
-            cs = sorted(d["scenarios"][p]["random"]["swaps"] for p in confirm)
-            text += ("\n\n**Default: `%s`.** It has the highest F1 of every pack on all %d benchmark sets: %s. It keeps one "
-                     "output track per object and combines its members%s. Its weak point is identity swaps (an object's "
-                     "output track changing to another): %d on the random set, against %d to %d for the per-report packs, "
-                     "so the `confirm` method stays selectable."
-                     % (short(best), len(sets), per_set,
-                        ", with the lowest position error of every pack (GOSPA, a mean position error that also charges missed and "
-                        "false tracks: %.0f m on the random set)" % g if lowest else "",
-                        sb["random"]["swaps"], cs[0], cs[-1]))
+    best = runner_default()
+    if g and best in g:
+        text += "\n\n" + default_paragraph(d, g, best)
     return text
+
+
+def default_paragraph(d, g, best):
+    """Why the default is the default, from the evaluation set, saying "equal within the interval" wherever the
+    95 % intervals overlap: a difference counts only when they separate (docs/benchmark.md)."""
+    packs = d["packs"]
+    short = lambda p: p[len("correlate-"):]
+    groups = list(g[best])
+    fams = [k for k in groups if k.startswith("family: ")]
+    st, lead = standing(g, packs, best, "random", "f1", True)
+    r = g[best]["random"]
+    f1 = ev_cell(r, "f1", "%.3f")
+    if st == "top":
+        f1s = "%s, the highest of every pack" % f1
+    else:
+        f1s = "%s, %s the highest, `%s` %s" % (f1, "equal within the interval to" if st == "equal" else "below",
+                                              short(lead[0]), ev_cell(g[lead[0]]["random"], "f1", "%.3f"))
+    eq = [p for p in packs if p != best and standing(g, packs, p, "random", "f1", True)[0] in ("top", "equal")
+          and (lead == [] or p != lead[0])]
+    if eq:
+        f1s += "; also equal within the interval: %s" % ", ".join("`%s`" % short(p) for p in eq)
+    ok, below, unfinished = [], [], []
+    for k in fams:
+        s2, l2 = standing(g, packs, best, k, "f1", True)
+        if s2 is None:
+            nf = g[best][k].get("not_finished", 0)
+            unfinished.append("%s (%d of %d scenarios over the %d s limit)" % (group_name(k), nf, nf + g[best][k]["n"],
+                                                                                d["evaluation"]["timeout_s"]))
+        elif s2 == "below":
+            below.append("%s (`%s` %s against %s)" % (group_name(k), short(l2[0]), ev_cell(g[l2[0]][k], "f1", "%.3f"),
+                                                      ev_cell(g[best][k], "f1", "%.3f")))
+        else:
+            ok.append(group_name(k))
+    fam = "In %d of the %d scenario families it is highest or equal within the interval to the highest" % (len(ok), len(fams))
+    fam += (": %s." % ", ".join(ok)) if ok else "."
+    if below:
+        fam += " It is below in %s." % "; ".join(below)
+    if unfinished:
+        fam += " It has no score in %s." % "; ".join(unfinished)
+    gs, gl = standing(g, packs, best, "random", "gospa_m", False)
+    gos = ev_cell(r, "gospa_m", "%.0f", " m")
+    gpos = {"top": "the lowest of every pack", "equal": "equal within the interval to the lowest",
+            "below": "above the lowest"}.get(gs, "")
+    confirm = [p for p in packs if method_of(rel("packs", p)) != "assign"
+               and (g[p]["random"].get("pooled") or {}).get("swaps") is not None]
+    sw = lambda p: g[p]["random"]["pooled"]["swaps"]
+    # the first pack in benchmark order at each end, so a pack that scores exactly as its parent is not named
+    cs = [min(confirm, key=sw), max(confirm, key=sw)]
+    swaps = ("Its weak point is identity swaps (an object's output track changing to another): %s on the random set, "
+             "against `%s` %s to `%s` %s for the per-report packs, so the `confirm` method stays selectable."
+             % (ev_cell(r, "swaps", "%d"), short(cs[0]), ev_cell(g[cs[0]]["random"], "swaps", "%d"),
+                short(cs[-1]), ev_cell(g[cs[-1]]["random"], "swaps", "%d"))) if confirm else ""
+    return ("**Default: `%s`**, the pack the runner ships. Every number here is from the evaluation set, with its "
+            "95 %% interval in brackets; one pack is better than another only where the intervals do not overlap. "
+            "F1 on the %d random scenarios: %s. %s Its position error (GOSPA, a mean position error that also charges "
+            "missed and false tracks) on the random set is %s, %s. %s"
+            % (short(best), r["n"], f1s, fam, gos, gpos, swaps)).strip()
 def functions():
     out = ["| Function | What it does | Specification | Packs | Vectors | Status |", "|---|---|---|---:|---:|---|"]
     for fn, spec, what in spec_rows():

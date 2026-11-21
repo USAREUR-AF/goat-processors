@@ -10,7 +10,6 @@ a person.
 |---|---|
 | `perf.py` | the harness: `generate`, `baseline`, `report`, `smoke` |
 | `scenario.py` | the large generated input: seeded, deterministic |
-| `run_python.py` | the runner contract for the Python engine (below) |
 | `test_perf.py` | the harness's own tests (CI) |
 
 ## Commands
@@ -20,7 +19,7 @@ a person.
 | `perf.py generate --out DIR [--size large\|smoke]` | writes the generated steps file of every function |
 | `perf.py baseline [--repeats N] [--large-repeats N] [--engines a,b] [--work DIR]` | builds and times every engine; writes `docs/figures/perf/results.json` and `docs/performance.md`. Needs every toolchain of `.github/workflows/conformance.yml`. About 15 minutes |
 | `perf.py report [--check]` | rewrites `docs/performance.md` from `results.json`; `--check` exits 1 if the committed page differs |
-| `perf.py smoke` | CI's short run: the Python runner on the smoke scenario for every large-scenario pack, and one vector command. It checks that they run and count, not how fast |
+| `perf.py smoke` | CI's short run: the Python engine's runner on the smoke scenario for every large-scenario pack, and one vector command. It checks that they run and count, not how fast |
 
 CI runs `test_perf.py`, `perf.py smoke` and `perf.py report --check`
 (`.github/workflows/perf.yml`). Timings depend on the machine, so CI never
@@ -93,13 +92,13 @@ cube of the number of objects in this scenario (Python: 8 objects 1,304
 reports per second, 12 objects 495, 16 objects 245).
 
 **Through the vector commands.** The harness writes the scenario as a vector
-of each pack, with the expected events, trace and snapshot from the Python
-engine (as `tools/make-vectors.py` does), into a copy of the tree that holds
+of each pack, with the expected events, trace and snapshot from the Rust
+runner (as every vector generator does, `tools/consensus.py`), into a copy of the tree that holds
 no other scenario vectors, builds every engine there and times the same
 commands. The number then covers parsing that vector and comparing every
 step. A cell that fails is an engine that cannot run the large scenario
-today through its vector command, or whose output differs from Python's on
-it.
+through its vector command, or whose output differs from the Rust runner's
+on it beyond the tolerance of `spec/vector-format.md`.
 
 ## Runner contract
 
@@ -139,7 +138,7 @@ no reordering, no clock read by the engine (the only clock is the input's).
 `--trace` is given; then one last line `{"snapshot": {...}}`. Values are what
 the engine returns; numbers compare as in `spec/vector-format.md` (relative
 1e-6), so number formatting is free. The harness checks this file against
-the Python runner's.
+the Rust runner's with that comparison (`tools/consensus.py`).
 
 **Standard output.** Exactly one line, a JSON object of counters, and
 nothing else (diagnostics go to standard error):
@@ -162,4 +161,4 @@ does not parse; the counters line is then not required.
 `run` process and its children); the runner reports none. A `run` script
 should `exec` the runner so that the measured process is the runner itself.
 
-`run_python.py` implements this contract for the Python engine.
+Every engine implements this contract in `engines/<lang>/runner/`.

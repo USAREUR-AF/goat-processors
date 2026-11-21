@@ -30,6 +30,14 @@ build belongs to the builder and the site.
 | hint | an input record that states an association or fusion decision about two tracks, with its author and reason (section 4.2) |
 | data level | how sensitive the data in a request is, on the scale the site declares (section 3) |
 | provenance | where a piece of data came from: for agent output, which agent, which model, and which inputs |
+| fabric | the goat data network (Zenoh): programs publish values under keys and receive the keys they subscribe to |
+| mesh | the site's network between hosts; the runner's mesh API listens on it with mutual TLS (`api.mesh`) |
+| tick | the moment the runner makes its output for a time `now_ms`, once a second by default |
+| record file | the file the runner writes every input and tick to (`record.path`), so a replay gives the same output |
+| identity | who is calling: `local-admin` (a local caller with the token, that is, with `sudo`), `local` (without it), or the name in a mesh client certificate |
+| role | what an identity may do through the API: `read`, or `operate` (also select packs, stop, start, decide proposals) |
+| gate | a command that must exit 0 before a proposal applies under the site policy |
+| audit log | the file of every change and every agent call, with its identity (`api.audit_file`) |
 
 ## 2. How an agent connects
 
@@ -44,7 +52,7 @@ audited like everything else.
 | Agent as a source | input | publishes tracks, identities or annotations under its own identity; the runner processes them like any other source | 4.1 |
 | Agent as an adjudicator | input | sends hints ("treat A and B as one object", "keep A and B apart") that the engines take as recorded input | 4.2 |
 | Agent changing settings | control | proposes a pack or parameter change; a person approves it, or a site policy approves it within bounds after a gate | 4.3 |
-| Agent in the loop at speed | input | sends hints or source data for every report or tick, from a local model | 4.4 |
+| Agent in the loop at speed | input | sends source data, or hints, for every report or tick, from a local model (uses 4.1 and 4.2) | 4.4 |
 | Agent reading and explaining | output | queries tracks, quality and trace through MCP read tools, and explains decisions | 4.5 |
 
 Every agent use rests on four requirements (section 6): the agent's actions
@@ -56,13 +64,20 @@ works when no agent is present.
 
 Any agent use sits somewhere on each dimension below. Moving along a
 dimension changes what it costs and what to put in place. The tables say
-both. They are a guide for the builder, not a gate.
+both. They are a guide for the builder, not a gate. "Put in place" is the
+builder's work, in the agent or around it, unless a cell names a runner
+setting.
 
 ### 3.1 Latency
 
 An agent's answer takes from a fraction of a second (a small local model) to
 tens of seconds (a large hosted model with tool calls). The runner processes
-a report in microseconds and ticks once a second by default.
+a report in a few milliseconds or less, and ticks once a second by default.
+Measured (`docs/performance.md`): the default correlate pack,
+`correlate-assign-time`, runs 455 reports per second in the Python engine
+(about 2 ms each); the Rust engine the runner uses runs correlate at 2,344
+reports per second through its vector command, parsing included (two packs).
+The runner itself has no throughput measurement yet.
 
 | Where the agent's answer is needed | Cost | Put in place |
 |---|---|---|
@@ -111,15 +126,28 @@ making the agent repeatable.
 ### 3.6 Data level
 
 What the agent sends to its model decides where the model may run. The site
-declares, for each model endpoint, the highest data level it may receive.
-The runner refuses a tool call or an agent feature that would send data
-above that level to that endpoint.
+declares its data levels, least sensitive first, in `agents.data_levels`
+(default: `public`, then `site`), and for each model endpoint the highest
+level it may receive (`agents.endpoints[].data_level`). The runner refuses a
+call that would send data above that level to that endpoint.
 
 | Data the model sees | A hosted model | A local model |
 |---|---|---|
 | public or synthetic: the repository, the specs, the benchmark scenarios, the docs | usable | usable |
 | a site's live or recorded tracks, sources, positions, logs | usable where the site has approved that data for that provider, and declared it as the endpoint's level | usable |
 | anything at a site with no connection out | not reachable | usable |
+
+The same levels apply to callers, including an MCP client outside the site.
+A local caller receives up to `agents.local_level` (default: the highest
+level). A mesh caller receives the level `agents.clients` gives its
+certificate name, and the lowest level when it is not listed. A tool whose
+data is above the caller's level is refused.
+
+Each tool's data is at either the lowest level (packs, pipeline, health,
+routes, replay of data the caller sent) or the highest (status, metrics,
+tracks, explain, why). A site that declares more than two levels therefore
+sees a caller or endpoint at a middle level treated as at the lowest for
+tools.
 
 ### 3.7 Locality
 
@@ -135,7 +163,7 @@ above that level to that endpoint.
 |---|---|---|
 | a provider | the data leaves the site; availability depends on the link and the provider | the endpoint's declared data level; a fallback when it is unreachable (every agent feature is optional) |
 | the site, on its own machines | hardware, and the site operates the model | size it for the latency and volume of section 3.1 and 3.2 |
-| a partner or a central site | data leaves the site, to a party the site trusts | as for a provider; the partner's endpoint gets its own declared level |
+| a partner or a central site | data leaves the site, to a party the site trusts | as for a provider: the partner's endpoint is one more entry in `agents.endpoints`, with its own declared level |
 
 ## 4. Extension points
 
@@ -145,24 +173,30 @@ An agent publishes what it derives as a source of its own: tracks,
 identities, or annotations on existing tracks. The runner treats it as one
 more input, so correlation, fusion and quality apply to it as to any sensor.
 
-**How.** The agent publishes shared-model reports on the fabric under its
-own key prefix (for example `data/entity/track/<site>/agent-<name>/<uid>`),
-or posts them to the runner's source route (`POST /v1/source`, MCP tool
-`publish`), authenticated with its own token or certificate; the site lists
-which identity may publish as which source id (`agents.sources`). Each report carries `track.source_id` naming the agent and
-these provenance keys:
+**How.** There are two paths. They differ in who vouches for the label.
+
+| | Through the API (`POST /v1/source`, MCP tool `publish`) | On the fabric (the agent's own key prefix) |
+|---|---|---|
+| Who may publish | an identity `agents.sources` lists, as the one source id it gives it | whoever the site's fabric access rules let publish under that key prefix |
+| What the agent sends | shared-model reports with that `track.source_id`, and `provenance.model` (and, if useful, `provenance.inputs`) | shared-model reports, and every provenance key below it wants to carry |
+| What the runner adds | `provenance.kind: agent`, `provenance.agent: <caller identity>`, `provenance.checked: true` | nothing; it removes any `provenance.checked` claim |
+| What a reader can trust | the runner checked the identity and wrote the label | the label as the publisher wrote it; the fabric's access rules are what stop one publisher posing as another, and a publisher that leaves the keys out is not labeled |
+
+Use the API path when the label must be trusted.
 
 | Key | Content |
 |---|---|
 | `provenance.kind` | `agent` |
-| `provenance.agent` | the agent's identity (its certificate name) |
+| `provenance.agent` | the agent's identity |
 | `provenance.model` | the model and version it used |
 | `provenance.inputs` | a digest of, or references to, the inputs it worked from |
+| `provenance.checked` | `true` only on a report the runner received through the API |
 
-The runner passes these keys through to its output and its trace, so a
-system track that includes an agent's track says so. Quality measures the
-agent's source like any other, and a quality rule can mark, downgrade or
-drop it.
+The runner carries these keys to its output: each output line of an ingest
+step shows the report's provenance, and a system track with an agent-derived
+member carries `agent_provenance` (member to agent, model, inputs, checked).
+Quality measures the agent's source like any other, and a quality rule can
+mark, downgrade or drop it.
 
 ### 4.2 Agent as an adjudicator
 
@@ -191,8 +225,10 @@ change is logged and can be reverted in one step.
 The runner holds it as a pending proposal. A person approves or rejects it
 with `goat-processors proposal approve <id>`. Under a site
 policy, a proposal inside its bounds is applied once its gate passes, for
-example the benchmark on the tuning set and then on the evaluation set
-(`tools/bench/`); the gate is any command that exits 0 to pass.
+example `goat-processors selftest`, or the site's benchmark run on its
+own recorded scenarios; the gate is any command that exits 0 to pass.
+(`tools/bench/` will offer separate tuning and evaluation sets for this; it
+does not yet.)
 Parameters are changed as packs: a pack is the unit of settings, so a new
 parameter value is a new pack, and the policy's list of packs is its bounds. An applied change becomes a pack selection like
 `goat-processors pack use`, written to the record file and the audit log;
@@ -205,11 +241,11 @@ interfaces, with a local model. The engine's output is then exact given the
 recorded hints and source reports, whatever the model would answer on
 another run.
 
-**How.** Use 4.1 or 4.2 at full rate, with the safeguards of sections 3.1
-and 3.2: a local model, a deadline per call, a fallback that proceeds
+**How.** Today through 4.1; through 4.2 once hints are built (section 5,
+A4). Run it at full rate, with the safeguards of sections 3.1 and 3.2: a local model, a deadline per call, a fallback that proceeds
 without the agent's answer, and a count of answers that missed their
-deadline. A late hint applies at the tick after it arrives; the record file
-shows exactly when.
+deadline. A late report or hint applies at the tick after it arrives; the record
+file shows exactly when.
 
 ### 4.5 Agent reading and explaining, through MCP
 
@@ -219,7 +255,7 @@ identity, the data-level check and the audit log.
 | Tool class | Tools | Who may call |
 |---|---|---|
 | read | `status`, `health`, `pipeline`, `packs`, `metrics`, `tracks`, `explain`, `replay`, `routes`, `proposals`, `why` | the role `read` |
-| proposal | `propose` (a pack for a function); a hint tool (section 4.2, Designed) | the role `read`; nothing changes until the proposal is applied |
+| proposal | `propose` (a pack for a function); a hint tool (section 4.2, Designed) | the role `read`: enough, because a proposal changes nothing until a person or the site policy applies it |
 | source | `publish` | an identity listed in `agents.sources` |
 | action | `use_pack`, `stop`, `start`, `approve`, `reject`, `revert` | the role `operate`, and a site policy (`agents.actions`) that names the identity and the action |
 
@@ -230,7 +266,12 @@ The reference agent is the **"why?" explainer**: given a system track, it
 reads the events and trace records behind it (`GET /v1/explain/{track}`)
 and writes a plain explanation in which every sentence cites the trace
 record it rests on. A sentence without a citation, or citing a record that
-does not exist, is removed before the answer is shown.
+does not exist, is removed before the answer is shown. It needs a model
+endpoint declared for the site's highest data level (`agents.endpoints`),
+because the trace holds site data; with none, `goat-processors why` answers
+"no model endpoint is configured (agents.endpoints)", and with only a lower
+one it answers "refused: this call sends site data, and no endpoint is
+declared for it".
 
 ## 5. What the runner provides
 
@@ -258,6 +299,6 @@ runner's interfaces provide; a builder gets it by using them.
 | Requirement | How it is met |
 |---|---|
 | Every agent action carries its identity and is audited | the agent calls with its own certificate or token; the runner writes each call to the audit log with identity, tool, a digest of the inputs, and the result |
-| Agent-derived data is labeled | agent output enters as a source or a hint with its provenance keys, under its own identity; the runner carries them to its output and trace |
+| Agent-derived data is labeled | agent output enters as a source or a hint with its provenance keys, under its own identity; the runner carries them to its output and trace, and marks `checked: true` on what it received through the API, where it checked the identity (section 4.1) |
 | Data goes to a model only up to the site's declared level | each model endpoint has a declared level in the config; the runner refuses a call above it |
 | The data path works with no agent present | every agent interface is optional; with all of them enabled and no agent connected, the runner's output is the same, byte for byte (A9) |

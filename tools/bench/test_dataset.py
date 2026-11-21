@@ -8,6 +8,7 @@ import collections
 import json
 import os
 import sys
+import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -44,17 +45,47 @@ class Sets(unittest.TestCase):
         self.assertNotEqual(a, c)
 
     def test_evaluation_needs_seeds(self):
-        saved = dataset.EVAL_SEEDS
+        saved, owner = dataset.EVAL_SEEDS, os.environ.get(dataset.EVAL_OWNER_VAR)
         dataset.EVAL_SEEDS = os.path.join(HERE, "no-such-seed-file")
+        os.environ[dataset.EVAL_OWNER_VAR] = dataset.EVAL_OWNER
         try:
+            self.assertIsNone(dataset.eval_root())
             with self.assertRaises(SystemExit):
                 dataset.evaluation_set()
         finally:
             dataset.EVAL_SEEDS = saved
+            _restore_env(dataset.EVAL_OWNER_VAR, owner)
+
+    def test_evaluation_needs_owner(self):
+        # Even with a readable seed file, nothing reads it without BENCH_EVAL_OWNER.
+        saved, owner = dataset.EVAL_SEEDS, os.environ.pop(dataset.EVAL_OWNER_VAR, None)
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump({"eval_root": 12345, "rotation": 7}, f)
+        dataset.EVAL_SEEDS = f.name
+        try:
+            for call in (dataset.eval_root, dataset.eval_rotation, dataset.evaluation_set):
+                with self.assertRaises(SystemExit):
+                    call()
+            os.environ[dataset.EVAL_OWNER_VAR] = "someone-else"
+            with self.assertRaises(SystemExit):
+                dataset.eval_root()
+            os.environ[dataset.EVAL_OWNER_VAR] = dataset.EVAL_OWNER
+            self.assertEqual((dataset.eval_root(), dataset.eval_rotation()), (12345, 7))
+        finally:
+            dataset.EVAL_SEEDS = saved
+            _restore_env(dataset.EVAL_OWNER_VAR, owner)
+            os.unlink(f.name)
 
     def test_evaluation_names_are_marked(self):
         scs = dataset.evaluation_set(root=99)
         self.assertTrue(all(s.name.startswith("eval-") for s in scs))
+
+
+def _restore_env(name, value):
+    if value is None:
+        os.environ.pop(name, None)
+    else:
+        os.environ[name] = value
 
 
 class Families(unittest.TestCase):
