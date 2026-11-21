@@ -2,9 +2,10 @@
 # or cannot be fixed yet. runner/deny.toml carries the same list.
 [advisories]
 ignore = [
-  # lz4_flex 0.10 (pinned by zenoh-transport 1.9.0): the advisory is in
-  # decompression, which zenoh compiles only with its `transport_compression`
-  # feature. The runner builds zenoh without it (runner/Cargo.toml).
+  # lz4_flex 0.10 (pinned by zenoh-transport 1.9.0): linked through
+  # zenoh-transport; its decompression code, where the advisory is, is
+  # compiled only with zenoh's `transport_compression` feature, which the
+  # runner does not enable (runner/Cargo.toml).
   "RUSTSEC-2026-0041",
   # Unmaintained, no fixed version; each is pulled in by zenoh 1.9.0.
   "RUSTSEC-2026-0543", # chrono
