@@ -10,8 +10,9 @@
 `baseline` measures and writes docs/figures/perf/results.json, then the page
 docs/performance.md. `report` rewrites the page from results.json (`--check`:
 exit 1 if the committed page differs). `smoke` is CI's short run: the Python
-runner on the smoke scenario for every function and one vector command; it
-checks that they run, not their numbers. Method and the meaning of every
+engine's runner on the smoke scenario for every function and one vector
+command; it checks that they run, not their numbers. Expected outputs of the
+large scenario come from the Rust runner, as every vector does (tools/consensus.py). Method and the meaning of every
 number: tools/perf/README.md.
 """
 
@@ -30,9 +31,15 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
+sys.path.insert(1, os.path.join(ROOT, "tools"))
+import consensus  # noqa: E402  (the comparison of spec/vector-format.md)
 import scenario  # noqa: E402
 
+REFERENCE = "rust"   # the engine whose output is the expected output (as tools/consensus.py)
+
 RESULTS = os.path.join(ROOT, "docs", "figures", "perf", "results.json")
+# The pre-refactor baseline (commit ed5d55a), kept so the page can state each cell's change.
+BEFORE = os.path.join(ROOT, "docs", "figures", "perf", "results-before.json")
 DOC = os.path.join(ROOT, "docs", "performance.md")
 ENGINES = ["python", "rust", "go", "java", "cpp", "erlang", "zig"]
 FUNCTIONS = ["correlate", "filter", "fuse", "quality"]
@@ -167,15 +174,25 @@ def write_steps(work, size="large"):
     return paths, desc
 
 
-def large_tree(base, dest, steps):
+def reference_run(tree, function, pack_dir, steps_path, events_path):
+    """Run the reference engine's runner of `tree` with --trace; return its events lines."""
+    p = subprocess.run([os.path.join(tree, "engines", REFERENCE, "runner", "run"), "--function", function,
+                        "--pack", pack_dir, "--steps", steps_path, "--events", events_path, "--trace"],
+                       cwd=tree, capture_output=True, text=True)
+    if p.returncode != 0:
+        raise RuntimeError("%s runner exit %d: %s" % (REFERENCE, p.returncode, p.stderr.strip()[-500:]))
+    with open(events_path, encoding="utf-8") as fh:
+        return [json.loads(x) for x in fh if x.strip()]
+
+
+def large_tree(base, dest, steps, work):
     """A copy of the committed tree whose only scenario vectors are the large scenario,
     one per pack of LARGE_PACKS, with expected events, trace and snapshot from the
-    Python engine (as tools/make-vectors.py writes vectors). Load vectors stay."""
+    Rust runner (as the vector generators compute them, tools/consensus.py). Load vectors stay."""
     if os.path.exists(dest):
         shutil.rmtree(dest)
     shutil.copytree(base, dest, symlinks=True)
-    sys.path.insert(0, os.path.join(dest, "engines", "python", "src"))
-    import run_python
+    _run([os.path.join(base, "engines", REFERENCE, "runner", "build")], cwd=base)
     for d in os.listdir(os.path.join(dest, "packs")):
         vd = os.path.join(dest, "packs", d, "vectors")
         if os.path.isdir(vd):
@@ -184,7 +201,16 @@ def large_tree(base, dest, steps):
     for f, packs in LARGE_PACKS.items():
         doc = load_json(steps[f])
         for pack in packs:
-            vec = run_python.vector(f, os.path.join(dest, "packs", pack), doc["steps"], "perf-large", pack)
+            lines = reference_run(base, f, os.path.join(base, "packs", pack), steps[f],
+                                  os.path.join(work, "expected-%s.jsonl" % pack))
+            if len(lines) != len(doc["steps"]) + 1 or "snapshot" not in lines[-1]:
+                raise RuntimeError("%s runner: %d events lines for %d steps" % (REFERENCE, len(lines), len(doc["steps"])))
+            out = []
+            for st, line in zip(doc["steps"], lines):
+                kind = "ingest" if "ingest" in st else "tick"
+                out.append({kind: st[kind], "expect": consensus.clean(line["events"]),
+                            "trace": consensus.clean(line["trace"])})
+            vec = {"name": "perf-large", "pack": pack, "steps": out, "snapshot": consensus.clean(lines[-1]["snapshot"])}
             with open(os.path.join(dest, "packs", pack, "vectors", "perf-large.json"), "w",
                       encoding="utf-8") as fh:
                 json.dump(vec, fh, separators=(",", ":"))
@@ -368,39 +394,27 @@ def build_engine(engine, tree, work):
 
 
 def runner(engine, tree):
-    """(build argv or None, run argv) of an engine's contract runner, or None if it has none yet.
-    Python's is tools/perf/run_python.py until its IO module exists."""
+    """(build argv or None, run argv) of an engine's contract runner, or None if it has none."""
     d = os.path.join(tree, "engines", engine, "runner")
     if os.access(os.path.join(d, "run"), os.X_OK):
         b = os.path.join(d, "build")
         return ([b] if os.access(b, os.X_OK) else None), [os.path.join(d, "run")]
-    if engine == "python":
-        return None, [sys.executable, "-I", os.path.join(HERE, "run_python.py")]
     return None
 
 
 def same(got, want):
-    """Structural equality of spec/vector-format.md ("What the engine checks")."""
-    if isinstance(want, bool) or want is None or isinstance(got, bool) or got is None:
-        return got is want or (got == want and type(got) is type(want))
-    if isinstance(want, (int, float)):
-        return isinstance(got, (int, float)) and not isinstance(got, bool) and \
-            abs(got - want) <= 1e-6 * max(1.0, abs(want))
-    if isinstance(want, str):
-        return got == want
-    if isinstance(want, list):
-        return isinstance(got, list) and len(got) == len(want) and all(same(g, w) for g, w in zip(got, want))
-    if isinstance(want, dict):
-        return isinstance(got, dict) and set(got) == set(want) and all(same(got[k], want[k]) for k in want)
-    return False
+    """Equality under spec/vector-format.md ("What the engine checks"): numbers within
+    1e-6 * max(1, abs(want)), every other value exactly (tools/consensus.py)."""
+    return not consensus.differences(want, got)
 
 
 def check_events(path, ref_path):
     """None when a runner's events file equals the reference's, else where it first differs."""
     with open(path, encoding="utf-8") as a, open(ref_path, encoding="utf-8") as b:
         for i, (la, lb) in enumerate(zip(a, b)):
-            if not same(json.loads(la), json.loads(lb)):
-                return "line %d differs" % (i + 1)
+            d = consensus.differences(json.loads(lb), json.loads(la))
+            if d:
+                return "line %d differs at %s" % (i + 1, d[0][0] or "<root>")
         if a.readline() or b.readline():
             return "different number of lines"
     return None
@@ -417,9 +431,9 @@ def baseline(a):
     tree = os.path.join(work, "tree")
     commit = export_tree(tree)
     steps, desc = write_steps(os.path.join(work, "steps"))
-    print("generating the large vectors with the Python engine (expected outputs) ...", flush=True)
+    print("generating the large vectors with the %s runner (expected outputs) ..." % REFERENCE, flush=True)
     ltree = os.path.join(work, "tree-large")
-    large_tree(tree, ltree, steps)
+    large_tree(tree, ltree, steps, work)
     sizes = {pack: os.path.getsize(os.path.join(ltree, "packs", pack, "vectors", "perf-large.json"))
              for packs in LARGE_PACKS.values() for pack in packs}
 
@@ -448,7 +462,8 @@ def baseline(a):
             res["large_vectors"][e][f] = repeat(lcmds[f][0], a.large_repeats, cwd=lcmds[f][1], env=lcmds[f][2])
 
     print("== runners (engine calls only)", flush=True)
-    refs = {}
+    # The reference events: the expected outputs written by large_tree.
+    refs = {pack: os.path.join(work, "expected-%s.jsonl" % pack) for ps in LARGE_PACKS.values() for pack in ps}
     for e in engines:
         r = runner(e, tree)
         if r is None:
@@ -462,15 +477,13 @@ def baseline(a):
                 pd = os.path.join(tree, "packs", pack)
                 argv = run + ["--function", f, "--pack", pd, "--steps", steps[f]]
                 cell = dict(repeat(argv, a.large_repeats, parse=last_json), function=f)
-                # Output check: the events and trace equal the Python engine's on this input.
+                # Output check: the events and trace equal the reference runner's on this input.
                 ev = os.path.join(work, "events-%s-%s.jsonl" % (e, pack))
                 code = subprocess.run(argv + ["--events", ev, "--trace"], capture_output=True).returncode
-                if pack not in refs and e == "python":
-                    refs[pack] = ev
                 if code != 0:
                     cell["output"] = "exit %d" % code
-                elif pack in refs:
-                    cell["output"] = check_events(ev, refs[pack]) or "equal to python"
+                else:
+                    cell["output"] = check_events(ev, refs[pack]) or "equal to %s" % REFERENCE
                 res["runner"][e][pack] = cell
     res["load"] = {"start": load_start, "end": load_average()}
     os.makedirs(os.path.dirname(RESULTS), exist_ok=True)
@@ -527,7 +540,7 @@ def table(head, rows):
 
 def render(res):
     L = ["# Performance\n",
-         "Status: Measured (baseline before the refactor). Generated by "
+         "Status: Measured. Generated by "
          "`python3 -I tools/perf/perf.py baseline`; do not edit by hand. Method, the runner "
          "contract and what every number covers: [tools/perf/README.md](../tools/perf/README.md).\n"]
     m, v = res["machine"], res["versions"]
@@ -568,12 +581,13 @@ def render(res):
              "object). Packs: %s.\n" % (lg["description"], ", ".join(
                  "%s (%s)" % (", ".join("`%s`" % p for p in ps), f) for f, ps in LARGE_PACKS.items())))
     L.append("Through the vector commands: the harness writes the scenario as a vector of each pack, "
-             "with the expected events, trace and snapshot from the Python engine, into a copy of the "
+             "with the expected events, trace and snapshot from the Rust runner (as every vector, "
+             "`tools/consensus.py`), into a copy of the "
              "tree that holds no other scenario vectors, builds every engine there and times the same "
              "commands. So each number also covers parsing that vector and comparing every step; "
              "vector file sizes: %s. A cell that fails is an engine that cannot run the large "
-             "scenario today through its vector command, or whose output differs from the Python "
-             "engine's on it; the common runner of the refactor will measure it.\n" % ", ".join(
+             "scenario through its vector command, or whose output differs from the Rust "
+             "runner's on it beyond the tolerance of `spec/vector-format.md`.\n" % ", ".join(
                  "`%s` %.0f MB" % (p, s / 1e6) for p, s in sorted(lg["vector_bytes"].items())))
     lc = res["large_counts"]
     L.append("Reports per second:\n")
@@ -590,10 +604,8 @@ def render(res):
     L.append("An engine's contract runner (README.md, \"Runner contract\") times its engine calls "
              "only: every `ingest` and `tick`, and `snapshot()`, not reading or parsing the input. "
              "Reports per second here = reports / run time; peak memory is the whole runner "
-             "process. Its events and trace are checked against the Python engine's on the same "
-             "input. Today only Python has a runner (`tools/perf/run_python.py`); the six others "
-             "get theirs in the refactor (their IO module), and the harness then fills their rows "
-             "with no change.\n")
+             "process. Its events, trace and snapshot are checked against the Rust runner's on the same "
+             "input, with the comparison of `spec/vector-format.md` (numbers within 1e-6 relative).\n")
     rows = []
     for e in ENGINES:
         cells = res["runner"].get(e)
@@ -612,6 +624,8 @@ def render(res):
                          cell.get("output", "–")])
     L.append(table(["Engine", "Pack", "Reports per second", "Run, s", "Parse, s", "Peak memory, MB",
                     "Output"], rows))
+    if os.path.exists(BEFORE):
+        L.append(against_before(res, load_json(BEFORE)))
     L.append("## What each number covers\n")
     L.append(table(["Engine", "Vector command timed"], [[e, COVERS[e]] for e in engines]))
     failures = [(e, f, "large" if k == "large_vectors" else "vectors", res[k][e][f])
@@ -624,6 +638,37 @@ def render(res):
                          "`%s`" % fail_line(c.get("tail", ""))[:160].replace("|", "\\|")
                          if c.get("tail", "").strip() else "–"]
                         for e, f, which, c in failures]))
+    return "\n".join(L)
+
+
+def _median_s(cell):
+    return cell["wall_s"]["median"] if cell and cell.get("ok") else None
+
+
+def against_before(res, before):
+    """Each vector-command cell's median wall time against the pre-refactor baseline."""
+    L = ["## Against the pre-refactor baseline\n",
+         "Median wall time of each cell divided by the same cell of the baseline measured before "
+         "the refactor (commit `%s`; load average at start / end %s). Below 1.00 is faster. A cell is "
+         "marked **slower** when its fastest run now is slower than the slowest run before (the "
+         "ranges do not overlap). The two runs were on the same machine under different load, "
+         "so read a ratio near 1 as no change.\n" % (before["commit"], _load(before.get("load")))]
+    engines = [e for e in ENGINES if e in res["vectors"]]
+    for key, title in (("vectors", "Conformance vectors"), ("large_vectors", "Large scenario, vector commands")):
+        rows = []
+        for e in engines:
+            row = [e]
+            for f in FUNCTIONS:
+                a, b = res[key][e][f], before.get(key, {}).get(e, {}).get(f)
+                ma, mb = _median_s(a), _median_s(b)
+                if ma is None or mb is None:
+                    row.append("now fails" if mb is not None else ("new" if ma is not None else "–"))
+                    continue
+                slower = a["wall_s"]["min"] > b["wall_s"]["max"]
+                row.append(("**%.2f slower**" if slower else "%.2f") % (ma / mb))
+            rows.append(row)
+        L.append("%s:\n" % title)
+        L.append(table(["Engine"] + FUNCTIONS, rows))
     return "\n".join(L)
 
 
@@ -644,7 +689,7 @@ def smoke(_a):
         print("smoke scenario: " + desc)
         for f, packs in LARGE_PACKS.items():
             for pack in packs:
-                out = subprocess.run([sys.executable, "-I", os.path.join(HERE, "run_python.py"),
+                out = subprocess.run([os.path.join(ROOT, "engines", "python", "runner", "run"),
                                       "--function", f, "--pack", os.path.join(ROOT, "packs", pack),
                                       "--steps", steps[f], "--events", os.path.join(d, pack + ".jsonl")],
                                      check=True, capture_output=True, text=True).stdout

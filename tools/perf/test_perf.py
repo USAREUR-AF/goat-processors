@@ -17,10 +17,9 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 import perf  # noqa: E402
 from perf import load_json  # noqa: E402
-import run_python  # noqa: E402
 import scenario  # noqa: E402
 
-RUNNER = [sys.executable, "-I", os.path.join(HERE, "run_python.py")]
+RUNNER = [os.path.join(ROOT, "engines", "python", "runner", "run")]
 
 
 class Stats(unittest.TestCase):
@@ -62,7 +61,7 @@ class Scenario(unittest.TestCase):
 
 
 class Runner(unittest.TestCase):
-    """run_python.py implements the runner contract (README.md)."""
+    """The Python engine's runner implements the runner contract (README.md)."""
 
     def run_on(self, function, vector_path, *extra):
         v = load_json(vector_path)
@@ -104,12 +103,6 @@ class Runner(unittest.TestCase):
                                      "--steps", path], capture_output=True, text=True)
         self.assertNotEqual(r.returncode, 0)
 
-    def test_vector_writer_reproduces_committed_vector(self):
-        path = sorted(glob.glob(os.path.join(ROOT, "packs", "correlate-gnn", "vectors", "*.json")))[0]
-        v = load_json(path)
-        w = run_python.vector("correlate", os.path.join(ROOT, "packs", v["pack"]), v["steps"], v["name"], v["pack"])
-        self.assertTrue(perf.same(w, v))
-
 
 class Measure(unittest.TestCase):
     def test_measure_and_counters(self):
@@ -147,6 +140,21 @@ class Report(unittest.TestCase):
         self.assertIn("fails (exit 1)", text)
         self.assertIn("| rust | no runner yet |", text)
         self.assertIn("## Runs that did not pass", text)
+
+    def test_against_before(self):
+        def c(med, lo, hi):
+            return {"ok": True, "wall_s": {"median": med, "min": lo, "max": hi, "n": 3}}
+        fs = perf.FUNCTIONS
+        now = {"vectors": {"python": {fs[0]: c(2.0, 1.9, 2.1), fs[1]: c(1.0, 0.9, 1.1),
+                                      fs[2]: {"ok": False, "exit": 1}, fs[3]: c(1.0, 1.0, 1.0)}},
+               "large_vectors": {"python": {f: c(1.0, 1.0, 1.0) for f in fs}}}
+        before = {"commit": "old1234", "load": {"start": [1, 2, 3], "end": [1, 2, 3]},
+                  "vectors": {"python": {fs[0]: c(1.0, 0.9, 1.1), fs[1]: c(2.0, 0.8, 2.2),
+                                         fs[2]: c(1.0, 1.0, 1.0)}},
+                  "large_vectors": {"python": {f: c(1.0, 1.0, 1.0) for f in fs}}}
+        text = perf.against_before(now, before)
+        self.assertIn("`old1234`", text)
+        self.assertIn("| python | **2.00 slower** | 0.50 | now fails | new |", text)
 
 
 if __name__ == "__main__":
