@@ -29,7 +29,12 @@ GitHub release page.
   An update from 0.5.0 prints a note that the fabric keys move. `apt purge`
   removes the config, as before.
 - `install.sh` sets `peer` from the certificate's name on a first install
-  and on an update.
+  and on an update. The container image has no `install.sh`: set `peer` in
+  the mounted config (README.md, "The container image").
+- TLS errors (at start and when the revocation list is read again) name the
+  file and the kind of problem, never any of its content: before, a
+  malformed PEM line, which for the private key is key material, could be
+  quoted in the log.
 - Size limits and rotation for the output, record and audit files
   (`max_mb`, `keep`); doctor warns on a large unlimited file and a nearly
   full disk. Hardening review finding 9.

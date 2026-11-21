@@ -109,6 +109,8 @@ pipeline:
     pack: quality-feed
 outputs:
   fabric:
+    # The runner's certificate is named runner: publish under volatile/runner/.
+    peer: runner
     trace: false
   file:
     path: /var/lib/goat-processors/out.jsonl

@@ -50,7 +50,7 @@ how to troubleshoot it.
 | Operator page, Fieldkit Processors ([below](#the-operator-page-fieldkit-processors), [fieldkit/](fieldkit/README.md)) | Built. Tested: a browser drives all eight actions against a running runner, signed in with a client certificate, and checks each change through the API (`fieldkit/e2e/`); the scope guard checks every action is a CLI verb; `tests/api.rs` checks the page's headers and the cross-site refusals |
 | Container image for amd64 and arm64 ([below](#the-container-image), `packaging/container/Containerfile`) | Built. Tested: `packaging/ci-container-test.sh` runs it locked down against a mutual-TLS router with a scenario (CI on amd64 and arm64) |
 | Container image published to `ghcr.io/usareur-af/goat-processors` and signed (cosign, keyless) | Written: `runner-release.yml`; first published by the next `runner-v` tag |
-| Hardening review ([docs/hardening-review.md](docs/hardening-review.md)) | Written. Six findings fixed with tests (a crash and a stall from one report, API lockout, memory flood, hosted endpoint over plain HTTP, doctor without openssl); file growth and certificate revocation fixed in 0.6.0; one Open (the engines' unbounded wrap and parser, taken to the next spec round) |
+| Hardening review ([docs/hardening-review.md](docs/hardening-review.md)) | Written. Six findings fixed with tests (a crash and a stall from one report, API lockout, memory flood, hosted endpoint over plain HTTP, doctor without openssl); file growth, certificate revocation, and key material quoted in a TLS error fixed in 0.6.0; one Open (the engines' unbounded wrap and parser, taken to the next spec round) |
 
 ## How the runner works
 
@@ -456,6 +456,27 @@ sudo chown -R root:65532 /srv/goat-processors/etc
 sudo chmod 0750 /srv/goat-processors/etc /srv/goat-processors/etc/tls
 sudo chmod 0640 /srv/goat-processors/etc/runner.yaml /srv/goat-processors/etc/tls/*
 ```
+
+**Set the peer in that config.** The image has no `install.sh`, so nothing
+sets `peer` for you. The runner publishes under
+`volatile/<peer>/stream/processors/<name>/`, and the fabric lets it write
+only under the name in its certificate. Read that name, and write it under
+`outputs:` / `  fabric:` unless it is already the site name:
+
+```sh
+openssl x509 -in /srv/goat-processors/etc/tls/runner.pem -noout -subject   # subject=CN = site-a-processors-1
+```
+
+```yaml
+outputs:
+  fabric:
+    peer: site-a-processors-1
+```
+
+Without it, a certificate named otherwise publishes where the fabric drops
+everything: `docker logs goat-processors` shows an `ERROR: publishes under
+...` line at start, and `docker exec goat-processors goat-processors doctor`
+fails `output prefix`.
 
 **Run it locked down.** These are the flags the container proof uses: a
 read-only root file system, no Linux capabilities, no new privileges, and
