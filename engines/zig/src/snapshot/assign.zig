@@ -66,6 +66,8 @@ pub fn snapshot(eng: *Engine) !json.Value {
         .{ "next_system", st.committed.next_system },
         .{ "reported", try sortedList(eng, st.reported.keys()) },
     });
+    // correlate-assign.md 0.7: with `stale_rate`, `intervals`.
+    try snapshot_correlate.putIntervals(eng, &out.object);
     // With `restart`: the restarted entities. With `bias`: the stored pairs, keys in order.
     if (eng.pack.restart != null) try out.object.put("restarted", try sortedList(eng, st.restarted.keys()));
     if (eng.pack.bias != null) {

@@ -20,6 +20,7 @@ pub const correlate = struct {
     pub const engine = @import("correlate/engine.zig");
     pub const confirm = @import("correlate/confirm.zig");
     pub const estimate = @import("correlate/estimate.zig");
+    pub const sprt = @import("correlate/sprt.zig");
     pub const methods = @import("correlate/methods.zig");
     pub const noop_test = @import("correlate/noop_test.zig");
 };

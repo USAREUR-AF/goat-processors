@@ -28,6 +28,22 @@ pub fn putFilter(eng: *Engine, obj: *json.ObjectMap, e: Entity) !void {
     }
 }
 
+// correlate.md 1.0 "Snapshot", with `stale_rate`: `intervals`, each source
+// that has at least one interval to its list, oldest first. Both methods.
+pub fn putIntervals(eng: *Engine, obj: *json.ObjectMap) !void {
+    if (eng.pack.stale_rate == null) return;
+    const a = eng.alloc();
+    const sources = try common.sortedKeys(a, eng.intervals.keys());
+    var out = json.ObjectMap.init(a);
+    for (sources) |src| {
+        const list = eng.intervals.get(src).?;
+        var arr = json.Array.init(a);
+        for (list.items) |x| try arr.append(.{ .integer = x });
+        try out.put(src, .{ .array = arr });
+    }
+    try obj.put("intervals", .{ .object = out });
+}
+
 // Spec operation `snapshot()`, method confirm.
 pub fn confirm(eng: *Engine) !json.Value {
     const ref = try common.refValue(eng.alloc(), eng.ref);
@@ -53,11 +69,21 @@ pub fn confirm(eng: *Engine) !json.Value {
         try counts.put(try std.fmt.allocPrint(eng.alloc(), "{s}|{s}", .{ pc.a, pc.b }), .{ .integer = pc.count });
     }
 
-    return eng.object(.{
+    var out = try eng.object(.{
         .{ "ref", ref },
         .{ "entities", json.Value{ .object = entities } },
         .{ "groups", json.Value{ .object = groups } },
         .{ "counts", json.Value{ .object = counts } },
         .{ "next_group", confirm_method.state(eng).next_group },
     });
+    // correlate.md 1.0: with `sprt`, `llr`, each pair key that has an `L`.
+    if (eng.pack.sprt != null) {
+        var llr = json.ObjectMap.init(eng.alloc());
+        for (confirm_method.state(eng).llr.items) |pl| {
+            try llr.put(try std.fmt.allocPrint(eng.alloc(), "{s}|{s}", .{ pl.a, pl.b }), .{ .float = pl.l });
+        }
+        try out.object.put("llr", .{ .object = llr });
+    }
+    try putIntervals(eng, &out.object);
+    return out;
 }

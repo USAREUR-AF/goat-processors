@@ -16,6 +16,8 @@ pub const Outcome = struct {
     limit: json.Value,
     pass: bool,
     skipped: bool = false,
+    // correlate.md 1.0: the `state` test's record adds `"dof"`.
+    dof: ?i64 = null,
 };
 
 const skipped: Outcome = .{ .value = .null, .limit = .null, .pass = true, .skipped = true };
@@ -37,6 +39,36 @@ pub fn mahalanobis(a: Entity, b_pred: kalman.Filter) f64 {
     const de = a.filter.east.p - b_pred.east.p;
     const dn = a.filter.north.p - b_pred.north.p;
     return de * de / (b_pred.east.pp + a.r_east) + dn * dn / (b_pred.north.pp + a.r_north);
+}
+
+// correlate.md 1.0 "Tests", the `state` test, one axis: A's filter, A's
+// timing variance on that axis `ta`, and B's prediction (its timing variance
+// already added to `pp`). Also the evidence of "Sequential test".
+pub const StateAxis = struct { dp: f64, dv: f64, spp: f64, spv: f64, svv: f64, det: f64, q: f64 };
+
+pub fn stateAxis(a: kalman.Axis, ta: f64, b: kalman.Axis) StateAxis {
+    const dp = a.p - b.p;
+    const dv = a.v - b.v;
+    const spp = a.pp + ta + b.pp;
+    const spv = a.pv + b.pv;
+    const svv = a.vv + b.vv;
+    const det = spp * svv - spv * spv;
+    const q = (svv * dp * dp - 2.0 * spv * dp * dv + spp * dv * dv) / det;
+    return .{ .dp = dp, .dv = dv, .spp = spp, .spv = spv, .svv = svv, .det = det, .q = q };
+}
+
+// The `state` test's `probability` values and their chi-square quantiles for
+// 4 and 5 degrees of freedom (Abramowitz and Stegun 1964, table 26.8).
+pub const chi_square = [_][3]f64{
+    .{ 0.95, 9.4877, 11.0705 },
+    .{ 0.99, 13.2767, 15.0863 },
+    .{ 0.995, 14.8603, 16.7496 },
+    .{ 0.999, 18.4668, 20.5150 },
+};
+
+fn quantile(probability: f64, dof: i64) ?f64 {
+    for (chi_square) |row| if (row[0] == probability) return if (dof == 4) row[1] else row[2];
+    return null;
 }
 
 // Spec 0.2: every value comes from the last accepted report; skipped when absent or below `min_speed_ms`.
@@ -98,6 +130,8 @@ pub const Kind = struct {
     name: []const u8,
     params: []const Param,
     run: *const fn (pair: Pair, args: []const Arg) Outcome,
+    // The kind's ranges of its arguments, checked when the line is parsed.
+    check: ?*const fn (args: []const Arg) bool = null,
 };
 
 // One test of a pack line: its kind and its arguments, in the kind's parameter order.
@@ -148,6 +182,7 @@ pub const Registry = struct {
             };
         }
         for (seen) |x| if (!x) return error.MissingParam;
+        if (kind.check) |ok| if (!ok(args)) return error.BadValue;
         return .{ .kind = kind, .args = args };
     }
 };
@@ -155,12 +190,12 @@ pub const Registry = struct {
 // The builtin kinds, spec "Tests". Adding a test is one entry here.
 pub const builtin = [_]Kind{
     .{ .name = "distance", .params = &.{.{ .name = "max_m", .kind = .number }}, .run = runDistance },
-    .{ .name = "window", .params = &.{ .{ .name = "multiplier", .kind = .number }, .{ .name = "window_m", .kind = .number }, .{ .name = "err_min_m", .kind = .number }, .{ .name = "err_max_m", .kind = .number } }, .run = runWindow },
     .{ .name = "mahalanobis", .params = &.{.{ .name = "gate", .kind = .number }}, .run = runMahalanobis },
     .{ .name = "course", .params = &.{ .{ .name = "max_deg", .kind = .number }, .{ .name = "min_speed_ms", .kind = .number } }, .run = runCourse },
     .{ .name = "speed", .params = &.{ .{ .name = "max_pct", .kind = .number }, .{ .name = "min_speed_ms", .kind = .number } }, .run = runSpeed },
     .{ .name = "altitude", .params = &.{.{ .name = "max_m", .kind = .number }}, .run = runAltitude },
     .{ .name = "same", .params = &.{.{ .name = "key", .kind = .text }}, .run = runSame },
+    .{ .name = "state", .params = &.{ .{ .name = "probability", .kind = .number }, .{ .name = "hae_sigma_m", .kind = .number } }, .run = runState, .check = checkState },
 };
 
 pub const default_registry = Registry{ .kinds = &builtin };
@@ -171,18 +206,6 @@ fn runDistance(pr: Pair, args: []const Arg) Outcome {
     const max_m = args[0].number;
     const d = distance(pr.a, pr.b_pred);
     return .{ .value = num(d), .limit = num(max_m), .pass = d < max_m };
-}
-
-// The `window` test, unchanged (correlate 1.0 replaces it).
-fn runWindow(pr: Pair, args: []const Arg) Outcome {
-    const p = .{ .multiplier = args[0].number, .window_m = args[1].number, .err_min_m = args[2].number, .err_max_m = args[3].number };
-    const a = pr.a;
-    const b = pr.b;
-    const ea = std.math.clamp(a.ce(pr.filter.default_ce_m), p.err_min_m, p.err_max_m);
-    const eb = std.math.clamp(b.ce(pr.filter.default_ce_m), p.err_min_m, p.err_max_m);
-    const limit = p.multiplier * @sqrt(ea * ea + eb * eb) + p.window_m;
-    const d = distance(a, pr.b_pred);
-    return .{ .value = num(d), .limit = num(limit), .pass = d < limit };
 }
 
 fn runMahalanobis(pr: Pair, args: []const Arg) Outcome {
@@ -220,7 +243,29 @@ fn runAltitude(pr: Pair, args: []const Arg) Outcome {
     return .{ .value = num(value), .limit = num(max_m), .pass = value <= max_m };
 }
 
-// The `same` test, unchanged (correlate 1.0 replaces it).
+// correlate.md 1.0 "Tests": the full-state track-to-track statistic. `q` of
+// east plus `q` of north, 4 degrees of freedom; with both `hae`, plus
+// `dh*dh / (2*h*h)` for 5.
+fn runState(pr: Pair, args: []const Arg) Outcome {
+    const h = args[1].number;
+    const qe = stateAxis(pr.a.filter.east, pr.a.time_var_east, pr.b_pred.east).q;
+    const qn = stateAxis(pr.a.filter.north, pr.a.time_var_north, pr.b_pred.north).q;
+    var d2 = qe + qn;
+    var dof: i64 = 4;
+    if (pr.a.number("hae")) |ha| if (pr.b.number("hae")) |hb| {
+        const dh = ha - hb;
+        d2 = d2 + dh * dh / (2.0 * h * h);
+        dof = 5;
+    };
+    const limit = quantile(args[0].number, dof).?;
+    return .{ .value = num(d2), .limit = num(limit), .pass = d2 < limit, .dof = dof };
+}
+
+// `probability` one of the table's values, compared as numbers; `hae_sigma_m` above 0.
+fn checkState(args: []const Arg) bool {
+    return quantile(args[0].number, 4) != null and args[1].number > 0;
+}
+
 fn runSame(pr: Pair, args: []const Arg) Outcome {
     const key = args[0].text;
     const va = pr.a.sameValue(key);
