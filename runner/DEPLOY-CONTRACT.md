@@ -11,7 +11,7 @@ Status: Written, for release `runner-v0.1.0` and later `0.x` releases. `runner-v
 |---|---|
 | release | a tag `runner-v<version>`; the tool pins one version |
 | architecture | `amd64` or `arm64`, from `dpkg --print-architecture` |
-| host | Ubuntu 24.04 with systemd, installed by the host-class OS baseline |
+| host | Ubuntu 24.04 (or 22.04: the package is built on 22.04, glibc 2.35) with systemd, installed by the host-class OS baseline |
 | config | one file, `runner.yaml`, written by the tool (README.md, Configure, lists every key) |
 | certificates | three PEM files: site CA, runner certificate, runner key |
 

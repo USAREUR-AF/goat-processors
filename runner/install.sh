@@ -1,5 +1,5 @@
 #!/bin/sh
-# install.sh: from Ubuntu Server 24.04 to a running, healthy goat-processors runner.
+# install.sh: from Ubuntu Server 22.04 or 24.04 to a running, healthy goat-processors runner.
 #
 # It does the steps of runner/INSTALL.md, in the same order, and can be run
 # again at any time: a step that is already done is skipped. It prints each
@@ -66,8 +66,8 @@ step 1 "check this machine"
 os_id=$(. /etc/os-release && echo "${ID:-}")
 # shellcheck source=/dev/null
 os_version=$(. /etc/os-release && echo "${VERSION_ID:-}")
-if [ "$os_id" != ubuntu ] || [ "$os_version" != 24.04 ]; then
-  printf '   warning: this is %s %s; the package is built and tested for Ubuntu 24.04\n' "$os_id" "$os_version"
+if [ "$os_id" != ubuntu ] || { [ "$os_version" != 24.04 ] && [ "$os_version" != 22.04 ]; }; then
+  printf '   warning: this is %s %s; the package is built and tested for Ubuntu 22.04 and 24.04\n' "$os_id" "$os_version"
 fi
 arch=$(dpkg --print-architecture)
 case "$arch" in amd64|arm64) ok "Ubuntu $os_version, $arch" ;; *) fail "architecture $arch is not supported" "use an amd64 or arm64 machine" ;; esac
