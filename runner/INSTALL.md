@@ -50,7 +50,7 @@ with SSH as a user who may use `sudo`.
 | the router's name and port | `router.site-a:7447` | the site's fabric administrator |
 | the site name to use | `site-a` | the site's fabric administrator |
 | three certificate files, PEM | `ca.pem`, `runner.pem`, `runner.key` | the site's certificate authority, issued for this runner |
-| the release version | `0.3.1` | the [releases page](https://github.com/USAREUR-AF/goat-processors/releases) (tags `runner-v…`) |
+| the release version | `0.4.0` | the [releases page](https://github.com/USAREUR-AF/goat-processors/releases) (tags `runner-v…`) |
 
 ## Two ways
 
@@ -97,24 +97,24 @@ machine is on.
 ## 2. Get the release
 
 Make a directory and download the five files of the release (replace
-`0.3.1` and `amd64` with yours). Keep this shell open until step 4: the
+`0.4.0` and `amd64` with yours). Keep this shell open until step 4: the
 names `V` and `A` set here are used in steps 3 and 4, and a new shell
 forgets them. In a new shell, type the `V=… A=…` line again first.
 
 ```
 $ mkdir ~/goat-processors && cd ~/goat-processors
-$ V=0.3.1 A=amd64
+$ V=0.4.0 A=amd64
 $ B=https://github.com/USAREUR-AF/goat-processors/releases/download/runner-v$V
 $ for f in goat-processors_${V}_$A.deb goat-processors_${V}_$A.deb.sigstore.json install.sh install-card.pdf SHA256SUMS; do curl -fLO $B/$f; done
 $ ls
-goat-processors_0.3.1_amd64.deb  goat-processors_0.3.1_amd64.deb.sigstore.json  install-card.pdf  install.sh  SHA256SUMS
+goat-processors_0.4.0_amd64.deb  goat-processors_0.4.0_amd64.deb.sigstore.json  install-card.pdf  install.sh  SHA256SUMS
 ```
 
 **If not:** if `curl` reports 404, check the version on the releases page.
 If the machine has no internet access, download the files on another
 computer and copy them over with `scp`. If the repository is private to
 you, download with the GitHub command-line tool on a computer where you are
-signed in: `gh release download runner-v0.3.1 -R USAREUR-AF/goat-processors`.
+signed in: `gh release download runner-v0.4.0 -R USAREUR-AF/goat-processors`.
 
 ## 3. Check the release signature
 
@@ -122,7 +122,7 @@ First the checksum: it proves the files are complete.
 
 ```
 $ sha256sum -c --ignore-missing SHA256SUMS
-goat-processors_0.3.1_amd64.deb: OK
+goat-processors_0.4.0_amd64.deb: OK
 install.sh: OK
 install-card.pdf: OK
 ```
@@ -155,7 +155,7 @@ $ sudo apt install ./goat-processors_${V}_$A.deb
 goat-processors: edit /etc/goat-processors/runner.yaml, then run
   sudo goat-processors config check && sudo systemctl enable --now goat-processors
 $ goat-processors version
-goat-processors 0.3.1
+goat-processors 0.4.0
 $ goat-processors selftest
 121 of 121 vectors under /usr/share/goat-processors/packs replay exactly
 ```
@@ -283,7 +283,7 @@ The runner's state, pipeline and counters:
 
 ```
 $ goat-processors status
-processors-1 at site-a: running (version 0.3.1, clock wall, tick 1000 ms)
+processors-1 at site-a: running (version 0.4.0, clock wall, tick 1000 ms)
 pipeline: correlate = correlate-assign-time, quality = quality-feed
 reports in 1840, passed 1840, ticks 95, published 2210, unreadable 0, dropped while stopped 0
   adsb                     920
