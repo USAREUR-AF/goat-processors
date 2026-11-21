@@ -150,6 +150,12 @@ fn every_route_and_verb() {
     assert!(prom.contains("goat_processors_reports_in_total{source=\"adsb\"}"), "{prom}");
     assert!(prom.contains("# TYPE goat_processors_system_tracks_multi_source gauge"), "{prom}");
     assert!(prom.contains("goat_processors_events_total{function=\"correlate\""), "{prom}");
+    // quality events about a source are labeled with each measure they carry, never empty
+    assert!(!prom.contains("ev=\"quality\",what=\"\""), "a quality event counted with an empty measure label: {prom}");
+    assert!(
+        prom.lines().any(|l| l.starts_with("goat_processors_quality_source_events_total{") && l.contains("ev=\"quality\",what=\"") && !l.contains("what=\"\"")),
+        "no quality event counted under a measure name: {prom}"
+    );
 
     // tracks and explain: the two sources are one system track, explained by its trace
     let tr = svc.get("/v1/tracks");
