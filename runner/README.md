@@ -48,7 +48,7 @@ how to troubleshoot it.
 | Operator page, Fieldkit Processors ([below](#the-operator-page-fieldkit-processors), [fieldkit/](fieldkit/README.md)) | Built. Tested: a browser drives all eight actions against a running runner, signed in with a client certificate, and checks each change through the API (`fieldkit/e2e/`); the scope guard checks every action is a CLI verb; `tests/api.rs` checks the page's headers and the cross-site refusals |
 | Container image for amd64 and arm64 ([below](#the-container-image), `packaging/container/Containerfile`) | Built. Tested: `packaging/ci-container-test.sh` runs it locked down against a mutual-TLS router with a scenario (CI on amd64 and arm64) |
 | Container image published to `ghcr.io/usareur-af/goat-processors` and signed (cosign, keyless) | Written: `runner-release.yml`; first published by the next `runner-v` tag |
-| Hardening review ([docs/hardening-review.md](docs/hardening-review.md)) | Written. Six findings fixed with tests (a crash and a stall from one report, API lockout, memory flood, hosted endpoint over plain HTTP, doctor without openssl); three Open (the engines' unbounded wrap and parser, file growth, certificate revocation) |
+| Hardening review ([docs/hardening-review.md](docs/hardening-review.md)) | Written. Six findings fixed with tests (a crash and a stall from one report, API lockout, memory flood, hosted endpoint over plain HTTP, doctor without openssl); file growth fixed in 0.6.0 (size limits and rotation); two Open (the engines' unbounded wrap and parser, certificate revocation) |
 
 ## How the runner works
 
@@ -143,12 +143,16 @@ exits 1. The service runs the same check before it starts.
 | `outputs.fabric.heartbeat_ms` | no | `5000` | with `layout: batch`, the longest time between two publishes of an unchanged set, input-clock milliseconds |
 | `outputs.file.path` | no | | append one JSON line per stage per step; must be under `/var/lib/goat-processors` |
 | `outputs.file.trace` | no | `false` | include the trace in those lines |
+| `outputs.file.max_mb` | no | no limit | size limit in MiB: past it the file is renamed `<path>.1` (an older `.1` becomes `.2`, and so on) and a new file starts; a line is never split |
+| `outputs.file.keep` | no | `1` | how many older copies to keep, 0 to 9; the oldest is removed |
 | `record.path` | no | | append every ingest and tick (replay format); under `/var/lib/goat-processors` |
+| `record.max_mb`, `record.keep` | no | no limit, `1` | as for `outputs.file`. A replay of a rotated record starts from that file's first line, so keep enough copies to cover the time you may need to replay |
 | `status_file` | no | `/run/goat-processors/status.json` | the status the service writes after each tick, read by `doctor` |
 | `api.enabled` | no | `true` | serve the API |
 | `api.listen` | no | `127.0.0.1:8470` | the local listener; a loopback address only (it is plain HTTP) |
 | `api.token_file` | no | `/run/goat-processors/api.token` | the token a local caller shows to change anything; the service writes a new one at each start, readable by root only |
 | `api.audit_file` | no | `/var/lib/goat-processors/audit.jsonl` | every change and every refused request, one JSON line each |
+| `api.audit_max_mb`, `api.audit_keep` | no | no limit, `1` | as for `outputs.file`. `goat-processors audit` reads the current file only |
 | `api.mesh.listen` | no | | `<ip>:<port>` for callers on other hosts, over mutual TLS |
 | `api.metrics_listen` | no | off | `<mesh ip>:<port>` that serves only `GET /metrics` (the Prometheus text), plain HTTP with no caller check, for an obs host's scraper. `config check` refuses an address that listens on every interface |
 | `api.mesh.tls` | no | the `fabric.tls` files | `root_ca` (signs callers' certificates), `certificate`, `private_key` |
@@ -437,6 +441,8 @@ each FAIL is followed by its fix. Doctor changes nothing.
 | `service` warn: unreadable inputs | samples on the input keys are not reports, or hold a value out of range | see the first ones with `sudo journalctl -u goat-processors`; correct the key expression or the publisher |
 | `service` warn: reports dropped because the service was behind its inputs | reports arrived faster than the pipeline ran, and more than 65536 waited; the fabric and UDP inputs dropped the rest (`counters.dropped_backlog`) | check the host's load (`top`) and each source's rate (`goat-processors metrics`); a source that floods the input is the usual cause |
 | `service` warn: the running pipeline differs | the config was edited but not applied, or an operator ran `pack use` | to keep the running packs, write them in the config; to return to the config, `sudo systemctl restart goat-processors` |
+| `files` warn: a file has no size limit | an output, record or audit file without `max_mb` has passed 1 GiB | set its `max_mb` and `keep` in the config, then `sudo systemctl restart goat-processors` |
+| `files` warn: the disk is 90% full or more | the disk holding a file the service writes is nearly full; when it is full, writes fail (`output_errors`) | free space there, or set `max_mb` on the files |
 | `api` FAIL: the API does not answer | the service is not running, or failed to open its API port | `sudo journalctl -u goat-processors -n 50`; another program may hold port 8470 (`api.listen`) |
 | `api` FAIL: not healthy: paused | an operator ran `goat-processors stop` | `sudo goat-processors start` |
 

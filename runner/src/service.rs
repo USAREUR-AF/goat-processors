@@ -17,8 +17,6 @@
 //! `goat-processors replay <record>` gives the same output.
 
 use std::collections::{BTreeMap, VecDeque};
-use std::fs::{File, OpenOptions};
-use std::io::Write;
 use std::net::UdpSocket;
 use std::sync::mpsc::{sync_channel, RecvTimeoutError, SyncSender, TrySendError};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -35,20 +33,14 @@ pub fn wall_ms() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
 }
 
-fn append(path: &std::path::Path) -> Result<File, String> {
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
-    OpenOptions::new().create(true).append(true).open(path).map_err(|e| format!("cannot open {} for writing: {e}", path.display()))
-}
 
 struct Sinks {
     fabric: Option<fabric::Session>,
     prefix: String,
     fabric_trace: bool,
     batch: Option<Batch>,
-    file: Option<(File, bool)>,
-    record: Option<File>,
+    file: Option<(crate::rotate::Rotating, bool)>,
+    record: Option<crate::rotate::Rotating>,
     errors: u64,
     published: u64,
 }
@@ -112,13 +104,13 @@ impl Batch {
 impl Sinks {
     fn emit(&mut self, n: usize, step: &Step, out: &Output) {
         if let Some(rec) = self.record.as_mut() {
-            if writeln!(rec, "{}", step.to_line()).is_err() {
+            if rec.line(&step.to_line()).is_err() {
                 self.errors += 1;
             }
         }
         if let Some((f, trace)) = self.file.as_mut() {
             for l in replay::output_lines(n, step, out, *trace) {
-                if writeln!(f, "{l}").is_err() {
+                if f.line(&l).is_err() {
                     self.errors += 1;
                 }
             }
@@ -962,11 +954,11 @@ pub fn run(c: Config) -> Result<(), String> {
             next_number: 1,
         }),
         file: match &c.outputs.file {
-            Some(f) => Some((append(&f.path)?, f.trace)),
+            Some(f) => Some((crate::rotate::Rotating::open(&f.path, f.max_mb, f.keep)?, f.trace)),
             None => None,
         },
         record: match &c.record {
-            Some(r) => Some(append(&r.path)?),
+            Some(r) => Some(crate::rotate::Rotating::open(&r.path, r.max_mb, r.keep)?),
             None => None,
         },
         errors: 0,

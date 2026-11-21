@@ -34,7 +34,7 @@ safely), or **Open** (not fixed; the next step is named).
 | 6 | `doctor` needed the openssl command to check certificates | Low | Fixed |
 | 7 | The engines' longitude wrap and JSON parser have no bound | High (engines) | Open: reported to the engines' owner |
 | 8 | UDP input accepts reports from anyone who reaches it | Medium | Documented |
-| 9 | Output, record and audit files grow without limit | Medium | Open |
+| 9 | Output, record and audit files grow without limit | Medium | Fixed in 0.6.0 |
 | 10 | No certificate revocation on the mesh API | Low | Open |
 | 11 | The mesh role follows the certificate's common name alone | Low | Documented |
 | 12 | In the container, anyone who can `docker exec` operates the runner | Low | Documented |
@@ -110,14 +110,15 @@ has no sender check, so the listen address is the only control. The README's
 config table now says to bind it to `127.0.0.1` or an interface that only
 trusted senders reach, and to prefer the fabric for reports from other hosts.
 
-**9. Output, record and audit files grow without limit (Open).**
-`outputs.file`, `record` and `api.audit_file` are appended to forever. With
-trace on, `outputs.file` grows fastest. A full disk stops the writes
-(`output_errors`) and fills the state directory. The runner keeps each file
-open and does not reopen it, so an outside rotation that renames the file
-does not work; `copytruncate` does, at the cost of a few lost lines. Next:
-a size limit with one rotated copy per file, in the config, and a `doctor`
-warning when the state directory's disk is nearly full.
+**9. Output, record and audit files grow without limit (Fixed in 0.6.0).**
+`outputs.file`, `record` and `api.audit_file` were appended to forever, and
+a full disk stopped the writes (`output_errors`). Each now takes an
+optional size limit (`max_mb`) and a number of older copies to keep
+(`keep`, 0 to 9): past the limit the file is renamed `<path>.1` and a new
+one starts, never splitting a line. Without a limit a file grows as before;
+`doctor` warns when such a file passes 1 GiB, and when the disk holding a
+file is 90% full (where the host has `df`). Tests: `rotate::tests` and
+`file_size_limits_are_checked` in `tests/api.rs`.
 
 **10. No certificate revocation on the mesh API (Open).** The mesh listener
 checks that the site CA signed a certificate but reads no revocation list.

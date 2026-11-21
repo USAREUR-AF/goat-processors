@@ -209,6 +209,12 @@ pub struct Api {
     /// appended here as one JSON line.
     #[serde(default = "default_audit_file")]
     pub audit_file: PathBuf,
+    /// Size limit of the audit file in MiB, as for `outputs.file`. No limit
+    /// when absent.
+    #[serde(default)]
+    pub audit_max_mb: Option<u64>,
+    #[serde(default = "default_keep")]
+    pub audit_keep: u32,
     #[serde(default)]
     pub mesh: Option<ApiMesh>,
     /// An address and port that serves only `GET /metrics` (the Prometheus
@@ -221,7 +227,7 @@ pub struct Api {
 
 impl Default for Api {
     fn default() -> Self {
-        Api { enabled: true, listen: default_api_listen(), token_file: default_token_file(), audit_file: default_audit_file(), mesh: None, metrics_listen: None }
+        Api { enabled: true, listen: default_api_listen(), token_file: default_token_file(), audit_file: default_audit_file(), audit_max_mb: None, audit_keep: default_keep(), mesh: None, metrics_listen: None }
     }
 }
 
@@ -399,6 +405,13 @@ pub struct FileOutput {
     pub path: PathBuf,
     #[serde(default)]
     pub trace: bool,
+    /// Size limit in MiB: past it the file becomes `<path>.1` and a new one
+    /// starts. No limit when absent.
+    #[serde(default)]
+    pub max_mb: Option<u64>,
+    /// How many older copies to keep (`<path>.1` to `<path>.<keep>`), 0 to 9.
+    #[serde(default = "default_keep")]
+    pub keep: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -407,6 +420,17 @@ pub struct Record {
     /// Appends every input and every tick, in the replay format, so that
     /// `goat-processors replay` reproduces the run exactly.
     pub path: PathBuf,
+    /// Size limit in MiB, as for `outputs.file`. A replay of a rotated
+    /// record starts from that file's first line, not from the start of
+    /// the run.
+    #[serde(default)]
+    pub max_mb: Option<u64>,
+    #[serde(default = "default_keep")]
+    pub keep: u32,
+}
+
+fn default_keep() -> u32 {
+    1
 }
 
 fn default_packs_dir() -> PathBuf {
@@ -600,6 +624,25 @@ pub fn check(c: &Config) -> Vec<String> {
                     }
                 }
             }
+        }
+    }
+
+    // Size limits of the files the service appends to.
+    let mut limits: Vec<(&str, Option<u64>, u32)> = vec![("api.audit_max_mb", c.api.audit_max_mb, c.api.audit_keep)];
+    if let Some(f) = &c.outputs.file {
+        limits.push(("outputs.file.max_mb", f.max_mb, f.keep));
+    }
+    if let Some(r) = &c.record {
+        limits.push(("record.max_mb", r.max_mb, r.keep));
+    }
+    for (name, max, keep) in limits {
+        if max == Some(0) {
+            p.push(format!("{name}: 0. Give the size limit in MiB, 1 or more, or leave it out for no limit."));
+        }
+        if keep > crate::rotate::MAX_KEEP {
+            let k = name.trim_end_matches("max_mb").trim_end_matches('_').trim_end_matches('.');
+            let k = if name.starts_with("api.") { "api.audit_keep".to_string() } else { format!("{k}.keep") };
+            p.push(format!("{k}: {keep}. Keep 0 to {} older copies.", crate::rotate::MAX_KEEP));
         }
     }
 

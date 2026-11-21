@@ -13,6 +13,7 @@ mod model;
 mod pipeline;
 mod proposals;
 mod replay;
+mod rotate;
 mod selftest;
 mod service;
 

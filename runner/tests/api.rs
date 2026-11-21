@@ -411,6 +411,24 @@ fn hostile_reports_are_refused_and_the_runner_stays_up() {
 }
 
 #[test]
+fn file_size_limits_are_checked() {
+    let d = tmp("size-limits");
+    let cfg = format!(
+        "name: t\nsite: s\npacks_dir: {}\ninputs:\n  udp:\n    - listen: \"127.0.0.1:{}\"\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\noutputs:\n  file: {{path: {d}/out.jsonl, max_mb: 0}}\nrecord: {{path: {d}/rec.jsonl, max_mb: 5, keep: 10}}\nstatus_file: {d}/status.json\napi:\n  audit_max_mb: 16\n  audit_keep: 3\n",
+        repo().join("packs").display(),
+        free_port(),
+        d = d.display()
+    );
+    std::fs::write(d.join("r.yaml"), cfg).unwrap();
+    let out = bin().args(["config", "check", "-c"]).arg(d.join("r.yaml")).output().unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(!out.status.success(), "{text}");
+    assert!(text.contains("outputs.file.max_mb: 0"), "{text}");
+    assert!(text.contains("record.keep: 10"), "{text}");
+    assert!(!text.contains("audit"), "the audit limits are valid: {text}");
+}
+
+#[test]
 fn hosted_endpoint_over_plain_http_is_refused() {
     let d = tmp("hosted-http");
     let cfg = format!(

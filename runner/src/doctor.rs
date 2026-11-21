@@ -62,6 +62,7 @@ pub fn run(config_path: &Path) -> Vec<Finding> {
     };
     out.extend(certificate_checks(&c));
     out.extend(fabric_checks(&c));
+    out.extend(file_checks(&c));
     out.extend(service_checks(Some(&c)));
     out
 }
@@ -252,6 +253,44 @@ fn fabric_checks(c: &Config) -> Vec<Finding> {
 }
 
 /// Reads the status file the service writes after every tick.
+/// A file the service appends to without a size limit that has grown past
+/// 1 GiB, and a disk holding one of those files that is 90% full or more.
+fn file_checks(c: &Config) -> Vec<Finding> {
+    let mut files: Vec<(&Path, Option<u64>, &str)> = vec![(&c.api.audit_file, c.api.audit_max_mb, "api.audit_max_mb")];
+    if let Some(f) = &c.outputs.file {
+        files.push((&f.path, f.max_mb, "outputs.file.max_mb"));
+    }
+    if let Some(r) = &c.record {
+        files.push((&r.path, r.max_mb, "record.max_mb"));
+    }
+    let mut out = Vec::new();
+    let mut disks_seen = Vec::new();
+    for (path, max, key) in files {
+        let Ok(m) = std::fs::metadata(path) else { continue };
+        if max.is_none() && m.len() > 1 << 30 {
+            out.push(f("files", Level::Warn, format!("{} is {} MiB and has no size limit", path.display(), m.len() >> 20), format!("set {key} (and how many copies to keep) in the config, then restart the service")));
+        }
+        if let Some((mount, pct)) = disk_use(path) {
+            if pct >= 90 && !disks_seen.contains(&mount) {
+                out.push(f("files", Level::Warn, format!("the disk holding {} ({mount}) is {pct}% full", path.display()), "free space there, or set size limits on the files the service writes (max_mb)"));
+                disks_seen.push(mount);
+            }
+        }
+    }
+    out
+}
+
+/// The mount point and percentage used of the disk holding `path`, from
+/// `df`. None where `df` is missing (the container image).
+fn disk_use(path: &Path) -> Option<(String, u32)> {
+    let o = Command::new("df").args(["--output=target,pcent"]).arg(path).output().ok()?;
+    let text = String::from_utf8_lossy(&o.stdout);
+    let line = text.lines().nth(1)?;
+    let mut parts = line.split_whitespace();
+    let (target, pct) = (parts.next()?, parts.next()?);
+    Some((target.to_string(), pct.trim_end_matches('%').parse().ok()?))
+}
+
 pub fn read_status(path: &Path) -> Option<Json> {
     json::parse(&std::fs::read_to_string(path).ok()?).ok()
 }
