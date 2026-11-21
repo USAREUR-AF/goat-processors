@@ -1,9 +1,10 @@
-// spec/correlate-assign.md (version 0.6): system tracks, per-source ranked
+// spec/correlate-assign.md (version 0.7): system tracks, per-source ranked
 // assignments at each tick, a window of `n` ticks over the best `k` histories
 // (kept within `margin` of the best), the inverse-variance fused estimate, the
 // leave of a restarted entity (correlate.md 0.7 "Restart") and the update of
 // the sensor bias offsets with their clock offsets (`bias.zig`), and the
-// timing variance of correlate.md 0.8 in the Cost.
+// timing variance of correlate.md 0.8 in the Cost. Staleness reads the
+// engine's stale time of a source (`stale_ms`, or correlate.md 1.0 `stale_rate`).
 const std = @import("std");
 const json = std.json;
 const Allocator = std.mem.Allocator;
@@ -138,7 +139,7 @@ pub fn moveIntoFrame(eng: *Engine, a: Entity, b: Entity, b_pred: kalman.Filter) 
 }
 
 // correlate-assign.md "Pack": the ranges, after the required and refused directives.
-pub fn checkPack(pack: pack_mod.Pack) pack_mod.Error!void {
+pub fn checkPack(pack: pack_mod.Pack, _: pack_mod.Seen) pack_mod.Error!void {
     // correlate-assign.md 0.2 "Pack": ranges of `new_cost` and `keep_bonus`.
     if (!(pack.new_cost > 0 and pack.keep_bonus >= 0)) return error.BadValue;
     // correlate-assign.md 0.4 "Pack": `window` and `hypotheses` 1 or above;
@@ -387,10 +388,10 @@ fn historyRecord(eng: *Engine, res: *Result, a: json.Value, b: json.Value, test_
     }));
 }
 
+// correlate.md "On each tick", Staleness (the stale time of the entity's
+// source, `stale_ms` or `stale_rate`).
 fn isStale(eng: *Engine, key: []const u8, now_ms: i64) bool {
-    const e = eng.entities.get(key).?;
-    const own_stale = if (e.integer("stale_ms")) |s| now_ms >= s else false;
-    return now_ms - e.last_time_ms > eng.pack.stale_ms or own_stale;
+    return eng.isStale(eng.entities.get(key).?, now_ms);
 }
 
 // "Window", on each tick.

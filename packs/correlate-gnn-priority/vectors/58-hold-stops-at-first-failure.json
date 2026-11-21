@@ -1,6 +1,6 @@
 {
- "name": "18-window-hold-stops-at-first-failure",
- "pack": "correlate-window",
+ "name": "58-hold-stops-at-first-failure",
+ "pack": "correlate-gnn-priority",
  "snapshot": {
   "counts": {
    "ais/M1|radar-1/S4": 0
@@ -31,7 +31,7 @@
     "filter": {
      "east": [
       8673.684223638495,
-      327.7858442004494,
+      327.78584420044945,
       7894.736842105282,
       526.3157894736818,
       118.17474721285978
@@ -97,20 +97,11 @@
     {
      "a": "radar-1/S4",
      "b": "ais/M1",
-     "limit": 1041.4213562373095,
+     "limit": 9.21,
      "pass": true,
      "stage": "gate",
-     "test": "window",
-     "value": 99.9999604832469
-    },
-    {
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "limit": 0,
-     "pass": true,
-     "stage": "gate",
-     "test": "same",
-     "value": 0
+     "test": "mahalanobis",
+     "value": 0.499999604832547
     },
     {
      "a": "radar-1/S4",
@@ -120,36 +111,6 @@
      "stage": "gate",
      "test": "same",
      "value": "S"
-    },
-    {
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "limit": null,
-     "pass": true,
-     "skipped": true,
-     "stage": "confirm",
-     "test": "course",
-     "value": null
-    },
-    {
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "limit": null,
-     "pass": true,
-     "skipped": true,
-     "stage": "confirm",
-     "test": "speed",
-     "value": null
-    },
-    {
-     "a": "radar-1/S4",
-     "b": "ais/M1",
-     "limit": null,
-     "pass": true,
-     "skipped": true,
-     "stage": "confirm",
-     "test": "altitude",
-     "value": null
     },
     {
      "a": "radar-1/S4",
@@ -187,20 +148,11 @@
     {
      "a": "ais/M1",
      "b": "radar-1/S4",
-     "limit": 1041.4213562373095,
+     "limit": 9.21,
      "pass": true,
      "stage": "gate",
-     "test": "window",
-     "value": 99.9999604832469
-    },
-    {
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "limit": 0,
-     "pass": true,
-     "stage": "gate",
-     "test": "same",
-     "value": 0
+     "test": "mahalanobis",
+     "value": 0.009779943370807766
     },
     {
      "a": "ais/M1",
@@ -210,36 +162,6 @@
      "stage": "gate",
      "test": "same",
      "value": "S"
-    },
-    {
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "limit": null,
-     "pass": true,
-     "skipped": true,
-     "stage": "confirm",
-     "test": "course",
-     "value": null
-    },
-    {
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "limit": null,
-     "pass": true,
-     "skipped": true,
-     "stage": "confirm",
-     "test": "speed",
-     "value": null
-    },
-    {
-     "a": "ais/M1",
-     "b": "radar-1/S4",
-     "limit": null,
-     "pass": true,
-     "skipped": true,
-     "stage": "confirm",
-     "test": "altitude",
-     "value": null
     },
     {
      "a": "ais/M1",
@@ -277,11 +199,11 @@
     {
      "a": "radar-1/S4",
      "b": "ais/M1",
-     "limit": 1562.1320343559642,
+     "limit": 18.42,
      "pass": false,
      "stage": "hold",
-     "test": "window",
-     "value": 4987.931059691637
+     "test": "mahalanobis",
+     "value": 387.1662744716344
     }
    ]
   },
@@ -313,11 +235,11 @@
     {
      "a": "radar-1/S4",
      "b": "ais/M1",
-     "limit": 1562.1320343559642,
+     "limit": 18.42,
      "pass": false,
      "stage": "hold",
-     "test": "window",
-     "value": 8673.684223638495
+     "test": "mahalanobis",
+     "value": 400.1328268746515
     }
    ]
   }

@@ -128,7 +128,7 @@
     {
      "a": "adsb/A7",
      "b": "radar-1/T1",
-     "limit": 45.0,
+     "limit": 60.0,
      "pass": false,
      "stage": "confirm",
      "test": "course",
@@ -190,7 +190,7 @@
     {
      "a": "radar-1/T1",
      "b": "adsb/A7",
-     "limit": 45.0,
+     "limit": 60.0,
      "pass": false,
      "stage": "confirm",
      "test": "course",
@@ -252,7 +252,7 @@
     {
      "a": "adsb/A7",
      "b": "radar-1/T1",
-     "limit": 45.0,
+     "limit": 60.0,
      "pass": false,
      "stage": "confirm",
      "test": "course",

@@ -66,7 +66,7 @@
    "radar-2/R2": {
     "filter": {
      "east": [
-      52.00001947540599,
+      52.000019475406006,
       0.0,
       900.0,
       0.0,
@@ -324,7 +324,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 1.5022233474681126
+     "value": 1.5022233474681133
     },
     {
      "a": "radar-2/R2",
@@ -351,7 +351,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 2.6911972540103397
+     "value": 2.6911972540103406
     },
     {
      "a": "radar-2/R2",
@@ -405,7 +405,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 1.5022233474681126
+     "value": 1.5022233474681133
     },
     {
      "a": "radar-2/R2",
@@ -414,7 +414,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 2.6911972540103397
+     "value": 2.6911972540103406
     },
     {
      "a": "radar-2/R2",
@@ -441,7 +441,7 @@
      "pass": true,
      "stage": "assign",
      "test": "choice",
-     "value": 1.5022233474681126
+     "value": 1.5022233474681133
     }
    ]
   }

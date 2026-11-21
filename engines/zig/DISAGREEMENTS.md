@@ -2,9 +2,10 @@
 
 ## Vectors that contradict the specification
 
-None. Every load vector (01 to 73) and every scenario vector (01 to 56)
-agrees with `spec/correlate.md` 0.8 and `spec/correlate-assign.md` 0.6 as
-this engine reads them.
+None. Every load vector (01 to 90) and every scenario vector (the 59 files
+numbered 01 to 63 under `packs/correlate-*/vectors/`) agrees with
+`spec/correlate.md` 1.0 and `spec/correlate-assign.md` 0.7 as this engine
+reads them.
 
 ## Filter: vectors that contradict `filter.md` 0.1
 
@@ -21,7 +22,7 @@ None. Every filter load vector (01 to 50) and every filter scenario vector
 | Differences of two times (`near` age, `interval`, tick `age`) that overflow int64 | Computed in i128; a trace value outside int64 is written as a float. |
 | `version` | Any single token is accepted (load vector 03 uses `version 1`); no semver check. |
 
-## Points `correlate-assign.md` 0.6 leaves open
+## Points `correlate-assign.md` 0.7 leaves open
 
 None found. (The gate-record order left open in 0.2 is now stated in Trace.)
 Readings this engine takes where the text could be read more than one way:
@@ -32,17 +33,31 @@ Readings this engine takes where the text could be read more than one way:
 | `time` in an entity of the `assign` snapshot | Written as in `correlate.md` Snapshot (the entity's `filter` "as in `correlate.md`"); scenario vector 56 agrees. |
 | The bias `offset` record of a pair not accepted, with `time_offset` | `time_offset_ms` is the stored `tau` (0 for a pair with no stored state), the state after step 3 as for `east` and `north`. |
 | A restarted entity that is also stale at the tick | It leaves with reason `stale` and gets `drop`; it gives no `leave` with reason `restart` (Window step 1, "that is not stale"). |
+| Sensor bias still names "the `distance`, `window` and `mahalanobis` tests" | Editorial, for the spec owner: the `window` test is retired in `correlate.md` 1.0 and does not load (load vector 74), so no assign pack can hold one. The move applies to every test this engine runs, through the method's comparison hook. |
 
-## Points `correlate.md` 0.8 leaves open
+## Points `correlate.md` 1.0 leaves open
 
 | Point | This engine |
 |---|---|
+| A velocity so large that a prediction lands far outside the plane | The same loop, reached from the output: a `speed_ms` of 1.2e29 (a JSON integer too long for int64, read as a number) gives a prediction about 1e24 m east, and `toDegrees` wraps its longitude for ever. The report fuzzer found it when the 1.0 packs changed which random reports each pack gets; it now gives `speed_ms` no such value, as it already gives `lat` and `lon` none. Same question for proc-coord. |
 | A longitude far outside [-180, 180] (found by the refactor's report fuzzer) | "Frame" brings `lon - lon0` into (-180, 180] "by adding or subtracting 360", and this engine does that in a loop, as written: a longitude of 1e12 takes about 3e9 steps, and one of 1e300 never ends (1e300 - 360 is 1e300 in binary64). Every function that uses the Frame (correlate, fuse, quality, and filter's Geometry) shares it. A remainder (`fmod`) would end, but it is not the formula written and could round differently, so the refactor did not change it. For proc-coord: should a report with `abs(lon) > 180` (or not finite) be rejected, or the wrap be defined as a remainder? |
 | A `time_error_ms` written as an integer literal outside the signed 64-bit range | `std.json` keeps it as a number string, read as the nearest binary64: a number, so present when finite. |
 | A `time_default` source id that holds `=` | Not a source id ("a first token without `=`"): a load error. |
 | The prediction a later report's measurement variance and its Restart test read | One prediction of the entity to the report's `time_ms`, taken before the update, serves both. |
 | An integer literal outside the signed 64-bit range | `std.json` does not return it as an integer, so it is the wrong type where an integer is required. |
 | `same` between booleans, arrays or objects | Compared structurally: equal when of the same kind and equal element by element. |
+
+Readings of `correlate.md` 1.0 the vectors do not fix:
+
+| Point | This engine |
+|---|---|
+| "above its source's stale time" with `stale_rate` | `now_ms - last_time_ms` converted to binary64 and compared with `k * m` (a binary64); with `stale_ms` the integers are compared, as before. |
+| Which reports append an interval | Every accepted report of an entity that already existed, a restarted one included, and an interval of 0 included. A source's list outlives its entities: a source whose entities were all dropped keeps its list, and its snapshot entry. |
+| The `llr` record's `increment` | The increment before clamping; `value` is `L` after clamping (scenario vectors 59 to 61 agree). |
+| A pair at `lo` or below after an update in "A is not in a group" | Removed at once, a pair just created by this update included; a pair created at `up` by a first update is ready. |
+| A in a group whose link pair has no `L` | The update starts from 0 and stores the pair. |
+| The `same` tests rerun without trace in "A is not in a group" | All the `same` tests of the `gate` line, in pack order, stopping at the first failure, whichever test failed in the traced run (a `same` test among them included). |
+| `output fused` with a member whose predicted `pp` or `vv` is 0 or below (a tick earlier than a member's last report predicts backward) | The formula is evaluated as written, with no special case; IEEE-754 gives what it gives. |
 
 ## Quality: vectors that contradict the specification
 

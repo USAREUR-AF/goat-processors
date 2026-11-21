@@ -114,11 +114,13 @@ def clean(x):
     return x
 
 
-def compute(pack_name, steps):
+def compute(pack_name, steps, engine="rust"):
     """A candidate vector's outputs, computed by the Rust engine: for steps
     given as (kind, arg) pairs, return ([(events, trace) per step], snapshot)
-    with negative zero written as zero."""
-    results, snapshot = run("rust", function_of(pack_name), os.path.join(ROOT, "packs", pack_name),
+    with negative zero written as zero. `engine` names another engine only
+    for a spec round's first stage (make-vectors.py --spec-stage), before the
+    Rust engine implements the new text."""
+    results, snapshot = run(engine, function_of(pack_name), os.path.join(ROOT, "packs", pack_name),
                             [{kind: arg} for kind, arg in steps])
     return [(clean(r["events"]), clean(r["trace"])) for r in results], clean(snapshot)
 

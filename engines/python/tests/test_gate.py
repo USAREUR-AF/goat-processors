@@ -4,6 +4,7 @@ import math
 import unittest
 
 from goat_core import correlate, gate
+from goat_core.model import environment
 from goat_core.tracks import Track
 
 
@@ -31,6 +32,7 @@ class Pure(unittest.TestCase):
 def _track(key, report, east=(0.0, 0.0, 1.0, 0.0, 1.0), north=(0.0, 0.0, 1.0, 0.0, 1.0)):
     t = Track(key, key.split("/")[0])
     t.report = report
+    t.env = environment(report)
     t.last_time_ms = 0
     t.east, t.north = list(east), list(north)
     t.r_meas = (1.0, 1.0)
@@ -45,7 +47,7 @@ gate mahalanobis gate=4
 gate course max_deg=30 min_speed_ms=5
 gate speed max_pct=20 min_speed_ms=5
 gate altitude max_m=100
-gate window multiplier=2 window_m=1 err_min_m=10 err_max_m=100
+gate state probability=0.99 hae_sigma_m=100
 gate same key=@env
 confirm_count 2
 hold_failures 2
@@ -93,15 +95,21 @@ class RunTests(unittest.TestCase):
         b.report["hae"] = 100.5
         self.assertFalse(self.run_one("altitude", a, b)[0])
 
-    def test_window_and_same(self):
+    def test_state_and_same(self):
         a = _track("a/1", {"ce": 5.0, "type": "a-f-A"})
-        b = _track("b/1", {"type": "a-h-A-M"}, east=(10.0, 0.0, 1.0, 0.0, 1.0))
-        ok, rec = self.run_one("window", a, b)
-        self.assertEqual(rec["limit"], 2 * math.sqrt(10.0 ** 2 + 50.0 ** 2) + 1)
-        self.assertTrue(ok)
+        b = _track("b/1", {"type": "a-h-A-M"}, east=(2.0, 2.0, 1.0, 0.0, 1.0))
+        ok, rec = self.run_one("state", a, b)  # (dp^2 + dv^2) / 2 on east, 0 on north
+        self.assertEqual((ok, rec["value"], rec["limit"], rec["dof"]), (True, 4.0, 13.2767, 4))
+        a.report["hae"], b.report["hae"] = 0.0, 300.0
+        ok, rec = self.run_one("state", a, b)  # + 300^2 / (2 * 100^2)
+        self.assertEqual((ok, rec["value"], rec["limit"], rec["dof"]), (True, 8.5, 15.0863, 5))
+        b.east = [6.0, 0.0, 1.0, 0.0, 1.0]
+        self.assertFalse(self.run_one("state", a, b)[0])  # 18 + 4.5 >= 15.0863
+        self.assertIsNotNone(gate.TESTS["state"].check({"probability": 0.9, "hae_sigma_m": 100.0}))
+        self.assertIsNotNone(gate.TESTS["state"].check({"probability": 0.99, "hae_sigma_m": 0.0}))
         ok, rec = self.run_one("same", a, b)
         self.assertEqual((ok, rec["value"], rec["limit"]), (True, "A", "A"))
-        b.report = {}
+        b.report, b.env = {}, None
         ok, rec = self.run_one("same", a, b)
         self.assertEqual((ok, rec["value"], rec["limit"]), (False, "A", None))
 
@@ -117,7 +125,7 @@ class RunTests(unittest.TestCase):
         self.assertEqual(len(trace), 7)
 
     def test_table(self):
-        self.assertEqual(set(gate.TESTS), {"distance", "window", "mahalanobis", "course", "speed",
+        self.assertEqual(set(gate.TESTS), {"distance", "mahalanobis", "state", "course", "speed",
                                            "altitude", "same"})
         self.assertTrue(gate.TESTS["same"].text)
         self.assertFalse(gate.TESTS["distance"].text)

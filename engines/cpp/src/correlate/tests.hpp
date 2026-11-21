@@ -27,6 +27,7 @@ struct TestResult {
     Json value, limit;
     bool pass;
     bool skipped;
+    Json extra = Json();   // an object whose keys are added to the record (`state`: `dof`), or null
 };
 
 using TestFn = TestResult (*)(const TestSpec& t, const TestInput& in);
@@ -37,6 +38,9 @@ struct TestKind {
     std::vector<std::string> params;   // exactly these, each once
     bool text_param = false;           // its one parameter is a non-empty text (`same key=`), else numbers
     TestFn run = nullptr;
+    // The ranges of its parameters (correlate.md "Pack"): an error message, or
+    // null when the line is valid. Null for a kind with no range rule.
+    const char* (*check)(const TestSpec& t) = nullptr;
 };
 
 class TestRegistry {
@@ -49,8 +53,8 @@ private:
     std::vector<TestKind> kinds_;
 };
 
-// The seven kinds of correlate.md "Tests": distance, window, mahalanobis,
-// course, speed, altitude, same.
+// The seven kinds of correlate.md "Tests": distance, mahalanobis, course,
+// speed, altitude, same, state.
 const TestRegistry& builtin_tests();
 
 } // namespace corr::correlate

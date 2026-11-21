@@ -68,13 +68,13 @@
 <text x="448" y="260" font-size="14" fill="#e6edf3" text-anchor="start">confirm</text>
 <text x="520" y="260" font-size="14" fill="#e6edf3" text-anchor="start">course</text>
 <text x="710" y="260" font-size="14" fill="#e6edf3" text-anchor="end" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">0</text>
-<text x="784" y="260" font-size="14" fill="#e6edf3" text-anchor="end" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">45</text>
+<text x="784" y="260" font-size="14" fill="#e6edf3" text-anchor="end" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">60</text>
 <text x="856" y="260" font-size="14" fill="#3fb950" text-anchor="end" font-weight="600">pass</text>
 <line x1="448" y1="270" x2="856" y2="270" stroke="#3d444d" stroke-width="0.8"/>
 <text x="448" y="290" font-size="14" fill="#e6edf3" text-anchor="start">confirm</text>
 <text x="520" y="290" font-size="14" fill="#e6edf3" text-anchor="start">speed</text>
 <text x="710" y="290" font-size="14" fill="#e6edf3" text-anchor="end" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">0</text>
-<text x="784" y="290" font-size="14" fill="#e6edf3" text-anchor="end" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">40</text>
+<text x="784" y="290" font-size="14" fill="#e6edf3" text-anchor="end" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace">73</text>
 <text x="856" y="290" font-size="14" fill="#3fb950" text-anchor="end" font-weight="600">pass</text>
 <line x1="448" y1="300" x2="856" y2="300" stroke="#3d444d" stroke-width="0.8"/>
 <text x="448" y="320" font-size="14" fill="#e6edf3" text-anchor="start">confirm</text>

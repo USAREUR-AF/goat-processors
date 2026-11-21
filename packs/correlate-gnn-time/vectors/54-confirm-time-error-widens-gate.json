@@ -126,7 +126,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 1.8348629751307433
+     "value": 1.8348629751307446
     },
     {
      "a": "adsb/A7",
@@ -149,7 +149,7 @@
     {
      "a": "adsb/A7",
      "b": "radar-1/T1",
-     "limit": 45.0,
+     "limit": 60.0,
      "pass": true,
      "stage": "confirm",
      "test": "course",
@@ -158,7 +158,7 @@
     {
      "a": "adsb/A7",
      "b": "radar-1/T1",
-     "limit": 40.0,
+     "limit": 73.0,
      "pass": true,
      "stage": "confirm",
      "test": "speed",
@@ -227,7 +227,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 3.3825928775493663
+     "value": 3.3825928775493668
     },
     {
      "a": "radar-1/T1",
@@ -250,7 +250,7 @@
     {
      "a": "radar-1/T1",
      "b": "adsb/A7",
-     "limit": 45.0,
+     "limit": 60.0,
      "pass": true,
      "stage": "confirm",
      "test": "course",
@@ -259,7 +259,7 @@
     {
      "a": "radar-1/T1",
      "b": "adsb/A7",
-     "limit": 40.0,
+     "limit": 73.0,
      "pass": true,
      "stage": "confirm",
      "test": "speed",
@@ -291,7 +291,7 @@
      "pass": true,
      "stage": "rank",
      "test": "rank",
-     "value": 3.3825928775493663
+     "value": 3.3825928775493668
     }
    ]
   },
@@ -317,7 +317,7 @@
      "pass": true,
      "stage": "hold",
      "test": "mahalanobis",
-     "value": 2.4460153573049794
+     "value": 2.446015357304979
     }
    ]
   },

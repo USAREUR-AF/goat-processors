@@ -1,11 +1,12 @@
-//! Correlate (spec/correlate.md 0.8, with the method of
-//! spec/correlate-assign.md 0.6): the engine shared by both methods. Here:
+//! Correlate (spec/correlate.md 1.0, with the method of
+//! spec/correlate-assign.md 0.7): the engine shared by both methods. Here:
 //! Reports with Time quality, Track estimate with Measurement variance,
-//! Two-model filter, Restart, Tests, and the dispatch of `tick` and
-//! `snapshot` to the pack's method (`confirm` in `confirm.rs`, `assign` in
+//! Two-model filter, Restart, Tests, the stale time of a source, and the
+//! dispatch of `tick` and `snapshot` to the pack's method (`confirm` in
+//! `confirm.rs`, with its sequential test in `sprt.rs`; `assign` in
 //! `crate::assign`).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use crate::model::report;
 use crate::model::{deg, measurement_variance, obj, velocity, Axis, Frame, Json, Measurement, MeasurementVariance, Model};
@@ -18,12 +19,13 @@ pub mod pack;
 pub mod pair_tests;
 pub mod registry;
 mod restart;
+mod sprt;
 
 pub(crate) use entity::{report_ce, Entity};
 
 pub use crate::trace::StepResult;
 pub use method::MethodKind;
-pub use pack::{load_pack, parse_pack, parse_pack_with, Output, Pack, Params, Test};
+pub use pack::{load_pack, parse_pack, parse_pack_with, Output, Pack, Params, Sprt, StaleRate, Staleness, Test};
 pub use pair_tests::{Outcome, Pair, PairTest, TestKind};
 pub use registry::Registry;
 
@@ -50,6 +52,11 @@ pub struct Engine {
     pub(crate) entities: BTreeMap<String, Entity>,
     pub(crate) groups: BTreeMap<u64, BTreeSet<String>>,
     pub(crate) counts: BTreeMap<(String, String), u64>,
+    /// `sprt`: each pair's log-likelihood ratio `L` (Association, Sequential test).
+    pub(crate) llr: BTreeMap<(String, String), f64>,
+    /// `stale_rate`: each source's last intervals, oldest first (Stale time
+    /// of a source).
+    pub(crate) intervals: BTreeMap<String, VecDeque<i64>>,
     pub(crate) next_group: u64,
     /// `method assign`: the committed membership (correlate-assign.md Memberships).
     pub(crate) committed: crate::assign::Membership,
@@ -75,6 +82,8 @@ impl Engine {
             entities: BTreeMap::new(),
             groups: BTreeMap::new(),
             counts: BTreeMap::new(),
+            llr: BTreeMap::new(),
+            intervals: BTreeMap::new(),
             next_group: 1,
             committed: crate::assign::Membership::default(),
             histories: vec![crate::assign::History::default()],
@@ -189,6 +198,16 @@ impl Engine {
                 out.events.push(obj(vec![("ev", "new".into()), ("entity", key.as_str().into())]));
             }
             Some(e) => {
+                // Stale time of a source: the interval since the entity's
+                // last report joins the list of its (the entity's) source,
+                // which keeps the last n.
+                if let pack::Staleness::Rate(rate) = &self.pack.stale {
+                    let list = self.intervals.entry(e.source.clone()).or_default();
+                    list.push_back(time_ms - e.last_time_ms);
+                    while list.len() > rate.samples {
+                        list.pop_front();
+                    }
+                }
                 // Restart (correlate.md): before the filter update, d² of the
                 // report against the entity predicted to its time.
                 let mut restart = false;
@@ -237,15 +256,37 @@ impl Engine {
 
     /// Entities stale at `now_ms`, in key order (spec: On each tick, Staleness).
     pub(crate) fn stale_entities(&self, now_ms: i64) -> Vec<String> {
-        let pack_stale = self.pack.stale_ms;
         self.entities
             .iter()
             .filter(|(_, e)| {
-                now_ms - e.last_time_ms > pack_stale
+                self.is_past_stale_time(&e.source, now_ms - e.last_time_ms)
                     || e.report.get("stale_ms").and_then(Json::as_i64).is_some_and(|s| now_ms >= s)
             })
             .map(|(k, _)| k.clone())
             .collect()
+    }
+
+    /// Whether `age` ms is above the source's stale time: `stale_ms`, or
+    /// with `stale_rate` `k * m` (`m` the lower median of the source's
+    /// intervals) raised to `floor_ms` and lowered to `ceiling_ms`, and
+    /// `ceiling_ms` with no interval.
+    fn is_past_stale_time(&self, source: &str, age: i64) -> bool {
+        match &self.pack.stale {
+            pack::Staleness::Fixed(ms) => age > *ms,
+            pack::Staleness::Rate(rate) => (age as f64) > stale_time(rate, self.intervals.get(source)),
+        }
+    }
+
+    /// `intervals` of the snapshot, with `stale_rate`: each source with at
+    /// least one interval, oldest first.
+    pub(crate) fn intervals_json(&self) -> Option<(&'static str, Json)> {
+        match self.pack.stale {
+            pack::Staleness::Rate(_) => Some((
+                "intervals",
+                Json::Obj(self.intervals.iter().map(|(s, l)| (s.clone().into(), Json::Arr(l.iter().map(|i| Json::Int(*i)).collect()))).collect()),
+            )),
+            pack::Staleness::Fixed(_) => None,
+        }
     }
 
     /// On each tick: the pack's method.
@@ -263,6 +304,23 @@ impl Engine {
     }
 
 }
+/// A source's stale time with `stale_rate`, ms: `k * m` clamped to
+/// `[floor_ms, ceiling_ms]`, or `ceiling_ms` with an empty list.
+pub(crate) fn stale_time(rate: &pack::StaleRate, intervals: Option<&VecDeque<i64>>) -> f64 {
+    let Some(list) = intervals.filter(|l| !l.is_empty()) else { return rate.ceiling_ms as f64 };
+    let mut sorted: Vec<i64> = list.iter().copied().collect();
+    sorted.sort_unstable();
+    let m = sorted[(sorted.len() - 1) / 2];
+    let t = rate.factor * m as f64;
+    if t < rate.floor_ms as f64 {
+        rate.floor_ms as f64
+    } else if t > rate.ceiling_ms as f64 {
+        rate.ceiling_ms as f64
+    } else {
+        t
+    }
+}
+
 /// `course = deg(atan2(ve, vn))` in [0, 360) and `speed_ms = hypot(ve, vn)`.
 pub(crate) fn course_speed(east: &Axis, north: &Axis) -> (f64, f64) {
     let mut course = deg(east.v.atan2(north.v));
@@ -287,4 +345,19 @@ pub(crate) fn filter_json(e: &Entity) -> Vec<(&'static str, Json)> {
         pairs.push(("time", obj(vec![("var_east", var_e.into()), ("var_north", var_n.into())])));
     }
     pairs
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stale_time_is_the_lower_median_times_k_within_the_bounds() {
+        let rate = pack::StaleRate { factor: 5.0, floor_ms: 20_000, ceiling_ms: 60_000, samples: 9 };
+        assert_eq!(stale_time(&rate, None), 60_000.0);
+        assert_eq!(stale_time(&rate, Some(&VecDeque::new())), 60_000.0);
+        assert_eq!(stale_time(&rate, Some(&VecDeque::from(vec![10_000, 4_000, 8_000, 6_000]))), 30_000.0);
+        assert_eq!(stale_time(&rate, Some(&VecDeque::from(vec![200, 200]))), 20_000.0);
+        assert_eq!(stale_time(&rate, Some(&VecDeque::from(vec![30_000]))), 60_000.0);
+    }
 }

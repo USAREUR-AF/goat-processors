@@ -5,7 +5,7 @@ import (
 	"goat-correlator/engines/go/trace"
 )
 
-// Reports and Time quality (spec/correlate.md 0.8: Reports, "Time quality";
+// Reports and Time quality (spec/correlate.md 1.0: Reports, "Time quality";
 // Track estimate, "Measurement variance"; Pack, time_default): what one
 // accepted report gives the filter.
 

@@ -1,8 +1,10 @@
-# Open points under correlate 0.8 and correlate-assign 0.6
+# Open points under correlate 1.0 and correlate-assign 0.7
 
-No vector contradicts `spec/correlate.md` (version 0.8) or
-`spec/correlate-assign.md` (version 0.6) as this engine reads them: scenario
-vectors 01 to 56 and load vectors 01 to 73 pass.
+No vector contradicts `spec/correlate.md` (version 1.0) or
+`spec/correlate-assign.md` (version 0.7) as this engine reads them: the
+scenario vectors of every `packs/correlate-*` pack (01 to 63, 59 files) and
+load vectors 01 to 90 pass. Version 1.0 retires the `window` test; the
+readings below that named it (9, 12) now apply to `distance` alone.
 
 ## Readings the engine takes
 
@@ -19,11 +21,15 @@ down because the text could be read another way.
 | 6 | correlate-assign.md Window, step 1 | A restarted entity found stale at the same tick gets only the stale events (`leave` reason `stale`, `drop`), not a second `leave` reason `restart`; the restarted set is emptied at every tick (vector 53, step 9). |
 | 7 | correlate-assign.md Sensor bias, Update | The update runs at every tick, also when nothing is committed, and always on the committed membership; with no pair from the tick's rows it adds no trace record (vector 45, step 9). |
 | 8 | correlate-assign.md Window, step 3 | With `margin`, a candidate is kept when it is among the first `k` and its total is at most `cut`; its `total` record has `pass` true exactly then, and `limit` `cut` (vectors 49 to 53). |
-| 9 | correlate-assign.md Sensor bias | Only the `distance`, `window` and `mahalanobis` tests and the Cost move B; the Restart test compares an entity with its own prediction and moves nothing, and so does the fused estimate for output. |
+| 9 | correlate-assign.md Sensor bias | Only the `distance`, `mahalanobis` and `state` tests and the Cost move B; the Restart test compares an entity with its own prediction and moves nothing, and so does the fused estimate for output. |
 | 10 | correlate.md Reports, Time quality | `time_error_ms` and `time_state` are resolved per key on every accepted report, after the reject checks; a rejected report gives no `time` record. A present `time_error_ms` of 0 is the report's value and wins over the pack's default (vector 54, step 5, gives no `time` record although radar-1 has `error_ms=500`); an absent or invalid one falls back to the default (vector 54, steps 7 and 8). |
 | 11 | correlate.md Track estimate, Measurement variance | With two models, the velocity for `(v*ts)²` on a later report is that of the combined prediction (Two-model filter, Prediction), and the per-axis `r` is used in both models' position updates and so in their likelihood terms. The same `r` is used by the Restart test and, after a failed one, as the first-report `pp`. |
-| 12 | correlate.md Tests; correlate-assign.md Cost | B's timing variance is added only where `pp` is read (`mahalanobis`, `rank`, the Cost); `distance` and `window` read no `pp`, so time quality does not change them. When the time error is 0 the added variance is exactly 0, so earlier vectors are unchanged bit for bit. |
+| 12 | correlate.md Tests; correlate-assign.md Cost | B's timing variance is added only where `pp` is read (`mahalanobis`, `state`, `rank`, the `sprt` evidence, the Cost); `distance` reads no `pp`, so time quality does not change them. When the time error is 0 the added variance is exactly 0, so earlier vectors are unchanged bit for bit. |
 | 13 | correlate-assign.md Sensor bias, Time offset | Without `time_offset`, the move and the update use `o` itself, not `o - v*0`, and the snapshot and `bias` trace carry no `time_offset_ms` or `sums`. With it, `w` is no longer updated as a running sum but set to `S1` and `S2` after each accepted pair. |
+| 14 | correlate.md Association, Stale time of a source | An interval joins the list of the *entity's* source, the source the staleness check reads; on a key collision (report source `a/b`, uid `c`, entity `a/b/c` of source `a`) that is not the report's `track.source_id`. A report the Restart test starts again still appends its interval: it is accepted. |
+| 15 | correlate.md Association, Stale time of a source | `k * m` is a binary64 product, and the age `now_ms - last_time_ms` is converted to binary64 to be compared with it (and with `floor_ms`, `ceiling_ms`); no vector places an age within rounding of it. |
+| 16 | correlate.md Association, Sequential test | When a candidate's `gate` or `confirm` test failed and its pair has an `L`, the `same` tests run again without records, and only the `sprt` record of the update is written. A pair removed at `lo` leaves the `llr` map; a later passing report starts it again from 0. |
+| 17 | correlate.md Association, On each tick, step 2 | `output fused` sums `p_i/pp_i`, `1/pp_i`, `v_i/vv_i`, `1/vv_i` in that order per member and divides once at the end, as written; it is not the `pp * sum` order of correlate-assign.md's Fused estimate, which the `assign` method keeps. |
 
 ## Points the spec leaves open
 
@@ -103,6 +109,6 @@ the range below.
 
 | # | Input | What the engine does | What a spec decision would need |
 |---|---|---|---|
-| 1 | A report `lon` (or a predicted position, from a huge `speed_ms` or `dt`) so large that `wrap` (correlate.md Frame, filter.md Geometry) moves it by 360 at a time for longer than any run, or a non-finite one (`1e999` reads as infinity) | `wrap180` subtracts 360 until the value is in range: above about 1e12 degrees that takes impractically long, and for infinity, or above 2^62 where subtracting 360 no longer changes the value, it never ends | A range for `lat`/`lon` (a reject reason, as for a missing key), or `wrap` defined by remainder |
+| 1 | A report `lon` (or a predicted position, from a huge `speed_ms` or `dt`, or any position back from the plane when the reference `lat0` is a pole, where `cos(lat0)` is about 6e-17) so large that `wrap` (correlate.md Frame, filter.md Geometry) moves it by 360 at a time for longer than any run, or a non-finite one (`1e999` reads as infinity) | `wrap180` subtracts 360 until the value is in range: above about 1e12 degrees that takes impractically long, and for infinity, or above 2^62 where subtracting 360 no longer changes the value, it never ends | A range for `lat`/`lon` (a reject reason, as for a missing key), or `wrap` defined by remainder |
 | 2 | `time_ms`, `received_ms`, `stale_ms` or a tick near the signed 64-bit limits | `received_ms - time_ms` (quality Samples, `latency`) and `now_ms - last_time_ms` (staleness) overflow: a panic in a debug build, a wrapped value in a release build | A range for millisecond integers (open point 2 of correlate.md covers only their parsing) |
 | 3 | A `ce` so large that `ce²` is infinite, so a variance is infinite and a cost is NaN | `method assign`: sorting the assignment totals panics on NaN (`Ranking` assumes totals compare) | A bound on `ce`, or the order of a NaN total |

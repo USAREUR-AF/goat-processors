@@ -105,7 +105,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 22.222229365472337
+     "value": 22.22222936547235
     },
     {
      "a": "adsb/A7",
@@ -140,7 +140,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 21.914809688857652
+     "value": 21.91480968885766
     },
     {
      "a": "radar-1/T1",
@@ -175,7 +175,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 29.561664719606753
+     "value": 29.561664719606746
     },
     {
      "a": "adsb/A7",
@@ -258,7 +258,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 27.921912831670625
+     "value": 27.92191283167059
     },
     {
      "a": "radar-1/T1",

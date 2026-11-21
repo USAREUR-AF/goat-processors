@@ -264,9 +264,13 @@ fn random_report(rng: &mut Rng, t: &mut i64) -> Json {
     for (k, v) in keys {
         if rng.chance(0.95) {
             // `lat` and `lon` stay within 1000 degrees: a longitude far
-            // larger never ends `wrap180` (DISAGREEMENTS.md, Reports).
+            // larger never ends `wrap180`; and `lat` stays off the poles,
+            // where a reference makes `cos(lat0)` 0 to rounding and every
+            // longitude back from the plane is that large (DISAGREEMENTS.md,
+            // "Limits found by fuzzing", row 1).
             let wrong = match k {
-                "lat" | "lon" => rng.pick(&["null", "\"x\"", "true", "[1]", "{}", "0", "-0.0", "90.0", "-180", "180", "181", "-999.5", "5e-324"]).to_string(),
+                "lat" => rng.pick(&["null", "\"x\"", "true", "[1]", "{}", "0", "-0.0", "89.0", "-180", "180", "181", "-999.5", "5e-324"]).to_string(),
+                "lon" => rng.pick(&["null", "\"x\"", "true", "[1]", "{}", "0", "-0.0", "90.0", "-180", "180", "181", "-999.5", "5e-324"]).to_string(),
                 _ => value(rng),
             };
             pairs.push(format!("\"{}\":{}", k, if rng.chance(0.9) { v } else { wrong }));

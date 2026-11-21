@@ -7,7 +7,7 @@ assign.py) subclasses it and adds ingest, tick and snapshot."""
 from . import estimate
 from .estimate import MODELS
 from .gate import mahalanobis, plane_distance, run_stage
-from .model import missing_key, normalize, to_deg, to_plane, velocity
+from .model import environment, missing_key, normalize, to_deg, to_plane, velocity
 
 
 class Track:
@@ -28,6 +28,7 @@ class Track:
         self.r_meas = None  # per-axis measurement variance of the last report
         self.t_var = (0.0, 0.0)  # per-axis timing variance of the last report
         self.time_err = 0.0      # time error of the last report, ms
+        self.env = None          # the @env key of the last report
 
     def ce(self, pack):
         v = self.report.get("ce")
@@ -47,6 +48,7 @@ class Correlator:
         self.entities = {}
         self.retiring = set()
         self.restarted = set()
+        self.intervals = {}  # Association, Stale time of a source: per source, its last intervals
 
     # frame -------------------------------------------------------------
     def _to_plane(self, lat, lon):
@@ -83,6 +85,20 @@ class Correlator:
         return a + "|" + b if a < b else b + "|" + a
 
     # reports -----------------------------------------------------------
+    def _stale_limit(self, source):
+        """Association, Stale time of a source: stale_ms, or with stale_rate
+        factor times the median of its last intervals, within the floor and
+        ceiling; the ceiling while it has none."""
+        sr = self.pack.stale_rate
+        if sr is None:
+            return self.pack.stale_ms
+        ring = self.intervals.get(source)
+        if not ring:
+            return sr["ceiling_ms"]
+        srt = sorted(ring)
+        lim = sr["factor"] * srt[(len(srt) - 1) // 2]
+        return min(max(lim, sr["floor_ms"]), sr["ceiling_ms"])
+
     def _time_error_ms(self, report, source):
         """Reports, Time quality: the report's value, else the pack's
         time_default for its source, else 0."""
@@ -134,6 +150,7 @@ class Correlator:
                           "value": te, "limit": None, "pass": True,
                           "var_east": ae, "var_north": an})
         fresh = ent is None
+        known = ent is not None
         if ent is not None and self.pack.restart is not None:
             d2 = mahalanobis(e, n, pred, (re_, rn_))
             ok = d2 < self.pack.restart
@@ -167,7 +184,13 @@ class Correlator:
             dt = (t - ent.last_time_ms) / 1000.0
             ent.east, ent.north = estimate.update_axes(
                 ent.east, ent.north, dt, f["accel_var"], e, n, re_, rn_, vel, f["vel_sigma_ms"] ** 2)
+        if self.pack.stale_rate is not None and known:
+            ring = self.intervals.setdefault(source, [])
+            ring.append(t - ent.last_time_ms)
+            if len(ring) > self.pack.stale_rate["samples"]:
+                del ring[0]
         ent.report = dict(report)
+        ent.env = environment(ent.report)
         ent.r_meas = (re_, rn_)
         ent.t_var = (ae, an)
         ent.time_err = te

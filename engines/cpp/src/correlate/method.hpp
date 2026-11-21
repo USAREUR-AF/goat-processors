@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -37,6 +38,9 @@ struct MethodKind {
     std::vector<const char*> required;
     std::vector<const char*> refused;
     std::unique_ptr<Method> (*make)(Core& core);
+    // The rules that depend on which directives are present (correlate.md
+    // "Pack": with `sprt` ...); throws PackError. Null when there are none.
+    void (*check)(const std::set<std::string>& seen) = nullptr;
 };
 
 // Every method, in table order; the first is the default.

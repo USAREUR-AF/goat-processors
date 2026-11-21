@@ -16,7 +16,7 @@ namespace corr::correlate {
 
 // One line of `gate`, `confirm` or `hold` (spec "Tests").
 struct TestSpec {
-    std::string name;                     // the kind's name: distance, window, mahalanobis, ...
+    std::string name;                     // the kind's name: distance, mahalanobis, state, ...
     std::map<std::string, double> num;    // numeric parameters
     std::string key;                      // the text parameter (`same`)
     TestFn run = nullptr;                 // the kind's function (correlate/tests.hpp)
@@ -36,6 +36,26 @@ struct BiasParams {
     double gate = 0;        // g
 };
 
+// correlate.md "On each tick", Stale time of a source: the `stale_rate` line.
+struct StaleRate {
+    double factor = 0;          // k
+    std::int64_t floor_ms = 0;  // f
+    std::int64_t ceiling_ms = 0;   // c
+    std::int64_t samples = 0;   // n
+};
+
+// correlate.md "Association", Sequential test: the `sprt` line.
+struct SprtParams {
+    double false_p = 0;      // `false`
+    double missed = 0;
+    double pos_m = 0;
+    double vel_ms = 0;
+    double hae_sigma_m = 0;
+};
+
+// correlate.md "On each tick", 2: the `output` line.
+enum class OutputMode { fused, priority, latest };
+
 struct Pack {
     std::string name;
     std::string version;
@@ -47,9 +67,11 @@ struct Pack {
     std::vector<TestSpec> gate, confirm, hold;
     std::int64_t confirm_count = 0;
     std::int64_t hold_failures = 0;
-    std::int64_t stale_ms = 0;
+    std::int64_t stale_ms = 0;                 // when stale_rate is absent
+    std::optional<StaleRate> stale_rate;       // either method; in place of stale_ms
+    std::optional<SprtParams> sprt;            // method confirm only
     bool same_source_allow = false;            // same_source, default forbid
-    bool output_latest = false;                // output, default priority
+    OutputMode output = OutputMode::fused;     // output, default fused
     std::map<std::string, std::int64_t> priority;
     double new_cost = 0;                       // method assign only
     double keep_bonus = 0;                     // method assign only

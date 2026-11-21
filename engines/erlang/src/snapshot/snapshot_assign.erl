@@ -1,4 +1,4 @@
-%% Snapshot of method assign (correlate-assign.md "Snapshot").
+%% Snapshot of method assign (correlate-assign.md 0.7 "Snapshot").
 -module(snapshot_assign).
 -export([snapshot/1]).
 
@@ -17,9 +17,10 @@ snapshot(St) ->
              <<"systems">> => systems(Systems),
              <<"next_system">> => Next,
              <<"reported">> => lists:sort([K || K <- maps:keys(Reported), maps:is_key(K, Ents)])},
+    WithIntervals = snapshot_correlate:intervals(Base, St),
     WithRestart = case maps:is_key(restart, Pack) of
-                      false -> Base;
-                      true -> Base#{<<"restarted">> =>
+                      false -> WithIntervals;
+                      true -> WithIntervals#{<<"restarted">> =>
                                         lists:sort(maps:keys(maps:get(restarted, St)))}
                   end,
     WithBias = case maps:is_key(bias, Pack) of

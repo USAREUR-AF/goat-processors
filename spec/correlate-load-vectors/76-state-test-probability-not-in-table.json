@@ -1,0 +1,5 @@
+{
+ "name": "76-state-test-probability-not-in-table",
+ "pack_def": "pack        c\nversion     0.1.0\nfilter      accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\ngate        mahalanobis gate=9.21\ngate        state probability=0.9 hae_sigma_m=100\nconfirm_count 2\nhold_failures 2\nstale_ms 60000\n",
+ "expect_error": true
+}

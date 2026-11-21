@@ -8,14 +8,19 @@ the full events, trace and final snapshot, and writes the vector only when
 all seven engines agree with it. It also refuses a vector that places a
 decision within the comparison tolerance (check_margins): a test value that
 close to its limit (gate, confirm, hold, the bias residual, the filter
-restart, a history total against the margin cut), or two ranked assignment
+restart, a history total against the margin cut, a sequential-test ratio
+near either bound without being on it), or two ranked assignment
 or history totals that close without being equal. The specification and the decisions stated
 by hand here are the reference; the numbers are computed by the Rust engine
 and accepted only when all seven engines agree.
 
-Run: python3 -I tools/make-vectors.py [--rust-only]
+Run: python3 -I tools/make-vectors.py [--rust-only | --spec-stage]
 (--rust-only skips the seven-engine run; CI uses it, as its seven engine jobs
-check every engine on every vector.)
+check every engine on every vector. --spec-stage is for the first stage of a
+spec round, when only the Python engine implements the new text: it computes
+with the Python engine and skips the seven-engine run. Before such a round
+merges, the vectors are written again without it, by the Rust engine, and
+accepted only when all seven engines agree.)
 """
 
 import json
@@ -151,31 +156,6 @@ scenario("10-environment-differs", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
 ], [["new"], ["new"], []])
 
-# 11. Window pack: priority picks the fused output's source.
-scenario("11-window-priority-output", "correlate-window", [
-    ("ingest", rep("ais", "M1", 0, 0, 0, ce=300, **SEA)),
-    ("ingest", rep("radar-1", "S4", 0, 600, 300, ce=200, **SEA)),
-    ("ingest", rep("ais", "M1", 10000, 50, 0, ce=300, **SEA)),
-    ("tick", 12000),
-], [["new"], ["new"], ["correlate"], ["fused"]])
-
-# 12. Window pack: outside the window, not grouped.
-scenario("12-window-outside", "correlate-window", [
-    ("ingest", rep("ais", "M1", 0, 0, 0, ce=100, **SEA)),
-    ("ingest", rep("radar-1", "S4", 0, 1500, 0, ce=100, **SEA)),
-    ("ingest", rep("ais", "M1", 10000, 0, 0, ce=100, **SEA)),
-], [["new"], ["new"], []])
-
-# 13. Moving pair on the window pack with reported velocity; fused output carries
-#     the filtered course and speed predicted forward.
-mvs = dict(course=45, speed_ms=10, ce=150, **SEA)
-scenario("13-window-moving-fused", "correlate-window", [
-    ("ingest", rep("ais", "M1", 0, 0, 0, **mvs)),
-    ("ingest", rep("radar-1", "S4", 0, 100, 0, **mvs)),
-    ("ingest", rep("ais", "M1", 10000, 70.71, 70.71, **mvs)),
-    ("tick", 20000),
-], [["new"], ["new"], ["correlate"], ["fused"]])
-
 # 14. A report's own stale_ms drops it before the pack's stale_ms.
 scenario("14-report-stale-ms", "correlate-gnn", [
     ("ingest", rep("radar-1", "T1", 0, 0, 0, stale_ms=5000, **AIR)),
@@ -211,16 +191,6 @@ scenario("17-hold-stops-at-first-passing-member", "correlate-gnn", [
     ("ingest", rep("eo-2", "E3", 2000, -15, 5, ce=40, **AIR)),
     ("ingest", rep("eo-2", "E3", 3000, -15, 5, ce=40, **AIR)),
 ], [["new"], ["new"], ["correlate"], ["new"], ["join"], []])
-
-# 18. Window pack: a hold that fails its first test runs no second test; two
-#     hold failures in a row are needed before the member leaves.
-scenario("18-window-hold-stops-at-first-failure", "correlate-window", [
-    ("ingest", rep("ais", "M1", 0, 0, 0, ce=100, **SEA)),
-    ("ingest", rep("radar-1", "S4", 0, 100, 0, ce=100, **SEA)),
-    ("ingest", rep("ais", "M1", 10000, 0, 0, ce=100, **SEA)),
-    ("ingest", rep("radar-1", "S4", 20000, 5000, 0, ce=100, **SEA)),
-    ("ingest", rep("radar-1", "S4", 30000, 9000, 0, ce=100, **SEA)),
-], [["new"], ["new"], ["correlate"], [], ["leave", "dissolve"]])
 
 # 19. Course without speed: course and speed tests are skipped; a later report
 #     without course makes it absent again.
@@ -730,6 +700,87 @@ scenario("56-assign-time-offset-fit", "correlate-assign-time", CLOCK, per_round(
     CP, ["start", "start", "join", "join"] + CP, CP, CP]))
 
 
+# --- retained rules on correlate-gnn-priority (vectors 57-58) ---
+
+# 57. Priority picks the fused output's member: radar-1 (priority 1) over ais
+#     (priority 50), although ais reported later.
+scenario("57-priority-output", "correlate-gnn-priority", [
+    ("ingest", rep("ais", "M1", 0, 0, 0, ce=100, **SEA)),
+    ("ingest", rep("radar-1", "S4", 0, 60, 30, ce=100, **SEA)),
+    ("ingest", rep("ais", "M1", 10000, 20, 0, ce=100, **SEA)),
+    ("tick", 12000),
+], [["new"], ["new"], ["correlate"], ["fused"]])
+
+# 58. A hold that fails its first test runs no second test (trace); two hold
+#     failures in a row are needed before the member leaves.
+scenario("58-hold-stops-at-first-failure", "correlate-gnn-priority", [
+    ("ingest", rep("ais", "M1", 0, 0, 0, ce=100, **SEA)),
+    ("ingest", rep("radar-1", "S4", 0, 100, 0, ce=100, **SEA)),
+    ("ingest", rep("ais", "M1", 10000, 0, 0, ce=100, **SEA)),
+    ("ingest", rep("radar-1", "S4", 20000, 5000, 0, ce=100, **SEA)),
+    ("ingest", rep("radar-1", "S4", 30000, 9000, 0, ce=100, **SEA)),
+], [["new"], ["new"], ["correlate"], [], ["leave", "dissolve"]])
+
+
+# --- correlate 1.0 options: sequential test, stale_rate, state test, fused output ---
+
+def sprt_pair(offsets):
+    """radar-1 T1 and adsb A7 10 m apart at 0 and 1 s; then adsb reports at
+    2 s, 3 s, ... moved east by each offset."""
+    out = [("ingest", rep("radar-1", "T1", 0, 0, 0, ce=30, **AIR)),
+           ("ingest", rep("adsb", "A7", 0, 10, 0, ce=30, **AIR)),
+           ("ingest", rep("radar-1", "T1", 1000, 0, 0, ce=30, **AIR)),
+           ("ingest", rep("adsb", "A7", 1000, 10, 0, ce=30, **AIR))]
+    for i, off in enumerate(offsets):
+        out.append(("ingest", rep("adsb", "A7", 2000 + 1000 * i, 10 + off, 0, ce=30, **AIR)))
+    return out + [("tick", 2000 + 1000 * len(offsets))]
+
+# 59. Sequential test: A7's first report against T1 already carries more
+#     evidence than ln((1 - 0.01) / 0.01) = 4.6 needs, so the pair is
+#     confirmed and correlates at once (the ratio is clamped at 4.6); the
+#     fused output weighs both members (primary null).
+scenario("59-sprt-confirms-on-evidence", "correlate-sprt", sprt_pair([0]),
+         [["new"], ["new", "correlate"], [], [], [], ["fused"]])
+
+# 60. One report 500 m off: the ratio falls from 4.6 to about 1.3 but stays
+#     above ln(0.01 / 0.99) = -4.6, so the pair holds; the next report fits
+#     again and the ratio climbs back to 4.6.
+scenario("60-sprt-one-noisy-report-holds", "correlate-sprt", sprt_pair([500, 0]),
+         [["new"], ["new", "correlate"], [], [], [], [], ["fused"]])
+
+# 61. One report 700 m off carries evidence for "different objects" worth more
+#     than the whole interval: the link pair falls to -4.6, A7 leaves (reason
+#     release), the group dissolves and the pair is removed.
+scenario("61-sprt-release", "correlate-sprt", sprt_pair([700]),
+         [["new"], ["new", "correlate"], [], [], ["leave", "dissolve"], []])
+
+RATE = [("ingest", rep("radar-1", "T1", t, 0, 0, ce=30, **AIR)) for t in (0, 4000, 10000, 18000, 28000)] + [
+    ("ingest", rep("adsb", "A7", t, 5000, 0, ce=30, **AIR)) for t in (0, 200, 400)] + [
+    ("tick", 20400), ("tick", 20401), ("tick", 58000), ("tick", 58001)]
+# 62. stale_rate: radar-1's intervals are 4, 6, 8 and 10 s; their lower median
+#     is 6 s (the upper would be 8 s), so T1 is stale 5 * 6 = 30 s after its
+#     last report (28 s): not at 58 s, at 58.001 s. adsb's intervals are 0.2 s,
+#     so 5 * 0.2 = 1 s, raised to the 20 s floor: A7 (last at 0.4 s) is not
+#     stale at 20.4 s and is at 20.401 s (snapshot: intervals).
+scenario("62-stale-rate-per-source", "correlate-sprt", RATE,
+         [["new"], [], [], [], [], ["new"], [], [], [], ["drop"], [], ["drop"]])
+
+ST = dict(ce=30, **AIR)
+# 63. The `state` test: T1 and A7 at one spot, but flying east and west at
+#     100 m/s, fail the 4-dof gate on velocity; E3 at the same spot with no
+#     velocity (so a large velocity variance) passes against both: against
+#     T1 on 5 dof (both report hae, 50 m apart), against A7 on 4. On its
+#     second report both counts reach 2; the rank takes the smaller position
+#     d², equal here, so key order picks A7.
+scenario("63-state-test-velocity-and-height", "correlate-gnn-state", [
+    ("ingest", rep("radar-1", "T1", 0, 0, 0, course=90, speed_ms=100, hae=3000, **ST)),
+    ("ingest", rep("adsb", "A7", 0, 0, 0, course=270, speed_ms=100, **ST)),
+    ("ingest", rep("eo-2", "E3", 0, 0, 0, hae=3050, **ST)),
+    ("ingest", rep("eo-2", "E3", 0, 0, 0, hae=3050, **ST)),
+    ("tick", 0),
+], [["new"], ["new"], ["new"], ["correlate"], ["fused"]])
+
+
 NEAR = 1e-6
 
 
@@ -748,6 +799,11 @@ def check_margins(name, step_no, trace):
                 and isinstance(r["value"], float) and isinstance(r["limit"], float):
             if abs(r["value"] - r["limit"]) <= NEAR * max(1.0, abs(r["limit"])):
                 bad.append("test %s value %r at limit %r" % (r["test"], r["value"], r["limit"]))
+    for r in trace:
+        if r["stage"] == "sprt":
+            for bound in (r["limit"], r["lower"]):
+                if near(r["value"], bound):
+                    bad.append("sprt ratio %r near its bound %r" % (r["value"], bound))
     totals = [r["value"] for r in trace if r["stage"] == "history" and r["test"] == "total"]
     for a, b in zip(totals, totals[1:]):
         if near(a, b):
@@ -799,8 +855,9 @@ def _rank_margin(recs):
 def main():
     ok = True
     candidates = {}
+    spec_stage = "--spec-stage" in sys.argv[1:]
     for name, pack_name, steps, decide in SCENARIOS:
-        results, snapshot = consensus.compute(pack_name, steps)
+        results, snapshot = consensus.compute(pack_name, steps, "python" if spec_stage else "rust")
         good = len(decide) == len(steps)
         if not good:
             print("%s: decide has %d entries for %d steps" % (name, len(decide), len(steps)))
@@ -814,7 +871,7 @@ def main():
         if good:
             candidates[name] = {"name": name, "pack": pack_name,
                                 "steps": consensus.vector_steps(steps, results), "snapshot": snapshot}
-    agreed = consensus.accept(candidates, "--rust-only" not in sys.argv[1:])
+    agreed = consensus.accept(candidates, not ({"--rust-only", "--spec-stage"} & set(sys.argv[1:])))
     ok = ok and len(agreed) == len(candidates)
     for name, vec in candidates.items():
         if name not in agreed:

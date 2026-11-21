@@ -121,7 +121,7 @@
     {
      "a": "net-a/2",
      "b": "net-a/1",
-     "limit": 40.0,
+     "limit": 45.0,
      "pass": true,
      "stage": "confirm",
      "test": "speed",

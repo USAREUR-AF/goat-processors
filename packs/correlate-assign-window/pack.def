@@ -3,8 +3,13 @@
 # system track when it is within the 99 % region of the system track's fused
 # estimate (cost below new_cost = 9.21, chi-square 2 degrees of freedom), and
 # passes the gate against every member. keep_bonus favors the current choice.
+# Stale after 120 s without a report (the fixed form of staleness): ten times
+# the slowest update period this pack expects (12 s); ten missed updates in a
+# row at a detection probability of 0.5 happen about 0.1 % of the time.
+# (Staleness from each source's rate, stale_rate, measured worse for this pack
+# on the benchmark, in time to associate, so it is not used here.)
 pack        correlate-assign-window
-version     0.1.0
+version     1.0.0
 method      assign
 filter      accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
 gate        mahalanobis gate=18.42

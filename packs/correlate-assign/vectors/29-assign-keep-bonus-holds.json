@@ -26,7 +26,7 @@
    "eo-2/E1": {
     "filter": {
      "east": [
-      200.00003214462293,
+      200.000032144623,
       0.0,
       900.0,
       0.0,
@@ -206,7 +206,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 22.222229365472337
+     "value": 22.22222936547235
     },
     {
      "a": "eo-2/E1",
@@ -269,7 +269,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 10.88890103627161
+     "value": 10.88890103627162
     },
     {
      "a": "radar-1/T1",
@@ -305,7 +305,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 10.88890103627161
+     "value": 10.88890103627162
     },
     {
      "a": "radar-1/T1",
@@ -403,7 +403,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 5.2272265985630835
+     "value": 5.22722659856309
     },
     {
      "a": "radar-1/T1",
@@ -439,7 +439,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 6.9696354647507786
+     "value": 6.9696354647507865
     },
     {
      "a": "radar-1/T1",

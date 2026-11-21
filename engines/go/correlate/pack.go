@@ -39,7 +39,7 @@ type Pack struct {
 	HoldFailures int64
 	StaleMs      int64
 	SameSource   string // "forbid" or "allow"
-	Output       string // "priority" or "latest"
+	Output       string // "fused" (the default), "priority" or "latest"
 	Priority     map[string]int64
 	Method       string // a name of the method table (methods.go)
 	NewCost      float64
@@ -73,6 +73,26 @@ type Pack struct {
 	// time_offset line (spec: correlate-assign.md Sensor bias, Time offset)
 	HasTimeOffset     bool
 	TimeOffsetSigmaMs float64 // t
+
+	// stale_rate line (spec: correlate.md On each tick, Stale time of a source)
+	HasStaleRate bool
+	StaleRate    StaleRate
+
+	// sprt line (spec: correlate.md Association, Sequential test)
+	HasSprt bool
+	Sprt    Sprt
+}
+
+// StaleRate is the stale_rate line: the stale time follows each source's
+// update interval.
+type StaleRate struct {
+	Factor                      float64 // k
+	FloorMs, CeilingMs, Samples int64   // f, c, n
+}
+
+// Sprt is the sprt line.
+type Sprt struct {
+	False, Missed, PosM, VelMs, HaeSigmaM float64
 }
 
 // LoadPack reads <dir>/pack.def (spec: load_pack).
@@ -143,6 +163,11 @@ func parseTest(fields []string, kinds map[string]TestKind) (Test, error) {
 		}
 		t.Num[k] = f
 	}
+	if kind.Check != nil {
+		if err := kind.Check(t); err != nil {
+			return Test{}, err
+		}
+	}
 	return t, nil
 }
 
@@ -161,7 +186,7 @@ func ParsePack(text string) (*Pack, error) { return ParsePackWith(text, DefaultR
 
 // ParsePackWith parses the text of a pack.def with the given tables.
 func ParsePackWith(text string, r Registry) (*Pack, error) {
-	p := &Pack{SameSource: "forbid", Output: "priority", Priority: map[string]int64{}, Method: "confirm", Window: 1, Hypotheses: 1,
+	p := &Pack{SameSource: "forbid", Output: "fused", Priority: map[string]int64{}, Method: "confirm", Window: 1, Hypotheses: 1,
 		TimeDefaults: map[string]model.TimeDefault{}}
 	seen := map[string]bool{}
 	for n, line := range strings.Split(text, "\n") {
@@ -230,6 +255,17 @@ func (p *Pack) directive(d string, rest []string, r Registry) error {
 			p.HasTimeOffset = true
 			if !(p.TimeOffsetSigmaMs > 0) {
 				err = fmt.Errorf("time_offset: sigma_ms must be above 0")
+			}
+		}
+	case "stale_rate":
+		err = p.parseStaleRate(rest)
+	case "sprt":
+		sp := &p.Sprt
+		if err = floats(rest, []string{"false", "missed", "pos_m", "vel_ms", "hae_sigma_m"},
+			&sp.False, &sp.Missed, &sp.PosM, &sp.VelMs, &sp.HaeSigmaM); err == nil {
+			p.HasSprt = true
+			if !(sp.False > 0 && sp.False < 0.5 && sp.Missed > 0 && sp.Missed < 0.5 && sp.PosM > 0 && sp.VelMs > 0 && sp.HaeSigmaM > 0) {
+				err = fmt.Errorf("sprt: false and missed must be above 0 and below 0.5, pos_m, vel_ms and hae_sigma_m above 0")
 			}
 		}
 	case "margin":
@@ -305,8 +341,8 @@ func (p *Pack) directive(d string, rest []string, r Registry) error {
 		}
 	case "output":
 		if v, err = oneValue(d, rest); err == nil {
-			if v != "priority" && v != "latest" {
-				err = fmt.Errorf("output must be priority or latest")
+			if v != "fused" && v != "priority" && v != "latest" {
+				err = fmt.Errorf("output must be fused, priority or latest")
 			}
 			p.Output = v
 		}
@@ -323,6 +359,28 @@ func (p *Pack) directive(d string, rest []string, r Registry) error {
 		err = fmt.Errorf("unknown directive %q", d)
 	}
 	return err
+}
+
+// parseStaleRate reads the stale_rate line (correlate.md Pack).
+func (p *Pack) parseStaleRate(rest []string) error {
+	m, err := io.Params(rest, []string{"factor", "floor_ms", "ceiling_ms", "samples"}, nil)
+	if err != nil {
+		return err
+	}
+	sr := &p.StaleRate
+	if sr.Factor, err = parseFloat(m["factor"]); err != nil {
+		return err
+	}
+	for name, into := range map[string]*int64{"floor_ms": &sr.FloorMs, "ceiling_ms": &sr.CeilingMs, "samples": &sr.Samples} {
+		if *into, err = parseInt(m[name]); err != nil {
+			return err
+		}
+	}
+	if !(sr.Factor > 0 && 0 <= sr.FloorMs && sr.FloorMs <= sr.CeilingMs && sr.Samples >= 1) {
+		return fmt.Errorf("stale_rate: factor above 0, 0 <= floor_ms <= ceiling_ms, samples 1 or above")
+	}
+	p.HasStaleRate = true
+	return nil
 }
 
 // check applies the method's required and refused directives, then the
@@ -343,8 +401,11 @@ func (p *Pack) check(seen map[string]bool) error {
 	if !(f.DefaultCeM > 0 && f.VelSigmaMs > 0 && f.UnknownVelMs > 0 && f.AccelVar >= 0) {
 		return fmt.Errorf("filter: default_ce_m, vel_sigma_ms, unknown_vel_ms must be above 0 and accel_var 0 or above")
 	}
+	if seen["stale_ms"] == seen["stale_rate"] {
+		return fmt.Errorf("exactly one of stale_ms and stale_rate is required")
+	}
 	if m.check != nil {
-		if err := m.check(p); err != nil {
+		if err := m.check(p, seen); err != nil {
 			return err
 		}
 	}

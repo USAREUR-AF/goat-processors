@@ -6,6 +6,9 @@
 #include "correlate/common.hpp"
 #include "correlate/tests.hpp"
 
+#include <algorithm>
+#include <vector>
+
 namespace corr::correlate {
 
 using namespace detail;
@@ -96,6 +99,8 @@ bool Core::run_stage(const char* stage, const std::vector<TestSpec>& tests, cons
         rec["limit"] = std::move(r.limit);
         rec["pass"] = r.pass;
         if (r.skipped) rec["skipped"] = true;
+        if (r.extra.is_object())
+            for (auto& kv : r.extra.object) rec[kv.first] = std::move(kv.second);
         if (extra)
             for (const auto& kv : extra->object) rec[kv.first] = kv.second;
         out.trace.push(std::move(rec));
@@ -104,11 +109,46 @@ bool Core::run_stage(const char* stage, const std::vector<TestSpec>& tests, cons
     return true;
 }
 
-// Spec "On each tick", 1: the pack's stale_ms, or the report's own stale_ms.
+// correlate.md "On each tick", 1: above the source's stale time, or the
+// report's own stale_ms reached.
 bool Core::is_stale(const Entity& e, std::int64_t now_ms) const {
     auto report_stale = e.last.find("stale_ms");
-    return now_ms - e.last_time_ms > pack_.stale_ms ||
-           (is_integer(report_stale) && now_ms >= report_stale->integer);
+    const std::int64_t age = now_ms - e.last_time_ms;
+    const bool old = pack_.stale_rate ? static_cast<double>(age) > stale_time(e.source) : age > pack_.stale_ms;
+    return old || (is_integer(report_stale) && now_ms >= report_stale->integer);
+}
+
+// correlate.md "Stale time of a source".
+double Core::stale_time(const std::string& source) const {
+    if (!pack_.stale_rate) return static_cast<double>(pack_.stale_ms);
+    const StaleRate& sr = *pack_.stale_rate;
+    auto it = intervals_.find(source);
+    if (it == intervals_.end() || it->second.empty()) return static_cast<double>(sr.ceiling_ms);
+    std::vector<std::int64_t> sorted(it->second.begin(), it->second.end());
+    std::sort(sorted.begin(), sorted.end());
+    const std::int64_t m = sorted[(sorted.size() - 1) / 2];   // the lower median
+    double t = sr.factor * static_cast<double>(m);
+    if (t < static_cast<double>(sr.floor_ms)) t = static_cast<double>(sr.floor_ms);
+    if (t > static_cast<double>(sr.ceiling_ms)) t = static_cast<double>(sr.ceiling_ms);
+    return t;
+}
+
+void Core::record_interval(const std::string& source, std::int64_t interval) {
+    if (!pack_.stale_rate) return;
+    std::deque<std::int64_t>& list = intervals_[source];
+    list.push_back(interval);
+    while (static_cast<std::int64_t>(list.size()) > pack_.stale_rate->samples) list.pop_front();
+}
+
+Json Core::intervals_json() const {
+    Json out = Json::make_object();
+    for (const auto& kv : intervals_) {
+        if (kv.second.empty()) continue;
+        Json list = Json::make_array();
+        for (std::int64_t v : kv.second) list.push(static_cast<long long>(v));
+        out[kv.first] = std::move(list);
+    }
+    return out;
 }
 
 } // namespace corr::correlate

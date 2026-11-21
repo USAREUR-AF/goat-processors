@@ -31,17 +31,17 @@ def track(key, report, east, north, r=(1.0, 1.0)):
 
 
 class FloatBoundaries(unittest.TestCase):
-    """gate.py `value < limit` (window, mahalanobis), speed `<=`; tracks.py
+    """gate.py `value < limit` (distance, mahalanobis), speed `<=`; tracks.py
     restart `d2 < gate`; assign.py bias `d2 < gate` and margin `<= cut`."""
 
-    def test_window_and_mahalanobis_are_strict(self):
+    def test_distance_and_mahalanobis_are_strict(self):
         eng = correlate.make_engine(correlate.parse_pack(
-            CONFIRM % 2 + "gate window multiplier=2 window_m=1 err_min_m=1 err_max_m=100\n"
+            CONFIRM % 2 + "gate distance max_m=101\n"
             "gate mahalanobis gate=1\n"))
         a = track("a/1", {"ce": 30.0}, [0.0, 0, 1.0, 0, 1], [0.0, 0, 1.0, 0, 1], r=(8.0, 8.0))
         b = track("b/1", {"ce": 40.0}, [101.0, 0, 1.0, 0, 1], [0.0, 0, 1.0, 0, 1])
         trace = []
-        self.assertFalse(gate.run_test(eng, "gate", "window", eng.pack.gate[0][1], a, b, trace))
+        self.assertFalse(gate.run_test(eng, "gate", "distance", eng.pack.gate[0][1], a, b, trace))
         self.assertEqual((trace[0]["value"], trace[0]["limit"]), (101.0, 101.0))
         b.east[0] = 3.0
         self.assertFalse(gate.run_test(eng, "gate", "mahalanobis", eng.pack.gate[1][1], a, b, trace))
@@ -165,7 +165,7 @@ class Confirm(unittest.TestCase):
 
     def test_priority_default_is_100(self):
         """confirm.py: an unlisted source has priority 100, ties to key order."""
-        eng = correlate.make_engine(correlate.parse_pack(CONFIRM % 1 + "priority b 100\n"))
+        eng = correlate.make_engine(correlate.parse_pack(CONFIRM % 1 + "output priority\npriority b 100\n"))
         eng.ingest(rep("a", "1", 0, 1.0, 1.0))
         eng.ingest(rep("b", "1", 0, 1.0, 1.0))
         events, _ = eng.tick(0)

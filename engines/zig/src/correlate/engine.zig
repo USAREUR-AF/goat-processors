@@ -30,6 +30,9 @@ pub const Engine = struct {
     pack: Pack,
     ref: ?frame.Frame = null,
     entities: std.StringArrayHashMap(Entity),
+    // correlate.md 1.0 "Stale time of a source", with `stale_rate`: each
+    // source's last `samples` update intervals, oldest first.
+    intervals: std.StringArrayHashMap(std.ArrayList(i64)),
     // The method's own state (methods.zig `init`).
     method_state: *anyopaque,
 
@@ -39,10 +42,12 @@ pub const Engine = struct {
             .arena = std.heap.ArenaAllocator.init(backing),
             .pack = pack,
             .entities = undefined,
+            .intervals = undefined,
             .method_state = undefined,
         };
         const a = self.arena.allocator();
         self.entities = std.StringArrayHashMap(Entity).init(a);
+        self.intervals = std.StringArrayHashMap(std.ArrayList(i64)).init(a);
         self.method_state = try pack.method.init(a);
         return self;
     }
@@ -83,6 +88,49 @@ pub const Engine = struct {
         var i: usize = 0;
         while (i < list.items.len and lessKey({}, list.items[i], key)) i += 1;
         try list.insert(i, key);
+    }
+
+    // ---- staleness -----------------------------------------------------------
+
+    // correlate.md 1.0 "Stale time of a source", with `stale_rate`: `k * m`, `m` the lower median of the source's intervals,
+    // raised to the floor and lowered to the ceiling; the ceiling with none.
+    pub fn staleTime(self: *Engine, source: []const u8) f64 {
+        const sr = self.pack.stale_rate.?;
+        const floor_ms: f64 = @floatFromInt(sr.floor_ms);
+        const ceiling_ms: f64 = @floatFromInt(sr.ceiling_ms);
+        const list = self.intervals.get(source) orelse return ceiling_ms;
+        if (list.items.len == 0) return ceiling_ms;
+        var buf: [64]i64 = undefined;
+        const sorted = if (list.items.len <= buf.len) buf[0..list.items.len] else self.alloc().alloc(i64, list.items.len) catch @panic("out of memory");
+        @memcpy(sorted, list.items);
+        std.mem.sort(i64, sorted, {}, std.sort.asc(i64));
+        const m: f64 = @floatFromInt(sorted[(sorted.len - 1) / 2]);
+        const t = sr.factor * m;
+        if (t < floor_ms) return floor_ms;
+        if (t > ceiling_ms) return ceiling_ms;
+        return t;
+    }
+
+    // correlate.md "On each tick", Staleness: above its source's stale time,
+    // or at or past its last report's `stale_ms`.
+    pub fn isStale(self: *Engine, e: Entity, now_ms: i64) bool {
+        const own_stale = if (e.integer("stale_ms")) |s| now_ms >= s else false;
+        // `stale_ms` compares integers; a `stale_rate` time is a binary64.
+        if (self.pack.stale_rate == null) return now_ms - e.last_time_ms > self.pack.stale_ms or own_stale;
+        const age: f64 = @floatFromInt(now_ms - e.last_time_ms);
+        return age > self.staleTime(e.source) or own_stale;
+    }
+
+    // Appends an update interval to the source's list, which keeps the last `samples`.
+    fn appendInterval(self: *Engine, source: []const u8, interval: i64) !void {
+        const sr = self.pack.stale_rate orelse return;
+        const gop = try self.intervals.getOrPut(source);
+        if (!gop.found_existing) {
+            gop.key_ptr.* = try self.alloc().dupe(u8, source);
+            gop.value_ptr.* = std.ArrayList(i64).init(self.alloc());
+        }
+        try gop.value_ptr.append(interval);
+        while (gop.value_ptr.items.len > @as(usize, @intCast(sr.samples))) _ = gop.value_ptr.orderedRemove(0);
     }
 
     // ---- ingest ------------------------------------------------------------
@@ -207,6 +255,9 @@ pub const Engine = struct {
                 restart = !pass;
             }
             const dt = kalman.seconds(e.last_time_ms, time_ms);
+            // correlate.md 1.0: an accepted report of an existing entity appends
+            // its interval to its source's list (with `stale_rate`).
+            try self.appendInterval(e.source, time_ms - e.last_time_ms);
             if (restart) {
                 // The filter starts again from this report as a first report. The
                 // entity keeps its key, group, pair counts and hold failure count.
@@ -255,14 +306,19 @@ pub const Engine = struct {
         }));
     }
 
+    // B predicted to A's time for a comparison with A.
+    pub fn comparePrediction(self: *Engine, a: Entity, b: Entity) !kalman.Filter {
+        // correlate.md 0.8: B's prediction with its timing variance added, first.
+        const b_pred = b.predictedForComparison(a.last_time_ms, self.pack);
+        // Then the method may change it (correlate-assign.md 0.5 "Sensor bias": B is moved into A's frame).
+        return self.pack.method.compare(self, a, b, b_pred);
+    }
+
     // Runs `tests` between A and B in order, stopping at the first failure.
     pub fn runTests(self: *Engine, res: *Result, stage: Stage, tests: []const pack_mod.Test, a_key: []const u8, b_key: []const u8) !bool {
         const a = self.entities.get(a_key).?;
         const b = self.entities.get(b_key).?;
-        // correlate.md 0.8: B's prediction with its timing variance added, first.
-        var b_pred = b.predictedForComparison(a.last_time_ms, self.pack);
-        // Then the method may change it (correlate-assign.md 0.5 "Sensor bias": B is moved into A's frame).
-        b_pred = try self.pack.method.compare(self, a, b, b_pred);
+        const b_pred = try self.comparePrediction(a, b);
         for (tests) |t| {
             const o = t.run(.{ .a = a, .b = b, .b_pred = b_pred, .filter = self.pack.filter });
             var rec = try self.object(.{
@@ -275,6 +331,7 @@ pub const Engine = struct {
                 .{ "pass", o.pass },
             });
             if (o.skipped) try rec.object.put("skipped", .{ .bool = true });
+            if (o.dof) |dof| try rec.object.put("dof", .{ .integer = dof });
             try res.trace.append(rec);
             if (!o.pass) return false;
         }
@@ -342,6 +399,52 @@ pub const unit_tests = struct {
         try std.testing.expectEqual(@as(usize, 0), o.events[5].array.items.len);
         try std.testing.expectEqualStrings("drop", util.ev(o, 6, 0));
         try std.testing.expectEqual(@as(usize, 0), o.snapshot.object.get("entities").?.object.count());
+    }
+
+    test "sprt: evidence with heights, an update from a failed gate, a forced update, stale_rate" {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        // `false` so small that one report's evidence leaves the pair below `up`.
+        const pack = try pack_mod.parse(a,
+            \\pack p
+            \\version 1.0.0
+            \\filter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
+            \\gate mahalanobis gate=9.21
+            \\gate same key=@env
+            \\sprt false=0.0000000001 missed=0.01 pos_m=10000 vel_ms=300 hae_sigma_m=100
+            \\stale_rate factor=2 floor_ms=1000 ceiling_ms=60000 samples=2
+        );
+        const o = try util.run(this_module, a, pack,
+            \\[{"ingest": {"track.source_id": "a", "uid": "1", "time_ms": 0, "lat": 0, "lon": 0, "hae": 100, "type": "a-f-A"}},
+            \\ {"ingest": {"track.source_id": "b", "uid": "2", "time_ms": 0, "lat": 0, "lon": 0.0001, "hae": 120, "type": "a-f-A"}},
+            \\ {"ingest": {"track.source_id": "b", "uid": "2", "time_ms": 1000, "lat": 0, "lon": 0.0001, "hae": 120, "type": "a-f-G"}},
+            \\ {"ingest": {"track.source_id": "c", "uid": "3", "time_ms": 1000, "lat": 0, "lon": 0, "type": "a-f-A"}},
+            \\ {"ingest": {"track.source_id": "c", "uid": "3", "time_ms": 2000, "lat": 0.05, "lon": 0, "type": "a-f-A"}},
+            \\ {"ingest": {"track.source_id": "c", "uid": "3", "time_ms": 3000, "lat": 0.05, "lon": 0, "type": "a-f-A"}},
+            \\ {"ingest": {"track.source_id": "c", "uid": "3", "time_ms": 9000, "lat": 0.05, "lon": 0, "type": "a-f-A"}},
+            \\ {"tick": 9000}]
+        );
+        // Step 2: one report's evidence, with heights, short of `up`.
+        const r1 = o.trace[1].array.items[2].object;
+        try std.testing.expectEqualStrings("llr", r1.get("test").?.string);
+        try std.testing.expect(!r1.get("pass").?.bool);
+        try std.testing.expect(r1.get("increment").?.float > 0);
+        // Step 3: `same` fails on a pair with an `L`: a forced update, no increment, removed.
+        const recs = o.trace[2].array.items;
+        const forced = recs[recs.len - 1].object;
+        try std.testing.expect(forced.get("increment").? == .null);
+        try std.testing.expect(forced.get("d2").? == .null);
+        // Step 5: c is far off; the gate fails, `same` passes, the pair adds its evidence.
+        var saw_negative = false;
+        for (o.trace[4].array.items) |r| {
+            if (std.mem.eql(u8, r.object.get("stage").?.string, "sprt") and r.object.get("increment").? != .null and r.object.get("increment").?.float < 0) saw_negative = true;
+        }
+        try std.testing.expect(saw_negative);
+        try std.testing.expectEqual(@as(usize, 0), o.snapshot.object.get("groups").?.object.count());
+        // c's intervals are [1000, 6000] (samples 2): lower median 1000, stale after 2000 ms.
+        try std.testing.expectEqual(@as(usize, 2), o.snapshot.object.get("intervals").?.object.get("c").?.array.items.len);
+        try std.testing.expectEqualStrings("drop", util.ev(o, 7, 0));
     }
 
     test "assign: a report gives new; the tick starts and joins system tracks" {

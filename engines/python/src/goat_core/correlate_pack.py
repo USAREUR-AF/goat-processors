@@ -12,6 +12,8 @@ from .packdef import PackError
 FILTER_PARAMS = ("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms")
 MANEUVER_PARAMS = ("accel_var", "p_enter", "p_leave")
 BIAS_PARAMS = ("sigma_m", "floor_m", "gate")
+SPRT_PARAMS = ("false", "missed", "pos_m", "vel_ms", "hae_sigma_m")
+STALE_RATE_PARAMS = ("factor", "floor_ms", "ceiling_ms", "samples")
 
 
 class Pack:
@@ -26,8 +28,10 @@ class Pack:
         self.hold_failures = None
         self.stale_ms = None
         self.same_source = "forbid"
-        self.output = "priority"
+        self.output = "fused"
         self.priority = {}
+        self.sprt = None
+        self.stale_rate = None
         self.method = "confirm"
         self.tests = None    # the table of tests the pack was parsed with
         self.methods = None  # the table of methods
@@ -85,7 +89,8 @@ def parse_pack(text, tests, methods):
         d, args = parts[0], parts[1:]
         if d in ("pack", "version", "filter", "confirm_count", "hold_failures",
                  "stale_ms", "same_source", "output", "method", "new_cost", "keep_bonus",
-                 "maneuver", "window", "hypotheses", "bias", "restart", "margin", "time_offset"):
+                 "maneuver", "window", "hypotheses", "bias", "restart", "margin", "time_offset",
+                 "sprt", "stale_rate"):
             if d in seen:
                 raise PackError("line %d: repeated directive %s" % (i, d))
             seen.add(d)
@@ -111,6 +116,10 @@ def parse_pack(text, tests, methods):
             if set(kv) != set(kind.params):
                 raise PackError("line %d: test %s needs exactly %s" % (i, name, ", ".join(kind.params)))
             params = {k: (v if kind.text else _num(v, i)) for k, v in kv.items()}
+            if kind.check is not None:
+                err = kind.check(params)
+                if err:
+                    raise PackError("line %d: %s" % (i, err))
             getattr(p, d).append((name, params))
         elif d == "maneuver":
             kv = _params(args, i)
@@ -120,6 +129,25 @@ def parse_pack(text, tests, methods):
             if m["p_enter"] <= 0 or m["p_leave"] <= 0 or m["p_enter"] + m["p_leave"] >= 1:
                 raise PackError("line %d: p_enter and p_leave must be above 0 with a sum below 1" % i)
             p.maneuver = m
+        elif d == "stale_rate":
+            kv = _params(args, i)
+            if set(kv) != set(STALE_RATE_PARAMS):
+                raise PackError("line %d: stale_rate needs exactly %s" % (i, ", ".join(sorted(STALE_RATE_PARAMS))))
+            sr = {"factor": _num(kv["factor"], i), "floor_ms": _int(kv["floor_ms"], i),
+                  "ceiling_ms": _int(kv["ceiling_ms"], i), "samples": _int(kv["samples"], i)}
+            if sr["factor"] <= 0 or sr["floor_ms"] < 0 or sr["ceiling_ms"] < sr["floor_ms"] or sr["samples"] < 1:
+                raise PackError("line %d: stale_rate needs factor above 0, 0 <= floor_ms <= ceiling_ms, "
+                                "samples 1 or above" % i)
+            p.stale_rate = sr
+        elif d == "sprt":
+            kv = _params(args, i)
+            if set(kv) != set(SPRT_PARAMS):
+                raise PackError("line %d: sprt needs exactly %s" % (i, ", ".join(sorted(SPRT_PARAMS))))
+            sp = {k: _num(v, i) for k, v in kv.items()}
+            if (not (0 < sp["false"] < 0.5 and 0 < sp["missed"] < 0.5)
+                    or min(sp["pos_m"], sp["vel_ms"], sp["hae_sigma_m"]) <= 0):
+                raise PackError("line %d: sprt false and missed in (0, 0.5), spreads above 0" % i)
+            p.sprt = sp
         elif d == "time_offset":
             kv = _params(args, i)
             if set(kv) != {"sigma_ms"}:
@@ -184,8 +212,8 @@ def parse_pack(text, tests, methods):
                 raise PackError("line %d: same_source is forbid or allow" % i)
             p.same_source = args[0]
         elif d == "output":
-            if args not in (["priority"], ["latest"]):
-                raise PackError("line %d: output is priority or latest" % i)
+            if args not in (["priority"], ["latest"], ["fused"]):
+                raise PackError("line %d: output is fused, priority or latest" % i)
             p.output = args[0]
         elif d == "priority":
             if len(args) != 2:
@@ -208,7 +236,17 @@ def parse_pack(text, tests, methods):
     for d in method.refused:
         if d in seen or (d in ("gate", "confirm", "hold") and getattr(p, d)):
             raise PackError("method %s does not take %s" % (p.method, d))
-    for d in method.required:
+    required = method.required
+    if p.sprt is not None:
+        # Association, Sequential test: sprt replaces the counts and the hold.
+        if p.hold or any(d in seen for d in ("confirm_count", "hold_failures")):
+            raise PackError("sprt replaces confirm_count, hold and hold_failures")
+        required = tuple(d for d in required if d not in ("confirm_count", "hold_failures"))
+    if p.stale_rate is not None:
+        if "stale_ms" in seen:
+            raise PackError("stale_ms and stale_rate exclude each other")
+        required = tuple(d for d in required if d != "stale_ms")
+    for d in required:
         if d not in seen:
             raise PackError("missing directive %s" % d)
     if p.maneuver is not None and p.maneuver["accel_var"] <= p.filter["accel_var"]:

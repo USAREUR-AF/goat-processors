@@ -26,7 +26,7 @@
    "adsb/A2": {
     "filter": {
      "east": [
-      40.00000642891965,
+      40.000006428919654,
       0.0,
       900.0,
       0.0,
@@ -46,7 +46,7 @@
    "radar-1/R1": {
     "filter": {
      "east": [
-      15.000044102646402,
+      15.000044102646406,
       0.0,
       900.0,
       0.0,
@@ -66,7 +66,7 @@
    "radar-1/R2": {
     "filter": {
      "east": [
-      15.000044102646402,
+      15.000044102646406,
       0.0,
       900.0,
       0.0,
@@ -299,7 +299,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.1250007350451873
+     "value": 0.12500073504518736
     },
     {
      "a": "radar-1/R1",
@@ -326,7 +326,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.34722117573060085
+     "value": 0.34722117573060096
     },
     {
      "a": "radar-1/R1",
@@ -353,7 +353,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.1250007350451873
+     "value": 0.12500073504518736
     },
     {
      "a": "radar-1/R2",
@@ -380,7 +380,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.34722117573060085
+     "value": 0.34722117573060096
     },
     {
      "a": "radar-1/R2",
@@ -407,7 +407,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 0.1250007350451873
+     "value": 0.12500073504518736
     },
     {
      "a": "radar-1/R1",
@@ -416,7 +416,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 0.34722117573060085
+     "value": 0.34722117573060096
     },
     {
      "a": "radar-1/R1",
@@ -434,7 +434,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 0.1250007350451873
+     "value": 0.12500073504518736
     },
     {
      "a": "radar-1/R2",
@@ -443,7 +443,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 0.34722117573060085
+     "value": 0.34722117573060096
     },
     {
      "a": "radar-1/R2",
@@ -461,7 +461,7 @@
      "pass": true,
      "stage": "assign",
      "test": "choice",
-     "value": 0.1250007350451873
+     "value": 0.12500073504518736
     },
     {
      "a": "radar-1/R2",
@@ -470,7 +470,7 @@
      "pass": true,
      "stage": "assign",
      "test": "choice",
-     "value": 0.34722117573060085
+     "value": 0.34722117573060096
     }
    ]
   }

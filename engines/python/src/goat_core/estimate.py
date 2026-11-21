@@ -151,6 +151,34 @@ def two_model_update(models, mode, man, q, dt, e, n, r, vel, rv):
     return new_models, mu, east, north, lam
 
 
+def predict_out(east, north, models, mode, dt, q):
+    """The prediction's (p, v, pp, vv) per axis, without the cross term, which
+    an output combination does not use: the arithmetic of predict_axis and
+    blend (or predict_axis alone without models, q then a number) in the same
+    order, so the same values."""
+    dt2 = 2 * dt
+    dd = dt * dt
+    d4 = dt ** 4
+    if models is None:
+        qa, qv = q * d4 / 4, q * dt * dt
+        return [(p + v * dt, v, pp + dt2 * pv + dd * vv + qa, vv + qv)
+                for p, v, pp, pv, vv in (east, north)]
+    w1, w2 = mode
+    (e1, n1), (e2, n2) = models
+    qa1, qv1 = q[0] * d4 / 4, q[0] * dt * dt
+    qa2, qv2 = q[1] * d4 / 4, q[1] * dt * dt
+    out = []
+    for (p1, v1, pp1, pv1, vv1), (p2, v2, pp2, pv2, vv2) in ((e1, e2), (n1, n2)):
+        p1, pp1, vv1 = p1 + v1 * dt, pp1 + dt2 * pv1 + dd * vv1 + qa1, vv1 + qv1
+        p2, pp2, vv2 = p2 + v2 * dt, pp2 + dt2 * pv2 + dd * vv2 + qa2, vv2 + qv2
+        p = w1 * p1 + w2 * p2
+        v = w1 * v1 + w2 * v2
+        dp1, dv1, dp2, dv2 = p1 - p, v1 - v, p2 - p, v2 - v
+        out.append((p, v, w1 * (pp1 + dp1 * dp1) + w2 * (pp2 + dp2 * dp2),
+                    w1 * (vv1 + dv1 * dv1) + w2 * (vv2 + dv2 * dv2)))
+    return out
+
+
 def with_variance(pr, add):
     """(east, north) prediction with add[x] added to pp on each axis; the
     same tuple when nothing is added."""

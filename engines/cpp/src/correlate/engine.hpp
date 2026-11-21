@@ -1,5 +1,5 @@
 // The correlate function (correlate.md "What the correlator does", version
-// 0.8, and correlate-assign.md version 0.6): load_pack (in correlate/pack.hpp),
+// 1.0, and correlate-assign.md version 0.7): load_pack (in correlate/pack.hpp),
 // then ingest, tick and snapshot. The shared steps of ingest are here; the
 // pack's method (correlate/method.hpp) does the rest.
 #pragma once

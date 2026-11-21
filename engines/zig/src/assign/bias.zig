@@ -1,4 +1,4 @@
-// spec/correlate-assign.md (version 0.6) "Sensor bias": one position offset per
+// spec/correlate-assign.md (version 0.7) "Sensor bias": one position offset per
 // unordered pair of sources, learned from the committed membership at each tick;
 // with `time_offset` ("Time offset"), a clock offset `tau` fitted with it.
 const std = @import("std");

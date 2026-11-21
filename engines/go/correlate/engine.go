@@ -1,12 +1,13 @@
-// Package correlate is the Go engine of spec/correlate.md (version 0.8) and,
-// through package assign, spec/correlate-assign.md (version 0.6). The
+// Package correlate is the Go engine of spec/correlate.md (version 1.0) and,
+// through package assign, spec/correlate-assign.md (version 0.7). The
 // pack's `method` line selects the method from the table in methods.go.
 //
 // Files by section of correlate.md: engine.go (What the correlator does),
 // reports.go (Reports, Time quality), track.go (Track estimate, Two-model
 // filter), restart.go (Restart), tests.go (Tests), confirm.go
-// (Association, method confirm), snapshot.go (Snapshot), pack.go and
-// methods.go (Pack). assign.go connects package assign.
+// (Association, method confirm; Snapshot), sprt.go (Association,
+// Sequential test), stale.go (On each tick, Staleness; Stale time of a
+// source), pack.go and methods.go (Pack). assign.go connects package assign.
 package correlate
 
 import (
@@ -77,10 +78,14 @@ type Engine struct {
 	entities map[string]*Entity
 	method   method
 
-	// method confirm (Association): left as is until correlate 1.0.
+	// stale_rate: each source's last intervals, oldest first (Stale time of a source)
+	intervals map[string][]int64
+
+	// method confirm (Association)
 	groups     map[string][]string
 	groupOrder []string
 	counts     map[string]int64
+	llr        map[string]float64 // with sprt: each pair's L (Sequential test)
 	nextGroup  int
 }
 
@@ -88,7 +93,8 @@ var _ model.Engine = (*Engine)(nil)
 
 // New returns an engine for a loaded pack.
 func New(p *Pack) *Engine {
-	g := &Engine{pack: p, entities: map[string]*Entity{}, groups: map[string][]string{}, counts: map[string]int64{}, nextGroup: 1}
+	g := &Engine{pack: p, entities: map[string]*Entity{}, groups: map[string][]string{}, counts: map[string]int64{},
+		llr: map[string]float64{}, intervals: map[string][]int64{}, nextGroup: 1}
 	g.method = methods[p.Method].new(g)
 	return g
 }
@@ -127,6 +133,9 @@ func (g *Engine) Ingest(report map[string]any) (events, trace []Obj) {
 	}
 	z, ce, te, varE, varN := g.measure(e, source, key, t, report, lat, lon, &trace)
 
+	if e != nil {
+		g.addInterval(source, t-e.LastTime)
+	}
 	if e == nil {
 		e = &Entity{Key: key, Source: source}
 		g.startFilter(e, z)

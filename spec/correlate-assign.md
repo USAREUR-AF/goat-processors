@@ -1,9 +1,11 @@
 # Correlate by assignment specification
 
-Status: Written. Version 0.6. A second method for the correlate function.
+Status: Written. Version 0.7. A second method for the correlate function.
 Engines implement it from this document, [correlate.md](correlate.md) and the
 vectors, never from another engine's source.
-Version 0.6 adds the time offset of Sensor bias (directive `time_offset`) and
+Version 0.7 takes from `correlate.md` 1.0 the `state` test and staleness
+from each source's update rate (`stale_rate`, in place of `stale_ms`); a pack
+with `stale_ms` behaves as in 0.6. Version 0.6 added the time offset of Sensor bias (directive `time_offset`) and
 takes `time_default` and the measurement variance of `correlate.md` 0.8; a
 pack without them behaves as in 0.5. Version 0.5 added three optional
 directives, each without effect when absent:
@@ -138,7 +140,8 @@ key order; or `p - o` with `pp + var`, from pair `"<a_src>|<b_src>"`, when
 `a_src` is before `b_src`. Two
 entities of one source are never moved. This applies wherever B is
 predicted to be compared with A: the `distance`, `window` and `mahalanobis`
-tests of `correlate.md` (to B's prediction, before the test formula;
+tests of `correlate.md` and the `state` test (to B's prediction, before the
+test formula;
 `distance` and `window` read no `pp`, so only the offset changes them), and
 each member of M in Cost. A system track's estimate for output moves no
 member.
@@ -221,7 +224,11 @@ assignment in this order is the least-cost assignment; with equal least
 totals it is the one with the smaller choice vector.
 
 The **ranked assignments** of a source are the first `k` assignments in this
-order (fewer when fewer exist). An engine may find them by any exact method.
+order (fewer when fewer exist). An engine may find them by any exact method,
+for example a sparse matrix holding only the entries that passed the gate,
+solved by a shortest augmenting path method (R. Jonker and A. Volgenant,
+1987) or an auction method (D. P. Bertsekas, 1988); forbidden entries never
+enter such a matrix, and the optimum is the same.
 The reference partitions the remaining assignments around each one found
 (Murty's method). Each part's first assignment comes from the exact
 assignment, and rows are fixed one at a time in key order to apply the
@@ -381,7 +388,9 @@ holds `last_time_ms`, `system` (its committed system track, or null) and
 `maneuver`); `systems` maps each committed system track name to its
 members in key order; `next_system` is the committed counter; `reported`
 lists, in key order, the entities that reported since the previous tick.
-With `restart` the snapshot also holds `restarted`, the restarted entities in
+Each entity also holds `time` when its last report had a time error above 0,
+as in `correlate.md`. With `stale_rate` the snapshot also holds `intervals`,
+as in `correlate.md`. With `restart` the snapshot also holds `restarted`, the restarted entities in
 key order. With `bias` it holds `bias`, mapping each stored pair key to
 `{"east", "weight_east", "north", "weight_north", "var", "pairs"}` (`o` and
 `w` per axis, `var`, `n`), keys in order; with `time_offset` each also has
@@ -408,6 +417,7 @@ gate        <test> <param>=<value> ...
 new_cost    <number>
 keep_bonus  <number>
 stale_ms    <ms>
+stale_rate  factor=<k> floor_ms=<ms> ceiling_ms=<ms> samples=<n>
 restart     gate=<g>
 time_default <source_id> error_ms=<ms> state=<state>
 bias        sigma_m=<s> floor_m=<f> gate=<g>
@@ -417,8 +427,8 @@ hypotheses  <k>
 margin      <m>
 ```
 
-`pack`, `version`, `filter`, `new_cost`, `keep_bonus` and `stale_ms` are
-required and appear once; `maneuver`, `window` and `hypotheses` are optional
+`pack`, `version`, `filter`, `new_cost`, `keep_bonus` and one of `stale_ms`
+and `stale_rate` (never both) are required and appear once; `maneuver`, `window` and `hypotheses` are optional
 and appear at most once; `gate` repeats and may be absent, in which case every
 column entry passes. `new_cost` must be above 0 and `keep_bonus` 0 or above.
 `window` and `hypotheses` are integers, 1 or above, written as one value.
@@ -433,8 +443,8 @@ follow `correlate.md`.
 A `method` value other than `confirm` or `assign` does not load. `method`
 may appear anywhere in the file; which directives are required or refused is
 checked once the whole file is read. `confirm`, `hold`, `confirm_count`,
-`hold_failures`, `same_source`, `output` and `priority` are load errors with
-`method assign`; `new_cost`, `keep_bonus`, `window`, `hypotheses`, `margin`,
+`hold_failures`, `same_source`, `output`, `priority` and `sprt` are load errors
+with `method assign`; `new_cost`, `keep_bonus`, `window`, `hypotheses`, `margin`,
 `bias` and `time_offset` are load errors with `method confirm`. A pack with no `method` line uses `method
 confirm` (`correlate.md`); `method confirm` may also be written.
 

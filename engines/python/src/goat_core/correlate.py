@@ -38,7 +38,7 @@ METHODS = MappingProxyType({
     "assign": Method(AssignEngine,
                      required=("pack", "version", "filter", "new_cost", "keep_bonus", "stale_ms"),
                      refused=("confirm", "hold", "confirm_count", "hold_failures", "same_source",
-                              "output", "priority")),
+                              "output", "priority", "sprt")),
 })
 
 

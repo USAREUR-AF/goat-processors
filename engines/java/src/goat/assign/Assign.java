@@ -34,7 +34,7 @@ import goat.trace.Records;
 import goat.trace.Result;
 
 /**
- * Method assign: correlate-assign.md. The entities, their filters and the tests are the
+ * Method assign: correlate-assign.md 0.7. The entities, their filters and the tests are the
  * engine's; this class holds the memberships, the histories and the tick.
  */
 public final class Assign implements Method {
@@ -58,7 +58,7 @@ public final class Assign implements Method {
             }),
             new Directive("bias", false, Bias::biasLine),
             new Directive("time_offset", false, Bias::timeOffsetLine)),
-            List.of("pack", "version", "method", "filter", "new_cost", "keep_bonus", "stale_ms"),
+            List.of("pack", "version", "method", "filter", "new_cost", "keep_bonus"),
             pk -> {
                 if (pk.hypotheses > 1 && pk.window <= 1) throw err("hypotheses above 1 needs window above 1");
                 if (pk.margin && pk.hypotheses <= 1) throw err("margin needs hypotheses above 1");
@@ -450,6 +450,7 @@ public final class Assign implements Method {
         s.put("systems", committed.systemsMap());
         s.put("next_system", committed.nextSystem);
         s.put("reported", new ArrayList<Object>(reported));
+        engine.putIntervals(s);
         if (pack.restart) s.put("restarted", new ArrayList<Object>(restarted));
         if (bias != null) s.put("bias", bias.snapshot());
         if (!windowed) return s;

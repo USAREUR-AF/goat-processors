@@ -150,7 +150,7 @@ class AssignEngine(Correlator):
         return assignment_cost(a.east, a.north, a.t_var, self._fused(members, a.last_time_ms, a))
 
     def _stale(self, ent, now_ms):
-        if now_ms - ent.last_time_ms > self.pack.stale_ms:
+        if now_ms - ent.last_time_ms > self._stale_limit(ent.source):
             return True
         sm = ent.report.get("stale_ms")
         return sm is not None and now_ms >= int(sm)

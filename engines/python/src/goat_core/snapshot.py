@@ -29,7 +29,14 @@ def confirm(eng):
         "groups": {g: list(eng.groups[g]) for g in eng.group_order},
         "counts": dict(sorted(eng.counts.items())),
         "next_group": eng.next_group,
+        **({"llr": dict(sorted(eng.llr.items()))} if eng.pack.sprt is not None else {}),
+        **(_intervals(eng) if eng.pack.stale_rate is not None else {}),
     }
+
+
+def _intervals(eng):
+    """Association, Stale time of a source: each source's last intervals."""
+    return {"intervals": {k: list(v) for k, v in sorted(eng.intervals.items())}}
 
 
 def assign(eng):
@@ -43,6 +50,8 @@ def assign(eng):
         "next_system": eng.committed.next,
         "reported": sorted(eng.reported),
     }
+    if pack.stale_rate is not None:
+        out.update(_intervals(eng))
     if pack.restart is not None:
         out["restarted"] = sorted(eng.restarted)
     if pack.bias is not None:

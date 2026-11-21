@@ -6,7 +6,7 @@
    "adsb/A7": {
     "filter": {
      "east": [
-      10000.000050737362,
+      10000.000050737364,
       0.0,
       900.0,
       0.0,
@@ -218,7 +218,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 55555.55611930403
+     "value": 55555.55611930405
     },
     {
      "a": "radar-1/T2",
@@ -227,7 +227,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 55444.50023682524
+     "value": 55444.50023682525
     },
     {
      "a": "radar-1/T1",

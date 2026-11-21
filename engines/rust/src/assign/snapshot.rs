@@ -25,6 +25,7 @@ impl Engine {
             ("next_system", Json::Int(self.committed.next_system as i64)),
             ("reported", Json::Arr(self.reported.iter().map(|k| k.as_str().into()).collect())),
         ];
+        pairs.extend(self.intervals_json());
         if self.pack.restart.is_some() {
             pairs.push(("restarted", Json::Arr(self.restarted.iter().map(|k| k.as_str().into()).collect())));
         }

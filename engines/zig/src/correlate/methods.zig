@@ -25,8 +25,9 @@ pub const Method = struct {
     group_prefix: []const u8,
     required: []const D,
     refused: []const D,
-    // The method's pack ranges, after its required and refused directives.
-    check: *const fn (p: pack.Pack) pack.Error!void,
+    // The method's pack ranges and its conditional directives, after its
+    // required and refused directives; `seen` holds the directives written.
+    check: *const fn (p: pack.Pack, seen: pack.Seen) pack.Error!void,
     // The method's state, held by the engine as `method_state`.
     init: *const fn (a: Allocator) anyerror!*anyopaque,
     // A reason to reject a report of entity `key` (after the required keys,
@@ -46,10 +47,12 @@ pub const table = [_]Method{
     .{
         .name = "confirm",
         .group_prefix = "g",
-        .required = &.{ .pack, .version, .filter, .confirm_count, .hold_failures, .stale_ms },
+        // `confirm_count` and `hold_failures` unless `sprt` (checkConfirm); one of
+        // `stale_ms` and `stale_rate` (pack.zig, both methods).
+        .required = &.{ .pack, .version, .filter },
         // correlate-assign.md directives are not directives of correlate.md.
         .refused = &.{ .new_cost, .keep_bonus, .window, .hypotheses, .margin, .bias, .time_offset },
-        .check = noCheck,
+        .check = checkConfirm,
         .init = confirm.initState,
         .reject = neverReject,
         .restarted = nothingAtRestart,
@@ -62,8 +65,9 @@ pub const table = [_]Method{
         .name = "assign",
         .group_prefix = "s",
         // correlate-assign.md "Pack": all but `gate` are required.
-        .required = &.{ .pack, .version, .filter, .new_cost, .keep_bonus, .stale_ms },
-        .refused = &.{ .confirm, .hold, .confirm_count, .hold_failures, .same_source, .output, .priority },
+        // (and one of `stale_ms` and `stale_rate`, pack.zig).
+        .required = &.{ .pack, .version, .filter, .new_cost, .keep_bonus },
+        .refused = &.{ .confirm, .hold, .confirm_count, .hold_failures, .same_source, .output, .priority, .sprt },
         .check = assign.checkPack,
         .init = assign.initState,
         .reject = assign.rejectRetiring,
@@ -83,7 +87,18 @@ pub fn find(name: []const u8) ?*const Method {
     return null;
 }
 
-fn noCheck(_: pack.Pack) pack.Error!void {}
+// correlate.md 1.0 "Pack": with `sprt`, `confirm_count`, `hold_failures` and
+// `hold` are load errors; without it the first two are required. `sprt`'s
+// `false` and `missed` above 0 and below 0.5, the other three above 0.
+fn checkConfirm(p: pack.Pack, seen: pack.Seen) pack.Error!void {
+    if (p.sprt) |s| {
+        for ([_]D{ .confirm_count, .hold_failures, .hold }) |d| if (seen.contains(d)) return error.DirectiveNotForMethod;
+        if (!(s.false > 0 and s.false < 0.5 and s.missed > 0 and s.missed < 0.5)) return error.BadValue;
+        if (!(s.pos_m > 0 and s.vel_ms > 0 and s.hae_sigma_m > 0)) return error.BadValue;
+    } else {
+        for ([_]D{ .confirm_count, .hold_failures }) |d| if (!seen.contains(d)) return error.MissingDirective;
+    }
+}
 
 fn neverReject(_: *Engine, _: []const u8) ?[]const u8 {
     return null;

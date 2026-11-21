@@ -1,4 +1,4 @@
-//! `method assign` (spec/correlate-assign.md 0.6): system tracks, ranked
+//! `method assign` (spec/correlate-assign.md 0.7): system tracks, ranked
 //! per-source assignments at each tick, a window of histories (with an
 //! optional margin), sensor bias with an optional clock offset, and the
 //! inverse-variance fused estimate. The engine state it reads and writes is

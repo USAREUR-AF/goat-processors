@@ -6,7 +6,7 @@ vectors:
 
 | Function | Specification |
 |---|---|
-| correlate | `spec/correlate.md` 0.8 (method `confirm`, the two-model filter, the filter restart, time quality) and `spec/correlate-assign.md` 0.6 (method `assign`: window, margin, sensor bias, time offset) |
+| correlate | `spec/correlate.md` 1.0 (method `confirm` with counts or the sequential test `sprt`, the `state` test, staleness by source rate, the fused output, the two-model filter, the filter restart, time quality) and `spec/correlate-assign.md` 0.7 (method `assign`: window, margin, sensor bias, time offset) |
 | filter | `spec/filter.md` 0.1 |
 | fuse | `spec/fuse.md` 0.2 |
 | quality | `spec/quality.md` 0.2 (with time quality per source) |
@@ -142,8 +142,8 @@ Each module also offers the same calls on its own types: `<fn>::load_pack(dir)`,
 
 | Kind | Where | Adding one |
 |---|---|---|
-| a correlate method | `methods()` in `src/correlate/methods.cpp` | a class deriving from `correlate::Method` (`src/correlate/method.hpp`) and one row: name, required and refused directives, factory |
-| a correlate test | `builtin_tests()` in `src/correlate/tests.cpp` | one `TestRegistry::add`: name, parameters, a pure function of the pair |
+| a correlate method | `methods()` in `src/correlate/methods.cpp` | a class deriving from `correlate::Method` (`src/correlate/method.hpp`) and one row: name, required and refused directives, factory, and optionally a check of the rules that depend on which directives are present (`confirm`: with or without `sprt`) |
+| a correlate test | `builtin_tests()` in `src/correlate/tests.cpp` | one `TestRegistry::add`: name, parameters, a pure function of the pair, and optionally a check of its parameter ranges (`state`) |
 | a quality measure | `measures()` in `src/quality/measures.cpp` | one row: name, a pure function of the window samples, the source aggregate |
 
 `test/test_extension.cpp` proves the test registration with a `noop` kind

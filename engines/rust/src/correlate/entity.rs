@@ -34,11 +34,6 @@ impl Entity {
         self.report.get(key).and_then(Json::as_f64)
     }
 
-    /// Last `ce`, or the pack's `default_ce_m`.
-    pub(crate) fn ce(&self, default_ce_m: f64) -> f64 {
-        report_ce(&self.report).unwrap_or(default_ce_m)
-    }
-
     /// `@env`: the third `-`-separated element of `type`; absent when `type`
     /// is absent or has fewer than three elements.
     pub(crate) fn env(&self) -> Option<Json> {

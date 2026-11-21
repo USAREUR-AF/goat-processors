@@ -68,9 +68,9 @@ confirm count        2       limit 2      <span class="pass">pass</span>
   <div class="wrap">
     <div class="numbers">
       <div><span class="n" data-measure="engines">7</span><span class="l">engines</span><code>ls engines | wc -l</code></div>
-      <div><span class="n" data-measure="vectors">121</span><span class="l">scenario vectors</span><code>ls packs/*/vectors/*.json | wc -l</code></div>
-      <div><span class="n" data-measure="traces">4,333</span><span class="l">trace records, all reproduced</span><code>site/build.py counts every vector's trace</code></div>
-      <div><span class="n" data-measure="packs">24</span><span class="l">settings packs</span><code>ls packs/*/pack.def | wc -l</code></div>
+      <div><span class="n" data-measure="vectors">124</span><span class="l">scenario vectors</span><code>ls packs/*/vectors/*.json | wc -l</code></div>
+      <div><span class="n" data-measure="traces">4,426</span><span class="l">trace records, all reproduced</span><code>site/build.py counts every vector's trace</code></div>
+      <div><span class="n" data-measure="packs">26</span><span class="l">settings packs</span><code>ls packs/*/pack.def | wc -l</code></div>
     </div>
   </div>
 </section>
@@ -149,7 +149,7 @@ confirm count        2       limit 2      <span class="pass">pass</span>
     <div>
       <h2>Scored against ground truth</h2>
       <p>The correlate packs run on generated scenarios: crossing, formation, splitting and turning objects; sensors with bias, latency, low detection, track number swaps and false tracks; sensors whose clocks are offset or drifting. F1 runs from 0 to 1 and scores whether the output puts two tracks together exactly when they are one object. GOSPA is a mean position error that also charges missed and false tracks.</p>
-      <p>The default pack, <code>assign-time</code>, on the 500 random scenarios of the evaluation set, which no pack is tuned on: F1 <span class="num" data-measure="f1-random">0.934 (0.921 to 0.947)</span>, equal within the 95&nbsp;% interval to <span data-measure="f1-ties">window and assign-full</span>; GOSPA <span class="num" data-measure="gospa-random">268</span> m.</p>
+      <p>The default pack, <code>assign-time</code>, on the 500 random scenarios of the evaluation set, which no pack is tuned on: F1 <span class="num" data-measure="f1-random">0.947 (0.936 to 0.957)</span>, equal within the 95&nbsp;% interval to <span data-measure="f1-ties">assign-full</span>; GOSPA <span class="num" data-measure="gospa-random">255</span> m.</p>
       <pre class="block">python3 -I tools/bench/bench.py check   # docs/benchmark.md is current
 python3 -I tools/bench/bench.py report  # rewrite it</pre>
       <p><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/docs/benchmark.md">Every score and its formula</a></p>

@@ -6,8 +6,8 @@
    "adsb/A1": {
     "filter": {
      "east": [
-      1199.4599385296285,
-      99.95840951378705,
+      1199.4599385296283,
+      99.95840951378702,
       651.7119829596651,
       83.04739726608487,
       26.112474099509235
@@ -26,8 +26,8 @@
    "adsb/A2": {
     "filter": {
      "east": [
-      820.4861840343498,
-      -89.96256137267514,
+      820.4861840343499,
+      -89.96256137267513,
       651.7119829596651,
       83.04739726608487,
       26.112474099509235
@@ -47,7 +47,7 @@
     "filter": {
      "east": [
       1411.8110939385676,
-      99.98454087815738,
+      99.98454087815739,
       313.03323013362404,
       48.44929990481448,
       14.42261455141011
@@ -67,7 +67,7 @@
     "filter": {
      "east": [
       631.1701210611279,
-      -89.98608714638432,
+      -89.9860871463843,
       313.03323013362404,
       48.44929990481448,
       14.42261455141011
@@ -98,7 +98,7 @@
         "s2"
        ]
       ],
-      "cost": -0.4644134613717419,
+      "cost": -0.46441346137173634,
       "events": [],
       "next_system": 3,
       "systems": {
@@ -113,7 +113,7 @@
       }
      }
     ],
-    "total": -0.4644134613717419
+    "total": -0.46441346137173634
    },
    {
     "records": [
@@ -128,7 +128,7 @@
         "s2"
        ]
       ],
-      "cost": 8.747021246605582,
+      "cost": 8.747021246605584,
       "events": [
        {
         "entity": "radar-1/R1",
@@ -157,7 +157,7 @@
       }
      }
     ],
-    "total": 8.747021246605582
+    "total": 8.747021246605584
    }
   ],
   "next_system": 3,
@@ -335,7 +335,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.11555609610979317
+     "value": 0.11555609610979323
     },
     {
      "a": "radar-1/R1",
@@ -415,7 +415,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 0.11555609610979317
+     "value": 0.11555609610979323
     },
     {
      "a": "radar-1/R1",
@@ -476,7 +476,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 0.11555609610979317
+     "value": 0.11555609610979323
     },
     {
      "a": "radar-1/R2",
@@ -498,7 +498,7 @@
      "r": 1,
      "stage": "assign",
      "test": "choice",
-     "value": 0.11555609610979317
+     "value": 0.11555609610979323
     },
     {
      "a": "radar-1/R2",
@@ -1450,7 +1450,7 @@
       "adsb/A1",
       "radar-1/R1"
      ],
-     "speed_ms": 98.91497393043863,
+     "speed_ms": 98.91497393043865,
      "system": "s1"
     },
     {
@@ -1492,7 +1492,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.1265166194692509
+     "value": 0.12651661946925008
     },
     {
      "a": "adsb/A1",
@@ -1572,7 +1572,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": -1.8730973920742848
+     "value": -1.8730973920742857
     },
     {
      "a": "adsb/A1",
@@ -1633,7 +1633,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": -1.8730973920742848
+     "value": -1.8730973920742857
     },
     {
      "a": "adsb/A2",
@@ -1655,7 +1655,7 @@
      "r": 1,
      "stage": "assign",
      "test": "choice",
-     "value": -1.8730973920742848
+     "value": -1.8730973920742857
     },
     {
      "a": "adsb/A2",
@@ -1708,7 +1708,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.1265166194692509
+     "value": 0.12651661946925008
     },
     {
      "a": "adsb/A1",
@@ -1788,7 +1788,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 0.12690260792571517
+     "value": 0.12690260792571434
     },
     {
      "a": "adsb/A1",
@@ -1839,7 +1839,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 0.12690260792571517
+     "value": 0.12690260792571434
     },
     {
      "a": "adsb/A2",
@@ -1883,7 +1883,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": 0.12690260792571517
+     "value": 0.12690260792571434
     },
     {
      "a": "adsb/A2",
@@ -1904,7 +1904,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.1265166194692509
+     "value": 0.12651661946925008
     },
     {
      "a": "adsb/A1",
@@ -1984,7 +1984,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": -1.8730973920742848
+     "value": -1.8730973920742857
     },
     {
      "a": "adsb/A1",
@@ -2045,7 +2045,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": -1.8730973920742848
+     "value": -1.8730973920742857
     },
     {
      "a": "adsb/A2",
@@ -2067,7 +2067,7 @@
      "r": 1,
      "stage": "assign",
      "test": "choice",
-     "value": -1.8730973920742848
+     "value": -1.8730973920742857
     },
     {
      "a": "adsb/A2",
@@ -2136,7 +2136,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 6.330718705318351
+     "value": 6.3307187053183505
     },
     {
      "a": 2,
@@ -2145,7 +2145,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 6.539736522883296
+     "value": 6.539736522883295
     },
     {
      "a": 1,
@@ -2163,7 +2163,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 13.5807971968099
+     "value": 13.580797196809899
     },
     {
      "a": 1,
@@ -2191,7 +2191,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.11596184684216251
+     "value": 0.11596184684216175
     },
     {
      "a": "radar-1/R1",
@@ -2271,7 +2271,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": -1.8730973920742848
+     "value": -1.8730973920742857
     },
     {
      "a": "radar-1/R1",
@@ -2332,7 +2332,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": -1.8730973920742848
+     "value": -1.8730973920742857
     },
     {
      "a": "radar-1/R2",
@@ -2354,7 +2354,7 @@
      "r": 1,
      "stage": "assign",
      "test": "choice",
-     "value": -1.8730973920742848
+     "value": -1.8730973920742857
     },
     {
      "a": "radar-1/R2",
@@ -2397,7 +2397,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.11596184684216251
+     "value": 0.11596184684216175
     },
     {
      "a": "radar-1/R1",
@@ -2477,7 +2477,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": -1.8730973920742848
+     "value": -1.8730973920742857
     },
     {
      "a": "radar-1/R1",
@@ -2538,7 +2538,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": -1.8730973920742848
+     "value": -1.8730973920742857
     },
     {
      "a": "radar-1/R2",
@@ -2560,7 +2560,7 @@
      "r": 1,
      "stage": "assign",
      "test": "choice",
-     "value": -1.8730973920742848
+     "value": -1.8730973920742857
     },
     {
      "a": "radar-1/R2",
@@ -2613,7 +2613,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.11596184684216251
+     "value": 0.11596184684216175
     },
     {
      "a": "radar-1/R1",
@@ -2693,7 +2693,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 0.12690260792571517
+     "value": 0.12690260792571434
     },
     {
      "a": "radar-1/R1",
@@ -2744,7 +2744,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 0.12690260792571517
+     "value": 0.12690260792571434
     },
     {
      "a": "radar-1/R2",
@@ -2788,7 +2788,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": 0.12690260792571517
+     "value": 0.12690260792571434
     },
     {
      "a": "radar-1/R2",
@@ -2808,7 +2808,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": -9.549544771798354
+     "value": -9.549544771798356
     },
     {
      "a": 0,
@@ -2817,7 +2817,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 1.4915159021282487
+     "value": 1.491515902128247
     },
     {
      "a": 0,
@@ -2826,7 +2826,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 1.5335526202759309
+     "value": 1.53355262027593
     },
     {
      "a": 1,
@@ -2835,7 +2835,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 3.4915159021282487
+     "value": 3.491515902128247
     },
     {
      "a": 2,
@@ -2844,7 +2844,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 3.533552620275931
+     "value": 3.53355262027593
     },
     {
      "a": 1,
@@ -2853,7 +2853,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 10.532576576054852
+     "value": 10.53257657605485
     },
     {
      "a": 2,
@@ -2889,7 +2889,7 @@
      "pass": true,
      "stage": "history",
      "test": "commit",
-     "value": -9.549544771798354
+     "value": -9.549544771798356
     },
     {
      "a": 1,
@@ -2898,7 +2898,7 @@
      "pass": true,
      "stage": "history",
      "test": "commit",
-     "value": 1.4915159021282487
+     "value": 1.491515902128247
     },
     {
      "a": 2,
@@ -2907,7 +2907,7 @@
      "pass": true,
      "stage": "history",
      "test": "commit",
-     "value": 1.5335526202759309
+     "value": 1.53355262027593
     }
    ]
   },
@@ -2962,7 +2962,7 @@
       "adsb/A2",
       "radar-1/R2"
      ],
-     "speed_ms": 89.4481922107586,
+     "speed_ms": 89.44819221075862,
      "system": "s2"
     },
     {
@@ -2992,7 +2992,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.09214568021581765
+     "value": 0.09214568021581657
     },
     {
      "a": "radar-1/R1",
@@ -3032,7 +3032,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 185.79476254155145
+     "value": 185.7947625415513
     },
     {
      "a": "radar-1/R2",
@@ -3042,7 +3042,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.10595183810061953
+     "value": 0.10595183810062123
     },
     {
      "a": "radar-1/R2",
@@ -3072,7 +3072,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": -1.8992088302506371
+     "value": -1.8992088302506382
     },
     {
      "a": "radar-1/R1",
@@ -3112,7 +3112,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": -1.884107321425759
+     "value": -1.884107321425757
     },
     {
      "a": "radar-1/R2",
@@ -3133,7 +3133,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": -1.8992088302506371
+     "value": -1.8992088302506382
     },
     {
      "a": "radar-1/R2",
@@ -3144,7 +3144,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": -1.884107321425759
+     "value": -1.884107321425757
     },
     {
      "a": "radar-1/R1",
@@ -3155,7 +3155,7 @@
      "r": 1,
      "stage": "assign",
      "test": "choice",
-     "value": -1.8992088302506371
+     "value": -1.8992088302506382
     },
     {
      "a": "radar-1/R2",
@@ -3188,7 +3188,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": -1.884107321425759
+     "value": -1.884107321425757
     },
     {
      "a": "radar-1/R1",
@@ -3198,7 +3198,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.09214568021581765
+     "value": 0.09214568021581657
     },
     {
      "a": "radar-1/R1",
@@ -3238,7 +3238,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 185.79476254155145
+     "value": 185.7947625415513
     },
     {
      "a": "radar-1/R2",
@@ -3248,7 +3248,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.10595183810061953
+     "value": 0.10595183810062123
     },
     {
      "a": "radar-1/R2",
@@ -3278,7 +3278,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": -1.8992088302506371
+     "value": -1.8992088302506382
     },
     {
      "a": "radar-1/R1",
@@ -3318,7 +3318,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 0.11589267857424101
+     "value": 0.11589267857424287
     },
     {
      "a": "radar-1/R2",
@@ -3339,7 +3339,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": -1.8992088302506371
+     "value": -1.8992088302506382
     },
     {
      "a": "radar-1/R2",
@@ -3350,7 +3350,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 0.11589267857424101
+     "value": 0.11589267857424287
     },
     {
      "a": "radar-1/R1",
@@ -3361,7 +3361,7 @@
      "r": 1,
      "stage": "assign",
      "test": "choice",
-     "value": -1.8992088302506371
+     "value": -1.8992088302506382
     },
     {
      "a": "radar-1/R2",
@@ -3394,7 +3394,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": 0.11589267857424101
+     "value": 0.11589267857424287
     },
     {
      "a": "radar-1/R1",
@@ -3404,7 +3404,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.09214568021581765
+     "value": 0.09214568021581657
     },
     {
      "a": "radar-1/R1",
@@ -3444,7 +3444,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 185.79476254155145
+     "value": 185.7947625415513
     },
     {
      "a": "radar-1/R2",
@@ -3454,7 +3454,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.10595183810061953
+     "value": 0.10595183810062123
     },
     {
      "a": "radar-1/R2",
@@ -3484,7 +3484,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 0.10079116974936286
+     "value": 0.10079116974936167
     },
     {
      "a": "radar-1/R1",
@@ -3524,7 +3524,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": -1.884107321425759
+     "value": -1.884107321425757
     },
     {
      "a": "radar-1/R2",
@@ -3545,7 +3545,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 0.10079116974936286
+     "value": 0.10079116974936167
     },
     {
      "a": "radar-1/R2",
@@ -3556,7 +3556,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": -1.884107321425759
+     "value": -1.884107321425757
     },
     {
      "a": "radar-1/R1",
@@ -3578,7 +3578,7 @@
      "r": 1,
      "stage": "assign",
      "test": "choice",
-     "value": -1.884107321425759
+     "value": -1.884107321425757
     },
     {
      "a": "radar-1/R1",
@@ -3589,7 +3589,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": 0.10079116974936286
+     "value": 0.10079116974936167
     },
     {
      "a": "radar-1/R2",
@@ -3618,7 +3618,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": -0.09752496225241014
+     "value": -0.0975249622524128
     },
     {
      "a": 0,
@@ -3636,7 +3636,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 1.8494283902484332
+     "value": 1.849428390248432
     },
     {
      "a": 2,
@@ -3654,7 +3654,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 8.943535711674194
+     "value": 8.94353571167419
     },
     {
      "a": 2,
@@ -3663,7 +3663,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 9.000673938646752
+     "value": 9.000673938646754
     },
     {
      "a": 1,
@@ -3681,7 +3681,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 12.985572429821875
+     "value": 12.985572429821874
     },
     {
      "a": 0,
@@ -3699,7 +3699,7 @@
      "pass": true,
      "stage": "history",
      "test": "commit",
-     "value": -0.09752496225241014
+     "value": -0.0975249622524128
     },
     {
      "a": 2,
@@ -4447,7 +4447,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 3.5909908704884916
+     "value": 3.5909908704884925
     },
     {
      "a": 0,
@@ -4456,7 +4456,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 3.642972779810509
+     "value": 3.64297277981051
     },
     {
      "a": 1,
@@ -4465,7 +4465,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 5.691387123401155
+     "value": 5.691387123401153
     },
     {
      "a": 2,
@@ -4474,7 +4474,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 5.706488632226032
+     "value": 5.7064886322260335
     },
     {
      "a": 1,
@@ -4483,7 +4483,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 12.685098191914252
+     "value": 12.68509819191425
     },
     {
      "a": 2,
@@ -4492,7 +4492,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 12.752181610061147
+     "value": 12.752181610061148
     },
     {
      "a": 2,
@@ -4501,7 +4501,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 16.700199700739127
+     "value": 16.70019970073913
     },
     {
      "a": 1,
@@ -4510,7 +4510,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 16.73708010123627
+     "value": 16.737080101236266
     },
     {
      "a": "radar-1/R1",
@@ -5137,7 +5137,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": -11.022124244372815
+     "value": -11.022124244372813
     },
     {
      "a": 0,
@@ -5146,7 +5146,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": -0.02841317585971792
+     "value": -0.028413175859717033
     },
     {
      "a": 0,
@@ -5155,7 +5155,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 0.023568733462299374
+     "value": 0.023568733462300262
     },
     {
      "a": 1,
@@ -5164,7 +5164,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 1.9715868241402825
+     "value": 1.9715868241402834
     },
     {
      "a": 2,
@@ -5173,7 +5173,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 2.0235687334623
+     "value": 2.0235687334623007
     },
     {
      "a": 1,
@@ -5182,7 +5182,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 8.965297892653378
+     "value": 8.96529789265338
     },
     {
      "a": 2,
@@ -5218,7 +5218,7 @@
      "pass": true,
      "stage": "history",
      "test": "commit",
-     "value": -11.022124244372815
+     "value": -11.022124244372813
     },
     {
      "a": 1,
@@ -5227,7 +5227,7 @@
      "pass": true,
      "stage": "history",
      "test": "commit",
-     "value": -0.02841317585971792
+     "value": -0.028413175859717033
     },
     {
      "a": 2,
@@ -5236,7 +5236,7 @@
      "pass": true,
      "stage": "history",
      "test": "commit",
-     "value": 0.023568733462299374
+     "value": 0.023568733462300262
     }
    ]
   },
@@ -5283,7 +5283,7 @@
      "system": "s1"
     },
     {
-     "course": 264.0487165122805,
+     "course": 264.04871651228046,
      "ev": "system",
      "lat": 1.0003113843620293,
      "lon": 0.9995273198493695,
@@ -5291,7 +5291,7 @@
       "adsb/A2",
       "radar-1/R2"
      ],
-     "speed_ms": 90.40934362698039,
+     "speed_ms": 90.40934362698036,
      "system": "s2"
     },
     {
@@ -5381,7 +5381,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.6656425231219236
+     "value": 0.6656425231219225
     },
     {
      "a": "radar-1/R2",
@@ -5411,7 +5411,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 2.9629438325210775
+     "value": 2.962943832521076
     },
     {
      "a": "radar-1/R2",
@@ -5471,7 +5471,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 0.682741640072215
+     "value": 0.6827416400722139
     },
     {
      "a": "radar-1/R2",
@@ -5481,7 +5481,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 1.0390563423886943
+     "value": 1.039056342388693
     },
     {
      "a": "radar-1/R2",
@@ -5513,7 +5513,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 0.682741640072215
+     "value": 0.6827416400722139
     },
     {
      "a": "radar-1/R1",
@@ -5535,7 +5535,7 @@
      "r": 1,
      "stage": "assign",
      "test": "choice",
-     "value": 1.0390563423886943
+     "value": 1.039056342388693
     },
     {
      "a": "radar-1/R1",
@@ -5627,7 +5627,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.6656425231219236
+     "value": 0.6656425231219225
     },
     {
      "a": "radar-1/R2",
@@ -5657,7 +5657,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 2.9629438325210775
+     "value": 2.962943832521076
     },
     {
      "a": "radar-1/R2",
@@ -5717,7 +5717,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 0.682741640072215
+     "value": 0.6827416400722139
     },
     {
      "a": "radar-1/R2",
@@ -5727,7 +5727,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 3.0390563423886943
+     "value": 3.039056342388693
     },
     {
      "a": "radar-1/R2",
@@ -5759,7 +5759,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 0.682741640072215
+     "value": 0.6827416400722139
     },
     {
      "a": "radar-1/R1",
@@ -5781,7 +5781,7 @@
      "r": 1,
      "stage": "assign",
      "test": "choice",
-     "value": 3.0390563423886943
+     "value": 3.039056342388693
     },
     {
      "a": "radar-1/R1",
@@ -5873,7 +5873,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 0.6656425231219236
+     "value": 0.6656425231219225
     },
     {
      "a": "radar-1/R2",
@@ -5903,7 +5903,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 2.9629438325210775
+     "value": 2.962943832521076
     },
     {
      "a": "radar-1/R2",
@@ -5963,7 +5963,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 0.682741640072215
+     "value": 0.6827416400722139
     },
     {
      "a": "radar-1/R2",
@@ -5973,7 +5973,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 1.0390563423886943
+     "value": 1.039056342388693
     },
     {
      "a": "radar-1/R2",
@@ -6005,7 +6005,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 0.682741640072215
+     "value": 0.6827416400722139
     },
     {
      "a": "radar-1/R1",
@@ -6027,7 +6027,7 @@
      "r": 1,
      "stage": "assign",
      "test": "choice",
-     "value": 1.0390563423886943
+     "value": 1.039056342388693
     },
     {
      "a": "radar-1/R1",
@@ -6049,7 +6049,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": 0.682741640072215
+     "value": 0.6827416400722139
     },
     {
      "a": 0,
@@ -6058,7 +6058,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": -6.059368938690132
+     "value": -6.059368938690133
     },
     {
      "a": 0,
@@ -6067,7 +6067,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": -4.567281155400334
+     "value": -4.567281155400336
     },
     {
      "a": 0,
@@ -6085,7 +6085,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 4.934342129822965
+     "value": 4.934342129822964
     },
     {
      "a": 2,
@@ -6094,7 +6094,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 4.986324039144982
+     "value": 4.98632403914498
     },
     {
      "a": 1,
@@ -6103,7 +6103,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 8.426429913112763
+     "value": 8.426429913112761
     },
     {
      "a": 2,
@@ -6112,7 +6112,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 8.47841182243478
+     "value": 8.478411822434778
     },
     {
      "a": 1,
@@ -6130,7 +6130,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 11.699626525210912
+     "value": 11.69962652521091
     },
     {
      "a": 0,
@@ -6139,7 +6139,7 @@
      "pass": true,
      "stage": "history",
      "test": "commit",
-     "value": -6.059368938690132
+     "value": -6.059368938690133
     },
     {
      "a": 1,
@@ -6148,7 +6148,7 @@
      "pass": true,
      "stage": "history",
      "test": "commit",
-     "value": -4.567281155400334
+     "value": -4.567281155400336
     },
     {
      "a": 2,
@@ -6240,7 +6240,7 @@
       "adsb/A2",
       "radar-1/R2"
      ],
-     "speed_ms": 90.09068460950809,
+     "speed_ms": 90.09068460950807,
      "system": "s2"
     },
     {
@@ -6270,7 +6270,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 132.00352593925783
+     "value": 132.00352593925757
     },
     {
      "a": "adsb/A1",
@@ -6280,7 +6280,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 4.222777855781295
+     "value": 4.2227778557813
     },
     {
      "a": "adsb/A1",
@@ -6340,7 +6340,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 133.69634557834058
+     "value": 133.69634557834053
     },
     {
      "a": "adsb/A1",
@@ -6360,7 +6360,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 5.382296854648938
+     "value": 5.382296854648944
     },
     {
      "a": "adsb/A1",
@@ -6411,7 +6411,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 5.382296854648938
+     "value": 5.382296854648944
     },
     {
      "a": "adsb/A2",
@@ -6455,7 +6455,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": 5.382296854648938
+     "value": 5.382296854648944
     },
     {
      "a": "adsb/A2",
@@ -6476,7 +6476,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 4.222777855781295
+     "value": 4.2227778557813
     },
     {
      "a": "adsb/A1",
@@ -6506,7 +6506,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 132.00352593925783
+     "value": 132.00352593925757
     },
     {
      "a": "adsb/A2",
@@ -6516,7 +6516,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 133.69634557834058
+     "value": 133.69634557834053
     },
     {
      "a": "adsb/A2",
@@ -6556,7 +6556,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 3.3822968546489376
+     "value": 3.382296854648944
     },
     {
      "a": "adsb/A1",
@@ -6617,7 +6617,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 3.3822968546489376
+     "value": 3.382296854648944
     },
     {
      "a": "adsb/A2",
@@ -6661,7 +6661,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": 3.3822968546489376
+     "value": 3.382296854648944
     },
     {
      "a": "adsb/A2",
@@ -6682,7 +6682,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 4.222777855781295
+     "value": 4.2227778557813
     },
     {
      "a": "adsb/A1",
@@ -6712,7 +6712,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 132.00352593925783
+     "value": 132.00352593925757
     },
     {
      "a": "adsb/A2",
@@ -6722,7 +6722,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 133.69634557834058
+     "value": 133.69634557834053
     },
     {
      "a": "adsb/A2",
@@ -6762,7 +6762,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 5.382296854648938
+     "value": 5.382296854648944
     },
     {
      "a": "adsb/A1",
@@ -6823,7 +6823,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 5.382296854648938
+     "value": 5.382296854648944
     },
     {
      "a": "adsb/A2",
@@ -6867,7 +6867,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": 5.382296854648938
+     "value": 5.382296854648944
     },
     {
      "a": "adsb/A2",
@@ -6887,7 +6887,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 8.492248453510262
+     "value": 8.492248453510268
     },
     {
      "a": 0,
@@ -6896,7 +6896,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 11.000160670220465
+     "value": 11.00016067022047
     },
     {
      "a": 1,
@@ -6905,7 +6905,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 14.319951598861326
+     "value": 14.319951598861325
     },
     {
      "a": 0,
@@ -6914,7 +6914,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 14.82786381557153
+     "value": 14.827863815571527
     },
     {
      "a": 1,
@@ -6923,7 +6923,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 15.263823791945024
+     "value": 15.263823791945027
     },
     {
      "a": 0,
@@ -6932,7 +6932,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 15.771736008655227
+     "value": 15.77173600865523
     },
     {
      "a": 2,
@@ -6941,7 +6941,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 19.527419030148252
+     "value": 19.52741903014826
     },
     {
      "a": 2,
@@ -6959,7 +6959,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 24.29899436858301
+     "value": 24.298994368583017
     },
     {
      "a": "radar-1/R1",
@@ -6969,7 +6969,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 3.136408770445984
+     "value": 3.1364087704459878
     },
     {
      "a": "radar-1/R1",
@@ -6999,7 +6999,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 99.30107743517597
+     "value": 99.30107743517591
     },
     {
      "a": "radar-1/R2",
@@ -7009,7 +7009,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 98.04375949325923
+     "value": 98.04375949325905
     },
     {
      "a": "radar-1/R2",
@@ -7049,7 +7049,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 3.382296854648928
+     "value": 3.382296854648934
     },
     {
      "a": "radar-1/R1",
@@ -7110,7 +7110,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 3.382296854648928
+     "value": 3.382296854648934
     },
     {
      "a": "radar-1/R2",
@@ -7154,7 +7154,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": 3.382296854648928
+     "value": 3.382296854648934
     },
     {
      "a": "radar-1/R2",
@@ -7175,7 +7175,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 99.30107743517597
+     "value": 99.30107743517591
     },
     {
      "a": "radar-1/R1",
@@ -7185,7 +7185,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 3.136408770445984
+     "value": 3.1364087704459878
     },
     {
      "a": "radar-1/R1",
@@ -7245,7 +7245,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 98.04375949325923
+     "value": 98.04375949325905
     },
     {
      "a": "radar-1/R1",
@@ -7265,7 +7265,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 3.382296854648928
+     "value": 3.382296854648934
     },
     {
      "a": "radar-1/R1",
@@ -7316,7 +7316,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 3.382296854648928
+     "value": 3.382296854648934
     },
     {
      "a": "radar-1/R2",
@@ -7360,7 +7360,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": 3.382296854648928
+     "value": 3.382296854648934
     },
     {
      "a": "radar-1/R2",
@@ -7381,7 +7381,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 99.30107743517597
+     "value": 99.30107743517591
     },
     {
      "a": "radar-1/R1",
@@ -7391,7 +7391,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 3.136408770445984
+     "value": 3.1364087704459878
     },
     {
      "a": "radar-1/R1",
@@ -7451,7 +7451,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 98.04375949325923
+     "value": 98.04375949325905
     },
     {
      "a": "radar-1/R1",
@@ -7471,7 +7471,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 5.382296854648928
+     "value": 5.382296854648934
     },
     {
      "a": "radar-1/R1",
@@ -7522,7 +7522,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 5.382296854648928
+     "value": 5.382296854648934
     },
     {
      "a": "radar-1/R2",
@@ -7566,7 +7566,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": 5.382296854648928
+     "value": 5.382296854648934
     },
     {
      "a": "radar-1/R2",
@@ -7586,7 +7586,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 14.312969969724435
+     "value": 14.312969969724445
     },
     {
      "a": 1,
@@ -7595,7 +7595,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 16.820882186434634
+     "value": 16.82088218643465
     },
     {
      "a": 0,
@@ -7604,7 +7604,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 20.140673115075504
+     "value": 20.14067311507551
     },
     {
      "a": 0,
@@ -7613,7 +7613,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 21.08454530815919
+     "value": 21.084545308159203
     },
     {
      "a": 2,
@@ -7622,7 +7622,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 22.140673115075497
+     "value": 22.140673115075504
     },
     {
      "a": 1,
@@ -7631,7 +7631,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 22.648585331785707
+     "value": 22.648585331785714
     },
     {
      "a": 1,
@@ -7640,7 +7640,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 23.592457524869392
+     "value": 23.592457524869406
     },
     {
      "a": 2,
@@ -7658,7 +7658,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 28.912248453510255
+     "value": 28.912248453510262
     },
     {
      "a": 0,
@@ -7667,7 +7667,7 @@
      "pass": true,
      "stage": "history",
      "test": "commit",
-     "value": 14.312969969724435
+     "value": 14.312969969724445
     },
     {
      "a": 1,
@@ -7676,7 +7676,7 @@
      "pass": false,
      "stage": "history",
      "test": "commit",
-     "value": 16.820882186434634
+     "value": 16.82088218643465
     },
     {
      "a": 2,
@@ -7685,7 +7685,7 @@
      "pass": true,
      "stage": "history",
      "test": "commit",
-     "value": 20.140673115075504
+     "value": 20.14067311507551
     }
    ]
   },
@@ -7740,7 +7740,7 @@
       "adsb/A2",
       "radar-1/R2"
      ],
-     "speed_ms": 89.99369235209625,
+     "speed_ms": 89.99369235209623,
      "system": "s2"
     },
     {
@@ -7770,7 +7770,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 1.4097678672617238
+     "value": 1.4097678672617266
     },
     {
      "a": "radar-1/R1",
@@ -7800,7 +7800,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 299.73480523790647
+     "value": 299.73480523790636
     },
     {
      "a": "radar-1/R2",
@@ -7810,7 +7810,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 297.6933016537006
+     "value": 297.69330165370036
     },
     {
      "a": "radar-1/R2",
@@ -7820,7 +7820,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 1.084199337100527
+     "value": 1.084199337100528
     },
     {
      "a": "radar-1/R2",
@@ -7850,7 +7850,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": -0.0014347079773235905
+     "value": -0.0014347079773195937
     },
     {
      "a": "radar-1/R1",
@@ -7890,7 +7890,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": -0.4629787533944183
+     "value": -0.46297875339441674
     },
     {
      "a": "radar-1/R2",
@@ -7911,7 +7911,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": -0.0014347079773235905
+     "value": -0.0014347079773195937
     },
     {
      "a": "radar-1/R2",
@@ -7922,7 +7922,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": -0.4629787533944183
+     "value": -0.46297875339441674
     },
     {
      "a": "radar-1/R1",
@@ -7944,7 +7944,7 @@
      "r": 1,
      "stage": "assign",
      "test": "choice",
-     "value": -0.4629787533944183
+     "value": -0.46297875339441674
     },
     {
      "a": "radar-1/R1",
@@ -7955,7 +7955,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": -0.0014347079773235905
+     "value": -0.0014347079773195937
     },
     {
      "a": "radar-1/R2",
@@ -7976,7 +7976,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 1.4097678672617238
+     "value": 1.4097678672617266
     },
     {
      "a": "radar-1/R1",
@@ -8006,7 +8006,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 299.73480523790647
+     "value": 299.73480523790636
     },
     {
      "a": "radar-1/R2",
@@ -8016,7 +8016,7 @@
      "pass": false,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 297.6933016537006
+     "value": 297.69330165370036
     },
     {
      "a": "radar-1/R2",
@@ -8026,7 +8026,7 @@
      "pass": true,
      "stage": "gate",
      "test": "mahalanobis",
-     "value": 1.084199337100527
+     "value": 1.084199337100528
     },
     {
      "a": "radar-1/R2",
@@ -8056,7 +8056,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": 1.9985652920226764
+     "value": 1.9985652920226804
     },
     {
      "a": "radar-1/R1",
@@ -8096,7 +8096,7 @@
      "pass": true,
      "stage": "assign",
      "test": "cost",
-     "value": -0.4629787533944183
+     "value": -0.46297875339441674
     },
     {
      "a": "radar-1/R2",
@@ -8117,7 +8117,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": 1.9985652920226764
+     "value": 1.9985652920226804
     },
     {
      "a": "radar-1/R2",
@@ -8128,7 +8128,7 @@
      "r": 0,
      "stage": "assign",
      "test": "choice",
-     "value": -0.4629787533944183
+     "value": -0.46297875339441674
     },
     {
      "a": "radar-1/R1",
@@ -8150,7 +8150,7 @@
      "r": 1,
      "stage": "assign",
      "test": "choice",
-     "value": -0.4629787533944183
+     "value": -0.46297875339441674
     },
     {
      "a": "radar-1/R1",
@@ -8161,7 +8161,7 @@
      "r": 2,
      "stage": "assign",
      "test": "choice",
-     "value": 1.9985652920226764
+     "value": 1.9985652920226804
     },
     {
      "a": "radar-1/R2",
@@ -8181,7 +8181,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 11.17702957105661
+     "value": 11.177029571056627
     },
     {
      "a": 1,
@@ -8190,7 +8190,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 19.00473271640768
+     "value": 19.00473271640769
     },
     {
      "a": 0,
@@ -8199,7 +8199,7 @@
      "pass": true,
      "stage": "history",
      "test": "total",
-     "value": 20.388464279033933
+     "value": 20.388464279033947
     },
     {
      "a": 0,
@@ -8208,7 +8208,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 20.850008324451025
+     "value": 20.850008324451046
     },
     {
      "a": 1,
@@ -8217,7 +8217,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 24.216167424385006
+     "value": 24.216167424385013
     },
     {
      "a": 1,
@@ -8226,7 +8226,7 @@
      "pass": false,
      "stage": "history",
      "test": "total",
-     "value": 28.677711469802098
+     "value": 28.677711469802112
     },
     {
      "a": 0,
@@ -8235,7 +8235,7 @@
      "pass": true,
      "stage": "history",
      "test": "commit",
-     "value": 11.17702957105661
+     "value": 11.177029571056627
     },
     {
      "a": 1,
@@ -8244,7 +8244,7 @@
      "pass": false,
      "stage": "history",
      "test": "commit",
-     "value": 19.00473271640768
+     "value": 19.00473271640769
     },
     {
      "a": 2,
@@ -8253,7 +8253,7 @@
      "pass": true,
      "stage": "history",
      "test": "commit",
-     "value": 20.388464279033933
+     "value": 20.388464279033947
     }
    ]
   }

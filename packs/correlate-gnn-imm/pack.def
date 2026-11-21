@@ -4,15 +4,33 @@
 # agrees on course, speed, height, simulation flag and environment, and does so
 # on two consecutive reports. It stays grouped until it falls outside a wider
 # region (chi-square 2 dof, 99.99 %: 18.42) on two consecutive reports.
+# Derived values, each from a stated probability or unit:
+# - course within 60 deg: a target turning at 6 deg/s, the sharpest turn this
+#   pack expects, changes course by 60 deg over a 10 s gap between reports.
+# - speed within 73 %: each track's velocity error is vel_sigma_ms = 5 m/s
+#   per axis, so the difference of two tracks has 5 * sqrt(2) = 7.1 m/s, and
+#   99 % of it (z = 2.576) lies within 18.2 m/s, which is 73 % at 25 m/s.
+# - both skipped below 5 m/s, the velocity error itself, where course is not
+#   defined.
+# - height within 300 m: three times a 100 m height error.
+# - confirm on 2 reports in a row: a different object passes the 99 % gate by
+#   chance at most about one time in ten here, so two in a row keep false
+#   confirmation near 1 %. Leave after 2 failures in a row of the 99.99 %
+#   region, so one outlier report never splits a pair.
+# - stale after 120 s without a report (the fixed form of staleness): ten
+#   times the slowest update period this pack expects (12 s); ten missed
+#   updates in a row at a detection probability of 0.5 happen about 0.1 % of
+#   the time. (Staleness from each source's rate, stale_rate, measured worse
+#   for this pack on the benchmark, so it is not used here.)
 pack           correlate-gnn-imm
-version        0.1.0
+version        1.0.0
 filter         accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
 maneuver      accel_var=400 p_enter=0.05 p_leave=0.1
 gate           mahalanobis gate=9.21
 gate           same key=track.simulated
 gate           same key=@env
-confirm        course max_deg=45 min_speed_ms=5
-confirm        speed max_pct=40 min_speed_ms=5
+confirm        course max_deg=60 min_speed_ms=5
+confirm        speed max_pct=73 min_speed_ms=5
 confirm        altitude max_m=300
 confirm_count  2
 hold           mahalanobis gate=18.42

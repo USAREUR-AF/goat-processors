@@ -5,19 +5,19 @@
 <rect x="16" y="56" width="10" height="10" rx="2" fill="#2a78d6"/>
 <text x="30" y="65" font-size="12" fill="#52514e">gnn</text>
 <rect x="65" y="56" width="10" height="10" rx="2" fill="#eb6834"/>
-<text x="79" y="65" font-size="12" fill="#52514e">window</text>
-<rect x="134" y="56" width="10" height="10" rx="2" fill="#1baf7a"/>
-<text x="148" y="65" font-size="12" fill="#52514e">distance</text>
+<text x="79" y="65" font-size="12" fill="#52514e">distance</text>
+<rect x="147" y="56" width="10" height="10" rx="2" fill="#1baf7a"/>
+<text x="161" y="65" font-size="12" fill="#52514e">assign</text>
 <rect x="216" y="56" width="10" height="10" rx="2" fill="#eda100"/>
-<text x="230" y="65" font-size="12" fill="#52514e">assign</text>
-<rect x="285" y="56" width="10" height="10" rx="2" fill="#e87ba4"/>
-<text x="299" y="65" font-size="12" fill="#52514e">gnn-imm</text>
-<rect x="360" y="56" width="10" height="10" rx="2" fill="#008300"/>
-<text x="374" y="65" font-size="12" fill="#52514e">assign-imm</text>
-<rect x="455" y="56" width="10" height="10" rx="2" fill="#6250d6"/>
-<text x="469" y="65" font-size="12" fill="#52514e">gnn-restart</text>
-<rect x="556" y="56" width="10" height="10" rx="2" fill="#e34948"/>
-<text x="570" y="65" font-size="12" fill="#52514e">assign-time</text>
+<text x="230" y="65" font-size="12" fill="#52514e">gnn-imm</text>
+<rect x="291" y="56" width="10" height="10" rx="2" fill="#e87ba4"/>
+<text x="305" y="65" font-size="12" fill="#52514e">assign-imm</text>
+<rect x="386" y="56" width="10" height="10" rx="2" fill="#008300"/>
+<text x="400" y="65" font-size="12" fill="#52514e">gnn-restart</text>
+<rect x="487" y="56" width="10" height="10" rx="2" fill="#6250d6"/>
+<text x="501" y="65" font-size="12" fill="#52514e">assign-time</text>
+<rect x="588" y="56" width="10" height="10" rx="2" fill="#e34948"/>
+<text x="602" y="65" font-size="12" fill="#52514e">sprt</text>
 <line x1="150.0" y1="74" x2="150.0" y2="2098" stroke="#e1e0d9" stroke-width="1"/>
 <text x="150.0" y="2114" font-size="11" text-anchor="middle" fill="#898781">0</text>
 <line x1="267.5" y1="74" x2="267.5" y2="2098" stroke="#e1e0d9" stroke-width="1"/>
@@ -31,254 +31,254 @@
 <line x1="150" y1="74" x2="150" y2="2098" stroke="#c3c2b7" stroke-width="1"/>
 <text x="142" y="113.0" font-size="12" text-anchor="end" fill="#0b0b0b">stationary</text>
 <rect x="150" y="78" width="8.8" height="6" rx="2" fill="#2a78d6"><title>stationary, gnn: 11</title></rect>
-<rect x="150" y="86" width="8.8" height="6" rx="2" fill="#eb6834"><title>stationary, window: 11</title></rect>
-<rect x="150" y="94" width="141.2" height="6" rx="2" fill="#1baf7a"><title>stationary, distance: 180</title></rect>
-<rect x="150" y="102" width="6.7" height="6" rx="2" fill="#eda100"><title>stationary, assign: 9</title></rect>
-<rect x="150" y="110" width="8.8" height="6" rx="2" fill="#e87ba4"><title>stationary, gnn-imm: 11</title></rect>
-<rect x="150" y="118" width="6.7" height="6" rx="2" fill="#008300"><title>stationary, assign-imm: 9</title></rect>
-<rect x="150" y="126" width="8.8" height="6" rx="2" fill="#6250d6"><title>stationary, gnn-restart: 11</title></rect>
-<rect x="150" y="134" width="6.7" height="6" rx="2" fill="#e34948"><title>stationary, assign-time: 9</title></rect>
+<rect x="150" y="86" width="19.0" height="6" rx="2" fill="#eb6834"><title>stationary, distance: 24</title></rect>
+<rect x="150" y="94" width="6.7" height="6" rx="2" fill="#1baf7a"><title>stationary, assign: 9</title></rect>
+<rect x="150" y="102" width="8.8" height="6" rx="2" fill="#eda100"><title>stationary, gnn-imm: 11</title></rect>
+<rect x="150" y="110" width="6.7" height="6" rx="2" fill="#e87ba4"><title>stationary, assign-imm: 9</title></rect>
+<rect x="150" y="118" width="8.8" height="6" rx="2" fill="#008300"><title>stationary, gnn-restart: 11</title></rect>
+<rect x="150" y="126" width="6.7" height="6" rx="2" fill="#6250d6"><title>stationary, assign-time: 9</title></rect>
+<rect x="150" y="134" width="6.7" height="6" rx="2" fill="#e34948"><title>stationary, sprt: 9</title></rect>
 <text x="142" y="185.0" font-size="12" text-anchor="end" fill="#0b0b0b">straight-level</text>
 <rect x="150" y="150" width="8.8" height="6" rx="2" fill="#2a78d6"><title>straight-level, gnn: 11</title></rect>
-<rect x="150" y="158" width="8.8" height="6" rx="2" fill="#eb6834"><title>straight-level, window: 11</title></rect>
-<rect x="150" y="166" width="4.6" height="6" rx="2" fill="#1baf7a"><title>straight-level, distance: 6</title></rect>
-<rect x="150" y="174" width="6.1" height="6" rx="2" fill="#eda100"><title>straight-level, assign: 8</title></rect>
-<rect x="150" y="182" width="8.8" height="6" rx="2" fill="#e87ba4"><title>straight-level, gnn-imm: 11</title></rect>
-<rect x="150" y="190" width="6.1" height="6" rx="2" fill="#008300"><title>straight-level, assign-imm: 8</title></rect>
-<rect x="150" y="198" width="8.8" height="6" rx="2" fill="#6250d6"><title>straight-level, gnn-restart: 11</title></rect>
-<rect x="150" y="206" width="6.1" height="6" rx="2" fill="#e34948"><title>straight-level, assign-time: 8</title></rect>
+<rect x="150" y="158" width="4.6" height="6" rx="2" fill="#eb6834"><title>straight-level, distance: 6</title></rect>
+<rect x="150" y="166" width="6.1" height="6" rx="2" fill="#1baf7a"><title>straight-level, assign: 8</title></rect>
+<rect x="150" y="174" width="8.8" height="6" rx="2" fill="#eda100"><title>straight-level, gnn-imm: 11</title></rect>
+<rect x="150" y="182" width="6.1" height="6" rx="2" fill="#e87ba4"><title>straight-level, assign-imm: 8</title></rect>
+<rect x="150" y="190" width="8.8" height="6" rx="2" fill="#008300"><title>straight-level, gnn-restart: 11</title></rect>
+<rect x="150" y="198" width="6.1" height="6" rx="2" fill="#6250d6"><title>straight-level, assign-time: 8</title></rect>
+<rect x="150" y="206" width="6.1" height="6" rx="2" fill="#e34948"><title>straight-level, sprt: 8</title></rect>
 <text x="142" y="257.0" font-size="12" text-anchor="end" fill="#0b0b0b">turn-3dps</text>
 <rect x="150" y="222" width="35.7" height="6" rx="2" fill="#2a78d6"><title>turn-3dps, gnn: 46</title></rect>
-<rect x="150" y="230" width="35.7" height="6" rx="2" fill="#eb6834"><title>turn-3dps, window: 46</title></rect>
-<rect x="150" y="238" width="14.0" height="6" rx="2" fill="#1baf7a"><title>turn-3dps, distance: 18</title></rect>
-<rect x="150" y="246" width="51.0" height="6" rx="2" fill="#eda100"><title>turn-3dps, assign: 65</title></rect>
-<rect x="150" y="254" width="6.9" height="6" rx="2" fill="#e87ba4"><title>turn-3dps, gnn-imm: 9</title></rect>
-<rect x="150" y="262" width="6.9" height="6" rx="2" fill="#008300"><title>turn-3dps, assign-imm: 9</title></rect>
-<rect x="150" y="270" width="35.7" height="6" rx="2" fill="#6250d6"><title>turn-3dps, gnn-restart: 46</title></rect>
-<rect x="150" y="278" width="6.9" height="6" rx="2" fill="#e34948"><title>turn-3dps, assign-time: 9</title></rect>
+<rect x="150" y="230" width="14.0" height="6" rx="2" fill="#eb6834"><title>turn-3dps, distance: 18</title></rect>
+<rect x="150" y="238" width="51.0" height="6" rx="2" fill="#1baf7a"><title>turn-3dps, assign: 65</title></rect>
+<rect x="150" y="246" width="6.9" height="6" rx="2" fill="#eda100"><title>turn-3dps, gnn-imm: 9</title></rect>
+<rect x="150" y="254" width="6.9" height="6" rx="2" fill="#e87ba4"><title>turn-3dps, assign-imm: 9</title></rect>
+<rect x="150" y="262" width="35.7" height="6" rx="2" fill="#008300"><title>turn-3dps, gnn-restart: 46</title></rect>
+<rect x="150" y="270" width="6.9" height="6" rx="2" fill="#6250d6"><title>turn-3dps, assign-time: 9</title></rect>
+<rect x="150" y="278" width="6.9" height="6" rx="2" fill="#e34948"><title>turn-3dps, sprt: 9</title></rect>
 <text x="142" y="329.0" font-size="12" text-anchor="end" fill="#0b0b0b">turn-6dps</text>
 <rect x="150" y="294" width="102.5" height="6" rx="2" fill="#2a78d6"><title>turn-6dps, gnn: 131</title></rect>
-<rect x="150" y="302" width="60.7" height="6" rx="2" fill="#eb6834"><title>turn-6dps, window: 78</title></rect>
-<rect x="150" y="310" width="20.5" height="6" rx="2" fill="#1baf7a"><title>turn-6dps, distance: 26</title></rect>
-<rect x="150" y="318" width="126.6" height="6" rx="2" fill="#eda100"><title>turn-6dps, assign: 162</title></rect>
-<rect x="150" y="326" width="6.8" height="6" rx="2" fill="#e87ba4"><title>turn-6dps, gnn-imm: 9</title></rect>
-<rect x="150" y="334" width="8.9" height="6" rx="2" fill="#008300"><title>turn-6dps, assign-imm: 11</title></rect>
-<rect x="150" y="342" width="105.5" height="6" rx="2" fill="#6250d6"><title>turn-6dps, gnn-restart: 135</title></rect>
-<rect x="150" y="350" width="6.7" height="6" rx="2" fill="#e34948"><title>turn-6dps, assign-time: 9</title></rect>
+<rect x="150" y="302" width="20.5" height="6" rx="2" fill="#eb6834"><title>turn-6dps, distance: 26</title></rect>
+<rect x="150" y="310" width="126.6" height="6" rx="2" fill="#1baf7a"><title>turn-6dps, assign: 162</title></rect>
+<rect x="150" y="318" width="6.8" height="6" rx="2" fill="#eda100"><title>turn-6dps, gnn-imm: 9</title></rect>
+<rect x="150" y="326" width="8.9" height="6" rx="2" fill="#e87ba4"><title>turn-6dps, assign-imm: 11</title></rect>
+<rect x="150" y="334" width="105.5" height="6" rx="2" fill="#008300"><title>turn-6dps, gnn-restart: 135</title></rect>
+<rect x="150" y="342" width="6.7" height="6" rx="2" fill="#6250d6"><title>turn-6dps, assign-time: 9</title></rect>
+<rect x="150" y="350" width="8.9" height="6" rx="2" fill="#e34948"><title>turn-6dps, sprt: 11</title></rect>
 <text x="142" y="401.0" font-size="12" text-anchor="end" fill="#0b0b0b">accelerate</text>
 <rect x="150" y="366" width="35.1" height="6" rx="2" fill="#2a78d6"><title>accelerate, gnn: 45</title></rect>
-<rect x="150" y="374" width="31.5" height="6" rx="2" fill="#eb6834"><title>accelerate, window: 40</title></rect>
-<rect x="150" y="382" width="14.6" height="6" rx="2" fill="#1baf7a"><title>accelerate, distance: 19</title></rect>
-<rect x="150" y="390" width="64.5" height="6" rx="2" fill="#eda100"><title>accelerate, assign: 82</title></rect>
-<rect x="150" y="398" width="9.0" height="6" rx="2" fill="#e87ba4"><title>accelerate, gnn-imm: 11</title></rect>
-<rect x="150" y="406" width="6.7" height="6" rx="2" fill="#008300"><title>accelerate, assign-imm: 9</title></rect>
-<rect x="150" y="414" width="35.1" height="6" rx="2" fill="#6250d6"><title>accelerate, gnn-restart: 45</title></rect>
-<rect x="150" y="422" width="6.7" height="6" rx="2" fill="#e34948"><title>accelerate, assign-time: 9</title></rect>
+<rect x="150" y="374" width="14.6" height="6" rx="2" fill="#eb6834"><title>accelerate, distance: 19</title></rect>
+<rect x="150" y="382" width="64.5" height="6" rx="2" fill="#1baf7a"><title>accelerate, assign: 82</title></rect>
+<rect x="150" y="390" width="9.0" height="6" rx="2" fill="#eda100"><title>accelerate, gnn-imm: 11</title></rect>
+<rect x="150" y="398" width="6.7" height="6" rx="2" fill="#e87ba4"><title>accelerate, assign-imm: 9</title></rect>
+<rect x="150" y="406" width="35.1" height="6" rx="2" fill="#008300"><title>accelerate, gnn-restart: 45</title></rect>
+<rect x="150" y="414" width="6.7" height="6" rx="2" fill="#6250d6"><title>accelerate, assign-time: 9</title></rect>
+<rect x="150" y="422" width="6.7" height="6" rx="2" fill="#e34948"><title>accelerate, sprt: 9</title></rect>
 <text x="142" y="473.0" font-size="12" text-anchor="end" fill="#0b0b0b">crossing-90deg</text>
 <rect x="150" y="438" width="12.3" height="6" rx="2" fill="#2a78d6"><title>crossing-90deg, gnn: 16</title></rect>
-<rect x="150" y="446" width="12.3" height="6" rx="2" fill="#eb6834"><title>crossing-90deg, window: 16</title></rect>
-<rect x="150" y="454" width="11.6" height="6" rx="2" fill="#1baf7a"><title>crossing-90deg, distance: 15</title></rect>
-<rect x="150" y="462" width="22.0" height="6" rx="2" fill="#eda100"><title>crossing-90deg, assign: 28</title></rect>
-<rect x="150" y="470" width="12.3" height="6" rx="2" fill="#e87ba4"><title>crossing-90deg, gnn-imm: 16</title></rect>
-<rect x="150" y="478" width="22.0" height="6" rx="2" fill="#008300"><title>crossing-90deg, assign-imm: 28</title></rect>
-<rect x="150" y="486" width="12.3" height="6" rx="2" fill="#6250d6"><title>crossing-90deg, gnn-restart: 16</title></rect>
-<rect x="150" y="494" width="8.6" height="6" rx="2" fill="#e34948"><title>crossing-90deg, assign-time: 11</title></rect>
+<rect x="150" y="446" width="11.6" height="6" rx="2" fill="#eb6834"><title>crossing-90deg, distance: 15</title></rect>
+<rect x="150" y="454" width="22.0" height="6" rx="2" fill="#1baf7a"><title>crossing-90deg, assign: 28</title></rect>
+<rect x="150" y="462" width="12.3" height="6" rx="2" fill="#eda100"><title>crossing-90deg, gnn-imm: 16</title></rect>
+<rect x="150" y="470" width="22.0" height="6" rx="2" fill="#e87ba4"><title>crossing-90deg, assign-imm: 28</title></rect>
+<rect x="150" y="478" width="12.3" height="6" rx="2" fill="#008300"><title>crossing-90deg, gnn-restart: 16</title></rect>
+<rect x="150" y="486" width="8.6" height="6" rx="2" fill="#6250d6"><title>crossing-90deg, assign-time: 11</title></rect>
+<rect x="150" y="494" width="8.6" height="6" rx="2" fill="#e34948"><title>crossing-90deg, sprt: 11</title></rect>
 <text x="142" y="545.0" font-size="12" text-anchor="end" fill="#0b0b0b">crossing-20deg</text>
 <rect x="150" y="510" width="11.6" height="6" rx="2" fill="#2a78d6"><title>crossing-20deg, gnn: 15</title></rect>
-<rect x="150" y="518" width="11.6" height="6" rx="2" fill="#eb6834"><title>crossing-20deg, window: 15</title></rect>
-<rect x="150" y="526" width="16.2" height="6" rx="2" fill="#1baf7a"><title>crossing-20deg, distance: 21</title></rect>
-<rect x="150" y="534" width="9.4" height="6" rx="2" fill="#eda100"><title>crossing-20deg, assign: 12</title></rect>
-<rect x="150" y="542" width="11.6" height="6" rx="2" fill="#e87ba4"><title>crossing-20deg, gnn-imm: 15</title></rect>
-<rect x="150" y="550" width="9.4" height="6" rx="2" fill="#008300"><title>crossing-20deg, assign-imm: 12</title></rect>
-<rect x="150" y="558" width="11.6" height="6" rx="2" fill="#6250d6"><title>crossing-20deg, gnn-restart: 15</title></rect>
-<rect x="150" y="566" width="9.4" height="6" rx="2" fill="#e34948"><title>crossing-20deg, assign-time: 12</title></rect>
+<rect x="150" y="518" width="16.2" height="6" rx="2" fill="#eb6834"><title>crossing-20deg, distance: 21</title></rect>
+<rect x="150" y="526" width="9.4" height="6" rx="2" fill="#1baf7a"><title>crossing-20deg, assign: 12</title></rect>
+<rect x="150" y="534" width="11.6" height="6" rx="2" fill="#eda100"><title>crossing-20deg, gnn-imm: 15</title></rect>
+<rect x="150" y="542" width="9.4" height="6" rx="2" fill="#e87ba4"><title>crossing-20deg, assign-imm: 12</title></rect>
+<rect x="150" y="550" width="11.6" height="6" rx="2" fill="#008300"><title>crossing-20deg, gnn-restart: 15</title></rect>
+<rect x="150" y="558" width="9.4" height="6" rx="2" fill="#6250d6"><title>crossing-20deg, assign-time: 12</title></rect>
+<rect x="150" y="566" width="9.4" height="6" rx="2" fill="#e34948"><title>crossing-20deg, sprt: 12</title></rect>
 <text x="142" y="617.0" font-size="12" text-anchor="end" fill="#0b0b0b">parallel-500m</text>
 <rect x="150" y="582" width="13.8" height="6" rx="2" fill="#2a78d6"><title>parallel-500m, gnn: 18</title></rect>
-<rect x="150" y="590" width="13.8" height="6" rx="2" fill="#eb6834"><title>parallel-500m, window: 18</title></rect>
-<rect x="150" y="598" width="11.2" height="6" rx="2" fill="#1baf7a"><title>parallel-500m, distance: 14</title></rect>
-<rect x="150" y="606" width="9.1" height="6" rx="2" fill="#eda100"><title>parallel-500m, assign: 12</title></rect>
-<rect x="150" y="614" width="13.8" height="6" rx="2" fill="#e87ba4"><title>parallel-500m, gnn-imm: 18</title></rect>
-<rect x="150" y="622" width="9.2" height="6" rx="2" fill="#008300"><title>parallel-500m, assign-imm: 12</title></rect>
-<rect x="150" y="630" width="13.8" height="6" rx="2" fill="#6250d6"><title>parallel-500m, gnn-restart: 18</title></rect>
-<rect x="150" y="638" width="9.2" height="6" rx="2" fill="#e34948"><title>parallel-500m, assign-time: 12</title></rect>
+<rect x="150" y="590" width="11.2" height="6" rx="2" fill="#eb6834"><title>parallel-500m, distance: 14</title></rect>
+<rect x="150" y="598" width="9.1" height="6" rx="2" fill="#1baf7a"><title>parallel-500m, assign: 12</title></rect>
+<rect x="150" y="606" width="13.8" height="6" rx="2" fill="#eda100"><title>parallel-500m, gnn-imm: 18</title></rect>
+<rect x="150" y="614" width="9.2" height="6" rx="2" fill="#e87ba4"><title>parallel-500m, assign-imm: 12</title></rect>
+<rect x="150" y="622" width="13.8" height="6" rx="2" fill="#008300"><title>parallel-500m, gnn-restart: 18</title></rect>
+<rect x="150" y="630" width="9.2" height="6" rx="2" fill="#6250d6"><title>parallel-500m, assign-time: 12</title></rect>
+<rect x="150" y="638" width="9.2" height="6" rx="2" fill="#e34948"><title>parallel-500m, sprt: 12</title></rect>
 <text x="142" y="689.0" font-size="12" text-anchor="end" fill="#0b0b0b">parallel-150m</text>
 <rect x="150" y="654" width="41.5" height="6" rx="2" fill="#2a78d6"><title>parallel-150m, gnn: 53</title></rect>
-<rect x="150" y="662" width="9.3" height="6" rx="2" fill="#eb6834"><title>parallel-150m, window: 12</title></rect>
-<rect x="150" y="670" width="277.0" height="6" rx="2" fill="#1baf7a"><title>parallel-150m, distance: 354</title></rect>
-<rect x="150" y="678" width="9.1" height="6" rx="2" fill="#eda100"><title>parallel-150m, assign: 12</title></rect>
-<rect x="150" y="686" width="50.5" height="6" rx="2" fill="#e87ba4"><title>parallel-150m, gnn-imm: 64</title></rect>
-<rect x="150" y="694" width="9.2" height="6" rx="2" fill="#008300"><title>parallel-150m, assign-imm: 12</title></rect>
-<rect x="150" y="702" width="41.5" height="6" rx="2" fill="#6250d6"><title>parallel-150m, gnn-restart: 53</title></rect>
-<rect x="150" y="710" width="9.2" height="6" rx="2" fill="#e34948"><title>parallel-150m, assign-time: 12</title></rect>
+<rect x="150" y="662" width="277.0" height="6" rx="2" fill="#eb6834"><title>parallel-150m, distance: 354</title></rect>
+<rect x="150" y="670" width="9.1" height="6" rx="2" fill="#1baf7a"><title>parallel-150m, assign: 12</title></rect>
+<rect x="150" y="678" width="50.5" height="6" rx="2" fill="#eda100"><title>parallel-150m, gnn-imm: 64</title></rect>
+<rect x="150" y="686" width="9.2" height="6" rx="2" fill="#e87ba4"><title>parallel-150m, assign-imm: 12</title></rect>
+<rect x="150" y="694" width="41.5" height="6" rx="2" fill="#008300"><title>parallel-150m, gnn-restart: 53</title></rect>
+<rect x="150" y="702" width="9.2" height="6" rx="2" fill="#6250d6"><title>parallel-150m, assign-time: 12</title></rect>
+<rect x="150" y="710" width="9.2" height="6" rx="2" fill="#e34948"><title>parallel-150m, sprt: 12</title></rect>
 <text x="142" y="761.0" font-size="12" text-anchor="end" fill="#0b0b0b">split</text>
 <rect x="150" y="726" width="23.5" height="6" rx="2" fill="#2a78d6"><title>split, gnn: 30</title></rect>
-<rect x="150" y="734" width="21.7" height="6" rx="2" fill="#eb6834"><title>split, window: 28</title></rect>
-<rect x="150" y="742" width="163.7" height="6" rx="2" fill="#1baf7a"><title>split, distance: 209</title></rect>
-<rect x="150" y="750" width="58.6" height="6" rx="2" fill="#eda100"><title>split, assign: 75</title></rect>
-<rect x="150" y="758" width="7.4" height="6" rx="2" fill="#e87ba4"><title>split, gnn-imm: 9</title></rect>
-<rect x="150" y="766" width="7.3" height="6" rx="2" fill="#008300"><title>split, assign-imm: 9</title></rect>
-<rect x="150" y="774" width="23.5" height="6" rx="2" fill="#6250d6"><title>split, gnn-restart: 30</title></rect>
-<rect x="150" y="782" width="7.3" height="6" rx="2" fill="#e34948"><title>split, assign-time: 9</title></rect>
+<rect x="150" y="734" width="163.7" height="6" rx="2" fill="#eb6834"><title>split, distance: 209</title></rect>
+<rect x="150" y="742" width="58.6" height="6" rx="2" fill="#1baf7a"><title>split, assign: 75</title></rect>
+<rect x="150" y="750" width="7.4" height="6" rx="2" fill="#eda100"><title>split, gnn-imm: 9</title></rect>
+<rect x="150" y="758" width="7.3" height="6" rx="2" fill="#e87ba4"><title>split, assign-imm: 9</title></rect>
+<rect x="150" y="766" width="23.5" height="6" rx="2" fill="#008300"><title>split, gnn-restart: 30</title></rect>
+<rect x="150" y="774" width="7.3" height="6" rx="2" fill="#6250d6"><title>split, assign-time: 9</title></rect>
+<rect x="150" y="782" width="7.3" height="6" rx="2" fill="#e34948"><title>split, sprt: 9</title></rect>
 <text x="142" y="833.0" font-size="12" text-anchor="end" fill="#0b0b0b">error-understated</text>
 <rect x="150" y="798" width="21.8" height="6" rx="2" fill="#2a78d6"><title>error-understated, gnn: 28</title></rect>
-<rect x="150" y="806" width="6.2" height="6" rx="2" fill="#eb6834"><title>error-understated, window: 8</title></rect>
-<rect x="150" y="814" width="4.5" height="6" rx="2" fill="#1baf7a"><title>error-understated, distance: 6</title></rect>
-<rect x="150" y="822" width="76.6" height="6" rx="2" fill="#eda100"><title>error-understated, assign: 98</title></rect>
-<rect x="150" y="830" width="21.8" height="6" rx="2" fill="#e87ba4"><title>error-understated, gnn-imm: 28</title></rect>
-<rect x="150" y="838" width="72.0" height="6" rx="2" fill="#008300"><title>error-understated, assign-imm: 92</title></rect>
-<rect x="150" y="846" width="21.8" height="6" rx="2" fill="#6250d6"><title>error-understated, gnn-restart: 28</title></rect>
-<rect x="150" y="854" width="7.3" height="6" rx="2" fill="#e34948"><title>error-understated, assign-time: 9</title></rect>
+<rect x="150" y="806" width="4.5" height="6" rx="2" fill="#eb6834"><title>error-understated, distance: 6</title></rect>
+<rect x="150" y="814" width="76.6" height="6" rx="2" fill="#1baf7a"><title>error-understated, assign: 98</title></rect>
+<rect x="150" y="822" width="21.8" height="6" rx="2" fill="#eda100"><title>error-understated, gnn-imm: 28</title></rect>
+<rect x="150" y="830" width="72.0" height="6" rx="2" fill="#e87ba4"><title>error-understated, assign-imm: 92</title></rect>
+<rect x="150" y="838" width="21.8" height="6" rx="2" fill="#008300"><title>error-understated, gnn-restart: 28</title></rect>
+<rect x="150" y="846" width="7.3" height="6" rx="2" fill="#6250d6"><title>error-understated, assign-time: 9</title></rect>
+<rect x="150" y="854" width="16.1" height="6" rx="2" fill="#e34948"><title>error-understated, sprt: 21</title></rect>
 <text x="142" y="905.0" font-size="12" text-anchor="end" fill="#0b0b0b">error-absent</text>
 <rect x="150" y="870" width="5.7" height="6" rx="2" fill="#2a78d6"><title>error-absent, gnn: 7</title></rect>
-<rect x="150" y="878" width="5.6" height="6" rx="2" fill="#eb6834"><title>error-absent, window: 7</title></rect>
-<rect x="150" y="886" width="5.7" height="6" rx="2" fill="#1baf7a"><title>error-absent, distance: 7</title></rect>
-<rect x="150" y="894" width="9.3" height="6" rx="2" fill="#eda100"><title>error-absent, assign: 12</title></rect>
-<rect x="150" y="902" width="5.7" height="6" rx="2" fill="#e87ba4"><title>error-absent, gnn-imm: 7</title></rect>
-<rect x="150" y="910" width="9.0" height="6" rx="2" fill="#008300"><title>error-absent, assign-imm: 12</title></rect>
-<rect x="150" y="918" width="5.7" height="6" rx="2" fill="#6250d6"><title>error-absent, gnn-restart: 7</title></rect>
-<rect x="150" y="926" width="9.0" height="6" rx="2" fill="#e34948"><title>error-absent, assign-time: 12</title></rect>
+<rect x="150" y="878" width="5.7" height="6" rx="2" fill="#eb6834"><title>error-absent, distance: 7</title></rect>
+<rect x="150" y="886" width="9.3" height="6" rx="2" fill="#1baf7a"><title>error-absent, assign: 12</title></rect>
+<rect x="150" y="894" width="5.7" height="6" rx="2" fill="#eda100"><title>error-absent, gnn-imm: 7</title></rect>
+<rect x="150" y="902" width="9.0" height="6" rx="2" fill="#e87ba4"><title>error-absent, assign-imm: 12</title></rect>
+<rect x="150" y="910" width="5.7" height="6" rx="2" fill="#008300"><title>error-absent, gnn-restart: 7</title></rect>
+<rect x="150" y="918" width="9.0" height="6" rx="2" fill="#6250d6"><title>error-absent, assign-time: 12</title></rect>
+<rect x="150" y="926" width="9.0" height="6" rx="2" fill="#e34948"><title>error-absent, sprt: 12</title></rect>
 <text x="142" y="977.0" font-size="12" text-anchor="end" fill="#0b0b0b">latency-3s</text>
 <rect x="150" y="942" width="5.4" height="6" rx="2" fill="#2a78d6"><title>latency-3s, gnn: 7</title></rect>
-<rect x="150" y="950" width="5.4" height="6" rx="2" fill="#eb6834"><title>latency-3s, window: 7</title></rect>
-<rect x="150" y="958" width="3.9" height="6" rx="2" fill="#1baf7a"><title>latency-3s, distance: 5</title></rect>
-<rect x="150" y="966" width="5.6" height="6" rx="2" fill="#eda100"><title>latency-3s, assign: 7</title></rect>
-<rect x="150" y="974" width="5.4" height="6" rx="2" fill="#e87ba4"><title>latency-3s, gnn-imm: 7</title></rect>
-<rect x="150" y="982" width="5.5" height="6" rx="2" fill="#008300"><title>latency-3s, assign-imm: 7</title></rect>
-<rect x="150" y="990" width="5.4" height="6" rx="2" fill="#6250d6"><title>latency-3s, gnn-restart: 7</title></rect>
-<rect x="150" y="998" width="5.5" height="6" rx="2" fill="#e34948"><title>latency-3s, assign-time: 7</title></rect>
+<rect x="150" y="950" width="3.9" height="6" rx="2" fill="#eb6834"><title>latency-3s, distance: 5</title></rect>
+<rect x="150" y="958" width="5.6" height="6" rx="2" fill="#1baf7a"><title>latency-3s, assign: 7</title></rect>
+<rect x="150" y="966" width="5.4" height="6" rx="2" fill="#eda100"><title>latency-3s, gnn-imm: 7</title></rect>
+<rect x="150" y="974" width="5.5" height="6" rx="2" fill="#e87ba4"><title>latency-3s, assign-imm: 7</title></rect>
+<rect x="150" y="982" width="5.4" height="6" rx="2" fill="#008300"><title>latency-3s, gnn-restart: 7</title></rect>
+<rect x="150" y="990" width="5.5" height="6" rx="2" fill="#6250d6"><title>latency-3s, assign-time: 7</title></rect>
+<rect x="150" y="998" width="5.5" height="6" rx="2" fill="#e34948"><title>latency-3s, sprt: 7</title></rect>
 <text x="142" y="1049.0" font-size="12" text-anchor="end" fill="#0b0b0b">bias-400m</text>
 <rect x="150" y="1014" width="272.7" height="6" rx="2" fill="#2a78d6"><title>bias-400m, gnn: 348</title></rect>
-<rect x="150" y="1022" width="8.8" height="6" rx="2" fill="#eb6834"><title>bias-400m, window: 11</title></rect>
-<rect x="150" y="1030" width="272.7" height="6" rx="2" fill="#1baf7a"><title>bias-400m, distance: 348</title></rect>
-<rect x="150" y="1038" width="272.7" height="6" rx="2" fill="#eda100"><title>bias-400m, assign: 348</title></rect>
-<rect x="150" y="1046" width="272.7" height="6" rx="2" fill="#e87ba4"><title>bias-400m, gnn-imm: 348</title></rect>
-<rect x="150" y="1054" width="272.7" height="6" rx="2" fill="#008300"><title>bias-400m, assign-imm: 348</title></rect>
-<rect x="150" y="1062" width="272.7" height="6" rx="2" fill="#6250d6"><title>bias-400m, gnn-restart: 348</title></rect>
-<rect x="150" y="1070" width="14.9" height="6" rx="2" fill="#e34948"><title>bias-400m, assign-time: 19</title></rect>
+<rect x="150" y="1022" width="272.7" height="6" rx="2" fill="#eb6834"><title>bias-400m, distance: 348</title></rect>
+<rect x="150" y="1030" width="272.7" height="6" rx="2" fill="#1baf7a"><title>bias-400m, assign: 348</title></rect>
+<rect x="150" y="1038" width="272.7" height="6" rx="2" fill="#eda100"><title>bias-400m, gnn-imm: 348</title></rect>
+<rect x="150" y="1046" width="272.7" height="6" rx="2" fill="#e87ba4"><title>bias-400m, assign-imm: 348</title></rect>
+<rect x="150" y="1054" width="272.7" height="6" rx="2" fill="#008300"><title>bias-400m, gnn-restart: 348</title></rect>
+<rect x="150" y="1062" width="14.9" height="6" rx="2" fill="#6250d6"><title>bias-400m, assign-time: 19</title></rect>
+<rect x="150" y="1070" width="272.7" height="6" rx="2" fill="#e34948"><title>bias-400m, sprt: 348</title></rect>
 <text x="142" y="1121.0" font-size="12" text-anchor="end" fill="#0b0b0b">slow-jittered</text>
 <rect x="150" y="1086" width="27.8" height="6" rx="2" fill="#2a78d6"><title>slow-jittered, gnn: 35</title></rect>
-<rect x="150" y="1094" width="22.1" height="6" rx="2" fill="#eb6834"><title>slow-jittered, window: 28</title></rect>
-<rect x="150" y="1102" width="11.2" height="6" rx="2" fill="#1baf7a"><title>slow-jittered, distance: 14</title></rect>
-<rect x="150" y="1110" width="32.8" height="6" rx="2" fill="#eda100"><title>slow-jittered, assign: 42</title></rect>
-<rect x="150" y="1118" width="8.7" height="6" rx="2" fill="#e87ba4"><title>slow-jittered, gnn-imm: 11</title></rect>
-<rect x="150" y="1126" width="6.3" height="6" rx="2" fill="#008300"><title>slow-jittered, assign-imm: 8</title></rect>
-<rect x="150" y="1134" width="27.8" height="6" rx="2" fill="#6250d6"><title>slow-jittered, gnn-restart: 35</title></rect>
-<rect x="150" y="1142" width="6.3" height="6" rx="2" fill="#e34948"><title>slow-jittered, assign-time: 8</title></rect>
+<rect x="150" y="1094" width="11.2" height="6" rx="2" fill="#eb6834"><title>slow-jittered, distance: 14</title></rect>
+<rect x="150" y="1102" width="32.8" height="6" rx="2" fill="#1baf7a"><title>slow-jittered, assign: 42</title></rect>
+<rect x="150" y="1110" width="8.7" height="6" rx="2" fill="#eda100"><title>slow-jittered, gnn-imm: 11</title></rect>
+<rect x="150" y="1118" width="6.3" height="6" rx="2" fill="#e87ba4"><title>slow-jittered, assign-imm: 8</title></rect>
+<rect x="150" y="1126" width="27.8" height="6" rx="2" fill="#008300"><title>slow-jittered, gnn-restart: 35</title></rect>
+<rect x="150" y="1134" width="6.3" height="6" rx="2" fill="#6250d6"><title>slow-jittered, assign-time: 8</title></rect>
+<rect x="150" y="1142" width="6.3" height="6" rx="2" fill="#e34948"><title>slow-jittered, sprt: 8</title></rect>
 <text x="142" y="1193.0" font-size="12" text-anchor="end" fill="#0b0b0b">low-detection</text>
 <rect x="150" y="1158" width="21.7" height="6" rx="2" fill="#2a78d6"><title>low-detection, gnn: 28</title></rect>
-<rect x="150" y="1166" width="21.7" height="6" rx="2" fill="#eb6834"><title>low-detection, window: 28</title></rect>
-<rect x="150" y="1174" width="20.2" height="6" rx="2" fill="#1baf7a"><title>low-detection, distance: 26</title></rect>
-<rect x="150" y="1182" width="12.8" height="6" rx="2" fill="#eda100"><title>low-detection, assign: 16</title></rect>
-<rect x="150" y="1190" width="21.7" height="6" rx="2" fill="#e87ba4"><title>low-detection, gnn-imm: 28</title></rect>
-<rect x="150" y="1198" width="13.1" height="6" rx="2" fill="#008300"><title>low-detection, assign-imm: 17</title></rect>
-<rect x="150" y="1206" width="21.7" height="6" rx="2" fill="#6250d6"><title>low-detection, gnn-restart: 28</title></rect>
-<rect x="150" y="1214" width="13.1" height="6" rx="2" fill="#e34948"><title>low-detection, assign-time: 17</title></rect>
+<rect x="150" y="1166" width="20.2" height="6" rx="2" fill="#eb6834"><title>low-detection, distance: 26</title></rect>
+<rect x="150" y="1174" width="12.8" height="6" rx="2" fill="#1baf7a"><title>low-detection, assign: 16</title></rect>
+<rect x="150" y="1182" width="21.7" height="6" rx="2" fill="#eda100"><title>low-detection, gnn-imm: 28</title></rect>
+<rect x="150" y="1190" width="13.1" height="6" rx="2" fill="#e87ba4"><title>low-detection, assign-imm: 17</title></rect>
+<rect x="150" y="1198" width="21.7" height="6" rx="2" fill="#008300"><title>low-detection, gnn-restart: 28</title></rect>
+<rect x="150" y="1206" width="13.1" height="6" rx="2" fill="#6250d6"><title>low-detection, assign-time: 17</title></rect>
+<rect x="150" y="1214" width="13.1" height="6" rx="2" fill="#e34948"><title>low-detection, sprt: 17</title></rect>
 <text x="142" y="1265.0" font-size="12" text-anchor="end" fill="#0b0b0b">number-swap</text>
 <rect x="150" y="1230" width="110.5" height="6" rx="2" fill="#2a78d6"><title>number-swap, gnn: 141</title></rect>
-<rect x="150" y="1238" width="12.4" height="6" rx="2" fill="#eb6834"><title>number-swap, window: 16</title></rect>
-<rect x="150" y="1246" width="150.8" height="6" rx="2" fill="#1baf7a"><title>number-swap, distance: 193</title></rect>
-<rect x="150" y="1254" width="120.6" height="6" rx="2" fill="#eda100"><title>number-swap, assign: 154</title></rect>
-<rect x="150" y="1262" width="115.9" height="6" rx="2" fill="#e87ba4"><title>number-swap, gnn-imm: 148</title></rect>
-<rect x="150" y="1270" width="120.6" height="6" rx="2" fill="#008300"><title>number-swap, assign-imm: 154</title></rect>
-<rect x="150" y="1278" width="21.0" height="6" rx="2" fill="#6250d6"><title>number-swap, gnn-restart: 27</title></rect>
-<rect x="150" y="1286" width="9.7" height="6" rx="2" fill="#e34948"><title>number-swap, assign-time: 12</title></rect>
+<rect x="150" y="1238" width="150.8" height="6" rx="2" fill="#eb6834"><title>number-swap, distance: 193</title></rect>
+<rect x="150" y="1246" width="120.6" height="6" rx="2" fill="#1baf7a"><title>number-swap, assign: 154</title></rect>
+<rect x="150" y="1254" width="115.9" height="6" rx="2" fill="#eda100"><title>number-swap, gnn-imm: 148</title></rect>
+<rect x="150" y="1262" width="120.6" height="6" rx="2" fill="#e87ba4"><title>number-swap, assign-imm: 154</title></rect>
+<rect x="150" y="1270" width="21.0" height="6" rx="2" fill="#008300"><title>number-swap, gnn-restart: 27</title></rect>
+<rect x="150" y="1278" width="9.7" height="6" rx="2" fill="#6250d6"><title>number-swap, assign-time: 12</title></rect>
+<rect x="150" y="1286" width="99.2" height="6" rx="2" fill="#e34948"><title>number-swap, sprt: 127</title></rect>
 <text x="142" y="1337.0" font-size="12" text-anchor="end" fill="#0b0b0b">number-drop</text>
 <rect x="150" y="1302" width="73.7" height="6" rx="2" fill="#2a78d6"><title>number-drop, gnn: 94</title></rect>
-<rect x="150" y="1310" width="73.7" height="6" rx="2" fill="#eb6834"><title>number-drop, window: 94</title></rect>
-<rect x="150" y="1318" width="4.8" height="6" rx="2" fill="#1baf7a"><title>number-drop, distance: 6</title></rect>
-<rect x="150" y="1326" width="71.9" height="6" rx="2" fill="#eda100"><title>number-drop, assign: 92</title></rect>
-<rect x="150" y="1334" width="73.7" height="6" rx="2" fill="#e87ba4"><title>number-drop, gnn-imm: 94</title></rect>
-<rect x="150" y="1342" width="71.9" height="6" rx="2" fill="#008300"><title>number-drop, assign-imm: 92</title></rect>
-<rect x="150" y="1350" width="73.7" height="6" rx="2" fill="#6250d6"><title>number-drop, gnn-restart: 94</title></rect>
-<rect x="150" y="1358" width="55.9" height="6" rx="2" fill="#e34948"><title>number-drop, assign-time: 71</title></rect>
+<rect x="150" y="1310" width="4.8" height="6" rx="2" fill="#eb6834"><title>number-drop, distance: 6</title></rect>
+<rect x="150" y="1318" width="71.9" height="6" rx="2" fill="#1baf7a"><title>number-drop, assign: 92</title></rect>
+<rect x="150" y="1326" width="73.7" height="6" rx="2" fill="#eda100"><title>number-drop, gnn-imm: 94</title></rect>
+<rect x="150" y="1334" width="71.9" height="6" rx="2" fill="#e87ba4"><title>number-drop, assign-imm: 92</title></rect>
+<rect x="150" y="1342" width="73.7" height="6" rx="2" fill="#008300"><title>number-drop, gnn-restart: 94</title></rect>
+<rect x="150" y="1350" width="55.9" height="6" rx="2" fill="#6250d6"><title>number-drop, assign-time: 71</title></rect>
+<rect x="150" y="1358" width="60.4" height="6" rx="2" fill="#e34948"><title>number-drop, sprt: 77</title></rect>
 <text x="142" y="1409.0" font-size="12" text-anchor="end" fill="#0b0b0b">false-tracks</text>
 <rect x="150" y="1374" width="439.2" height="6" rx="2" fill="#2a78d6"><title>false-tracks, gnn: 561</title></rect>
-<rect x="150" y="1382" width="439.2" height="6" rx="2" fill="#eb6834"><title>false-tracks, window: 561</title></rect>
-<rect x="150" y="1390" width="435.3" height="6" rx="2" fill="#1baf7a"><title>false-tracks, distance: 556</title></rect>
-<rect x="150" y="1398" width="434.8" height="6" rx="2" fill="#eda100"><title>false-tracks, assign: 555</title></rect>
-<rect x="150" y="1406" width="439.2" height="6" rx="2" fill="#e87ba4"><title>false-tracks, gnn-imm: 561</title></rect>
-<rect x="150" y="1414" width="434.8" height="6" rx="2" fill="#008300"><title>false-tracks, assign-imm: 555</title></rect>
-<rect x="150" y="1422" width="439.2" height="6" rx="2" fill="#6250d6"><title>false-tracks, gnn-restart: 561</title></rect>
-<rect x="150" y="1430" width="434.8" height="6" rx="2" fill="#e34948"><title>false-tracks, assign-time: 555</title></rect>
+<rect x="150" y="1382" width="435.3" height="6" rx="2" fill="#eb6834"><title>false-tracks, distance: 556</title></rect>
+<rect x="150" y="1390" width="434.8" height="6" rx="2" fill="#1baf7a"><title>false-tracks, assign: 555</title></rect>
+<rect x="150" y="1398" width="439.2" height="6" rx="2" fill="#eda100"><title>false-tracks, gnn-imm: 561</title></rect>
+<rect x="150" y="1406" width="434.8" height="6" rx="2" fill="#e87ba4"><title>false-tracks, assign-imm: 555</title></rect>
+<rect x="150" y="1414" width="439.2" height="6" rx="2" fill="#008300"><title>false-tracks, gnn-restart: 561</title></rect>
+<rect x="150" y="1422" width="434.8" height="6" rx="2" fill="#6250d6"><title>false-tracks, assign-time: 555</title></rect>
+<rect x="150" y="1430" width="434.8" height="6" rx="2" fill="#e34948"><title>false-tracks, sprt: 555</title></rect>
 <text x="142" y="1481.0" font-size="12" text-anchor="end" fill="#0b0b0b">three-sensors</text>
 <rect x="150" y="1446" width="110.0" height="6" rx="2" fill="#2a78d6"><title>three-sensors, gnn: 140</title></rect>
-<rect x="150" y="1454" width="41.3" height="6" rx="2" fill="#eb6834"><title>three-sensors, window: 53</title></rect>
-<rect x="150" y="1462" width="174.3" height="6" rx="2" fill="#1baf7a"><title>three-sensors, distance: 223</title></rect>
-<rect x="150" y="1470" width="142.9" height="6" rx="2" fill="#eda100"><title>three-sensors, assign: 182</title></rect>
-<rect x="150" y="1478" width="23.0" height="6" rx="2" fill="#e87ba4"><title>three-sensors, gnn-imm: 29</title></rect>
-<rect x="150" y="1486" width="11.5" height="6" rx="2" fill="#008300"><title>three-sensors, assign-imm: 15</title></rect>
-<rect x="150" y="1494" width="110.0" height="6" rx="2" fill="#6250d6"><title>three-sensors, gnn-restart: 140</title></rect>
-<rect x="150" y="1502" width="11.5" height="6" rx="2" fill="#e34948"><title>three-sensors, assign-time: 15</title></rect>
+<rect x="150" y="1454" width="174.3" height="6" rx="2" fill="#eb6834"><title>three-sensors, distance: 223</title></rect>
+<rect x="150" y="1462" width="142.9" height="6" rx="2" fill="#1baf7a"><title>three-sensors, assign: 182</title></rect>
+<rect x="150" y="1470" width="23.0" height="6" rx="2" fill="#eda100"><title>three-sensors, gnn-imm: 29</title></rect>
+<rect x="150" y="1478" width="11.5" height="6" rx="2" fill="#e87ba4"><title>three-sensors, assign-imm: 15</title></rect>
+<rect x="150" y="1486" width="110.0" height="6" rx="2" fill="#008300"><title>three-sensors, gnn-restart: 140</title></rect>
+<rect x="150" y="1494" width="11.5" height="6" rx="2" fill="#6250d6"><title>three-sensors, assign-time: 15</title></rect>
+<rect x="150" y="1502" width="11.5" height="6" rx="2" fill="#e34948"><title>three-sensors, sprt: 15</title></rect>
 <text x="142" y="1553.0" font-size="12" text-anchor="end" fill="#0b0b0b">dense-8</text>
 <rect x="150" y="1518" width="178.8" height="6" rx="2" fill="#2a78d6"><title>dense-8, gnn: 228</title></rect>
-<rect x="150" y="1526" width="83.1" height="6" rx="2" fill="#eb6834"><title>dense-8, window: 106</title></rect>
-<rect x="150" y="1534" width="31.1" height="6" rx="2" fill="#1baf7a"><title>dense-8, distance: 40</title></rect>
-<rect x="150" y="1542" width="261.4" height="6" rx="2" fill="#eda100"><title>dense-8, assign: 334</title></rect>
-<rect x="150" y="1550" width="24.3" height="6" rx="2" fill="#e87ba4"><title>dense-8, gnn-imm: 31</title></rect>
-<rect x="150" y="1558" width="82.9" height="6" rx="2" fill="#008300"><title>dense-8, assign-imm: 106</title></rect>
-<rect x="150" y="1566" width="178.8" height="6" rx="2" fill="#6250d6"><title>dense-8, gnn-restart: 228</title></rect>
-<rect x="150" y="1574" width="33.6" height="6" rx="2" fill="#e34948"><title>dense-8, assign-time: 43</title></rect>
+<rect x="150" y="1526" width="31.1" height="6" rx="2" fill="#eb6834"><title>dense-8, distance: 40</title></rect>
+<rect x="150" y="1534" width="261.4" height="6" rx="2" fill="#1baf7a"><title>dense-8, assign: 334</title></rect>
+<rect x="150" y="1542" width="24.3" height="6" rx="2" fill="#eda100"><title>dense-8, gnn-imm: 31</title></rect>
+<rect x="150" y="1550" width="82.9" height="6" rx="2" fill="#e87ba4"><title>dense-8, assign-imm: 106</title></rect>
+<rect x="150" y="1558" width="178.8" height="6" rx="2" fill="#008300"><title>dense-8, gnn-restart: 228</title></rect>
+<rect x="150" y="1566" width="33.6" height="6" rx="2" fill="#6250d6"><title>dense-8, assign-time: 43</title></rect>
+<rect x="150" y="1574" width="21.0" height="6" rx="2" fill="#e34948"><title>dense-8, sprt: 27</title></rect>
 <text x="142" y="1625.0" font-size="12" text-anchor="end" fill="#0b0b0b">clock-offset-200ms</text>
 <rect x="150" y="1590" width="44.2" height="6" rx="2" fill="#2a78d6"><title>clock-offset-200ms, gnn: 56</title></rect>
-<rect x="150" y="1598" width="44.2" height="6" rx="2" fill="#eb6834"><title>clock-offset-200ms, window: 56</title></rect>
-<rect x="150" y="1606" width="14.8" height="6" rx="2" fill="#1baf7a"><title>clock-offset-200ms, distance: 19</title></rect>
-<rect x="150" y="1614" width="112.7" height="6" rx="2" fill="#eda100"><title>clock-offset-200ms, assign: 144</title></rect>
-<rect x="150" y="1622" width="15.8" height="6" rx="2" fill="#e87ba4"><title>clock-offset-200ms, gnn-imm: 20</title></rect>
-<rect x="150" y="1630" width="11.8" height="6" rx="2" fill="#008300"><title>clock-offset-200ms, assign-imm: 15</title></rect>
-<rect x="150" y="1638" width="58.1" height="6" rx="2" fill="#6250d6"><title>clock-offset-200ms, gnn-restart: 74</title></rect>
-<rect x="150" y="1646" width="11.8" height="6" rx="2" fill="#e34948"><title>clock-offset-200ms, assign-time: 15</title></rect>
+<rect x="150" y="1598" width="14.8" height="6" rx="2" fill="#eb6834"><title>clock-offset-200ms, distance: 19</title></rect>
+<rect x="150" y="1606" width="112.7" height="6" rx="2" fill="#1baf7a"><title>clock-offset-200ms, assign: 144</title></rect>
+<rect x="150" y="1614" width="15.8" height="6" rx="2" fill="#eda100"><title>clock-offset-200ms, gnn-imm: 20</title></rect>
+<rect x="150" y="1622" width="11.8" height="6" rx="2" fill="#e87ba4"><title>clock-offset-200ms, assign-imm: 15</title></rect>
+<rect x="150" y="1630" width="58.1" height="6" rx="2" fill="#008300"><title>clock-offset-200ms, gnn-restart: 74</title></rect>
+<rect x="150" y="1638" width="11.8" height="6" rx="2" fill="#6250d6"><title>clock-offset-200ms, assign-time: 15</title></rect>
+<rect x="150" y="1646" width="11.8" height="6" rx="2" fill="#e34948"><title>clock-offset-200ms, sprt: 15</title></rect>
 <text x="142" y="1697.0" font-size="12" text-anchor="end" fill="#0b0b0b">clock-drift-10ms-min</text>
 <rect x="150" y="1662" width="44.8" height="6" rx="2" fill="#2a78d6"><title>clock-drift-10ms-min, gnn: 57</title></rect>
-<rect x="150" y="1670" width="40.8" height="6" rx="2" fill="#eb6834"><title>clock-drift-10ms-min, window: 52</title></rect>
-<rect x="150" y="1678" width="34.9" height="6" rx="2" fill="#1baf7a"><title>clock-drift-10ms-min, distance: 45</title></rect>
-<rect x="150" y="1686" width="108.9" height="6" rx="2" fill="#eda100"><title>clock-drift-10ms-min, assign: 139</title></rect>
-<rect x="150" y="1694" width="7.9" height="6" rx="2" fill="#e87ba4"><title>clock-drift-10ms-min, gnn-imm: 10</title></rect>
-<rect x="150" y="1702" width="9.2" height="6" rx="2" fill="#008300"><title>clock-drift-10ms-min, assign-imm: 12</title></rect>
-<rect x="150" y="1710" width="49.6" height="6" rx="2" fill="#6250d6"><title>clock-drift-10ms-min, gnn-restart: 63</title></rect>
-<rect x="150" y="1718" width="10.2" height="6" rx="2" fill="#e34948"><title>clock-drift-10ms-min, assign-time: 13</title></rect>
+<rect x="150" y="1670" width="34.9" height="6" rx="2" fill="#eb6834"><title>clock-drift-10ms-min, distance: 45</title></rect>
+<rect x="150" y="1678" width="108.9" height="6" rx="2" fill="#1baf7a"><title>clock-drift-10ms-min, assign: 139</title></rect>
+<rect x="150" y="1686" width="7.9" height="6" rx="2" fill="#eda100"><title>clock-drift-10ms-min, gnn-imm: 10</title></rect>
+<rect x="150" y="1694" width="9.2" height="6" rx="2" fill="#e87ba4"><title>clock-drift-10ms-min, assign-imm: 12</title></rect>
+<rect x="150" y="1702" width="49.6" height="6" rx="2" fill="#008300"><title>clock-drift-10ms-min, gnn-restart: 63</title></rect>
+<rect x="150" y="1710" width="10.2" height="6" rx="2" fill="#6250d6"><title>clock-drift-10ms-min, assign-time: 13</title></rect>
+<rect x="150" y="1718" width="8.6" height="6" rx="2" fill="#e34948"><title>clock-drift-10ms-min, sprt: 11</title></rect>
 <text x="142" y="1769.0" font-size="12" text-anchor="end" fill="#0b0b0b">clock-free-running</text>
 <rect x="150" y="1734" width="52.7" height="6" rx="2" fill="#2a78d6"><title>clock-free-running, gnn: 67</title></rect>
-<rect x="150" y="1742" width="52.7" height="6" rx="2" fill="#eb6834"><title>clock-free-running, window: 67</title></rect>
-<rect x="150" y="1750" width="278.2" height="6" rx="2" fill="#1baf7a"><title>clock-free-running, distance: 355</title></rect>
-<rect x="150" y="1758" width="94.6" height="6" rx="2" fill="#eda100"><title>clock-free-running, assign: 121</title></rect>
-<rect x="150" y="1766" width="14.4" height="6" rx="2" fill="#e87ba4"><title>clock-free-running, gnn-imm: 18</title></rect>
-<rect x="150" y="1774" width="15.6" height="6" rx="2" fill="#008300"><title>clock-free-running, assign-imm: 20</title></rect>
-<rect x="150" y="1782" width="49.4" height="6" rx="2" fill="#6250d6"><title>clock-free-running, gnn-restart: 63</title></rect>
-<rect x="150" y="1790" width="13.8" height="6" rx="2" fill="#e34948"><title>clock-free-running, assign-time: 18</title></rect>
+<rect x="150" y="1742" width="278.2" height="6" rx="2" fill="#eb6834"><title>clock-free-running, distance: 355</title></rect>
+<rect x="150" y="1750" width="94.6" height="6" rx="2" fill="#1baf7a"><title>clock-free-running, assign: 121</title></rect>
+<rect x="150" y="1758" width="14.4" height="6" rx="2" fill="#eda100"><title>clock-free-running, gnn-imm: 18</title></rect>
+<rect x="150" y="1766" width="15.6" height="6" rx="2" fill="#e87ba4"><title>clock-free-running, assign-imm: 20</title></rect>
+<rect x="150" y="1774" width="49.4" height="6" rx="2" fill="#008300"><title>clock-free-running, gnn-restart: 63</title></rect>
+<rect x="150" y="1782" width="13.8" height="6" rx="2" fill="#6250d6"><title>clock-free-running, assign-time: 18</title></rect>
+<rect x="150" y="1790" width="13.8" height="6" rx="2" fill="#e34948"><title>clock-free-running, sprt: 18</title></rect>
 <text x="142" y="1841.0" font-size="12" text-anchor="end" fill="#0b0b0b">clock-offset-200ms-undescribed</text>
 <rect x="150" y="1806" width="37.3" height="6" rx="2" fill="#2a78d6"><title>clock-offset-200ms-undescribed, gnn: 48</title></rect>
-<rect x="150" y="1814" width="44.2" height="6" rx="2" fill="#eb6834"><title>clock-offset-200ms-undescribed, window: 56</title></rect>
-<rect x="150" y="1822" width="14.6" height="6" rx="2" fill="#1baf7a"><title>clock-offset-200ms-undescribed, distance: 19</title></rect>
-<rect x="150" y="1830" width="300.2" height="6" rx="2" fill="#eda100"><title>clock-offset-200ms-undescribed, assign: 383</title></rect>
-<rect x="150" y="1838" width="9.0" height="6" rx="2" fill="#e87ba4"><title>clock-offset-200ms-undescribed, gnn-imm: 11</title></rect>
-<rect x="150" y="1846" width="274.8" height="6" rx="2" fill="#008300"><title>clock-offset-200ms-undescribed, assign-imm: 351</title></rect>
-<rect x="150" y="1854" width="67.6" height="6" rx="2" fill="#6250d6"><title>clock-offset-200ms-undescribed, gnn-restart: 86</title></rect>
-<rect x="150" y="1862" width="22.7" height="6" rx="2" fill="#e34948"><title>clock-offset-200ms-undescribed, assign-time: 29</title></rect>
+<rect x="150" y="1814" width="14.6" height="6" rx="2" fill="#eb6834"><title>clock-offset-200ms-undescribed, distance: 19</title></rect>
+<rect x="150" y="1822" width="300.2" height="6" rx="2" fill="#1baf7a"><title>clock-offset-200ms-undescribed, assign: 383</title></rect>
+<rect x="150" y="1830" width="9.0" height="6" rx="2" fill="#eda100"><title>clock-offset-200ms-undescribed, gnn-imm: 11</title></rect>
+<rect x="150" y="1838" width="274.8" height="6" rx="2" fill="#e87ba4"><title>clock-offset-200ms-undescribed, assign-imm: 351</title></rect>
+<rect x="150" y="1846" width="67.6" height="6" rx="2" fill="#008300"><title>clock-offset-200ms-undescribed, gnn-restart: 86</title></rect>
+<rect x="150" y="1854" width="22.7" height="6" rx="2" fill="#6250d6"><title>clock-offset-200ms-undescribed, assign-time: 29</title></rect>
+<rect x="150" y="1862" width="24.8" height="6" rx="2" fill="#e34948"><title>clock-offset-200ms-undescribed, sprt: 32</title></rect>
 <text x="142" y="1913.0" font-size="12" text-anchor="end" fill="#0b0b0b">clock-drift-10ms-min-undescribed</text>
 <rect x="150" y="1878" width="46.4" height="6" rx="2" fill="#2a78d6"><title>clock-drift-10ms-min-undescribed, gnn: 59</title></rect>
-<rect x="150" y="1886" width="40.8" height="6" rx="2" fill="#eb6834"><title>clock-drift-10ms-min-undescribed, window: 52</title></rect>
-<rect x="150" y="1894" width="30.9" height="6" rx="2" fill="#1baf7a"><title>clock-drift-10ms-min-undescribed, distance: 40</title></rect>
-<rect x="150" y="1902" width="212.8" height="6" rx="2" fill="#eda100"><title>clock-drift-10ms-min-undescribed, assign: 272</title></rect>
-<rect x="150" y="1910" width="7.9" height="6" rx="2" fill="#e87ba4"><title>clock-drift-10ms-min-undescribed, gnn-imm: 10</title></rect>
-<rect x="150" y="1918" width="151.4" height="6" rx="2" fill="#008300"><title>clock-drift-10ms-min-undescribed, assign-imm: 193</title></rect>
-<rect x="150" y="1926" width="51.5" height="6" rx="2" fill="#6250d6"><title>clock-drift-10ms-min-undescribed, gnn-restart: 66</title></rect>
-<rect x="150" y="1934" width="19.4" height="6" rx="2" fill="#e34948"><title>clock-drift-10ms-min-undescribed, assign-time: 25</title></rect>
+<rect x="150" y="1886" width="30.9" height="6" rx="2" fill="#eb6834"><title>clock-drift-10ms-min-undescribed, distance: 40</title></rect>
+<rect x="150" y="1894" width="212.8" height="6" rx="2" fill="#1baf7a"><title>clock-drift-10ms-min-undescribed, assign: 272</title></rect>
+<rect x="150" y="1902" width="7.9" height="6" rx="2" fill="#eda100"><title>clock-drift-10ms-min-undescribed, gnn-imm: 10</title></rect>
+<rect x="150" y="1910" width="151.4" height="6" rx="2" fill="#e87ba4"><title>clock-drift-10ms-min-undescribed, assign-imm: 193</title></rect>
+<rect x="150" y="1918" width="51.5" height="6" rx="2" fill="#008300"><title>clock-drift-10ms-min-undescribed, gnn-restart: 66</title></rect>
+<rect x="150" y="1926" width="19.4" height="6" rx="2" fill="#6250d6"><title>clock-drift-10ms-min-undescribed, assign-time: 25</title></rect>
+<rect x="150" y="1934" width="13.4" height="6" rx="2" fill="#e34948"><title>clock-drift-10ms-min-undescribed, sprt: 17</title></rect>
 <text x="142" y="1985.0" font-size="12" text-anchor="end" fill="#0b0b0b">clock-free-running-undescribed</text>
 <rect x="150" y="1950" width="295.6" height="6" rx="2" fill="#2a78d6"><title>clock-free-running-undescribed, gnn: 377</title></rect>
-<rect x="150" y="1958" width="52.7" height="6" rx="2" fill="#eb6834"><title>clock-free-running-undescribed, window: 67</title></rect>
-<rect x="150" y="1966" width="278.2" height="6" rx="2" fill="#1baf7a"><title>clock-free-running-undescribed, distance: 355</title></rect>
-<rect x="150" y="1974" width="304.9" height="6" rx="2" fill="#eda100"><title>clock-free-running-undescribed, assign: 389</title></rect>
-<rect x="150" y="1982" width="260.4" height="6" rx="2" fill="#e87ba4"><title>clock-free-running-undescribed, gnn-imm: 332</title></rect>
-<rect x="150" y="1990" width="276.1" height="6" rx="2" fill="#008300"><title>clock-free-running-undescribed, assign-imm: 352</title></rect>
-<rect x="150" y="1998" width="292.0" height="6" rx="2" fill="#6250d6"><title>clock-free-running-undescribed, gnn-restart: 373</title></rect>
-<rect x="150" y="2006" width="79.3" height="6" rx="2" fill="#e34948"><title>clock-free-running-undescribed, assign-time: 101</title></rect>
+<rect x="150" y="1958" width="278.2" height="6" rx="2" fill="#eb6834"><title>clock-free-running-undescribed, distance: 355</title></rect>
+<rect x="150" y="1966" width="304.9" height="6" rx="2" fill="#1baf7a"><title>clock-free-running-undescribed, assign: 389</title></rect>
+<rect x="150" y="1974" width="260.4" height="6" rx="2" fill="#eda100"><title>clock-free-running-undescribed, gnn-imm: 332</title></rect>
+<rect x="150" y="1982" width="276.1" height="6" rx="2" fill="#e87ba4"><title>clock-free-running-undescribed, assign-imm: 352</title></rect>
+<rect x="150" y="1990" width="292.0" height="6" rx="2" fill="#008300"><title>clock-free-running-undescribed, gnn-restart: 373</title></rect>
+<rect x="150" y="1998" width="79.3" height="6" rx="2" fill="#6250d6"><title>clock-free-running-undescribed, assign-time: 101</title></rect>
+<rect x="150" y="2006" width="275.3" height="6" rx="2" fill="#e34948"><title>clock-free-running-undescribed, sprt: 351</title></rect>
 <text x="142" y="2057.0" font-size="12" text-anchor="end" fill="#0b0b0b">out-of-order</text>
 <rect x="150" y="2022" width="40.5" height="6" rx="2" fill="#2a78d6"><title>out-of-order, gnn: 52</title></rect>
-<rect x="150" y="2030" width="40.5" height="6" rx="2" fill="#eb6834"><title>out-of-order, window: 52</title></rect>
-<rect x="150" y="2038" width="14.6" height="6" rx="2" fill="#1baf7a"><title>out-of-order, distance: 19</title></rect>
-<rect x="150" y="2046" width="75.2" height="6" rx="2" fill="#eda100"><title>out-of-order, assign: 96</title></rect>
-<rect x="150" y="2054" width="10.8" height="6" rx="2" fill="#e87ba4"><title>out-of-order, gnn-imm: 14</title></rect>
-<rect x="150" y="2062" width="10.0" height="6" rx="2" fill="#008300"><title>out-of-order, assign-imm: 13</title></rect>
-<rect x="150" y="2070" width="40.5" height="6" rx="2" fill="#6250d6"><title>out-of-order, gnn-restart: 52</title></rect>
-<rect x="150" y="2078" width="5.6" height="6" rx="2" fill="#e34948"><title>out-of-order, assign-time: 7</title></rect>
+<rect x="150" y="2030" width="14.6" height="6" rx="2" fill="#eb6834"><title>out-of-order, distance: 19</title></rect>
+<rect x="150" y="2038" width="75.2" height="6" rx="2" fill="#1baf7a"><title>out-of-order, assign: 96</title></rect>
+<rect x="150" y="2046" width="10.8" height="6" rx="2" fill="#eda100"><title>out-of-order, gnn-imm: 14</title></rect>
+<rect x="150" y="2054" width="10.0" height="6" rx="2" fill="#e87ba4"><title>out-of-order, assign-imm: 13</title></rect>
+<rect x="150" y="2062" width="40.5" height="6" rx="2" fill="#008300"><title>out-of-order, gnn-restart: 52</title></rect>
+<rect x="150" y="2070" width="5.6" height="6" rx="2" fill="#6250d6"><title>out-of-order, assign-time: 7</title></rect>
+<rect x="150" y="2078" width="5.6" height="6" rx="2" fill="#e34948"><title>out-of-order, sprt: 7</title></rect>
 </svg>

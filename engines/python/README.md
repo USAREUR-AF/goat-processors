@@ -24,7 +24,7 @@ have always had, for the tools that import them.
 | `tracks.py` | what both correlate methods share: the entities, their filters, time quality, restart |
 | `correlate_pack.py` | the correlate `pack.def` (both methods) |
 | `gate.py` | `TESTS`, the table of correlate tests |
-| `confirm.py` | correlate method `confirm` (moved unchanged; correlate 1.0 replaces it) |
+| `confirm.py` | correlate method `confirm`: M of N with hold, or the sequential test (`sprt`); output fused, priority or latest |
 | `assign.py` | correlate method `assign`: memberships, the assignment of one source, window, output |
 | `ranking.py` | the exact minimum-cost assignment and Murty's ranking, pure functions of the cost matrix |
 | `bias.py` | sensor bias and time offset per pair of sources, pure functions |
@@ -66,7 +66,7 @@ function's modules when it is first used.
 | Kind | Table | An entry |
 |---|---|---|
 | correlate method | `correlate.METHODS` | `Method(engine, required, refused)`: the engine class (a `tracks.Correlator`) and the directives the method's packs must and must not hold |
-| correlate test | `gate.TESTS` | `TestKind(params, evaluate, text=False)`: `evaluate(eng, prm, a, b)` returns `(value, limit, pass)`, or `None` when skipped |
+| correlate test | `gate.TESTS` | `TestKind(params, evaluate, text=False, check=None)`: `evaluate(eng, prm, a, b)` returns `(value, limit, pass)` (or with a dict of extra trace fields), or `None` when skipped; `check(params)` a load-time message or `None` |
 | quality measure | `quality.MEASURES` | `Measure(aggregate, compute, uses_age=False)`: `compute(window)` gives the entity measure; `aggregate` (sum, mean, max, min) the source measure; `uses_age` when it reads the tick's time, not only the samples |
 | filter condition | `filter.CONDITIONS` | `ConditionKind(params, evaluate)` |
 | fuse method, attribute rule | `fuse.KINEMATICS`, `fuse.ATTRIBUTE_RULES` | a function; `AttributeRule(winner, numbers_only)` |
@@ -96,7 +96,7 @@ vector, that the engine's own table refuses it, and runs its own vector
 | Two-model filter | `estimate.py` |
 | Restart | `tracks.py` (`_accept`) |
 | Tests | `gate.py` |
-| Association | `confirm.py` |
+| Association | `confirm.py`; Stale time of a source: `tracks.py` (`_stale_limit`) |
 | Events | `confirm.py` |
 | Trace | `trace.py` |
 | Snapshot | `snapshot.py` |
