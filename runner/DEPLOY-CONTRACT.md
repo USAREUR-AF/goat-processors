@@ -63,15 +63,27 @@ fixed keys, `tracks`, `quality`, `events`, `status` and, when enabled,
 fabric's access rules must allow the runner's certificate to subscribe to its
 input keys and to publish under its prefix: in goat, the peer's write grant
 `volatile/<peer>/**` (goat ADR 1032), so `<peer>` is the certificate's name.
-`install.sh` sets it from the certificate.
+`install.sh` sets it from the certificate, on a first install and on an
+update; doctor fails `output prefix` when `peer` is not set and the
+certificate names another peer.
 
 Up to 0.5.0 the default was `data/processed/<site>/<name>` with a key per
-track (`tracks/<id>`), per quality subject and per function. 0.6.0 keeps
-that layout for one release behind `layout: per-entity` with
-`prefix: data/processed/<site>/<name>`.
+track (`tracks/<id>`), per quality subject and per function (events and
+trace); with `layout: batch` it was `tracks` and `quality` as JSON lines and
+still `events/<function>` and `trace/<function>`. README.md, "Moving from the
+layout before 0.6.0", covers both. 0.6.0 keeps the first for one release
+behind `layout: per-entity` and a `prefix` written out in full; 0.7.0
+removes `layout: per-entity`.
+
+Step 5 writes the config file; the package writes it only when it is absent
+(0.6.0 and later) and never replaces it, so an update keeps it and asks
+nothing.
 
 ## Compatibility
 
 Within `0.x`, a later release keeps these commands, their JSON outputs, the
-file paths and the config keys; it may add keys and checks. A change to any
-of them is a new minor version and is listed in the release notes.
+file paths, the config keys, and the fabric keys and their value format; it
+may add keys and checks. A change to any of them is a new minor version and
+is marked **Breaking** in the release notes: `runner/CHANGELOG.md`, whose
+section for a release is also on its GitHub release page. 0.6.0 is such a
+release: the fabric keys.

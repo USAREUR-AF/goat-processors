@@ -39,7 +39,7 @@ how to troubleshoot it.
 | Config file and `goat-processors config check` | Built. Tested: each kind of mistake is refused with what to fix |
 | `goat-processors doctor` | Built |
 | `goat-processors selftest` (replays every shipped vector) | Built |
-| `.deb` for Ubuntu 24.04, amd64 and arm64; systemd unit with its own user and hardening | Built in CI |
+| `.deb` for Ubuntu 24.04, amd64 and arm64; systemd unit with its own user and hardening; the config written once from a template, never replaced by an update | Built in CI. Tested: `packaging/ci-upgrade-test.sh` updates a 0.5.0 install with an edited config (apt asks nothing, the config is kept, doctor fails until `install.sh` sets the peer) |
 | `install.sh` and [INSTALL.md](INSTALL.md) | Written. CI runs `install.sh` on a fresh Ubuntu 24.04 VM against a mutual-TLS router |
 | Signed release (cosign, keyless) | Written: `.github/workflows/runner-release.yml`, run by a tag `runner-v<version>` |
 | HTTP API ([openapi.yaml](openapi.yaml)): local with a root-only token, mesh with mutual TLS and an allow list; audit log | Built. Tested: every route, both roles, refusals audited, mTLS allow list |
@@ -111,8 +111,10 @@ reproducible.
 
 ## Configure
 
-The one config file is `/etc/goat-processors/runner.yaml`. The package
-installs a commented starting point. Check it after every edit:
+The one config file is `/etc/goat-processors/runner.yaml`. On a first
+install the package writes it from the commented starting point
+`/usr/share/goat-processors/runner.yaml`; after that the package never
+replaces it, and an update asks nothing about it. Check it after every edit:
 
 ```sh
 sudo goat-processors config check
@@ -141,14 +143,14 @@ exits 1. The service runs the same check before it starts.
 | `pipeline[].function` | yes | | `filter`, `correlate`, `fuse` or `quality`; each at most once, in that order |
 | `pipeline[].pack` | yes | | a pack name under `packs_dir` (`goat-processors pack ls`), or a path to a pack directory |
 | `outputs.fabric.prefix` | no | `volatile/<peer>/stream/processors/<name>` | key prefix of everything the runner publishes. The default is in goat's volatile class: routers pass it on and never store it (goat ADR 1032) |
-| `outputs.fabric.peer` | no | the `site` | the `<peer>` of the default prefix: the identity the fabric lets this runner write under, `volatile/<peer>/**`. That is usually the common name (CN) of `fabric.tls.certificate`; `doctor` warns when the two differ, because a router drops a write it does not allow without an error |
-| `outputs.fabric.heartbeat_ms` | no | `5000` | the longest time between two publishes of an unchanged set of tracks or quality marks, and between two `status` values, input-clock milliseconds; 100 to 3600000 |
-| `outputs.fabric.events_per_source_per_s` | no | `20` | the most events published per source in one second; past it they are counted, and one `suppressed` line per source says how many. 1 to 10000 |
+| `outputs.fabric.peer` | no | the `site` | the `<peer>` of the default prefix: the identity the fabric lets this runner write under, `volatile/<peer>/**`. That is usually the common name (CN) of `fabric.tls.certificate`, because a router drops, without an error, a write it does not allow. `install.sh` sets it from the certificate. When it is not set and the certificate names another peer, doctor fails; when it is set to another name, doctor warns |
+| `outputs.fabric.heartbeat_ms` | no | `5000` | batch layout only: the longest time between two publishes of an unchanged set of tracks or quality marks, and between two `status` values, input-clock milliseconds; 100 to 3600000 |
+| `outputs.fabric.events_per_source_per_s` | no | `20` | batch layout only: the most events published per source in one second; past it they are counted, and one `suppressed` line per source says how many. 1 to 10000 |
 | `outputs.fabric.trace` | no | `false` | also publish trace records, bounded by the next three settings |
 | `outputs.fabric.trace_entities` | no | every entity | publish only trace records that name one of these source tracks or system tracks, for example `[radar-1/T1, S3]` |
 | `outputs.fabric.trace_for_s` | no | `600` | stop publishing the trace this many seconds after the service starts (1 to 86400); restart the service to trace again |
 | `outputs.fabric.trace_max_bytes_per_s` | no | `65536` | the most trace bytes in one second; records past it are counted and left out |
-| `outputs.fabric.layout` | no | `batch` | `batch`: the fixed key set below. `per-entity`: the layout before 0.6.0, one key per system track and per quality subject; `config check` warns, and it is removed in a later release |
+| `outputs.fabric.layout` | no | `batch` | `batch`: the five fixed keys (Operate, "What the runner publishes"). `per-entity`: the default layout before 0.6.0, one key per system track, per quality subject and per function; `config check` warns, and 0.7.0 removes it (Operate, "Moving from the layout before 0.6.0") |
 | `outputs.file.path` | no | | append one JSON line per stage per step; must be under `/var/lib/goat-processors` |
 | `outputs.file.trace` | no | `false` | include the trace in those lines |
 | `outputs.file.max_mb` | no | no limit | size limit in MiB: past it the file is renamed `<path>.1` (an older `.1` becomes `.2`, and so on) and a new file starts; a line is never split |
@@ -223,7 +225,7 @@ with `now_ms` (the tick that published it). An empty value means an empty set.
 | `<prefix>/tracks` | one system track per line: `system` (or `group`), `members`, `lat`, `lon`, `course`, `speed_ms`, `hae` when known, and `track_number`: a number 1 to 65535 that the track keeps while it lives, for formats whose track identifier is a number (ASTERIX I062/040). A new track takes the next free number, wrapping after 65535. From fuse when the pipeline has it, otherwise from correlate | on a tick, when the set differs from the last one published, or `heartbeat_ms` after it |
 | `<prefix>/quality` | one quality event per line (a measure, `action-start` or `action-end`; `scope` is `entity` or `source`) | the same rule |
 | `<prefix>/events` | the events since the last tick, one per line, each with `stage` (the function that returned it). Left out: track and quality events (they have their own keys), and `keep` and `pass`, which repeat each report that went through. At most `events_per_source_per_s` per source; past it, a line `{"ev":"suppressed","source":..., "count":...}` | on a tick, when there are any |
-| `<prefix>/status` | one line: `name`, `site`, `version`, `tracks`, `published`, `output_errors`, `events_suppressed`, `trace_on`, `trace_suppressed` | every `heartbeat_ms` |
+| `<prefix>/status` | batch layout only. One line: `name`, `site`, `version`, `tracks`, `published`, `output_errors`, `events_suppressed`, `trace_on`, `trace_suppressed` | every `heartbeat_ms` |
 | `<prefix>/trace` | trace records since the last tick, each with `stage`, within the trace bounds; a line with `"stage":"runner"` and `suppressed` counts records left out by the byte ceiling | with `outputs.fabric.trace: true`, on a tick, until `trace_for_s` has passed |
 
 Every value is sent as live data: when a link is congested it is dropped, not
@@ -233,14 +235,56 @@ split a value with newline framing (for example `goat-xf-pipe-zenoh
 reports. A fabric tool at the site sees everything the runner publishes with
 the key expression `volatile/<peer>/stream/processors/**`.
 
-**Moving from the layout before 0.6.0.** Runner 0.5.0 and earlier published by
-default under `data/processed/<site>/<name>`, one key per system track
-(`tracks/<id>`), per quality subject (`quality/<scope>/<subject>`) and per
-function (`events/<function>`), each value one JSON object. A reader of those
-keys subscribes to the five keys above instead and splits each value into
-lines. To keep the old keys for one more release, set `layout: per-entity` and
-`prefix: data/processed/<site>/<name>`. If the fabric has no `volatile/` write
-grant for this runner yet, set `prefix` to a key the runner may write.
+**Moving from the layout before 0.6.0.** A config kept from 0.5.0 or earlier
+has no `prefix`, so after the update the runner publishes on the five keys
+above, under the new default prefix. Anything reading the old keys gets
+nothing, and no error appears anywhere. Before updating, find which of the
+two cases below the site is in (its config has `layout: batch`, or no
+`layout` line), and decide with whoever reads the runner's output.
+
+*Case 1: no `layout` line (the default up to 0.5.0, now called per-entity).*
+The runner published under `data/processed/<site>/<name>`: one key per
+system track (`tracks/<id>`), per quality subject
+(`quality/<scope>/<subject>`), per function for events (`events/<function>`)
+and, when enabled, for the trace (`trace/<function>`). Each value was one
+JSON object. Either move the readers to the five keys above, splitting each
+value into lines; or keep the old keys for 0.6.0 with these two lines, with
+the site's own site and name written out (`prefix` is used as written,
+nothing in it is filled in):
+
+```yaml
+outputs:
+  fabric:
+    layout: per-entity
+    prefix: data/processed/site-a/processors-1
+```
+
+`config check` then prints two warnings, `layout: per-entity` and a prefix
+not under `volatile/`. Both are expected for this release. `layout:
+per-entity` gives back the 0.5.0 keys and values exactly: every event of
+every call (with `keep` and `pass`), tracks and quality on every tick, and no
+`status` key. `heartbeat_ms` and `events_per_source_per_s` do not apply to
+it; the trace bounds do.
+
+*Case 2: `layout: batch` was set on 0.5.0.* `tracks` and `quality` are
+unchanged apart from the prefix. `events/<function>` and `trace/<function>`,
+each value `{stage, now_ms, events}`, become the single keys `events` and
+`trace`, one event or record per line with `stage` on each; `events` leaves
+out `keep` and `pass` and is limited by `events_per_source_per_s`. `status`
+is new. The per-function event keys cannot be kept: move their readers to
+`events`. To keep the old prefix, set only `prefix` (as above, without
+`layout`). Do not set `layout: per-entity`: that brings back the key per
+track, not the 0.5.0 batch keys.
+
+*In both cases*, check the name in the runner's certificate (INSTALL.md,
+step 6). When it is not the site name, the runner needs `peer:` with that
+name, or the fabric drops everything it publishes. `install.sh` adds it, on
+a first install and on an update; doctor fails with `output prefix` until it
+is right. A fabric that has no `volatile/` write grant for this runner yet
+needs `prefix` set to a key the runner may write.
+
+**0.7.0 removes `layout: per-entity`**: `config check` then refuses a config
+that still has it. Move the readers during 0.6.0.
 
 The events are described in each function's specification under `spec/`.
 
@@ -261,7 +305,7 @@ events}`, with `trace` when given `--trace`. `--pack correlate=correlate-gnn`
 | Path | What |
 |---|---|
 | `/usr/bin/goat-processors` | the program |
-| `/etc/goat-processors/runner.yaml` | the config (root writes, the service reads) |
+| `/etc/goat-processors/runner.yaml` | the config (root writes, the service reads); written once from `/usr/share/goat-processors/runner.yaml`, never replaced by an update, removed by `apt purge` |
 | `/etc/goat-processors/tls/` | the fabric certificates |
 | `/usr/share/goat-processors/packs/` | every pack, with its vectors |
 | `/run/goat-processors/status.json` | the service's status, rewritten each tick |
@@ -479,7 +523,7 @@ each FAIL is followed by its fix. Doctor changes nothing.
 | `service` warn: the running pipeline differs | the config was edited but not applied, or an operator ran `pack use` | to keep the running packs, write them in the config; to return to the config, `sudo systemctl restart goat-processors` |
 | `certificates: api.mesh.crl` FAIL: does not read | the file is missing or is not a PEM revocation list; the service keeps the list it last read (at start, it does not start) | copy the CA's current list there |
 | `certificates: api.mesh.crl` warn: past its next update | the list still applies, but the CA has likely issued a newer one | copy the CA's current list there |
-| `output prefix` warn: the certificate's name is ... | the runner publishes under `volatile/<peer>/...`, but its certificate names another peer; a router that grants writes only under `volatile/<certificate name>/**` drops the runner's output without an error, and readers see nothing | set `outputs.fabric.peer` to the certificate's name (or to the identity the fabric grants), then `sudo systemctl restart goat-processors` |
+| `output prefix` FAIL or warn: the certificate's name is ... | the runner publishes under `volatile/<peer>/...`, but its certificate names another peer; a router that grants writes only under `volatile/<certificate name>/**` drops the runner's output without an error, and readers see nothing | FAIL when `peer` is not set (typically a config kept from 0.5.0), warn when it is set to another name. Add `peer: <certificate name>` under `outputs:` / `  fabric:` (or the identity the fabric grants), then `sudo systemctl restart goat-processors`. The service writes the same line to its log at start |
 | `config` warn: layout per-entity, or a prefix not under volatile/, or the whole trace | a valid setting that breaks goat's fabric rules or publishes much more than needed; the line says which | as the line says; README.md, Configure |
 | `files` warn: a file has no size limit | an output, record or audit file without `max_mb` has passed 1 GiB | set its `max_mb` and `keep` in the config, then `sudo systemctl restart goat-processors` |
 | `files` warn: the disk is 90% full or more | the disk holding a file the service writes is nearly full; when it is full, writes fail (`output_errors`) | free space there, or set `max_mb` on the files |

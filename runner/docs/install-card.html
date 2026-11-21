@@ -97,7 +97,7 @@ td, th { text-wrap: pretty; }
 <tr><td class="n">3</td><td>Check the checksums and the signature</td><td><code>sha256sum -c --ignore-missing SHA256SUMS</code><br><code>cosign verify-blob …</code> (INSTALL.md step 3)</td><td><code>OK</code> per file; <code>Verified OK</code></td><td>do not install; download again</td></tr>
 <tr><td class="n">4</td><td>Install the package and test it</td><td><code>sudo apt install ./goat-processors_0.6.0_amd64.deb</code><br><code>goat-processors selftest</code></td><td><code>121 of 121 vectors … replay exactly</code></td><td><code>sudo apt-get install -f</code>; on FAIL lines, stop and report them</td></tr>
 <tr><td class="n">5</td><td>Place the certificates</td><td><code>sudo install -m 0640 -g goat-processors ca.pem runner.pem runner.key /etc/goat-processors/tls/</code></td><td>three files, <code>root goat-processors</code>; then <code>rm runner.key</code></td><td>rename to exactly these names</td></tr>
-<tr><td class="n">6</td><td>Replace each word <code>CHANGE-ME</code>: site name; router name (keep <code>tls/</code> and <code>:7447</code>)</td><td><code>sudo nano /etc/goat-processors/runner.yaml</code><br><code>sudo goat-processors config check</code></td><td><code>valid</code></td><td>fix each line it prints, check again</td></tr>
+<tr><td class="n">6</td><td>Replace each word <code>CHANGE-ME</code>: site name; router name (keep <code>tls/</code> and <code>:7447</code>)</td><td><code>sudo nano /etc/goat-processors/runner.yaml</code><br><code>sudo goat-processors config check</code></td><td><code>valid</code></td><td>fix what it prints; certificate not named as the site: <code>peer:</code> its name</td></tr>
 <tr><td class="n">7</td><td>Start the service, now and at every boot</td><td><code>sudo systemctl enable --now goat-processors</code></td><td><code>systemctl is-active goat-processors</code> prints <code>active</code></td><td><code>sudo journalctl -u goat-processors -n 30</code></td></tr>
 <tr><td class="n">8</td><td>Wait five seconds, then ask doctor</td><td><code>sudo goat-processors doctor</code></td><td>last line <code>healthy</code></td><td>do what each <code>fix:</code> line says, run doctor again</td></tr>
 </table>
@@ -112,7 +112,8 @@ td, th { text-wrap: pretty; }
 <tr><td>state, pipeline, counters per source</td><td><code>goat-processors status</code></td></tr>
 <tr><td>the system tracks now; why one formed</td><td><code>goat-processors tracks</code>; <code>goat-processors explain s1</code></td></tr>
 <tr><td>its log</td><td><code>sudo journalctl -u goat-processors -f</code></td></tr>
-<tr><td>where its system tracks are, on the fabric</td><td><code>volatile/&lt;peer&gt;/stream/processors/&lt;name&gt;/tracks</code></td></tr>
+<tr><td>where its system tracks are, on the fabric</td><td><code>volatile/&lt;peer&gt;/stream/processors/&lt;name&gt;/tracks</code> (peer: the site, or <code>peer:</code>)</td></tr>
+<tr><td>update</td><td>steps 2 to 4, doctor. <strong>From 0.5.0 the fabric keys move:</strong> INSTALL.md first</td></tr>
 <tr><td>every doctor line and its fix</td><td>README.md, section Troubleshoot</td></tr>
 </table>
 </main>

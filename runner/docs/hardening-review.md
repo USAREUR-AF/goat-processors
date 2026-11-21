@@ -115,7 +115,9 @@ trusted senders reach, and to prefer the fabric for reports from other hosts.
 a full disk stopped the writes (`output_errors`). Each now takes an
 optional size limit (`max_mb`) and a number of older copies to keep
 (`keep`, 0 to 9): past the limit the file is renamed `<path>.1` and a new
-one starts, never splitting a line. Without a limit a file grows as before;
+one starts, never splitting a line. Without a limit a file grows as before,
+and the shipped config sets no limit (there is no size that fits every site),
+so set `max_mb` on any file you enable;
 `doctor` warns when such a file passes 1 GiB, and when the disk holding a
 file is 90% full (where the host has `df`). Tests: `rotate::tests` and
 `file_size_limits_are_checked` in `tests/api.rs`.

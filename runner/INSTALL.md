@@ -226,7 +226,9 @@ subject=CN = site-a
 
 If the name after `CN =` is not your site name, change `    # peer: site-a-processors-1`
 to `    peer: ` followed by that name (remove the `#`, keep the four spaces).
-`install.sh` does this for you. Doctor (step 8) warns when the two differ.
+`install.sh` does this for you, on a first install and on an update. When
+`peer` is not set and the two differ, doctor (step 8) fails with
+`output prefix`, and the service writes the same line to its log at start.
 
 Leave the rest as it is for a first install. Save with `Ctrl+O`, `Enter`,
 and leave with `Ctrl+X`. Then check the file:
@@ -321,9 +323,10 @@ s1             1.00031      1.00000        0     11.0  adsb/T1 radar-1/T1
 `members` are the source tracks the runner judged to be one object. To see
 why, with every test it ran: `goat-processors explain s1`. The same tracks
 are on the fabric as one value, one track per line, on the key
-`volatile/<peer>/stream/processors/<name>/tracks`; any fabric tool at the
-site can subscribe to `volatile/site-a/stream/processors/**` to see them
-(`<peer>` is explained in step 6).
+`volatile/site-a/stream/processors/processors-1/tracks` (the `output prefix`
+in the status above, then `/tracks`); any fabric tool at the site can
+subscribe to `volatile/site-a/stream/processors/**` to see them. `site-a` in
+that key is the peer (step 6).
 
 These commands read; they need no `sudo`. The commands that change the
 running service (`pack use`, `stop`, `start`) need `sudo`. README.md,
@@ -375,8 +378,26 @@ commands the page shows, run with `sudo` on the machine.
 
 | Task | Command |
 |---|---|
-| update to a new release | steps 2 to 4 with the new version; the service restarts on the new version, and your config is kept |
+| update to a new release | steps 2 to 4 with the new version; the service restarts on the new version. Your config is kept as it is: from 0.6.0 the package never replaces it and asks nothing about it. Then run doctor (step 8). **From 0.5.0 or earlier, read "Updating from 0.5.0" below first: the fabric keys move** |
 | apply a config change | `sudo goat-processors config check && sudo systemctl restart goat-processors` |
 | stop | `sudo systemctl stop goat-processors` |
 | remove (keeps the config and certificates) | `sudo apt remove goat-processors` |
 | remove everything but the certificates | `sudo apt purge goat-processors`. After a purge and a new install, run doctor: the package sets the certificates' group again, and doctor says if the service cannot read them |
+
+### Updating from 0.5.0 or earlier
+
+0.6.0 publishes on different fabric keys. A config kept from 0.5.0 has no
+`prefix` and no `peer`, so after the update the runner publishes under
+`volatile/<peer>/stream/processors/<name>/`, and anything reading the old
+keys gets nothing, with no error. Before you update:
+
+1. Decide with whoever reads the runner's output: move the readers to the
+   new keys, or keep the old keys for this release. README.md, "Moving from
+   the layout before 0.6.0", has both, with the config lines.
+2. Check the certificate's name (step 6's `openssl` line). If it is not the
+   site name, the runner needs `peer:` with that name: `install.sh` adds it,
+   or add it by hand under `outputs:` / `  fabric:`, four spaces in.
+
+Then update (steps 2 to 4). The package prints a note that the keys move;
+`apt` asks no question about the config, which stays as you edited it.
+Run doctor: `output prefix` must be `ok`.
