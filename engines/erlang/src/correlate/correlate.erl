@@ -1,12 +1,13 @@
-%% The correlator (spec/correlate.md 0.8): the entry point of both methods.
+%% The correlator (spec/correlate.md 1.0, spec/correlate-assign.md 0.7): the entry point of both methods.
 %%   load_pack(Dir[, Extensions]) -> {ok, Pack} | {error, Why}
 %%   new(Pack) -> State
 %%   ingest(Report, State) -> {Events, Trace, State}
 %%   tick(NowMs, State) -> {Events, Trace, State}
 %%   snapshot(State) -> map()
 %% This module holds what both methods share: "Reports" (the checks and the
-%% order of rejects) and accepting a report into its entity ("Frame", "Track
-%% estimate", "Restart"). The pack's method line selects a method module
+%% order of rejects), accepting a report into its entity ("Frame", "Track
+%% estimate", "Restart") and staleness with each source's stale time
+%% (Association, "Stale time of a source"). The pack's method line selects a method module
 %% from correlate_methods; it decides association, the tick and the
 %% snapshot. State is a value, never a global.
 -module(correlate).
@@ -14,7 +15,7 @@
 -export([load_pack/1, load_pack/2, new/1, ingest/2, tick/2, snapshot/1]).
 %% Shared with the method modules.
 -export([entity/2, put_entity/3, value/2, predict/3, add_timing/2, pair_view/3,
-         is_stale/3]).
+         is_stale/3, stale_time/2]).
 
 load_pack(Dir) -> load_pack(Dir, #{}).
 
@@ -24,7 +25,8 @@ load_pack(Dir) -> load_pack(Dir, #{}).
 load_pack(Dir, Extensions) -> correlate_pack:load_pack(Dir, Extensions).
 
 new(Pack = #{method := Method}) ->
-    maps:merge((trace_log:fields())#{pack => Pack, ref => none, entities => #{}},
+    maps:merge((trace_log:fields())#{pack => Pack, ref => none, entities => #{},
+                                     intervals => #{}},
                Method:new(Pack)).
 
 tick(Now, St = #{pack := #{method := Method}}) -> Method:tick(Now, St).
@@ -84,7 +86,8 @@ accept(Key, Report, St0) ->
                                 model_imm:init(Z, Vel, R, Pack)),
                 {E0, trace_log:emit(trace_correlate:new(Key), StT)};
             {ok, E0 = #{time := Last}} ->
-                case restart(Key, E0, T, Z, R, Pack, StT) of
+                case restart(Key, interval(maps:get(source, E0), T - Last, StT), E0,
+                             T, Z, R, Pack) of
                     {true, StR} ->
                         Dt = (T - Last) / 1000,
                         {Est, Records} = model_imm:update(E0, Dt, Z, Vel, R, Pack),
@@ -110,7 +113,7 @@ accept(Key, Report, St0) ->
 
 %% Restart (correlate.md "Restart"): {Updates, St}, with the restart
 %% record when the pack has the line.
-restart(Key, Ent, T, Z, R, Pack, St) ->
+restart(Key, St, Ent, T, Z, R, Pack) ->
     case correlate_track:restart(Ent, T, Z, R, Pack) of
         none -> {true, St};
         {D2, Gate, Pass} ->
@@ -144,8 +147,35 @@ pair_view(A, B, St = #{pack := Pack = #{method := Method}}) ->
     PredB = add_timing(predict(EB, maps:get(time, EA), Pack), EB),
     {EA, EB, Method:move(PredB, maps:get(source, EA), maps:get(source, EB), St)}.
 
+%% Stale time of a source: with stale_rate, each accepted report of an
+%% entity that already existed appends its interval to its source's list,
+%% which keeps the last `samples`, oldest dropped first.
+interval(Source, Dt, St = #{pack := #{stale_rate := #{samples := N}}, intervals := Is}) ->
+    List = maps:get(Source, Is, []) ++ [Dt],
+    Kept = case length(List) > N of
+               true -> lists:nthtail(length(List) - N, List);
+               false -> List
+           end,
+    St#{intervals := Is#{Source => Kept}};
+interval(_Source, _Dt, St) -> St.
+
+%% The stale time of a source: stale_ms; or factor times the lower median of
+%% its intervals, raised to floor_ms and lowered to ceiling_ms, ceiling_ms
+%% with no interval.
+stale_time(Source, #{pack := Pack, intervals := Is}) ->
+    case Pack of
+        #{stale_rate := #{factor := K, floor_ms := F, ceiling_ms := C}} ->
+            case maps:get(Source, Is, []) of
+                [] -> C;
+                List ->
+                    M = lists:nth((length(List) - 1) div 2 + 1, lists:sort(List)),
+                    min(max(K * M, F), C)
+            end;
+        #{stale_ms := Ms} -> Ms
+    end.
+
 %% Staleness, shared by both methods' tick.
 is_stale(Ent, Now, St) ->
     ReportStale = value(<<"stale_ms">>, Ent),
-    Now - maps:get(time, Ent) > maps:get(stale_ms, maps:get(pack, St))
+    Now - maps:get(time, Ent) > stale_time(maps:get(source, Ent), St)
         orelse (is_number(ReportStale) andalso Now >= ReportStale).

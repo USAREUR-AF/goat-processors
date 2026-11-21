@@ -1,26 +1,43 @@
-%% Method confirm (correlate.md 0.8 "Association", "Tick", "Snapshot" with
-%% "Pack" for its own directives): gate and confirm tests, confirm_count,
-%% hold and hold_failures, groups, staleness and the fused output by
-%% priority or latest. Moved here from the correlator unchanged in logic;
-%% correlate 1.0 replaces this pipeline.
+%% Method confirm (correlate.md 1.0 "Association", "Tick", "Snapshot" with
+%% "Pack" for its own directives): gate and confirm tests, then either
+%% confirm_count with hold and hold_failures, or the sequential test of the
+%% sprt line (correlate_sprt); groups, staleness and the fused output by the
+%% output modes of outputs/0 (fused, priority, latest).
 -module(correlate_confirm).
 -behaviour(correlate_methods).
 -export([directives/0, defaults/0, directive/2, check/1, finish_pack/1,
          new/1, entity_fields/0, restarted/2, reported/2, move/4, tick/2, snapshot/1]).
+%% Shared with correlate_sprt.
+-export([pair/2, members/2, leave/4, candidates/2, choose/3]).
+%% The output modes.
+-export([outputs/0, fused_output/3, priority_output/3, latest_output/3]).
+
+-define(SPRT_PARAMS, [<<"false">>, <<"missed">>, <<"pos_m">>, <<"vel_ms">>, <<"hae_sigma_m">>]).
 
 -import(correlate, [entity/2, put_entity/3, value/2, predict/3, pair_view/3]).
 -import(trace_log, [emit/2, record/2]).
--import(correlate_pack, [number/1, integer/1]).
+-import(correlate_pack, [number/1, integer/1, params/2, number_params/1]).
+-import(io_pack, [fail/1]).
 
 %% ---------------------------------------------------------------- pack
 
+%% confirm_count and hold_failures are required without sprt and refused
+%% with it (check/1).
 directives() ->
-    {[<<"confirm_count">>, <<"hold_failures">>],
+    {[],
      [<<"confirm">>, <<"hold">>, <<"priority">>],
-     [<<"confirm_count">>, <<"hold_failures">>, <<"same_source">>, <<"output">>]}.
+     [<<"confirm_count">>, <<"hold_failures">>, <<"same_source">>, <<"output">>, <<"sprt">>]}.
 
 defaults() ->
-    #{confirm => [], hold => [], priority => [], same_source => forbid, output => priority}.
+    #{confirm => [], hold => [], priority => [], same_source => forbid, output => <<"fused">>}.
+
+%% The output modes (Association, "On each tick" step 2): name => function of
+%% (Group, Now, St) giving the fused event's primary (null for fused) and
+%% its estimate {PE, VE, PN, VN, Hae}. A mode is one entry here.
+outputs() ->
+    #{<<"fused">> => fun ?MODULE:fused_output/3,
+      <<"priority">> => fun ?MODULE:priority_output/3,
+      <<"latest">> => fun ?MODULE:latest_output/3}.
 
 directive([Stage, Test | Params], P = #{tests := Tests})
   when Stage =:= <<"confirm">>; Stage =:= <<"hold">> ->
@@ -30,27 +47,50 @@ directive([<<"confirm_count">>, N], P) -> P#{confirm_count => integer(N)};
 directive([<<"hold_failures">>, N], P) -> P#{hold_failures => integer(N)};
 directive([<<"same_source">>, <<"forbid">>], P) -> P#{same_source := forbid};
 directive([<<"same_source">>, <<"allow">>], P) -> P#{same_source := allow};
-directive([<<"output">>, <<"priority">>], P) -> P#{output := priority};
-directive([<<"output">>, <<"latest">>], P) -> P#{output := latest};
+directive([<<"output">>, Mode], P) ->
+    case maps:is_key(Mode, outputs()) of
+        true -> P#{output := Mode};
+        false -> unknown
+    end;
+directive([<<"sprt">> | Params], P) ->
+    P#{sprt => number_params(params(Params, ?SPRT_PARAMS))};
 directive([<<"priority">>, Source, N], P) ->
     P#{priority := [{Source, number(N)} | maps:get(priority, P)]};
 directive(_, _) -> unknown.
 
-check(_P) -> ok.
+%% Without sprt, confirm_count and hold_failures are required; with sprt,
+%% confirm_count, hold_failures and hold are refused, false and missed are
+%% above 0 and below 0.5, pos_m, vel_ms and hae_sigma_m above 0.
+check(P = #{sprt := S}) ->
+    [fail({refused_with_sprt, K}) || K <- [confirm_count, hold_failures], maps:is_key(K, P)],
+    maps:get(hold, P) =:= [] orelse fail({refused_with_sprt, hold}),
+    [fail({sprt_range, K}) || K <- [<<"false">>, <<"missed">>],
+                              not (maps:get(K, S) > 0 andalso maps:get(K, S) < 0.5)],
+    [fail({not_above_zero, K}) || K <- [<<"pos_m">>, <<"vel_ms">>, <<"hae_sigma_m">>],
+                                  not (maps:get(K, S) > 0)],
+    ok;
+check(P) ->
+    [fail({missing, K}) || K <- [confirm_count, hold_failures], not maps:is_key(K, P)],
+    ok.
 
-finish_pack(P) ->
-    lists:foldl(fun(K, Acc) -> Acc#{K := lists:reverse(maps:get(K, Acc))} end, P,
-                [confirm, hold, priority]).
+finish_pack(P0) ->
+    P = lists:foldl(fun(K, Acc) -> Acc#{K := lists:reverse(maps:get(K, Acc))} end, P0,
+                    [confirm, hold, priority]),
+    case P of
+        #{sprt := S} -> P#{sprt := correlate_sprt:bounds(S)};
+        _ -> P
+    end.
 
 %% ---------------------------------------------------------------- state
 
-new(_Pack) -> #{groups => #{}, counts => #{}, next_group => 1}.
+new(_Pack) -> #{groups => #{}, counts => #{}, llr => #{}, next_group => 1}.
 
 entity_fields() -> #{group => none, hold_failures => 0}.
 
 %% Restart: key, group, pair counts and hold failure count are kept.
 restarted(_Key, St) -> St.
 
+reported(Key, St = #{pack := #{sprt := _}}) -> correlate_sprt:reported(Key, St);
 reported(Key, St) ->
     case entity(Key, St) of
         #{group := none} -> associate(Key, St);
@@ -118,14 +158,23 @@ associate(A, St0) ->
     CC = maps:get(confirm_count, Pack),
     St1 = lists:foldl(fun(B, S) -> candidate(A, B, Pack, S) end, St0, candidates(A, St0)),
     Ready = [B || B <- candidates(A, St1), count(A, B, St1) >= CC],
-    {Ranked, St2} = rank(A, Ready, [], St1),
+    case choose(A, Ready, St1) of
+        {none, St2} -> St2;
+        {B, St2} -> set_count(A, B, 0, St2)
+    end.
+
+%% Of the ready candidates (key order), the one with the smallest d², ties
+%% to key order, with one rank record each; A joins its group or correlates
+%% with it. {Chosen | none, St}.
+choose(A, Ready, St0) ->
+    {Ranked, St1} = rank(A, Ready, [], St0),
     case Ranked of
-        [] -> St2;
+        [] -> {none, St1};
         [First | Rest] ->
             {_, B} = lists:foldl(fun({D, K}, {DBest, _}) when D < DBest -> {D, K};
                                     (_, Best) -> Best
                                  end, First, Rest),
-            set_count(A, B, 0, group_with(A, B, St2))
+            {B, group_with(A, B, St1)}
     end.
 
 %% d² for each ready candidate, recorded as test "rank".
@@ -201,38 +250,71 @@ stale(K, Now, St0) ->
                       none -> St0;
                       G -> leave(K, G, <<"stale">>, St0)
                   end,
-            Counts = maps:filter(fun({X, Y}, _) -> X =/= K andalso Y =/= K end,
-                                 maps:get(counts, St1)),
-            St2 = St1#{entities := maps:remove(K, maps:get(entities, St1)), counts := Counts},
+            Keep = fun({X, Y}, _) -> X =/= K andalso Y =/= K end,
+            St2 = St1#{entities := maps:remove(K, maps:get(entities, St1)),
+                       counts := maps:filter(Keep, maps:get(counts, St1)),
+                       llr := maps:filter(Keep, maps:get(llr, St1))},
             emit(trace_correlate:drop(K), St2)
     end.
 
-%% Tick step 2, fused output.
+%% Tick step 2, fused output: the pack's output mode gives the primary and
+%% the estimate at Now.
 fused(G, Now, St) ->
     Pack = maps:get(pack, St),
     Ms = members(G, St),
-    Primary = primary(maps:get(output, Pack), Ms, Pack, St),
-    Ent = entity(Primary, St),
-    #{east := {PE, VE, _, _, _}, north := {PN, VN, _, _, _}} = predict(Ent, Now, Pack),
+    Output = maps:get(maps:get(output, Pack), outputs()),
+    {Primary, {PE, VE, PN, VN, Hae}} = Output(Ms, Now, St),
     {Lat, Lon} = model_frame:from_plane(maps:get(ref, St), PE, PN),
     Ev0 = #{<<"ev">> => <<"fused">>, <<"group">> => trace_correlate:group_name(G),
             <<"primary">> => Primary, <<"members">> => Ms,
             <<"lat">> => Lat, <<"lon">> => Lon, <<"course">> => model_frame:course(VE, VN),
             <<"speed_ms">> => math:sqrt(VE * VE + VN * VN)},
-    Ev = case value(<<"hae">>, Ent) of
+    Ev = case Hae of
              H when is_number(H) -> Ev0#{<<"hae">> => H};
              _ -> Ev0
          end,
     emit(Ev, St).
 
-%% Primary member: Ms is in key order, so the first best wins ties.
-primary(priority, Ms, Pack, St) ->
-    Prio = maps:from_list(maps:get(priority, Pack)),
-    Rank = fun(M) -> maps:get(maps:get(source, entity(M, St)), Prio, 100) end,
-    best(Ms, fun(M) -> Rank(M) end);
-primary(latest, Ms, _Pack, St) ->
-    best(Ms, fun(M) -> -maps:get(time, entity(M, St)) end).
+%% output fused: per axis the information-weighted combination of every
+%% member's filter predicted to Now (no timing variance), members in key
+%% order, each sum left to right from 0; hae of the member with the greatest
+%% last_time_ms whose last report has hae, ties to key order.
+fused_output(Ms, Now, St) ->
+    Pack = maps:get(pack, St),
+    Preds = [predict(entity(M, St), Now, Pack) || M <- Ms],
+    {PE, VE} = combine([E || #{east := E} <- Preds]),
+    {PN, VN} = combine([N || #{north := N} <- Preds]),
+    WithHae = [M || M <- Ms, is_number(value(<<"hae">>, entity(M, St)))],
+    Hae = case WithHae of
+              [] -> null;
+              _ -> value(<<"hae">>, entity(best(WithHae, fun(M) -> -maps:get(time, entity(M, St)) end), St))
+          end,
+    {null, {PE, VE, PN, VN, Hae}}.
 
+combine(Axes) ->
+    {SP, SIP, SV, SIV} = lists:foldl(fun({P, V, PP, _, VV}, {A, B, C, D}) ->
+                                             {A + P / PP, B + 1 / PP, C + V / VV, D + 1 / VV}
+                                     end, {0.0, 0.0, 0.0, 0.0}, Axes),
+    {SP / SIP, SV / SIV}.
+
+%% output priority: the lowest priority number for the member's source (100
+%% for a source the pack does not list), ties to key order.
+priority_output(Ms, Now, St) ->
+    Prio = maps:from_list(maps:get(priority, maps:get(pack, St))),
+    primary_output(best(Ms, fun(M) -> maps:get(maps:get(source, entity(M, St)), Prio, 100) end),
+                   Now, St).
+
+%% output latest: the greatest last_time_ms, ties to key order.
+latest_output(Ms, Now, St) ->
+    primary_output(best(Ms, fun(M) -> -maps:get(time, entity(M, St)) end), Now, St).
+
+%% The primary's filter predicted to Now and its last hae.
+primary_output(Primary, Now, St) ->
+    Ent = entity(Primary, St),
+    #{east := {PE, VE, _, _, _}, north := {PN, VN, _, _, _}} = predict(Ent, Now, maps:get(pack, St)),
+    {Primary, {PE, VE, PN, VN, value(<<"hae">>, Ent)}}.
+
+%% The first of Ms (key order) with the lowest score.
 best([M | Ms], Score) ->
     {_, Best} = lists:foldl(fun(X, {S, B}) ->
                                     SX = Score(X),

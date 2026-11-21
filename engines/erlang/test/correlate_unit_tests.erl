@@ -92,10 +92,18 @@ test_kinds_test() ->
                  correlate_test_kinds:same(#{<<"key">> => <<"@env">>}, View)),
     {Pass, #{<<"value">> := D}} = correlate_test_kinds:distance(#{<<"max_m">> => 5}, View),
     ?assert(Pass andalso abs(D - math:sqrt(18)) < 1.0e-12),
-    {_, #{<<"limit">> := L}} = correlate_test_kinds:window(
-                                 #{<<"multiplier">> => 2, <<"window_m">> => 1, <<"err_min_m">> => 15,
-                                   <<"err_max_m">> => 18}, View),
-    ?assert(abs(L - (2 * math:sqrt(15 * 15 + 18 * 18) + 1)) < 1.0e-12),
+    %% state: per axis (9 * 2) / (2 * 2) = 4.5, plus 4 * 4 / (2 * 2 * 2) = 2 for
+    %% hae; 5 degrees of freedom, limit the table's 15.0863 at 0.99.
+    TA = A#{timing => {0.0, 0.0}},
+    ?assertMatch({true, #{<<"value">> := 11.0, <<"limit">> := 15.0863, <<"dof">> := 5}},
+                 correlate_test_kinds:state(#{<<"probability">> => 0.99, <<"hae_sigma_m">> => 2},
+                                            {TA, B, filter(3.0, 0.0, 1.0)})),
+    ?assertMatch({true, #{<<"value">> := 9.0, <<"limit">> := 13.2767, <<"dof">> := 4}},
+                 correlate_test_kinds:state(#{<<"probability">> => 0.99, <<"hae_sigma_m">> => 2},
+                                            {TA, B#{report := #{}}, filter(3.0, 0.0, 1.0)})),
+    ?assert(correlate_test_kinds:state_check(#{<<"probability">> => 0.995, <<"hae_sigma_m">> => 1})),
+    ?assertNot(correlate_test_kinds:state_check(#{<<"probability">> => 0.9, <<"hae_sigma_m">> => 1})),
+    ?assertNot(correlate_test_kinds:state_check(#{<<"probability">> => 0.99, <<"hae_sigma_m">> => 0})),
     ?assertMatch({true, _}, correlate_test_kinds:mahalanobis(#{<<"gate">> => 10}, View)).
 
 engine_test() ->

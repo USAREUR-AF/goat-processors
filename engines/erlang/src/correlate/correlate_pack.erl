@@ -1,8 +1,9 @@
-%% Pack: load and parse pack.def (correlate.md 0.8 "Pack"; a method's own
-%% directives are its module's, correlate-assign.md 0.6 "Pack" for assign).
+%% Pack: load and parse pack.def (correlate.md 1.0 "Pack"; a method's own
+%% directives are its module's, correlate-assign.md 0.7 "Pack" for assign).
 %%
 %% A parsed pack holds method => Module (correlate_methods), tests => the
-%% test kind table, filter, maneuver, restart, time_default, gate, stale_ms,
+%% test kind table, filter, maneuver, restart, time_default, gate, stale_ms
+%% or stale_rate,
 %% and the method's own keys.
 -module(correlate_pack).
 -export([load_pack/2, parse/1, parse/2]).
@@ -14,14 +15,15 @@
 -import(io_pack, [fail/1]).
 
 %% Directives both methods share: {Required, Repeating, Once}.
--define(SHARED, {[<<"pack">>, <<"version">>, <<"filter">>, <<"stale_ms">>],
+-define(SHARED, {[<<"pack">>, <<"version">>, <<"filter">>],
                  [<<"gate">>, <<"time_default">>],
                  [<<"pack">>, <<"version">>, <<"method">>, <<"filter">>, <<"maneuver">>,
-                  <<"restart">>, <<"stale_ms">>]}).
+                  <<"restart">>, <<"stale_ms">>, <<"stale_rate">>]}).
 -define(FILTER_PARAMS, [<<"accel_var">>, <<"default_ce_m">>, <<"vel_sigma_ms">>,
                         <<"unknown_vel_ms">>]).
 -define(MANEUVER_PARAMS, [<<"accel_var">>, <<"p_enter">>, <<"p_leave">>]).
 -define(RESTART_PARAMS, [<<"gate">>]).
+-define(STALE_RATE_PARAMS, [<<"factor">>, <<"floor_ms">>, <<"ceiling_ms">>, <<"samples">>]).
 %% Reports, "Time quality": the three clock states.
 -define(TIME_STATES, [<<"coherent">>, <<"drifting">>, <<"free-running">>]).
 
@@ -73,6 +75,11 @@ directive([<<"time_default">> | Rest], P) ->
 directive([<<"gate">>, Test | Params], P = #{tests := Tests}) ->
     P#{gate := [test(Test, Params, Tests) | maps:get(gate, P)]};
 directive([<<"stale_ms">>, N], P) -> P#{stale_ms => integer(N)};
+directive([<<"stale_rate">> | Params], P) ->
+    #{<<"factor">> := K, <<"floor_ms">> := F, <<"ceiling_ms">> := C, <<"samples">> := N} =
+        params(Params, ?STALE_RATE_PARAMS),
+    P#{stale_rate => #{factor => number(K), floor_ms => integer(F), ceiling_ms => integer(C),
+                       samples => integer(N)}};
 directive(D, P = #{method := Method}) ->
     case Method:directive(D, P) of
         unknown -> fail({bad_directive, D});
@@ -80,8 +87,17 @@ directive(D, P = #{method := Method}) ->
     end.
 
 %% Ranges both methods share, checked once the whole file is read: filter
-%% and maneuver, restart (correlate.md "Pack").
+%% and maneuver, restart, one of stale_ms and stale_rate (correlate.md "Pack").
 check_ranges(P) ->
+    case {maps:is_key(stale_ms, P), maps:find(stale_rate, P)} of
+        {true, {ok, _}} -> fail(stale_ms_and_stale_rate);
+        {false, error} -> fail({missing, stale_ms});
+        {true, error} -> ok;
+        {false, {ok, #{factor := K, floor_ms := Fl, ceiling_ms := C, samples := N}}} ->
+            K > 0 orelse fail({not_above_zero, factor}),
+            (0 =< Fl andalso Fl =< C) orelse fail({stale_rate_range, Fl, C}),
+            N >= 1 orelse fail({below_one, samples})
+    end,
     F = maps:get(filter, P),
     [fail({not_above_zero, K}) || K <- [default_ce_m, vel_sigma_ms, unknown_vel_ms],
                                   not (maps:get(atom_to_binary(K), F) > 0)],
@@ -133,15 +149,20 @@ params_given(Tokens) ->
      end || T <- Tokens].
 
 %% Tests table (correlate_test_kinds): the kind's parameters, exactly; its
-%% values numbers or text.
+%% values numbers or text; its ranges by its check, when it has one.
 test(Name, Params, Tests) ->
-    case maps:find(Name, Tests) of
-        {ok, #{params := Wanted, values := number}} ->
-            {Name, number_params(params(Params, Wanted))};
-        {ok, #{params := Wanted, values := text}} ->
-            {Name, params(Params, Wanted)};
-        error -> fail({unknown_test, Name})
-    end.
+    Parsed = case maps:find(Name, Tests) of
+                 {ok, #{params := Wanted, values := number}} ->
+                     number_params(params(Params, Wanted));
+                 {ok, #{params := Wanted, values := text}} ->
+                     params(Params, Wanted);
+                 error -> fail({unknown_test, Name})
+             end,
+    case maps:find(check, maps:get(Name, Tests)) of
+        {ok, Check} -> Check(Parsed) orelse fail({test_range, Name, Parsed});
+        error -> ok
+    end,
+    {Name, Parsed}.
 
 %% name=value parameters: no repeats, no unknown, none missing.
 params(Tokens, Wanted) ->

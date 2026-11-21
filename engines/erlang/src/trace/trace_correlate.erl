@@ -1,9 +1,10 @@
 %% Events and trace records of correlate.md ("Events", "Trace") that both
 %% methods give: reject and new, and the filter, test, rank and count
-%% records; the confirm method's group events. Pure constructors.
+%% records; the confirm method's group events and sequential test records
+%% (correlate.md 1.0). Pure constructors.
 -module(trace_correlate).
 -export([reject/1, reject/2, new/1, filter/4, time/4, restart/4, test/5, skipped/1,
-         result/3, rank/3, count/5, group_name/1, correlate/2, join/2, leave/3, dissolve/2,
+         result/3, rank/3, count/5, llr/7, group_name/1, correlate/2, join/2, leave/3, dissolve/2,
          drop/1]).
 
 reject(Reason) -> #{<<"ev">> => <<"reject">>, <<"reason">> => Reason}.
@@ -44,6 +45,12 @@ rank(A, B, D2) ->
 count(A, B, N, CC, Pass) ->
     #{<<"stage">> => <<"confirm">>, <<"a">> => A, <<"b">> => B,
       <<"test">> => <<"count">>, <<"value">> => N, <<"limit">> => CC, <<"pass">> => Pass}.
+
+%% Association, Sequential test: the update of a pair.
+llr(A, B, L, Up, Lo, Inc, D2) ->
+    #{<<"stage">> => <<"sprt">>, <<"a">> => A, <<"b">> => B, <<"test">> => <<"llr">>,
+      <<"value">> => L, <<"limit">> => Up, <<"pass">> => L >= Up, <<"lower">> => Lo,
+      <<"increment">> => Inc, <<"d2">> => D2}.
 
 group_name(G) -> <<"g", (integer_to_binary(G))/binary>>.
 
