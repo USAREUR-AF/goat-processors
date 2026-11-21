@@ -663,7 +663,12 @@ impl MeshTls {
                         eprintln!("api.mesh.crl: {} read again", p.display());
                         st.1 = cfg;
                     }
-                    Err(e) => eprintln!("api.mesh.crl: {e}; the previous list stays in force"),
+                    // Only the list's path and a fixed message: the error
+                    // can name the certificate and key files.
+                    Err(_) => eprintln!(
+                        "api.mesh.crl: {} changed but cannot be used; the previous list stays in force. Run `sudo goat-processors doctor` to see why",
+                        p.display()
+                    ),
                 }
             }
         }

@@ -38,6 +38,7 @@ safely), or **Open** (not fixed; the next step is named).
 | 10 | No certificate revocation on the mesh API | Low | Fixed in 0.6.0 |
 | 11 | The mesh role follows the certificate's common name alone | Low | Documented |
 | 12 | In the container, anyone who can `docker exec` operates the runner | Low | Documented |
+| 13 | A malformed line of a PEM file, the private key included, could be quoted in the log | Medium | Fixed in 0.6.0 |
 
 **1. One malformed report crashed the runner (Fixed).** The engine's JSON
 parser descends one function call per `[` or `{`. One UDP datagram of 60,000
@@ -143,6 +144,15 @@ now says the site CA should give each person and program its own name.
 user, so `docker exec` can change the pipeline. Access to Docker on the host
 is already root-equivalent. The README's container section says to give
 Docker access as you would give `sudo`.
+
+**13. A malformed line of a PEM file could be quoted in the log (Fixed in
+0.6.0).** The TLS setup of the mesh API passed on the PEM parser's own
+message, which quotes the line it could not read. A key file with a broken
+BEGIN line or bad base64 put that line, key material, into the error the
+service writes to the journal at start, and when the revocation list was read
+again. Found by CodeQL (rust/cleartext-logging). Errors now name the file and
+the kind of problem only, and the revocation list reload logs only the list's
+path. Test: `http::tests::a_bad_key_file_is_named_but_none_of_its_content_is_said`.
 
 ## Checked and sound
 
