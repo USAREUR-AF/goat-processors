@@ -9,7 +9,7 @@ yanked = "deny"
 # reports unmaintained crates among transitive dependencies too, so the
 # unmaintained crates zenoh 1.9.0 pulls in are listed here as well.
 ignore = [
-  { id = "RUSTSEC-2026-0041", reason = "lz4_flex decompression, compiled only with zenoh's transport_compression feature, which the runner does not enable" },
+  { id = "RUSTSEC-2026-0041", reason = "lz4_flex: linked through zenoh-transport; its decompression code is compiled only with zenoh's transport_compression feature, which the runner does not enable" },
   { id = "RUSTSEC-2026-0543", reason = "chrono: unmaintained, no fixed version, pulled in by zenoh 1.9.0" },
   { id = "RUSTSEC-2026-0542", reason = "humantime: unmaintained, no fixed version, pulled in by zenoh 1.9.0" },
   { id = "RUSTSEC-2024-0436", reason = "paste: unmaintained, no fixed version, pulled in by zenoh 1.9.0" },

@@ -209,6 +209,12 @@ pub struct Api {
     /// appended here as one JSON line.
     #[serde(default = "default_audit_file")]
     pub audit_file: PathBuf,
+    /// Size limit of the audit file in MiB, as for `outputs.file`. No limit
+    /// when absent.
+    #[serde(default)]
+    pub audit_max_mb: Option<u64>,
+    #[serde(default = "default_keep")]
+    pub audit_keep: u32,
     #[serde(default)]
     pub mesh: Option<ApiMesh>,
     /// An address and port that serves only `GET /metrics` (the Prometheus
@@ -221,7 +227,7 @@ pub struct Api {
 
 impl Default for Api {
     fn default() -> Self {
-        Api { enabled: true, listen: default_api_listen(), token_file: default_token_file(), audit_file: default_audit_file(), mesh: None, metrics_listen: None }
+        Api { enabled: true, listen: default_api_listen(), token_file: default_token_file(), audit_file: default_audit_file(), audit_max_mb: None, audit_keep: default_keep(), mesh: None, metrics_listen: None }
     }
 }
 
@@ -236,6 +242,12 @@ pub struct ApiMesh {
     pub tls: Option<Tls>,
     /// Who may call: the common name (CN) of a client certificate, and its role.
     pub allow: Vec<Allow>,
+    /// A certificate revocation list (PEM) from the CA that signs client
+    /// certificates. A client certificate it lists is refused. Read again
+    /// when the file changes, so a revocation needs no restart. Off when
+    /// absent.
+    #[serde(default)]
+    pub crl: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -355,40 +367,83 @@ pub struct Outputs {
 #[serde(deny_unknown_fields)]
 pub struct FabricOutput {
     /// Key prefix for everything the runner publishes. Default
-    /// `data/processed/<site>/<name>`.
+    /// `volatile/<peer>/stream/processors/<name>`: goat's class for live data
+    /// that routers route and never store (ADR 1032).
     #[serde(default)]
     pub prefix: Option<String>,
-    /// Also publish every trace record. Off by default: the trace is large.
+    /// The `<peer>` of the default prefix: the identity the fabric lets this
+    /// runner write under (`volatile/<peer>/**`), usually its certificate's
+    /// common name. Default: `site`.
+    #[serde(default)]
+    pub peer: Option<String>,
+    /// Also publish trace records, bounded by the three `trace_` settings.
+    /// Off by default: the trace is large.
     #[serde(default)]
     pub trace: bool,
-    /// How tracks and quality reach the fabric. `per-entity` (default): one
-    /// key per system track and per quality subject, every tick. `batch`: one
-    /// key `<prefix>/tracks` and one key `<prefix>/quality`, each carrying the
-    /// whole set in one value, published on a tick only when the set changed
-    /// or `heartbeat_ms` has passed since the last publish.
+    /// With `trace`, publish only records that name one of these entities or
+    /// system tracks. Empty: every record (still bounded by time and rate).
+    #[serde(default)]
+    pub trace_entities: Vec<String>,
+    /// With `trace`, stop publishing it this many seconds after the service
+    /// starts. Default 600, at most 86400.
+    #[serde(default = "default_trace_for_s")]
+    pub trace_for_s: u64,
+    /// With `trace`, the most trace bytes published in one second of the
+    /// input clock; records past it are counted and left out. Default 65536.
+    #[serde(default = "default_trace_bytes")]
+    pub trace_max_bytes_per_s: u64,
+    /// How tracks and quality reach the fabric. `batch` (default): a fixed
+    /// set of keys under the prefix (`tracks`, `quality`, `events`, `trace`,
+    /// `status`), each carrying one batch, published on a tick. `per-entity`:
+    /// the layout before 0.6.0, one key per system track and per quality
+    /// subject; it breaks goat's stable-key rule and is kept for one release.
     #[serde(default)]
     pub layout: Layout,
     /// With `layout: batch`, the longest time between two publishes of an
     /// unchanged set, in input-clock milliseconds. Default 5000.
     #[serde(default = "default_heartbeat_ms")]
     pub heartbeat_ms: u64,
+    /// With `layout: batch`, the most events published per source in one
+    /// second of the input clock; past it they are counted and one
+    /// `suppressed` line says how many. Default 20.
+    #[serde(default = "default_events_per_source")]
+    pub events_per_source_per_s: u32,
 }
 
 fn default_heartbeat_ms() -> u64 {
     5000
 }
+fn default_trace_for_s() -> u64 {
+    600
+}
+fn default_trace_bytes() -> u64 {
+    65536
+}
+fn default_events_per_source() -> u32 {
+    20
+}
 
 impl Default for FabricOutput {
     fn default() -> Self {
-        FabricOutput { prefix: None, trace: false, layout: Layout::PerEntity, heartbeat_ms: default_heartbeat_ms() }
+        FabricOutput {
+            prefix: None,
+            peer: None,
+            trace: false,
+            trace_entities: vec![],
+            trace_for_s: default_trace_for_s(),
+            trace_max_bytes_per_s: default_trace_bytes(),
+            layout: Layout::Batch,
+            heartbeat_ms: default_heartbeat_ms(),
+            events_per_source_per_s: default_events_per_source(),
+        }
     }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Layout {
-    #[default]
     PerEntity,
+    #[default]
     Batch,
 }
 
@@ -399,6 +454,13 @@ pub struct FileOutput {
     pub path: PathBuf,
     #[serde(default)]
     pub trace: bool,
+    /// Size limit in MiB: past it the file becomes `<path>.1` and a new one
+    /// starts. No limit when absent.
+    #[serde(default)]
+    pub max_mb: Option<u64>,
+    /// How many older copies to keep (`<path>.1` to `<path>.<keep>`), 0 to 9.
+    #[serde(default = "default_keep")]
+    pub keep: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -407,6 +469,17 @@ pub struct Record {
     /// Appends every input and every tick, in the replay format, so that
     /// `goat-processors replay` reproduces the run exactly.
     pub path: PathBuf,
+    /// Size limit in MiB, as for `outputs.file`. A replay of a rotated
+    /// record starts from that file's first line, not from the start of
+    /// the run.
+    #[serde(default)]
+    pub max_mb: Option<u64>,
+    #[serde(default = "default_keep")]
+    pub keep: u32,
+}
+
+fn default_keep() -> u32 {
+    1
 }
 
 fn default_packs_dir() -> PathBuf {
@@ -456,7 +529,12 @@ impl Config {
             .fabric
             .as_ref()
             .and_then(|f| f.prefix.clone())
-            .unwrap_or_else(|| format!("data/processed/{}/{}", self.site, self.name))
+            .unwrap_or_else(|| format!("volatile/{}/stream/processors/{}", self.output_peer(), self.name))
+    }
+
+    /// The `<peer>` of the default output prefix.
+    pub fn output_peer(&self) -> String {
+        self.outputs.fabric.as_ref().and_then(|f| f.peer.clone()).unwrap_or_else(|| self.site.clone())
     }
 
     /// The directory of a stage's pack.
@@ -478,6 +556,25 @@ pub fn load(path: &Path) -> Result<Config, Vec<String>> {
         )]
     })?;
     parse(&text)
+}
+
+/// What a valid config may still get wrong: printed by `config check`,
+/// which still accepts it.
+pub fn warnings(c: &Config) -> Vec<String> {
+    let mut w = Vec::new();
+    if let Some(f) = &c.outputs.fabric {
+        if f.layout == Layout::PerEntity {
+            w.push("outputs.fabric.layout: per-entity publishes one key per system track and per quality subject, which goat's fabric rules forbid (stable keys, entity ids in the payload). Remove the line to use batch; per-entity goes away in a later release.".into());
+        }
+        let prefix = c.output_prefix();
+        if !prefix.starts_with("volatile/") {
+            w.push(format!("outputs.fabric.prefix: {prefix:?} is not under volatile/, so a router storage may keep every value the runner publishes (ADR 1032). Use volatile/<peer>/stream/... unless this fabric has no volatile/ write grant."));
+        }
+        if f.trace && f.trace_entities.is_empty() {
+            w.push(format!("outputs.fabric.trace: every trace record is published for {} s, up to {} bytes per second. To trace a few tracks, list them in outputs.fabric.trace_entities.", f.trace_for_s, f.trace_max_bytes_per_s));
+        }
+    }
+    w
 }
 
 /// Parses and checks config text.
@@ -603,6 +700,25 @@ pub fn check(c: &Config) -> Vec<String> {
         }
     }
 
+    // Size limits of the files the service appends to.
+    let mut limits: Vec<(&str, Option<u64>, u32)> = vec![("api.audit_max_mb", c.api.audit_max_mb, c.api.audit_keep)];
+    if let Some(f) = &c.outputs.file {
+        limits.push(("outputs.file.max_mb", f.max_mb, f.keep));
+    }
+    if let Some(r) = &c.record {
+        limits.push(("record.max_mb", r.max_mb, r.keep));
+    }
+    for (name, max, keep) in limits {
+        if max == Some(0) {
+            p.push(format!("{name}: 0. Give the size limit in MiB, 1 or more, or leave it out for no limit."));
+        }
+        if keep > crate::rotate::MAX_KEEP {
+            let k = name.trim_end_matches("max_mb").trim_end_matches('_').trim_end_matches('.');
+            let k = if name.starts_with("api.") { "api.audit_keep".to_string() } else { format!("{k}.keep") };
+            p.push(format!("{k}: {keep}. Keep 0 to {} older copies.", crate::rotate::MAX_KEEP));
+        }
+    }
+
     // API.
     if c.api.enabled {
         match c.api.listen.parse::<SocketAddr>() {
@@ -702,6 +818,25 @@ pub fn check(c: &Config) -> Vec<String> {
     if let Err(e) = check_key(&prefix, false) {
         p.push(format!("outputs.fabric.prefix: {prefix:?} {e}. Use `/`-separated words with no wildcards."));
     }
+    if let Some(f) = &c.outputs.fabric {
+        if let Some(peer) = &f.peer {
+            if peer.is_empty() || peer.contains('/') || check_key(peer, false).is_err() {
+                p.push(format!("outputs.fabric.peer: {peer:?} is not one key word. Write the identity the fabric grants this runner, for example its certificate's common name, with no `/` or wildcards."));
+            }
+        }
+        if !(1..=86_400).contains(&f.trace_for_s) {
+            p.push(format!("outputs.fabric.trace_for_s: {} is not 1 to 86400. Say how many seconds the trace is published for; it is never published without an end.", f.trace_for_s));
+        }
+        if !(1..=10 * 1024 * 1024).contains(&f.trace_max_bytes_per_s) {
+            p.push(format!("outputs.fabric.trace_max_bytes_per_s: {} is not 1 to 10485760.", f.trace_max_bytes_per_s));
+        }
+        if !(1..=10_000).contains(&f.events_per_source_per_s) {
+            p.push(format!("outputs.fabric.events_per_source_per_s: {} is not 1 to 10000.", f.events_per_source_per_s));
+        }
+        if !(100..=3_600_000).contains(&f.heartbeat_ms) {
+            p.push(format!("outputs.fabric.heartbeat_ms: {} is not 100 to 3600000.", f.heartbeat_ms));
+        }
+    }
     if let Some(fi) = &c.inputs.fabric {
         if fi.keys.is_empty() {
             p.push("inputs.fabric.keys: empty. Add a key expression, for example `data/entity/track/**`.".into());
@@ -709,6 +844,8 @@ pub fn check(c: &Config) -> Vec<String> {
         for (i, k) in fi.keys.iter().enumerate() {
             if let Err(e) = check_key(k, true) {
                 p.push(format!("inputs.fabric.keys[{i}]: {k:?} {e}. Write a key expression such as `data/entity/track/**`."));
+            } else if k.split('/').all(|c| c == "**" || c == "*") && k.contains("**") {
+                p.push(format!("inputs.fabric.keys[{i}]: {k:?} subscribes to the whole fabric. Name the keys the reports come on, for example `data/entity/track/**`."));
             } else if c.outputs.fabric.is_some() && key_intersects(k, &format!("{prefix}/x")) {
                 p.push(format!(
                     "inputs.fabric.keys[{i}]: {k:?} also matches the runner's own output prefix {prefix:?}, so the runner would read what it publishes. Narrow the key, or change outputs.fabric.prefix."

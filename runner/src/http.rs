@@ -228,30 +228,79 @@ pub fn call(addr: &str, method: &str, path: &str, token: Option<&str>, body: Opt
     Ok((status, raw[end + 4..].to_vec()))
 }
 
-/// The server side of mutual TLS: the runner's certificate, and the CA whose
-/// signature a client certificate must carry.
-pub fn tls_config(root_ca: &Path, certificate: &Path, private_key: &Path) -> Result<Arc<rustls::ServerConfig>, String> {
+/// What is wrong with a PEM file, by kind only. The parser's own message can
+/// quote a line of the file, which for a private key is the key itself, and
+/// these messages reach the journal: never pass it on.
+pub fn pem_problem(path: &Path, e: &rustls_pki_types::pem::Error) -> String {
+    use rustls_pki_types::pem::Error as E;
+    let kind = match e {
+        E::Io(io) => format!("cannot be read ({})", io.kind()),
+        E::MissingSectionEnd { .. } => "has a PEM section with no END line".into(),
+        E::IllegalSectionStart { .. } => "has a malformed PEM BEGIN line".into(),
+        E::Base64Decode(_) => "has a PEM section that is not valid base64".into(),
+        E::NoItemsFound => "holds no PEM item of the kind needed".into(),
+        _ => "is not a readable PEM file".into(),
+    };
+    format!("{} {kind}", path.display())
+}
+
+/// Reads a CA, a certificate and its private key as PEM, and says what is
+/// wrong by file and kind only. Used before the fabric session opens: zenoh
+/// reads the same files with a parser whose message quotes the line it could
+/// not read, and its error reaches the journal; after this check it only
+/// reads files that parse.
+pub fn check_tls_files(root_ca: &Path, certificate: &Path, private_key: &Path) -> Result<(), String> {
     use rustls_pki_types::pem::PemObject;
     use rustls_pki_types::{CertificateDer, PrivateKeyDer};
+    for path in [root_ca, certificate] {
+        let certs: Vec<CertificateDer<'static>> =
+            CertificateDer::pem_file_iter(path).map_err(|e| pem_problem(path, &e))?.collect::<Result<_, _>>().map_err(|e| pem_problem(path, &e))?;
+        if certs.is_empty() {
+            return Err(format!("{} holds no certificate", path.display()));
+        }
+    }
+    PrivateKeyDer::from_pem_file(private_key).map_err(|e| pem_problem(private_key, &e))?;
+    Ok(())
+}
+
+/// The server side of mutual TLS: the runner's certificate, and the CA whose
+/// signature a client certificate must carry. Errors name a file and what
+/// kind of problem it has, never any of its content.
+pub fn tls_config(root_ca: &Path, certificate: &Path, private_key: &Path, crl: Option<&Path>) -> Result<Arc<rustls::ServerConfig>, String> {
+    use rustls_pki_types::pem::PemObject;
+    use rustls_pki_types::{CertificateDer, CertificateRevocationListDer, PrivateKeyDer};
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let mut roots = rustls::RootCertStore::empty();
-    for c in CertificateDer::pem_file_iter(root_ca).map_err(|e| format!("{}: {e}", root_ca.display()))? {
-        roots.add(c.map_err(|e| format!("{}: {e}", root_ca.display()))?).map_err(|e| format!("{}: {e}", root_ca.display()))?;
+    for c in CertificateDer::pem_file_iter(root_ca).map_err(|e| pem_problem(root_ca, &e))? {
+        let c = c.map_err(|e| pem_problem(root_ca, &e))?;
+        roots.add(c).map_err(|_| format!("{} holds a certificate that cannot be used as a certificate authority", root_ca.display()))?;
     }
-    let verifier = rustls::server::WebPkiClientVerifier::builder_with_provider(Arc::new(roots), provider.clone())
-        .build()
-        .map_err(|e| format!("client verifier: {e}"))?;
+    let mut builder = rustls::server::WebPkiClientVerifier::builder_with_provider(Arc::new(roots), provider.clone());
+    if let Some(crl) = crl {
+        let crls: Vec<CertificateRevocationListDer<'static>> = CertificateRevocationListDer::pem_file_iter(crl)
+            .map_err(|e| pem_problem(crl, &e))?
+            .collect::<Result<_, _>>()
+            .map_err(|e| pem_problem(crl, &e))?;
+        if crls.is_empty() {
+            return Err(format!("{}: no certificate revocation list in the file", crl.display()));
+        }
+        // The client's own certificate is checked; one the list does not
+        // cover (another CA's) is refused. A list past its next update
+        // still applies: doctor warns about it rather than locking everyone out.
+        builder = builder.with_crls(crls).only_check_end_entity_revocation();
+    }
+    let verifier = builder.build().map_err(|_| "the certificate authority or the revocation list cannot be used to check client certificates".to_string())?;
     let chain: Vec<CertificateDer<'static>> = CertificateDer::pem_file_iter(certificate)
-        .map_err(|e| format!("{}: {e}", certificate.display()))?
+        .map_err(|e| pem_problem(certificate, &e))?
         .collect::<Result<_, _>>()
-        .map_err(|e| format!("{}: {e}", certificate.display()))?;
-    let key = PrivateKeyDer::from_pem_file(private_key).map_err(|e| format!("{}: {e}", private_key.display()))?;
+        .map_err(|e| pem_problem(certificate, &e))?;
+    let key = PrivateKeyDer::from_pem_file(private_key).map_err(|e| pem_problem(private_key, &e))?;
     let cfg = rustls::ServerConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
-        .map_err(|e| e.to_string())?
+        .map_err(|_| "no TLS protocol version is available".to_string())?
         .with_client_cert_verifier(verifier)
         .with_single_cert(chain, key)
-        .map_err(|e| format!("the API certificate and key: {e}"))?;
+        .map_err(|_| "the API certificate and its private key do not form a usable pair (does the key belong to the certificate?)".to_string())?;
     Ok(Arc::new(cfg))
 }
 
@@ -265,6 +314,33 @@ pub fn peer_name(conn: &rustls::ServerConnection) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_bad_key_file_is_named_but_none_of_its_content_is_said() {
+        let d = std::env::temp_dir().join(format!("gp-pem-{}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        let secret = "SECRETKEYMATERIAL0123456789";
+        let cases = [
+            format!("-----BEGIN PRIVATE KEY {secret}\n{secret}\n-----END PRIVATE KEY-----\n"),
+            format!("-----BEGIN PRIVATE KEY-----\n{secret}!!\n-----END PRIVATE KEY-----\n"),
+            format!("-----BEGIN PRIVATE KEY-----\n{secret}\n"),
+        ];
+        for (i, text) in cases.iter().enumerate() {
+            let key = d.join(format!("k{i}.pem"));
+            std::fs::write(&key, text).unwrap();
+            // The CA and certificate are this same file: each is refused by name.
+            for (ca, cert) in [(&key, &key), (&d.join("missing.pem"), &key)] {
+                let e = super::tls_config(ca, cert, &key, None).unwrap_err();
+                assert!(!e.contains(secret) && !e.contains("SECRET"), "case {i}: the error holds file content");
+                assert!(e.contains(".pem"), "case {i}: the error does not name the file");
+            }
+            let e = super::tls_config(&key, &key, &key, Some(&key)).unwrap_err();
+            assert!(!e.contains(secret), "case {i}: the error holds file content (with a revocation list)");
+            let e = super::check_tls_files(&key, &key, &key).unwrap_err();
+            assert!(!e.contains(secret) && e.contains(".pem"), "case {i}: the fabric check holds file content or names no file");
+        }
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
     #[test]
     fn a_request_sent_a_byte_at_a_time_ends_at_the_deadline() {
         let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();

@@ -61,7 +61,10 @@ fn config_check_says_what_to_fix() {
         (good.replace("pack: quality-feed", "pack: quality-nothing"), "does not load"),
         (good.replace("pack: quality-feed", "pack: fuse-best"), "is not a quality pack"),
         (good.replace("function: quality", "function: filter").replace("pack: quality-feed", "pack: filter-thin"), "comes after correlate"),
-        (good.replace("data/entity/track/**", "data/**"), "would read what it publishes"),
+        (good.replace("data/entity/track/**", "volatile/**"), "would read what it publishes"),
+        (good.replace("data/entity/track/**", "\"**\""), "subscribes to the whole fabric"),
+        (good.replace("    # peer: site-a-processors-1", "    peer: site-a/x"), "is not one key word"),
+        (good.replace("    trace: false", "    trace: true\n    trace_for_s: 0"), "never published without an end"),
         (good.replace("tls/router.site-a:7447", "router.site-a"), "fabric locator"),
         (good.replace("site: site-a", "site: site a"), "is not a valid name"),
         (good.replace("clock: wall", "clock: sundial"), "unknown variant"),
@@ -116,6 +119,17 @@ fn doctor_reports_a_missing_service() {
 }
 
 /// The reports of a correlate vector and a quality vector, as a recording of reports only.
+/// A running service, stopped when the test ends, also when it fails: a
+/// service left running holds the test's output open.
+struct Running(std::process::Child);
+
+impl Drop for Running {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
 fn scenario(dir: &Path) -> PathBuf {
     let mut lines = Vec::new();
     for v in ["packs/correlate-assign-time/vectors/56-assign-time-offset-fit.json"] {
@@ -193,7 +207,8 @@ fn service_record_replays_to_the_same_output() {
 }
 
 #[test]
-fn service_reads_and_publishes_on_the_fabric() {
+/// The layout before 0.6.0, kept for one release behind `layout: per-entity`.
+fn service_per_entity_layout_still_publishes_a_key_per_track() {
     use zenoh::Wait;
     let d = tmp("service-fabric");
     let port = {
@@ -209,11 +224,14 @@ fn service_reads_and_publishes_on_the_fabric() {
     let got = z.declare_subscriber("data/processed/**").with(zenoh::handlers::FifoChannel::new(10_000)).wait().unwrap();
 
     let cfg = format!(
-        "name: t\nsite: s\npacks_dir: {}\ntick_ms: 200\nfabric:\n  mode: peer\n  connect: [\"tcp/127.0.0.1:{port}\"]\ninputs:\n  fabric:\n    keys: [\"data/entity/track/**\"]\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: quality, pack: quality-feed}}\noutputs:\n  fabric: {{}}\nstatus_file: {}\napi:\n  enabled: false\n",
+        "name: t\nsite: s\npacks_dir: {}\ntick_ms: 200\nfabric:\n  mode: peer\n  connect: [\"tcp/127.0.0.1:{port}\"]\ninputs:\n  fabric:\n    keys: [\"data/entity/track/**\"]\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: quality, pack: quality-feed}}\noutputs:\n  fabric: {{layout: per-entity, prefix: data/processed/s/t}}\nstatus_file: {}\napi:\n  enabled: false\n",
         repo().join("packs").display(),
         d.join("status.json").display()
     );
     std::fs::write(d.join("r.yaml"), cfg).unwrap();
+    let chk = bin().args(["config", "check", "-c"]).arg(d.join("r.yaml")).output().unwrap();
+    let text = String::from_utf8_lossy(&chk.stdout);
+    assert!(chk.status.success() && text.contains("warning: outputs.fabric.layout: per-entity") && text.contains("is not under volatile/"), "{text}");
     let mut child = bin().args(["run", "-c"]).arg(d.join("r.yaml")).stderr(Stdio::null()).spawn().unwrap();
 
     // Two sources report one object near the wall clock, every 200 ms.
@@ -251,7 +269,9 @@ fn service_reads_and_publishes_on_the_fabric() {
 }
 
 #[test]
-fn service_batch_layout_publishes_a_fixed_key_set() {
+/// The default layout: a fixed key set under volatile/<peer>/stream/, with
+/// events rate-limited per source and the trace bounded to listed entities.
+fn service_publishes_a_fixed_key_set_by_default() {
     use zenoh::Wait;
     let d = tmp("service-fabric-batch");
     let port = {
@@ -266,20 +286,24 @@ fn service_batch_layout_publishes_a_fixed_key_set() {
     let got = z.declare_subscriber("volatile/site-a/**").with(zenoh::handlers::FifoChannel::new(10_000)).wait().unwrap();
 
     let cfg = format!(
-        "name: t\nsite: s\npacks_dir: {}\ntick_ms: 200\nfabric:\n  mode: peer\n  connect: [\"tcp/127.0.0.1:{port}\"]\ninputs:\n  fabric:\n    keys: [\"data/entity/track/**\"]\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: quality, pack: quality-feed}}\noutputs:\n  fabric:\n    prefix: volatile/site-a/stream/processors\n    layout: batch\n    heartbeat_ms: 1000\nstatus_file: {}\napi:\n  enabled: false\n",
+        "name: t\nsite: s\npacks_dir: {}\ntick_ms: 200\nfabric:\n  mode: peer\n  connect: [\"tcp/127.0.0.1:{port}\"]\ninputs:\n  fabric:\n    keys: [\"data/entity/track/**\"]\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: quality, pack: quality-feed}}\noutputs:\n  fabric:\n    peer: site-a\n    heartbeat_ms: 1000\n    events_per_source_per_s: 1\n    trace: true\n    trace_entities: [radar-2/T1]\nstatus_file: {}\napi:\n  enabled: false\n",
         repo().join("packs").display(),
         d.join("status.json").display()
     );
     std::fs::write(d.join("r.yaml"), cfg).unwrap();
     let ok = bin().args(["config", "check", "-c"]).arg(d.join("r.yaml")).output().unwrap();
-    assert!(ok.status.success(), "{}", String::from_utf8_lossy(&ok.stdout));
-    let mut child = bin().args(["run", "-c"]).arg(d.join("r.yaml")).stderr(Stdio::null()).spawn().unwrap();
+    let text = String::from_utf8_lossy(&ok.stdout);
+    assert!(ok.status.success() && text.contains("publishes under volatile/site-a/stream/processors/t") && !text.contains("warning"), "{text}");
+    let child = Running(bin().args(["run", "-c"]).arg(d.join("r.yaml")).stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap());
 
+    let p = "volatile/site-a/stream/processors/t";
     let deadline = Instant::now() + Duration::from_secs(30);
     let mut keys = std::collections::BTreeSet::new();
     let mut joined = false;
+    let (mut suppressed, mut status, mut trace_ok) = (false, false, true);
+    let mut traced = 0;
     let mut i = 0;
-    while Instant::now() < deadline && !(joined && keys.contains("volatile/site-a/stream/processors/quality")) {
+    while Instant::now() < deadline && !(joined && suppressed && status && traced > 0 && keys.contains(&format!("{p}/quality"))) {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
         for (src, dlat) in [("radar-1", 0.0), ("radar-2", 0.0001)] {
             let r = format!("{{\"track.source_id\":\"{src}\",\"uid\":\"T1\",\"time_ms\":{now},\"lat\":{},\"lon\":1.0,\"ce\":30.0,\"type\":\"a-f-A\"}}", 1.0 + dlat + i as f64 * 1e-5);
@@ -289,27 +313,77 @@ fn service_batch_layout_publishes_a_fixed_key_set() {
         std::thread::sleep(Duration::from_millis(200));
         while let Ok(Some(s)) = got.try_recv() {
             let key = s.key_expr().as_str().to_string();
-            if key.ends_with("/tracks") {
-                let text = String::from_utf8_lossy(&s.payload().to_bytes()).to_string();
-                // JSON lines: one system track per line, each with now_ms.
-                for l in text.lines() {
-                    let v = json::parse(l).unwrap();
-                    assert!(v.get("now_ms").is_some(), "{l}");
+            let text = String::from_utf8_lossy(&s.payload().to_bytes()).to_string();
+            // JSON lines: one object per line, each with now_ms.
+            for l in text.lines() {
+                let v = json::parse(l).unwrap();
+                assert!(v.get("now_ms").is_some(), "{key}: {l}");
+                let ev = v.get("ev").and_then(|x| x.as_str()).unwrap_or("");
+                if key.ends_with("/tracks") {
                     joined |= v.get("members").map(|m| m.to_string()) == Some("[\"radar-1/T1\",\"radar-2/T1\"]".into());
+                } else if key.ends_with("/events") {
+                    assert!(!["keep", "pass", "system", "fused", "quality"].contains(&ev), "{l}");
+                    assert!(v.get("stage").is_some(), "{l}");
+                    suppressed |= ev == "suppressed" && v.get("count").and_then(|c| c.as_i64()).unwrap_or(0) > 0;
+                } else if key.ends_with("/trace") {
+                    // Only records that name the listed entity, or the runner's own summary.
+                    if v.get("stage").and_then(|x| x.as_str()) != Some("runner") {
+                        traced += 1;
+                        trace_ok &= l.contains("radar-2/T1");
+                    }
+                } else if key.ends_with("/status") {
+                    status |= v.get("version").is_some() && v.get("events_suppressed").is_some() && v.get("trace_on") == Some(&Json::Bool(true));
                 }
             }
             keys.insert(key);
         }
     }
-    child.kill().unwrap();
-    child.wait().unwrap();
+    drop(child);
     assert!(joined, "no system track joined the two sources: {keys:?}");
-    // Only fixed keys: no key per track and none per quality subject.
+    assert!(suppressed, "events over the per-source limit were not summarized");
+    assert!(status, "no status value");
+    assert!(traced > 0 && trace_ok, "the trace held records of other entities, or none");
+    // Only fixed keys: no key per track, per quality subject or per function.
+    let fixed: Vec<String> = ["tracks", "quality", "events", "trace", "status"].iter().map(|k| format!("{p}/{k}")).collect();
     for k in &keys {
-        assert!(
-            ["volatile/site-a/stream/processors/tracks", "volatile/site-a/stream/processors/quality"].contains(&k.as_str())
-                || k.starts_with("volatile/site-a/stream/processors/events/"),
-            "a key outside the fixed set: {k}"
-        );
+        assert!(fixed.contains(k), "a key outside the fixed set: {k}");
     }
+}
+
+#[test]
+fn doctor_fails_when_the_certificate_names_another_peer() {
+    let d = tmp("doctor-peer");
+    let ok = Command::new("openssl")
+        .args(["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes", "-days", "2", "-subj", "/CN=cert-name"])
+        .arg("-keyout")
+        .arg(d.join("k.pem"))
+        .arg("-out")
+        .arg(d.join("c.pem"))
+        .output()
+        .unwrap();
+    assert!(ok.status.success());
+    let level = |peer: &str| -> String {
+        let cfg = format!(
+            "name: t\nsite: site-a\npacks_dir: {packs}\nfabric:\n  connect: [\"tls/127.0.0.1:9\"]\n  tls: {{root_ca: {c}, certificate: {c}, private_key: {k}}}\ninputs:\n  fabric:\n    keys: [\"data/entity/track/**\"]\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\noutputs:\n  fabric:\n{peer}    trace: false\nstatus_file: {d}/status.json\napi:\n  enabled: false\n",
+            packs = repo().join("packs").display(),
+            c = d.join("c.pem").display(),
+            k = d.join("k.pem").display(),
+            d = d.display(),
+        );
+        std::fs::write(d.join("r.yaml"), cfg).unwrap();
+        let out = bin().args(["doctor", "-o", "json", "-c"]).arg(d.join("r.yaml")).output().unwrap();
+        let v = json::parse(String::from_utf8_lossy(&out.stdout).trim()).unwrap();
+        let Json::Arr(fs) = v else { panic!() };
+        let x = fs.iter().find(|x| x.get("check").and_then(|c| c.as_str()) == Some("output prefix")).expect("an output prefix line").clone();
+        format!("{} {}", x.get("level").and_then(|l| l.as_str()).unwrap(), x.get("detail").and_then(|l| l.as_str()).unwrap())
+    };
+    // A config kept from 0.5.0 has no peer: the site, not the certificate's name.
+    let l = level("");
+    assert!(l.starts_with("fail ") && l.contains("volatile/site-a/") && l.contains("cert-name"), "{l}");
+    assert!(level("    peer: cert-name\n").starts_with("ok "));
+    // Another name, set by hand: the operator's choice, so a warning.
+    assert!(level("    peer: other\n").starts_with("warn "));
+    // A prefix set by hand, with no peer: also the operator's choice.
+    let l = level("    prefix: volatile/site-a/stream/processors/correlate\n");
+    assert!(l.starts_with("warn ") && l.contains("volatile/site-a/stream/processors/correlate"), "{l}");
 }

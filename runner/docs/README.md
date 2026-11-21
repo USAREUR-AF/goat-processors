@@ -4,7 +4,7 @@
 |---|---|---|
 | `install-card.html` | the one-page install card for a person at the machine; the source of the PDF | Written |
 | `install-card.pdf` | the card, US Letter, one page | Built from the HTML |
-| `hardening-review.md` | the hardening review of the runner 0.4.0: what it exposes, twelve findings and their status, what was checked and found sound | Written; findings 1 to 6 Fixed, 7, 9 and 10 Open |
+| `hardening-review.md` | the hardening review of the runner 0.4.0: what it exposes, twelve findings and their status, what was checked and found sound | Written; findings 1 to 6 Fixed, 9 and 10 Fixed in 0.6.0, 7 Open (next spec round) |
 
 The card follows [INSTALL.md](../INSTALL.md); a change to the install steps
 changes both. Its colors are the role tokens of the house visualization

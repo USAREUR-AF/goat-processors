@@ -1,9 +1,11 @@
 # Only what the build copies: engines/rust, packs, runner (without its build
-# output and test tooling), NOTICE and LICENSE.
+# output and test tooling), the explain viewer the binary embeds, NOTICE and
+# LICENSE.
 *
 !engines/rust
 !packs
 !runner
+!tools/explain/viewer.html
 !NOTICE
 !LICENSE
 **/target

@@ -13,13 +13,16 @@ trap 'rm -rf "$root"' EXIT
 
 install -D -m 0755 "$bin" "$root/usr/bin/goat-processors"
 install -D -m 0644 runner/packaging/systemd/goat-processors.service "$root/usr/lib/systemd/system/goat-processors.service"
-install -D -m 0640 runner/config/runner.yaml "$root/etc/goat-processors/runner.yaml"
-install -d -m 0750 "$root/etc/goat-processors/tls"
+# The config file is not part of the package: postinst writes it from this
+# template on a first install and never touches it again, so an update never
+# asks about an edited config and never brings CHANGE-ME back.
+install -D -m 0644 runner/config/runner.yaml "$root/usr/share/goat-processors/runner.yaml"
+install -d -m 0750 "$root/etc/goat-processors" "$root/etc/goat-processors/tls"
 # Every pack, with its vectors: `goat-processors selftest` replays them.
 mkdir -p "$root/usr/share/goat-processors"
 cp -r packs "$root/usr/share/goat-processors/packs"
 find "$root/usr/share/goat-processors" -type d -exec chmod 0755 {} + -o -type f -exec chmod 0644 {} +
-for f in runner/README.md runner/INSTALL.md runner/DEPLOY-CONTRACT.md runner/docs/install-card.pdf NOTICE LICENSE; do
+for f in runner/README.md runner/INSTALL.md runner/DEPLOY-CONTRACT.md runner/CHANGELOG.md runner/docs/install-card.pdf NOTICE LICENSE; do
   [ -f "$f" ] && install -D -m 0644 "$f" "$root/usr/share/doc/goat-processors/$(basename "$f")"
 done
 for f in runner/README.md runner/INSTALL.md; do
@@ -45,7 +48,6 @@ Description: goat-processors runner
  tracks, quality marks and the trace. Configured by one file,
  /etc/goat-processors/runner.yaml; checked by goat-processors doctor.
 CONTROL
-echo /etc/goat-processors/runner.yaml > "$root/DEBIAN/conffiles"
 install -m 0755 runner/packaging/deb/postinst runner/packaging/deb/prerm runner/packaging/deb/postrm "$root/DEBIAN/"
 
 mkdir -p "$out"

@@ -50,7 +50,7 @@ with SSH as a user who may use `sudo`.
 | the router's name and port | `router.site-a:7447` | the site's fabric administrator |
 | the site name to use | `site-a` | the site's fabric administrator |
 | three certificate files, PEM | `ca.pem`, `runner.pem`, `runner.key` | the site's certificate authority, issued for this runner |
-| the release version | `0.5.0` | the [releases page](https://github.com/USAREUR-AF/goat-processors/releases) (tags `runner-v…`) |
+| the release version | `0.6.0` | the [releases page](https://github.com/USAREUR-AF/goat-processors/releases) (tags `runner-v…`) |
 
 ## Two ways
 
@@ -97,24 +97,24 @@ machine is on.
 ## 2. Get the release
 
 Make a directory and download the five files of the release (replace
-`0.5.0` and `amd64` with yours). Keep this shell open until step 4: the
+`0.6.0` and `amd64` with yours). Keep this shell open until step 4: the
 names `V` and `A` set here are used in steps 3 and 4, and a new shell
 forgets them. In a new shell, type the `V=… A=…` line again first.
 
 ```
 $ mkdir ~/goat-processors && cd ~/goat-processors
-$ V=0.5.0 A=amd64
+$ V=0.6.0 A=amd64
 $ B=https://github.com/USAREUR-AF/goat-processors/releases/download/runner-v$V
 $ for f in goat-processors_${V}_$A.deb goat-processors_${V}_$A.deb.sigstore.json install.sh install-card.pdf SHA256SUMS; do curl -fLO $B/$f; done
 $ ls
-goat-processors_0.5.0_amd64.deb  goat-processors_0.5.0_amd64.deb.sigstore.json  install-card.pdf  install.sh  SHA256SUMS
+goat-processors_0.6.0_amd64.deb  goat-processors_0.6.0_amd64.deb.sigstore.json  install-card.pdf  install.sh  SHA256SUMS
 ```
 
 **If not:** if `curl` reports 404, check the version on the releases page.
 If the machine has no internet access, download the files on another
 computer and copy them over with `scp`. If the repository is private to
 you, download with the GitHub command-line tool on a computer where you are
-signed in: `gh release download runner-v0.5.0 -R USAREUR-AF/goat-processors`.
+signed in: `gh release download runner-v0.6.0 -R USAREUR-AF/goat-processors`.
 
 ## 3. Check the release signature
 
@@ -122,7 +122,7 @@ First the checksum: it proves the files are complete.
 
 ```
 $ sha256sum -c --ignore-missing SHA256SUMS
-goat-processors_0.5.0_amd64.deb: OK
+goat-processors_0.6.0_amd64.deb: OK
 install.sh: OK
 install-card.pdf: OK
 ```
@@ -155,7 +155,7 @@ $ sudo apt install ./goat-processors_${V}_$A.deb
 goat-processors: edit /etc/goat-processors/runner.yaml, then run
   sudo goat-processors config check && sudo systemctl enable --now goat-processors
 $ goat-processors version
-goat-processors 0.5.0
+goat-processors 0.6.0
 $ goat-processors selftest
 121 of 121 vectors under /usr/share/goat-processors/packs replay exactly
 ```
@@ -213,6 +213,23 @@ Change the two lines that hold `CHANGE-ME`. In each, replace the word
 | `site: CHANGE-ME` | your site name, for example `site: site-a` |
 | `- tls/CHANGE-ME:7447` | your router's name, for example `- tls/router.site-a:7447`. Keep `tls/` before it and the port after it |
 
+One more line matters if the name in the runner's certificate is not the
+site name. The runner publishes under `volatile/<peer>/stream/processors/`,
+and the fabric lets it write only under the name in its certificate.
+`<peer>` is the site unless the line `# peer:` under `outputs:` says
+otherwise. To see the certificate's name:
+
+```
+$ sudo openssl x509 -in /etc/goat-processors/tls/runner.pem -noout -subject
+subject=CN = site-a
+```
+
+If the name after `CN =` is not your site name, change `    # peer: site-a-processors-1`
+to `    peer: ` followed by that name (remove the `#`, keep the four spaces).
+`install.sh` does this for you, on a first install and on an update. When
+neither `peer` nor `prefix` is set and the two differ, doctor (step 8) fails with
+`output prefix`, and the service writes the same line to its log at start.
+
 Leave the rest as it is for a first install. Save with `Ctrl+O`, `Enter`,
 and leave with `Ctrl+X`. Then check the file:
 
@@ -221,6 +238,7 @@ $ sudo goat-processors config check
 /etc/goat-processors/runner.yaml: valid
   correlate  /usr/share/goat-processors/packs/correlate-assign-time
   quality    /usr/share/goat-processors/packs/quality-feed
+  publishes under volatile/site-a/stream/processors/processors-1
 ```
 
 **If not:** the check prints `NOT valid` and one line per problem, each with
@@ -260,6 +278,7 @@ ok    certificates: root_ca      /etc/goat-processors/tls/ca.pem is readable by 
 ok    certificates: certificate  /etc/goat-processors/tls/runner.pem is readable by the service and parses
 ok    certificates: private_key  /etc/goat-processors/tls/runner.key is readable by the service and parses
 ok    fabric                     tls/router.site-a:7447: TCP port open (the TLS handshake is tested by the service)
+ok    output prefix              publishes under volatile/site-a/stream/processors/processors-1; the certificate's name is site-a
 ok    service                    systemd reports the service active
 ok    service                    ticking; status written 412 ms ago
 ok    fabric                     the service is connected to 1 router(s)
@@ -283,12 +302,12 @@ The runner's state, pipeline and counters:
 
 ```
 $ goat-processors status
-processors-1 at site-a: running (version 0.5.0, clock wall, tick 1000 ms)
+processors-1 at site-a: running (version 0.6.0, clock wall, tick 1000 ms)
 pipeline: correlate = correlate-assign-time, quality = quality-feed
 reports in 1840, passed 1840, ticks 95, published 2210, unreadable 0, dropped while stopped 0
   adsb                     920
   radar-1                  920
-output prefix data/processed/site-a/processors-1, fabric routers 1
+output prefix volatile/site-a/stream/processors/processors-1, fabric routers 1
 ```
 
 `reports in` grows as reports arrive, and the lines below it count them by
@@ -303,8 +322,11 @@ s1             1.00031      1.00000        0     11.0  adsb/T1 radar-1/T1
 
 `members` are the source tracks the runner judged to be one object. To see
 why, with every test it ran: `goat-processors explain s1`. The same tracks
-are on the fabric under `data/processed/<site>/<name>/tracks/`; any fabric
-tool at the site can subscribe to `data/processed/site-a/**` to see them.
+are on the fabric as one value, one track per line, on the key
+`volatile/site-a/stream/processors/processors-1/tracks` (the `output prefix`
+in the status above, then `/tracks`); any fabric tool at the site can
+subscribe to `volatile/site-a/stream/processors/**` to see them. `site-a` in
+that key is the peer (step 6).
 
 These commands read; they need no `sudo`. The commands that change the
 running service (`pack use`, `stop`, `start`) need `sudo`. README.md,
@@ -356,8 +378,26 @@ commands the page shows, run with `sudo` on the machine.
 
 | Task | Command |
 |---|---|
-| update to a new release | steps 2 to 4 with the new version; the service restarts on the new version, and your config is kept |
+| update to a new release | steps 2 to 4 with the new version; the service restarts on the new version. Your config is kept as it is: from 0.6.0 the package never replaces it and asks nothing about it. Then run doctor (step 8). **From 0.5.0 or earlier, read "Updating from 0.5.0" below first: the fabric keys move** |
 | apply a config change | `sudo goat-processors config check && sudo systemctl restart goat-processors` |
 | stop | `sudo systemctl stop goat-processors` |
 | remove (keeps the config and certificates) | `sudo apt remove goat-processors` |
 | remove everything but the certificates | `sudo apt purge goat-processors`. After a purge and a new install, run doctor: the package sets the certificates' group again, and doctor says if the service cannot read them |
+
+### Updating from 0.5.0 or earlier
+
+0.6.0 publishes on different fabric keys. A config kept from 0.5.0 has no
+`prefix` and no `peer`, so after the update the runner publishes under
+`volatile/<peer>/stream/processors/<name>/`, and anything reading the old
+keys gets nothing, with no error. Before you update:
+
+1. Decide with whoever reads the runner's output: move the readers to the
+   new keys, or keep the old keys for this release. README.md, "Moving from
+   the layout before 0.6.0", has both, with the config lines.
+2. Check the certificate's name (step 6's `openssl` line). If it is not the
+   site name, the runner needs `peer:` with that name: `install.sh` adds it,
+   or add it by hand under `outputs:` / `  fabric:`, four spaces in.
+
+Then update (steps 2 to 4). The package prints a note that the keys move;
+`apt` asks no question about the config, which stays as you edited it.
+Run doctor: `output prefix` must be `ok`.

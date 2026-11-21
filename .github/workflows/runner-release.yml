@@ -171,5 +171,9 @@ jobs:
           TAG: ${{ github.ref_name }}
           IMAGE: ${{ needs.image-index.outputs.ref }}
         run: |
-          gh release create "$TAG" dist/* --title "goat-processors runner ${TAG#runner-v}" \
-            --notes "The goat-processors runner for Ubuntu 24.04 (amd64, arm64). Install: runner/INSTALL.md at this tag. Every file is signed with cosign (keyless); the .sigstore.json next to each file is its signature. Container image (amd64, arm64; signed with cosign, keyless): $IMAGE"
+          # The release's section of runner/CHANGELOG.md, then how to install it.
+          v=${TAG#runner-v}
+          awk -v h="## $v" '$0 == h { on = 1; next } on && /^## / { exit } on' runner/CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          [ -s "$RUNNER_TEMP/notes.md" ] || { echo "runner/CHANGELOG.md has no section '## $v'" >&2; exit 1; }
+          printf '\nThe goat-processors runner for Ubuntu 24.04 (amd64, arm64). Install: runner/INSTALL.md at this tag. Every file is signed with cosign (keyless); the .sigstore.json next to each file is its signature. Container image (amd64, arm64; signed with cosign, keyless): %s\n' "$IMAGE" >> "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" dist/* --title "goat-processors runner $v" --notes-file "$RUNNER_TEMP/notes.md"

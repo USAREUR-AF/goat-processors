@@ -242,7 +242,7 @@ pub struct Server {
     config: Config,
     tx: Mutex<SyncSender<Input>>,
     token: String,
-    audit: Mutex<Option<std::fs::File>>,
+    audit: Mutex<Option<crate::rotate::Rotating>>,
 }
 
 /// Connections handled at once, per listener. Each listener has its own
@@ -269,7 +269,7 @@ impl Server {
         m.insert("outcome".into(), Json::Str(outcome.into()));
         if let Ok(mut f) = self.audit.lock() {
             if let Some(f) = f.as_mut() {
-                let _ = writeln!(f, "{}", Json::Obj(m));
+                let _ = f.line(&Json::Obj(m).to_string());
             }
         }
     }
@@ -290,7 +290,7 @@ impl Server {
         m.insert("status".into(), Json::Int(status as i64));
         if let Ok(mut f) = self.audit.lock() {
             if let Some(f) = f.as_mut() {
-                let _ = writeln!(f, "{}", Json::Obj(m));
+                let _ = f.line(&Json::Obj(m).to_string());
             }
         }
     }
@@ -542,12 +542,7 @@ fn constant_eq(a: &[u8], b: &[u8]) -> bool {
 pub fn start(c: &Config, tx: SyncSender<Input>) -> Result<Arc<Server>, String> {
     let token = new_token()?;
     write_token(&c.api.token_file, &token)?;
-    let audit = if let Some(d) = c.api.audit_file.parent() {
-        let _ = std::fs::create_dir_all(d);
-        OpenOptions::new().create(true).append(true).open(&c.api.audit_file).ok()
-    } else {
-        None
-    };
+    let audit = crate::rotate::Rotating::open(&c.api.audit_file, c.api.audit_max_mb, c.api.audit_keep).ok();
     if audit.is_none() {
         eprintln!("warning: cannot open the audit file {}; requests are not audited", c.api.audit_file.display());
     }
@@ -602,14 +597,14 @@ pub fn start(c: &Config, tx: SyncSender<Input>) -> Result<Arc<Server>, String> {
 
     if let Some(m) = &c.api.mesh {
         let tls = m.tls.clone().or_else(|| c.fabric.as_ref().and_then(|f| f.tls.clone())).ok_or("api.mesh has no certificates")?;
-        let cfg = http::tls_config(&tls.root_ca, &tls.certificate, &tls.private_key)?;
+        let mesh_tls = Arc::new(MeshTls::new(tls, m.crl.clone())?);
         let allow: BTreeMap<String, Role> = m.allow.iter().map(|a| (a.name.clone(), a.role)).collect();
         let listener = TcpListener::bind(&m.listen).map_err(|e| format!("cannot listen for the mesh API on {}: {e}", m.listen))?;
         let s = server.clone();
         let budget = Arc::new(AtomicUsize::new(0));
         std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
-                let (s, cfg, allow) = (s.clone(), cfg.clone(), allow.clone());
+                let (s, cfg, allow) = (s.clone(), mesh_tls.current(), allow.clone());
                 spawn_limited(&budget, MESH_CONNECTIONS, move || {
                     let tcp = http::Deadline::new(stream, http::REQUEST_DEADLINE);
                     let Ok(conn) = rustls::ServerConnection::new(cfg) else { return };
@@ -638,6 +633,47 @@ pub fn start(c: &Config, tx: SyncSender<Input>) -> Result<Arc<Server>, String> {
         });
     }
     Ok(server)
+}
+
+/// The mesh listener's TLS settings, built again when `api.mesh.crl`
+/// changes on disk. A list that no longer reads leaves the previous one in
+/// force (and says so in the journal), so a bad copy never lets a revoked
+/// certificate back in.
+struct MeshTls {
+    tls: crate::config::Tls,
+    crl: Option<std::path::PathBuf>,
+    state: Mutex<(Option<std::time::SystemTime>, Arc<rustls::ServerConfig>)>,
+}
+
+impl MeshTls {
+    fn new(tls: crate::config::Tls, crl: Option<std::path::PathBuf>) -> Result<MeshTls, String> {
+        let stamp = crl.as_deref().and_then(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
+        let cfg = http::tls_config(&tls.root_ca, &tls.certificate, &tls.private_key, crl.as_deref())?;
+        Ok(MeshTls { tls, crl, state: Mutex::new((stamp, cfg)) })
+    }
+
+    fn current(&self) -> Arc<rustls::ServerConfig> {
+        let mut st = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(p) = &self.crl {
+            let stamp = std::fs::metadata(p).and_then(|m| m.modified()).ok();
+            if stamp != st.0 {
+                st.0 = stamp;
+                match http::tls_config(&self.tls.root_ca, &self.tls.certificate, &self.tls.private_key, Some(p)) {
+                    Ok(cfg) => {
+                        eprintln!("api.mesh.crl: {} read again", p.display());
+                        st.1 = cfg;
+                    }
+                    // Only the list's path and a fixed message: the error
+                    // can name the certificate and key files.
+                    Err(_) => eprintln!(
+                        "api.mesh.crl: {} changed but cannot be used; the previous list stays in force. Run `sudo goat-processors doctor` to see why",
+                        p.display()
+                    ),
+                }
+            }
+        }
+        st.1.clone()
+    }
 }
 
 fn spawn_limited(busy: &Arc<AtomicUsize>, max: usize, f: impl FnOnce() + Send + 'static) {

@@ -24,7 +24,7 @@
 # (runner/DEPLOY-CONTRACT.md); until then this script is how a site does it.
 set -eu
 
-RELEASE=0.5.0
+RELEASE=0.6.0
 REPO=USAREUR-AF/goat-processors
 WORKFLOW=.github/workflows/runner-release.yml
 ETC=/etc/goat-processors
@@ -173,6 +173,38 @@ elif grep -v '^[[:space:]]*#' "$CONFIG" | grep -q CHANGE-ME; then
   ok "site $site, router tls/$router"
 else
   skip "$CONFIG has no CHANGE-ME values left"
+fi
+# The runner publishes under volatile/<peer>/, and the fabric lets it write
+# only under the name in its certificate. Use that name as the peer, on a
+# first install and on a config kept from an earlier release alike.
+cn=$(openssl x509 -in "$tls/runner.pem" -noout -subject -nameopt multiline 2>/dev/null | sed -n 's/^ *commonName *= *//p' | head -n 1)
+cfg_site=$(sed -n 's/^site: *//p' "$CONFIG" | head -n 1)
+cfg_peer=$(sed -n 's/^    peer: *//p' "$CONFIG" | head -n 1)
+if [ -z "$cn" ]; then
+  skip "output peer: the certificate's name cannot be read (openssl missing?); doctor checks it"
+elif [ -n "$cfg_peer" ]; then
+  if [ "$cfg_peer" = "$cn" ]; then skip "output peer is $cn, the certificate's name"; else
+    printf '   NOTE: %s\n' "output peer is $cfg_peer but the certificate's name is $cn; kept as you set it (doctor warns)"
+  fi
+elif grep -q '^outputs:' "$CONFIG" && grep -q '^  fabric:' "$CONFIG" && grep -q '^    prefix:' "$CONFIG"; then
+  skip "outputs.fabric.prefix is set, so the peer is not used"
+elif [ "$cn" = "$cfg_site" ]; then
+  skip "output peer is the site, $cn, the certificate's name"
+elif grep -q '^    # peer: ' "$CONFIG"; then
+  sed -i "s|^    # peer: .*|    peer: $cn|" "$CONFIG"
+  ok "output peer $cn (the certificate's name)"
+elif grep -q '^outputs: *$' "$CONFIG"; then
+  # A config kept from 0.5.0 or earlier: add the line under outputs: fabric:.
+  awk -v cn="$cn" '{ print } /^outputs: *$/ { o = 1; next } o && /^  fabric: *$/ { print "    peer: " cn; o = 0 } /^[^ #]/ { o = 0 }' "$CONFIG" > "$CONFIG.new"
+  if grep -q "^    peer: $cn\$" "$CONFIG.new"; then
+    cat "$CONFIG.new" > "$CONFIG"; rm -f "$CONFIG.new"
+    ok "output peer $cn (the certificate's name), added under outputs: fabric:"
+  else
+    rm -f "$CONFIG.new"
+    fail "cannot add the output peer to $CONFIG" "add the line '    peer: $cn' under 'outputs:' / '  fabric:' in $CONFIG (INSTALL.md, step 6), then run this script again"
+  fi
+else
+  fail "the certificate's name is $cn, not the site $cfg_site, and $CONFIG has no place for the output peer this script can find" "add '    peer: $cn' under 'outputs:' / '  fabric:' in $CONFIG (INSTALL.md, step 6), then run this script again"
 fi
 out=$(goat-processors config check -c "$CONFIG") || fail "the config file is not valid:
 $out" "edit $CONFIG as each line says, then run this script again"

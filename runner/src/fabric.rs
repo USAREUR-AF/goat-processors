@@ -63,6 +63,9 @@ pub struct Session {
 
 /// Opens the session and subscribes to `keys`; every sample goes to `tx`.
 pub fn open(f: &Fabric, keys: &[String], tx: SyncSender<Input>) -> Result<Session, String> {
+    if let Some(t) = &f.tls {
+        crate::http::check_tls_files(&t.root_ca, &t.certificate, &t.private_key).map_err(|e| format!("fabric.tls: {e}"))?;
+    }
     let session = zenoh::open(zenoh_config(f)?).wait().map_err(|e| format!("cannot open the fabric session: {e}"))?;
     let mut subs = Vec::new();
     for k in keys {
@@ -87,13 +90,26 @@ impl Session {
         self.session.info().routers_zid().wait().count()
     }
 
+    // Every value is live data: when a link is congested it is dropped,
+    // never waited for, so the runner cannot back up the fabric (goat's
+    // decouple-and-drop rule for the live plane).
     pub fn put(&self, key: &str, value: &Json) -> Result<(), String> {
-        self.session.put(key, value.to_string()).encoding(zenoh::bytes::Encoding::APPLICATION_JSON).wait().map_err(|e| format!("publish {key}: {e}"))
+        self.session
+            .put(key, value.to_string())
+            .encoding(zenoh::bytes::Encoding::APPLICATION_JSON)
+            .congestion_control(zenoh::qos::CongestionControl::Drop)
+            .wait()
+            .map_err(|e| format!("publish {key}: {e}"))
     }
 
     /// Publishes text as JSON lines (one JSON object per line).
     pub fn put_text(&self, key: &str, value: String) -> Result<(), String> {
-        self.session.put(key, value).encoding(zenoh::bytes::Encoding::TEXT_PLAIN.with_schema("jsonl")).wait().map_err(|e| format!("publish {key}: {e}"))
+        self.session
+            .put(key, value)
+            .encoding(zenoh::bytes::Encoding::TEXT_PLAIN.with_schema("jsonl"))
+            .congestion_control(zenoh::qos::CongestionControl::Drop)
+            .wait()
+            .map_err(|e| format!("publish {key}: {e}"))
     }
 }
 

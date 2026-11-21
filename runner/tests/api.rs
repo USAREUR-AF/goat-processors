@@ -245,6 +245,26 @@ fn every_route_and_verb() {
     assert!(n > 50, "only {n} lines to compare");
     assert_eq!(&replayed[..n], &served[..n]);
     assert!(std::fs::read_to_string(svc.dir.join("record.jsonl")).unwrap().contains("{\"pack\":{\"function\":\"quality\",\"pack\":\"quality-time\"}}"));
+
+    // explain --html: the step-by-step page of the recorded run, naming the
+    // track and its members (asked of the running service)
+    let page = svc.dir.join("explain.html");
+    let (ok, out) = svc.cli(&["explain", id.as_str(), "--html", page.to_str().unwrap()]);
+    assert!(ok, "{out}");
+    let html = std::fs::read_to_string(&page).unwrap();
+    assert!(html.contains("through its correlate stage") && html.contains("radar-1/T1") && html.contains(&format!("look for {id}")), "page note");
+    assert!(html.contains("\"snapshot\":{"), "a snapshot per step");
+    let (ok, out) = svc.cli(&["explain", id.as_str(), "--html", page.to_str().unwrap(), "--stage", "quality"]);
+    assert!(ok && std::fs::read_to_string(&page).unwrap().contains("through its quality stage"), "{out}");
+    let (ok, out) = svc.cli(&["explain", id.as_str(), "--html", page.to_str().unwrap(), "--stage", "fuse"]);
+    assert!(!ok && out.contains("no fuse stage"), "{out}");
+
+    // replay --html: the same page from any file, without a service
+    let page2 = svc.dir.join("replay.html");
+    let out = bin().arg("replay").arg(svc.dir.join("record.jsonl")).args(["-c"]).arg(svc.dir.join("r.yaml")).arg("--html").arg(&page2).output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(out.stdout.is_empty(), "the page goes to the file, not stdout");
+    assert!(std::fs::read_to_string(&page2).unwrap().contains("through its correlate stage"));
 }
 
 #[test]
@@ -323,6 +343,47 @@ fn mesh_api_needs_an_allowed_certificate() {
     assert!(audit.iter().any(|a| s(a, "who") == "ops" && s(a, "via") == "mesh" && s(a, "path") == "/v1/pipeline/quality" && a.get("status").and_then(|x| x.as_i64()) == Some(200)));
     assert!(audit.iter().any(|a| s(a, "who") == "stranger" && a.get("status").and_then(|x| x.as_i64()) == Some(403)));
     assert!(audit.iter().any(|a| s(a, "who") == "viewer" && a.get("status").and_then(|x| x.as_i64()) == Some(403)));
+}
+
+#[test]
+fn mesh_api_refuses_a_revoked_certificate_without_a_restart() {
+    if Command::new("openssl").arg("version").output().is_err() || Command::new("curl").arg("--version").output().is_err() {
+        eprintln!("skipped: openssl or curl missing");
+        return;
+    }
+    let certs = tmp("api-mesh-crl-certs");
+    openssl(&["ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", "ca.key"], &certs);
+    openssl(&["req", "-x509", "-new", "-key", "ca.key", "-sha256", "-days", "2", "-subj", "/CN=test-ca", "-out", "ca.pem", "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign,cRLSign"], &certs);
+    for who in ["server", "ops", "viewer"] {
+        openssl(&["ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", &format!("{who}.key")], &certs);
+        openssl(&["req", "-new", "-key", &format!("{who}.key"), "-subj", &format!("/CN={who}"), "-out", &format!("{who}.csr")], &certs);
+        std::fs::write(certs.join(format!("{who}.ext")), "subjectAltName=DNS:localhost,IP:127.0.0.1\nextendedKeyUsage=serverAuth,clientAuth\n").unwrap();
+        openssl(&["x509", "-req", "-in", &format!("{who}.csr"), "-CA", "ca.pem", "-CAkey", "ca.key", "-CAcreateserial", "-days", "2", "-sha256", "-extfile", &format!("{who}.ext"), "-out", &format!("{who}.pem")], &certs);
+    }
+    // A minimal CA database, so that openssl can write revocation lists.
+    std::fs::write(certs.join("ca.cnf"), "[ca]\ndefault_ca = d\n[d]\ndatabase = index.txt\ncrlnumber = crlnumber\ndefault_md = sha256\ndefault_crl_days = 2\n").unwrap();
+    std::fs::write(certs.join("index.txt"), "").unwrap();
+    std::fs::write(certs.join("crlnumber"), "01\n").unwrap();
+    let gencrl = |dir: &Path| openssl(&["ca", "-config", "ca.cnf", "-keyfile", "ca.key", "-cert", "ca.pem", "-gencrl", "-out", "crl.pem"], dir);
+    gencrl(&certs);
+    let port = free_port();
+    let extra = format!(
+        "  mesh:\n    listen: \"127.0.0.1:{port}\"\n    tls:\n      root_ca: {c}/ca.pem\n      certificate: {c}/server.pem\n      private_key: {c}/server.key\n    crl: {c}/crl.pem\n    allow:\n      - {{name: ops, role: operate}}\n      - {{name: viewer, role: read}}\n",
+        c = certs.display()
+    );
+    let _svc = Service::start("api-mesh-crl", &extra);
+    assert_eq!(curl(&certs, port, Some("ops"), "GET", "/v1/status").0, "200", "an empty list refuses no one");
+    // Revoke ops while the service runs.
+    std::thread::sleep(Duration::from_millis(1100));
+    openssl(&["ca", "-config", "ca.cnf", "-keyfile", "ca.key", "-cert", "ca.pem", "-revoke", "ops.pem"], &certs);
+    gencrl(&certs);
+    assert_ne!(curl(&certs, port, Some("ops"), "GET", "/v1/status").0, "200", "a revoked certificate was answered");
+    assert_eq!(curl(&certs, port, Some("viewer"), "GET", "/v1/status").0, "200");
+    // A list that no longer reads leaves the previous one in force.
+    std::thread::sleep(Duration::from_millis(1100));
+    std::fs::write(certs.join("crl.pem"), "not a list").unwrap();
+    assert_ne!(curl(&certs, port, Some("ops"), "GET", "/v1/status").0, "200", "a bad list let a revoked certificate back in");
+    assert_eq!(curl(&certs, port, Some("viewer"), "GET", "/v1/status").0, "200");
 }
 
 #[test]
@@ -408,6 +469,24 @@ fn hostile_reports_are_refused_and_the_runner_stays_up() {
     let st = svc.get("/v1/status");
     assert!(st.get("counters").unwrap().get("unreadable").unwrap().as_i64().unwrap() >= 3, "{st:?}");
     assert_eq!(st.get("counters").unwrap().get("reports_in").unwrap().as_i64(), Some(1), "only A goes in");
+}
+
+#[test]
+fn file_size_limits_are_checked() {
+    let d = tmp("size-limits");
+    let cfg = format!(
+        "name: t\nsite: s\npacks_dir: {}\ninputs:\n  udp:\n    - listen: \"127.0.0.1:{}\"\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\noutputs:\n  file: {{path: {d}/out.jsonl, max_mb: 0}}\nrecord: {{path: {d}/rec.jsonl, max_mb: 5, keep: 10}}\nstatus_file: {d}/status.json\napi:\n  audit_max_mb: 16\n  audit_keep: 3\n",
+        repo().join("packs").display(),
+        free_port(),
+        d = d.display()
+    );
+    std::fs::write(d.join("r.yaml"), cfg).unwrap();
+    let out = bin().args(["config", "check", "-c"]).arg(d.join("r.yaml")).output().unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(!out.status.success(), "{text}");
+    assert!(text.contains("outputs.file.max_mb: 0"), "{text}");
+    assert!(text.contains("record.keep: 10"), "{text}");
+    assert!(!text.contains("audit"), "the audit limits are valid: {text}");
 }
 
 #[test]

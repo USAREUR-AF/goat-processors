@@ -119,6 +119,25 @@ jobs:
       - name: install.sh on this fresh VM, a TLS fabric router, then a scenario through the service
         run: sudo runner/packaging/ci-install-test.sh dist/goat-processors_*_${{ matrix.arch }}.deb
 
+  upgrade:
+    needs: deb
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: deb-amd64
+          path: dist
+      - name: the previous release's .deb
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download runner-v0.5.0 -R "${{ github.repository }}" -p 'goat-processors_0.5.0_amd64.deb' -D prev
+      - name: an update from the previous release asks nothing, keeps the config, and the peer is set
+        run: sudo runner/packaging/ci-upgrade-test.sh "$PWD/prev/goat-processors_0.5.0_amd64.deb" "$(ls "$PWD"/dist/goat-processors_*_amd64.deb)"
+
   container:
     strategy:
       fail-fast: false

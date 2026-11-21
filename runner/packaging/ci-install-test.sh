@@ -60,7 +60,7 @@ printf '%s\n' "$out" | grep -q "already done: /etc/goat-processors/tls/ca.pem"
 printf '%s\n' "$out" | grep -q "already done: /etc/goat-processors/runner.yaml has no CHANGE-ME values left"
 
 say "a scenario on the fabric: radar-1 and adsb report one object, once a second for 12 s"
-curl -sN -H 'Accept: text/event-stream' 'http://localhost:8000/data/processed/**' > "$work/out.sse" &
+curl -sN -H 'Accept: text/event-stream' 'http://localhost:8000/volatile/**' > "$work/out.sse" &
 sse=$!
 sleep 1
 i=0
@@ -90,24 +90,34 @@ for line in open(sys.argv[1]):
     except ValueError:
         continue
     key, value = d.get("key", ""), d.get("value")
-    if isinstance(value, str):
-        # The REST interface gives JSON as text, other encodings as base64.
-        try:
-            value = json.loads(value)
-        except ValueError:
+    # Each key is one batch: JSON lines, one object per line. The REST
+    # interface gives the value as text, or as base64 for some encodings.
+    text = value if isinstance(value, str) else json.dumps(value)
+    items = []
+    for t in (text, None):
+        if t is None:
             try:
-                value = json.loads(base64.b64decode(value))
+                t = base64.b64decode(text).decode()
             except ValueError:
-                pass
-    kind = "/".join(key.split("/")[4:5])
+                break
+        try:
+            items = [json.loads(l) for l in t.splitlines() if l.strip()]
+            break
+        except ValueError:
+            continue
+    # volatile/<peer>/stream/processors/<name>/<kind>: a fixed set of kinds
+    parts = key.split("/")
+    kind = parts[5] if len(parts) == 6 and parts[2:4] == ["stream", "processors"] else "OTHER " + key
     seen[kind] = seen.get(kind, 0) + 1
-    if kind == "tracks" and isinstance(value, dict) and value.get("members") == ["adsb/T1", "radar-1/T1"]:
-        joined = True
+    for v in items:
+        if isinstance(v, dict) and v.get("members") == ["adsb/T1", "radar-1/T1"]:
+            joined = True
 print("published, by kind:", seen)
 assert seen.get("tracks"), "no system track published"
 assert seen.get("quality"), "no quality mark published"
 assert seen.get("events"), "no events published"
 assert joined, "the two sources were not joined in one system track"
+assert set(seen) <= {"tracks", "quality", "events", "trace", "status"}, "a key outside the fixed set: %s" % sorted(seen)
 PY
 
 say "doctor"

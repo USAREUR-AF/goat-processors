@@ -46,6 +46,9 @@ pub fn run(config_path: &Path) -> Vec<Finding> {
     let c = match config::load(config_path) {
         Ok(c) => {
             out.push(f("config", Level::Ok, format!("{} is valid", config_path.display()), ""));
+            for w in config::warnings(&c) {
+                out.push(f("config", Level::Warn, w, format!("edit {}, then restart the service", config_path.display())));
+            }
             for s in &c.pipeline {
                 out.push(f("pack", Level::Ok, format!("{} pack {} loads from {}", s.function, s.pack, c.pack_dir(s).display()), ""));
             }
@@ -62,6 +65,8 @@ pub fn run(config_path: &Path) -> Vec<Finding> {
     };
     out.extend(certificate_checks(&c));
     out.extend(fabric_checks(&c));
+    out.extend(file_checks(&c));
+    out.extend(c.api.mesh.as_ref().and_then(|m| m.crl.as_deref()).and_then(crl_check));
     out.extend(service_checks(Some(&c)));
     out
 }
@@ -248,10 +253,101 @@ fn fabric_checks(c: &Config) -> Vec<Finding> {
             out.push(f("fabric", Level::Fail, format!("{loc}: no TCP connection within 3 s"), "check that the router runs, that the mesh is up on this host, and that no firewall blocks the port"));
         }
     }
+    out.extend(output_peer_check(c));
     out
 }
 
+/// The output prefix `volatile/<peer>/...` is writable only when `<peer>` is
+/// the identity the fabric grants this runner, which is usually its
+/// certificate's common name. A router drops a write it does not allow
+/// without telling the writer, so say so here.
+pub fn output_peer_check(c: &Config) -> Option<Finding> {
+    c.outputs.fabric.as_ref()?;
+    let prefix = c.output_prefix();
+    let peer = prefix.strip_prefix("volatile/")?.split('/').next()?.to_string();
+    let certs = c.fabric.as_ref()?.tls.as_ref().and_then(|t| certificates(&t.certificate)).unwrap_or_default();
+    let cn = certs.first().and_then(|d| {
+        let (_, x) = x509_parser::parse_x509_certificate(d.as_ref()).ok()?;
+        let cn = x.subject().iter_common_name().next()?.as_str().ok()?.to_string();
+        Some(cn)
+    });
+    Some(match cn {
+        Some(cn) if cn == peer => f("output prefix", Level::Ok, format!("publishes under {prefix}; the certificate's name is {cn}"), ""),
+        // Neither peer nor prefix set: the peer is the site only by default,
+        // which is wrong for this certificate (typically a config kept from
+        // 0.5.0), so fail. A peer or a prefix set by hand: the operator chose
+        // it, so warn. The service's start log follows the same rule.
+        Some(cn) => {
+            let chosen = c.outputs.fabric.as_ref().is_some_and(|f| f.peer.is_some() || f.prefix.is_some());
+            f(
+                "output prefix",
+                if chosen { Level::Warn } else { Level::Fail },
+                format!("publishes under {prefix}, but the certificate's name is {cn}: a fabric that grants this runner writes only under volatile/{cn}/** drops, without an error, everything it publishes, and readers see nothing"),
+                format!("add `peer: {cn}` under outputs: fabric: in the config (or the identity the fabric's access rules grant this runner), then `sudo systemctl restart goat-processors`"),
+            )
+        }
+        None => f("output prefix", Level::Ok, format!("publishes under {prefix}"), ""),
+    })
+}
+
 /// Reads the status file the service writes after every tick.
+/// `api.mesh.crl`: it must read as a revocation list; one past its next
+/// update still applies, but the CA has likely issued a newer one.
+fn crl_check(path: &Path) -> Option<Finding> {
+    use rustls_pki_types::pem::PemObject;
+    let check = "certificates: api.mesh.crl";
+    let fix = "copy the CA's current revocation list (PEM) to the path in api.mesh.crl; the service reads it again on its own";
+    let ders = rustls_pki_types::CertificateRevocationListDer::pem_file_iter(path).ok().and_then(|i| i.collect::<Result<Vec<_>, _>>().ok()).unwrap_or_default();
+    let lists: Vec<_> = ders.iter().filter_map(|d| x509_parser::parse_x509_crl(d.as_ref()).ok().map(|(_, c)| c)).collect();
+    if lists.is_empty() || lists.len() != ders.len() {
+        return Some(f(check, Level::Fail, format!("{} does not read as a certificate revocation list (PEM)", path.display()), fix));
+    }
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64;
+    if lists.iter().any(|c| c.next_update().is_some_and(|t| t.timestamp() < now)) {
+        return Some(f(check, Level::Warn, format!("{} is past its next update; the CA has likely issued a newer list", path.display()), fix));
+    }
+    let revoked: usize = lists.iter().map(|c| c.iter_revoked_certificates().count()).sum();
+    Some(f(check, Level::Ok, format!("{} reads; it revokes {revoked} certificate(s)", path.display()), ""))
+}
+
+/// A file the service appends to without a size limit that has grown past
+/// 1 GiB, and a disk holding one of those files that is 90% full or more.
+fn file_checks(c: &Config) -> Vec<Finding> {
+    let mut files: Vec<(&Path, Option<u64>, &str)> = vec![(&c.api.audit_file, c.api.audit_max_mb, "api.audit_max_mb")];
+    if let Some(f) = &c.outputs.file {
+        files.push((&f.path, f.max_mb, "outputs.file.max_mb"));
+    }
+    if let Some(r) = &c.record {
+        files.push((&r.path, r.max_mb, "record.max_mb"));
+    }
+    let mut out = Vec::new();
+    let mut disks_seen = Vec::new();
+    for (path, max, key) in files {
+        let Ok(m) = std::fs::metadata(path) else { continue };
+        if max.is_none() && m.len() > 1 << 30 {
+            out.push(f("files", Level::Warn, format!("{} is {} MiB and has no size limit", path.display(), m.len() >> 20), format!("set {key} (and how many copies to keep) in the config, then restart the service")));
+        }
+        if let Some((mount, pct)) = disk_use(path) {
+            if pct >= 90 && !disks_seen.contains(&mount) {
+                out.push(f("files", Level::Warn, format!("the disk holding {} ({mount}) is {pct}% full", path.display()), "free space there, or set size limits on the files the service writes (max_mb)"));
+                disks_seen.push(mount);
+            }
+        }
+    }
+    out
+}
+
+/// The mount point and percentage used of the disk holding `path`, from
+/// `df`. None where `df` is missing (the container image).
+fn disk_use(path: &Path) -> Option<(String, u32)> {
+    let o = Command::new("df").args(["--output=target,pcent"]).arg(path).output().ok()?;
+    let text = String::from_utf8_lossy(&o.stdout);
+    let line = text.lines().nth(1)?;
+    let mut parts = line.split_whitespace();
+    let (target, pct) = (parts.next()?, parts.next()?);
+    Some((target.to_string(), pct.trim_end_matches('%').parse().ok()?))
+}
+
 pub fn read_status(path: &Path) -> Option<Json> {
     json::parse(&std::fs::read_to_string(path).ok()?).ok()
 }
