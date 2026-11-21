@@ -42,13 +42,6 @@ public final class Tests {
                 double d = distance(a, pb);
                 return rec(stage, a, b, t.name, d, t.p("max_m"), d < t.p("max_m"), false);
             }),
-            new TestKind("window", List.of("multiplier", "window_m", "err_min_m", "err_max_m"), (t, stage, a, b, pb) -> {
-                double d = distance(a, pb);
-                double ea = clamp(a.ce, t.p("err_min_m"), t.p("err_max_m"));
-                double eb = clamp(b.ce, t.p("err_min_m"), t.p("err_max_m"));
-                double limit = t.p("multiplier") * Math.sqrt(ea * ea + eb * eb) + t.p("window_m");
-                return rec(stage, a, b, t.name, d, limit, d < limit, false);
-            }),
             new TestKind("mahalanobis", List.of("gate"), (t, stage, a, b, pb) -> {
                 double d2 = mahalanobis(a, pb);
                 return rec(stage, a, b, t.name, d2, t.p("gate"), d2 < t.p("gate"), false);
@@ -78,16 +71,76 @@ public final class Tests {
             new TestKind("same", List.of("key"), Set.of("key"), (t, stage, a, b, pb) -> {
                 Object va = sameValue(a, t.key), vb = sameValue(b, t.key);
                 return rec(stage, a, b, t.name, va, vb, sameEqual(va, vb), false);
-            }));
+            }),
+            new TestKind("state", List.of("probability", "hae_sigma_m"), Set.of(), Tests::checkState,
+                    (t, stage, a, b, pb) -> {
+                        double v = stateD2(a, b, pb, t.p("hae_sigma_m"));
+                        int dof = bothHae(a, b) ? 5 : 4;
+                        double limit = chiSquare(t.p("probability"), dof);
+                        Map<String, Object> r = rec(stage, a, b, t.name, v, limit, v < limit, false);
+                        r.put("dof", (long) dof);
+                        return r;
+                    }));
+
+    /**
+     * The {@code state} test's quantiles (Abramowitz and Stegun 1964, table 26.8): per row the
+     * probability, then the limit for 4 and for 5 degrees of freedom.
+     */
+    private static final double[][] CHI_SQUARE = {
+            {0.95, 9.4877, 11.0705},
+            {0.99, 13.2767, 15.0863},
+            {0.995, 14.8603, 16.7496},
+            {0.999, 18.4668, 20.5150},
+    };
+
+    /** The quantile of probability for dof (4 or 5) degrees of freedom; NaN when not in the table. */
+    static double chiSquare(double probability, int dof) {
+        for (double[] row : CHI_SQUARE) if (row[0] == probability) return row[dof - 3];
+        return Double.NaN;
+    }
+
+    /** correlate.md, Pack: probability one of the table's values (as numbers), hae_sigma_m above 0. */
+    private static void checkState(CorrelatePack.Test t, int ln) throws goat.io.LoadError {
+        if (Double.isNaN(chiSquare(t.p("probability"), 4)))
+            throw CorrelatePack.err(ln, "state probability is one of 0.95, 0.99, 0.995, 0.999");
+        CorrelatePack.positive(t.p("hae_sigma_m"), "hae_sigma_m", ln);
+    }
+
+    /** Both entities' last reports have {@code hae}. */
+    static boolean bothHae(Entity a, Entity b) {
+        return a.num("hae") != null && b.num("hae") != null;
+    }
+
+    /**
+     * correlate.md, Tests, the {@code state} test, one axis: A's filter axis {@code fa} with A's
+     * timing variance {@code ta} on that axis, against B's prediction {@code fb} (its timing
+     * variance already in {@code pp}). Returns {@code {dp, dv, spp, spv, svv, det, q}}.
+     */
+    static double[] stateAxis(Axis fa, double ta, Axis fb) {
+        double dp = fa.p - fb.p, dv = fa.v - fb.v;
+        double spp = fa.pp + ta + fb.pp, spv = fa.pv + fb.pv, svv = fa.vv + fb.vv;
+        double det = spp * svv - spv * spv;
+        double q = (svv * dp * dp - 2 * spv * dp * dv + spp * dv * dv) / det;
+        return new double[] {dp, dv, spp, spv, svv, det, q};
+    }
+
+    /** d²_state: q of east plus q of north, plus dh²/(2h²) when both last reports have hae. */
+    static double stateD2(Entity a, Entity b, Predicted pb, double haeSigma) {
+        double qe = stateAxis(a.filter.east(), a.timingVar[0], pb.east)[6];
+        double qn = stateAxis(a.filter.north(), a.timingVar[1], pb.north)[6];
+        double d2 = qe + qn;
+        Double ha = a.num("hae"), hb = b.num("hae");
+        if (ha != null && hb != null) {
+            double dh = ha - hb;
+            d2 = d2 + dh * dh / (2 * haeSigma * haeSigma);
+        }
+        return d2;
+    }
 
     /** Speed missing on either entity, or below min_speed_ms on either. */
     private static boolean slow(Entity a, Entity b, double min) {
         Double sa = a.num("speed_ms"), sb = b.num("speed_ms");
         return sa == null || sb == null || sa < min || sb < min;
-    }
-
-    private static double clamp(double x, double lo, double hi) {
-        return Math.max(lo, Math.min(hi, x));
     }
 
     private static double distance(Entity a, Predicted pb) {

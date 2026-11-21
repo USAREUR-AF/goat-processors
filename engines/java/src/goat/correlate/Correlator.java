@@ -11,11 +11,16 @@ import goat.trace.Records;
 import goat.trace.Result;
 
 import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * The correlator: load_pack, ingest, tick, snapshot (correlate.md, What the correlator does).
+ * The correlator: load_pack, ingest, tick, snapshot (correlate.md 1.0, What the correlator does).
  * The report path every method shares (Reports, Frame, Track estimate, Measurement variance,
  * Restart) is here; the pack's {@code method} decides the rest.
  */
@@ -24,6 +29,8 @@ public final class Correlator implements Processor {
     final CorrelatePack pack;
     Double lat0, lon0;
     final TreeMap<String, Entity> entities = new TreeMap<>(KeyOrder.KEY_ORDER);
+    /** correlate.md, Stale time of a source: with stale_rate, each source's last intervals, oldest first. */
+    private final TreeMap<String, ArrayDeque<Long>> intervals = new TreeMap<>(KeyOrder.KEY_ORDER);
     private final Method method;
 
     public Correlator(CorrelatePack pack) {
@@ -120,6 +127,13 @@ public final class Correlator implements Processor {
         }
 
         Measurement meas = new Measurement(en, r, hasVel, ve, vn);
+        // Stale time of a source: an accepted report of an entity that already existed appends
+        // its interval to its source's list, which keeps the last `samples`.
+        if (a != null && pack.staleRate) {
+            ArrayDeque<Long> list = intervals.computeIfAbsent(source, k -> new ArrayDeque<>());
+            list.addLast(time - a.lastTime);
+            while (list.size() > pack.staleSamples) list.removeFirst();
+        }
         if (a == null) {
             // Track estimate (and Two-model filter), first report: no trace record.
             a = new Entity(key, source);
@@ -200,10 +214,46 @@ public final class Correlator implements Processor {
         return Frame.toDegrees(lat0, lon0, east, north);
     }
 
-    /** correlate.md, Tests, Staleness rule of On each tick. */
+    /** correlate.md, Association, On each tick, Staleness: the rule both methods use. */
     public boolean isStale(Entity e, long now) {
         Object st = e.last.get("stale_ms");
-        return now - e.lastTime > pack.staleMs || (st instanceof Long && now >= (Long) st);
+        return now - e.lastTime > staleTime(e.source) || (st instanceof Long && now >= (Long) st);
+    }
+
+    /**
+     * correlate.md, Stale time of a source: {@code stale_ms}, or with {@code stale_rate}
+     * {@code k * m}, m the lower median of the source's intervals, within [floor, ceiling];
+     * the ceiling with no interval.
+     */
+    public double staleTime(String source) {
+        if (!pack.staleRate) return pack.staleMs;
+        ArrayDeque<Long> list = intervals.get(source);
+        if (list == null || list.isEmpty()) return pack.staleCeiling;
+        return staleTime(pack.staleFactor, pack.staleFloor, pack.staleCeiling, list);
+    }
+
+    /** The stale time of one source's intervals: k times their lower median, within [floor, ceiling]. A pure function. */
+    public static double staleTime(double factor, long floor, long ceiling, java.util.Collection<Long> list) {
+        long[] sorted = new long[list.size()];
+        int i = 0;
+        for (long v : list) sorted[i++] = v;
+        Arrays.sort(sorted);
+        double st = factor * sorted[(sorted.length - 1) / 2];
+        if (st < floor) st = floor;
+        if (st > ceiling) st = ceiling;
+        return st;
+    }
+
+    /** Snapshot, with stale_rate: {@code intervals}, each source with at least one, oldest first. */
+    public void putIntervals(Map<String, Object> s) {
+        if (!pack.staleRate) return;
+        Map<String, Object> m = new LinkedHashMap<>();
+        for (Map.Entry<String, ArrayDeque<Long>> e : intervals.entrySet()) {
+            if (e.getValue().isEmpty()) continue;
+            List<Object> l = new ArrayList<>(e.getValue());
+            m.put(e.getKey(), l);
+        }
+        s.put("intervals", m);
     }
 
     /** Track estimate, Measurement variance: the {@code time} record of a report with time error above 0. */

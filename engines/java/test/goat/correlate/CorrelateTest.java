@@ -80,8 +80,11 @@ public final class CorrelateTest {
     }
 
     public static void testStandardRegistry() {
-        for (String t : List.of("distance", "window", "mahalanobis", "course", "speed", "altitude", "same"))
+        for (String t : List.of("distance", "mahalanobis", "course", "speed", "altitude", "same", "state"))
             Check.isTrue(Registry.STANDARD.test(t) != null, "test " + t);
+        Check.isTrue(Registry.STANDARD.test("window") == null, "window is retired (correlate.md 1.0)");
+        Check.eq("confirm", Registry.STANDARD.ownerOf("sprt"), "sprt is confirm's");
+        Check.eq(null, Registry.STANDARD.ownerOf("stale_rate"), "stale_rate is every method's");
         Check.eq(List.of("confirm", "assign"), List.copyOf(Registry.STANDARD.methods().keySet()), "methods");
         Check.eq("assign", Registry.STANDARD.ownerOf("new_cost"), "new_cost is assign's");
         Check.eq("confirm", Registry.STANDARD.ownerOf("hold"), "hold is confirm's");
@@ -144,5 +147,30 @@ public final class CorrelateTest {
         Predicted pb = Predicted.forComparison(b, a.lastTime);
         double d = goat.model.Frame.R * goat.model.Frame.rad(0.001);
         Check.near(d * d / (2500 + 2500), Tests.mahalanobis(a, pb), 1e-9, "d^2 / (pp_b + r_a)");
+    }
+
+    /** correlate.md 1.0: stale time from the lower median, the state test's table, the sprt bounds and line. */
+    public static void testStaleRateStateSprt() throws LoadError {
+        Check.same(12000, Correlator.staleTime(3, 1000, 60000, List.of(4000L, 5000L, 4000L, 9000L)), "k * lower median");
+        Check.same(1000, Correlator.staleTime(0.1, 1000, 60000, List.of(4000L)), "raised to the floor");
+        Check.same(60000, Correlator.staleTime(100, 1000, 60000, List.of(4000L)), "lowered to the ceiling");
+        Check.same(13.2767, Tests.chiSquare(0.990, 4), "0.990 is 0.99");
+        Check.same(20.5150, Tests.chiSquare(0.999, 5), "5 dof");
+        Check.isTrue(Double.isNaN(Tests.chiSquare(0.9, 4)), "not in the table");
+        String base = CONFIRM.replace("confirm_count 1\n", "").replace("hold distance max_m=2000\n", "")
+                .replace("hold_failures 2\n", "");
+        CorrelatePack p = CorrelatePack.parse(base + "sprt false=0.01 missed=0.1 pos_m=100 vel_ms=10 hae_sigma_m=20\n");
+        Check.near(Math.log(0.9 / 0.01), Sprt.up(p), 1e-12, "up");
+        Check.near(Math.log(0.1 / 0.99), Sprt.lo(p), 1e-12, "lo");
+        Check.same(Sprt.up(p), Sprt.update(4, 100, Sprt.lo(p), Sprt.up(p)), "clamped to up");
+        Check.eq("fused", p.output, "fused is the default output");
+        Check.throwsA(LoadError.class, () -> CorrelatePack.parse(CONFIRM + "sprt false=0.01 missed=0.1 pos_m=100 vel_ms=10 hae_sigma_m=20\n"),
+                "confirm_count with sprt");
+        Check.throwsA(LoadError.class, () -> CorrelatePack.parse(base + "sprt false=0.5 missed=0.1 pos_m=100 vel_ms=10 hae_sigma_m=20\n"),
+                "false below 0.5");
+        Check.throwsA(LoadError.class, () -> CorrelatePack.parse(CONFIRM + "stale_rate factor=3 floor_ms=0 ceiling_ms=10 samples=4\n"),
+                "stale_ms and stale_rate");
+        Check.throwsA(LoadError.class, () -> CorrelatePack.parse(CONFIRM + "gate state probability=0.9 hae_sigma_m=20\n"),
+                "probability not in the table");
     }
 }
