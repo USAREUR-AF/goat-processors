@@ -1,6 +1,6 @@
 # Install a goat-processors runner
 
-This page takes you from **a machine with Ubuntu Server 24.04 installed and
+This page takes you from **a machine with Ubuntu Server 24.04 (or 22.04) installed and
 reachable by SSH** to **a healthy runner publishing tracks on the goat
 fabric**. Each step says what to type, what you should see, and what to do
 if you do not see it. It takes about fifteen minutes.
@@ -79,7 +79,7 @@ $ ssh ops@10.20.0.15
 ```
 
 You should see a prompt on the machine, such as `ops@runner-1:~$`. Check
-that it is Ubuntu 24.04 and which architecture it is:
+that it is Ubuntu 24.04 or 22.04 and which architecture it is:
 
 ```
 $ . /etc/os-release && echo $VERSION_ID && dpkg --print-architecture
@@ -90,7 +90,9 @@ amd64
 The second line is `amd64` (most PCs and servers) or `arm64` (ARM boards).
 Use it wherever this page writes `amd64`.
 
-**If not:** a version other than 24.04 is not supported; reinstall from the
+**If not:** a version other than 24.04 or 22.04 is not supported (the
+package is built on 22.04 and needs its glibc, 2.35, or newer; it runs on
+NVIDIA Jetson Linux 36, which is 22.04); reinstall from the
 guidance above. If SSH does not connect, check the address and that the
 machine is on.
 

@@ -35,6 +35,10 @@ GitHub release page.
   file and the kind of problem, never any of its content: before, a
   malformed PEM line, which for the private key is key material, could be
   quoted in the log.
+- The `.deb` is built on Ubuntu 22.04, so it runs on 22.04 hosts (glibc
+  2.35, NVIDIA Jetson Linux 36) as well as 24.04; a release check fails if a
+  binary needs a newer glibc. `install.sh` accepts 22.04. (0.3.2 is the same
+  fix for the 0.3 line.)
 - Size limits and rotation for the output, record and audit files
   (`max_mb`, `keep`); doctor warns on a large unlimited file and a nearly
   full disk. Hardening review finding 9.

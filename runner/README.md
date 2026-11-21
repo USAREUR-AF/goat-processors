@@ -39,8 +39,8 @@ how to troubleshoot it.
 | Config file and `goat-processors config check` | Built. Tested: each kind of mistake is refused with what to fix |
 | `goat-processors doctor` | Built |
 | `goat-processors selftest` (replays every shipped vector) | Built |
-| `.deb` for Ubuntu 24.04, amd64 and arm64; systemd unit with its own user and hardening; the config written once from a template, never replaced by an update | Built in CI. Tested: `packaging/ci-upgrade-test.sh` updates a 0.5.0 install with an edited config (apt asks nothing, the config is kept, doctor fails until `install.sh` sets the peer) |
-| `install.sh` and [INSTALL.md](INSTALL.md) | Written. CI runs `install.sh` on a fresh Ubuntu 24.04 VM against a mutual-TLS router |
+| `.deb` for Ubuntu 22.04 and 24.04, amd64 and arm64 (built on 22.04; `packaging/check-glibc.sh` fails the build if the binary needs a glibc newer than 2.35); systemd unit with its own user and hardening; the config written once from a template, never replaced by an update | Built in CI. Tested: `packaging/ci-upgrade-test.sh` updates a 0.5.0 install with an edited config (apt asks nothing, the config is kept, doctor fails until `install.sh` sets the peer) |
+| `install.sh` and [INSTALL.md](INSTALL.md) | Written. CI runs `install.sh` on fresh Ubuntu 22.04 and 24.04 VMs, amd64 and arm64, against a mutual-TLS router |
 | Signed release (cosign, keyless) | Written: `.github/workflows/runner-release.yml`, run by a tag `runner-v<version>` |
 | HTTP API ([openapi.yaml](openapi.yaml)): local with a root-only token, mesh with mutual TLS and an allow list; audit log | Built. Tested: every route, both roles, refusals audited, mTLS allow list |
 | CLI verbs on the API: `status`, `view`, `health`, `pipeline`, `pack use`, `stop`, `start`, `metrics`, `tracks`, `explain`, `replay --api`, `audit` | Built. Tested: each verb against a running service |
