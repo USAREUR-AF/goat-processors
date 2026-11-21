@@ -403,7 +403,7 @@ local tracks per source out, feeding correlate unchanged.
 | Question | Answer |
 |---|---|
 | Does it fix a measured weakness? | No. It adds a capability: without it, detection-level sources cannot be used at all. The value is the new input, not a better score |
-| Can its value be measured today? | No. There is no detection-level scenario in the benchmark, and the `detection` module of goat-transformers is scheduled but not merged. A `track` built now would have no input and no score |
+| Can its value be measured? | Yes, now: the benchmark has a detection-level family with a track scorer, and the `detection` module is merged. Before both, a `track` would have had no input and no score |
 | Does it fit the constraints? | Yes, in the scope below. Per-dwell exact assignment, a recursive filter and a sequential test are all deterministic, use no library, and give one trace record per decision |
 | Is a separate function right? | Yes. Track formation is per source, needs no other source, and keeps correlate's input contract (tracks) unchanged. Folding it into correlate would mix two association problems with different statistics: detections in clutter against tracks from sensors |
 
@@ -412,14 +412,17 @@ local tracks per source out, feeding correlate unchanged.
 1. A detection-level family exists in the benchmark tuning set (proc-bench,
    DATASET), with ground truth per detection: synthetic dwells with a
    stated detection probability, clutter density, minimum detectable
-   velocity and error ellipse.
+   velocity and error ellipse. This holds: `tools/bench/detections.py`
+   generates 20 such scenarios per set, in the `detection` module's keys,
+   with a track scorer.
 2. A decoder that yields detections in the shared model is scheduled in
    goat-transformers, so the function has a real source. This holds: the
-   `detection` module is scheduled, and the fields `track` needs are
-   listed below (Input).
+   `detection` module 0.1.0 is merged (goat-transformers#179) and carries
+   every field listed below (Input).
 
-Until the first holds too, `track` would be code that no one can measure, which this
-page's rule does not allow.
+Both hold, so the open choices that need a measurement can now be
+prototyped on the tuning half of the detection family. The spec round
+itself stays sequenced after correlate 1.0 and the refactor.
 
 ### What changes from tracks to detections
 
@@ -453,21 +456,48 @@ numbers per source, and (option b only) a coupled two-axis filter.
 
 ### Input
 
-`track` reads goat-transformers' shared-model module `detection`. Per
-dwell, the 0.1 spec needs these fields. An absent field is "not stated",
-never 0.
+`track` reads goat-transformers' shared-model module `detection`, version
+0.1.0 (goat-transformers#179): one dwell per message, dwell keys written
+`detection.<key>`, detections in the list `detection.items`, each item using
+the core keys for its position, errors and time. An absent key is "not
+stated", never 0.
 
-| Field | Required | Use |
+| Key | Required | Use in `track` |
 |---|---|---|
-| sensor id | yes | tracks are per source |
-| dwell id and time, epoch ms | yes | the only clock; one association per dwell |
-| the dwell's detections, possibly none | yes | an empty dwell still counts as a look |
-| per detection: latitude, longitude; height when known | yes | the measurement |
-| per detection: position error (range and cross-range, or one horizontal value) | no; else a pack default per source | gate and measurement variance |
-| sensor position at the dwell | needed for range and cross-range errors and for range-rate | the direction of the error ellipse and of the line of sight |
-| per detection: range-rate and its error | no | the range-rate gate (open choice 4) |
-| dwell coverage (an area) | no | open choice 3 |
-| `time_error_ms`, `time_state` on the dwell | no | as for reports |
+| `detection.sensor_id` | yes | tracks are per source |
+| `detection.dwell_id` | yes | names the dwell in the trace |
+| `detection.time_ms` | yes | the only clock; one association per dwell. An item's own `time_ms`, where stated, replaces it for that item's prediction |
+| `detection.items` | yes | the detections. An empty list is a real empty dwell and still counts as a look; an absent list rejects the dwell |
+| item `lat`, `lon` | yes | the measurement |
+| item `hae` | no | height, kept on the track; not filtered in 0.1 |
+| item `range_error_m`, `cross_range_error_m` | no | the error ellipse; needs the sensor position for its direction |
+| item `ce` | no | a circular horizontal error, when the range pair is absent; else the pack's `error_default` for the source |
+| item `le` | no | kept; not used in 0.1 |
+| `detection.sensor_lat`, `detection.sensor_lon`, `detection.sensor_hae` | needed for the range pair and for radial velocity | the direction of the error ellipse and of the line of sight |
+| item `radial_velocity_ms`, `radial_velocity_error_ms` | no | the radial-velocity gate (open choice 4); positive away from the sensor |
+| `detection.coverage_wkt` | no | the dwell's area (open choice 3) |
+| `detection.revisit_ms` | no | the expected interval of the source's dwells, the seed of `stale_rate` before intervals are seen |
+| `detection.time_error_ms`, `detection.time_state` | no | as for reports (`correlate.md`, Time quality) |
+| item `item_id` | no | names the detection in the trace; the detection order within a dwell is the list order |
+| item `snr_db`, `classification`, `classification_probability` | no | kept on the output; not used in 0.1 |
+
+**Reading `detection.coverage_wkt`.** 0.1 accepts one WKT `POLYGON` with
+one ring, as `x y` pairs of longitude then latitude (the WKT axis order),
+the ring closed by repeating its first point. The repeated point is
+dropped, and the vertices become a polygon of `filter.md` (Polygon): the
+same plane, the same edges, the same boundary and crossing rules, so a
+point on an edge or a vertex is inside. Anything else (another geometry
+type, holes, a `MULTIPOLYGON`, text that does not parse) is "coverage not
+stated" for that dwell, with a trace record giving the reason. Accepting
+more geometry types is a later version.
+
+**Radial velocity reference.** The module states the sign (positive away
+from the sensor) but not whether the value is relative to the ground or to
+the moving sensor, and it carries no sensor velocity. 0.1 treats
+`radial_velocity_ms` as relative to the ground. A source whose values are
+relative to the sensor needs the sensor's velocity in the module first (a
+request to goat-transformers), or the pack turns the radial-velocity gate
+off for that source.
 
 ### Method choice for 0.1
 
@@ -493,9 +523,8 @@ when it measures better on the detection family.
 ### Open choices
 
 Each choice has a recommendation for 0.1 and says whether it needs a
-measurement. A choice that needs one waits for the detection family in the
-tuning set; none is prototyped before that family exists, because there is
-nothing to score it on.
+measurement. A choice that needs one is prototyped in tools/research on the
+tuning half of the detection family, and only there.
 
 **1. Initiation.**
 
@@ -531,8 +560,9 @@ a miss only when the sensor looked where the track is predicted to be.
 | The dwell states coverage, and the prediction is outside it | not a look: `Pd_eff = 0`, no score change; trace record `coverage`, `pass` false |
 | The dwell states no coverage | the sensor's stated rule: a pack line per source, `coverage all` (every dwell covers every track) or `coverage none` (misses never count; only `stale_rate` deletes) |
 
-Coverage is a polygon in latitude and longitude; "inside" is a stated
-point-in-polygon test in the local plane, with points on an edge inside.
+Coverage is the polygon read from `detection.coverage_wkt` (Input, above),
+and "inside" is the `filter.md` polygon test, with points on an edge
+inside.
 For 0.1 the test uses the predicted position only, not its uncertainty.
 Recommendation: as in the table, with `coverage all` as the default.
 Whether to widen the test by the prediction's uncertainty needs a
@@ -602,8 +632,8 @@ six engines fanned out, the detection family and an end-to-end score
 |---|---|
 | proc-coord | sequencing: after correlate 1.0, the refactor and the noise-scale and succession round; and only once preconditions 1 and 2 hold |
 | proc-bench | the detection family (precondition 1), tuning half only for proc-research |
-| proc-research | when the family exists, prototype in tools/research on the tuning set only: error ellipse (a) against (b); the range-rate term on against off; coverage widened by the prediction's uncertainty or not; then GNN against JIPDA. Nothing is prototyped before the family exists |
-| goat-transformers | the Input table above, already in the request to the `detection` module |
+| proc-research | prototype in tools/research on the tuning half of the detection family only: error ellipse (a) against (b); the radial-velocity term on against off; coverage widened by the prediction's uncertainty or not; then GNN against JIPDA |
+| goat-transformers | the `detection` module 0.1.0 carries every field. One addition for sources whose radial velocity is relative to the sensor: the sensor's velocity at the dwell |
 
 ## References
 

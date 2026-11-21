@@ -8,10 +8,12 @@ Commands (run with `python3 -I`):
   run --scenarios DIR --out DIR  run every pack in tools/bench/adapters.py:PACKS
   score --scenarios DIR --events DIR
                                  score the events files in DIR (any engine)
-  report [--jobs N] [--timeout S] [--no-eval]
-                                 run every pack on the tuning set and (with the private
-                                 seeds) the evaluation set; write docs/benchmark.md and
-                                 docs/figures/bench/ (results.json and the charts)
+  report [--jobs N] [--timeout S] [--eval]
+                                 run every pack on the tuning set and, with --eval, the
+                                 evaluation set (benchmark maintainer only: private seeds
+                                 and BENCH_EVAL_OWNER); write docs/benchmark.md and
+                                 docs/figures/bench/ (results.json and the charts). Without
+                                 --eval the last evaluation block is kept as it is
   check                          re-run a short subset of the tuning set and confirm the
                                  committed results and documents are what the tool writes
   diff OLD NEW [--group G]       compare two results files group by group: "better" or
@@ -245,7 +247,7 @@ def results_from(raw, family):
     return out
 
 
-def cmd_report(jobs=None, timeout=TIMEOUT_S, with_eval=True):
+def cmd_report(jobs=None, timeout=TIMEOUT_S, with_eval=False):
     import report
     t0 = time.monotonic()
     metas, raw, secs = run_parallel(all_scenarios("tuning"), jobs=jobs, timeout=timeout, label="tuning")
@@ -258,13 +260,15 @@ def cmd_report(jobs=None, timeout=TIMEOUT_S, with_eval=True):
     if os.path.exists(RESULTS):
         with open(RESULTS, encoding="utf-8") as f:
             old_eval = json.load(f).get("evaluation")
-    if with_eval and dataset.eval_root() is not None:
+    if with_eval:
+        evaluation = dataset.evaluation_set()      # refuses without the seeds and BENCH_EVAL_OWNER
         t1 = time.monotonic()
-        emetas, eraw, esecs = run_parallel(dataset.evaluation_set(), jobs=jobs, timeout=timeout, label="evaluation")
+        emetas, eraw, esecs = run_parallel(evaluation, jobs=jobs, timeout=timeout, label="evaluation")
         res["evaluation"] = {"groups": summarize(eraw, emetas), "seconds": round(time.monotonic() - t1),
                              "jobs": res["tuning"]["jobs"], "timeout_s": timeout,
                              "scenarios": len(emetas),
-                             "families": sorted(set(m["family"] for m in emetas))}
+                             "families": sorted(set(m["family"] for m in emetas)),
+                             "rotation": dataset.eval_rotation()}
         os.makedirs(EVAL_PRIVATE, exist_ok=True)
         adapters.write_json(os.path.join(EVAL_PRIVATE, "raw.json"),
                             {"meta": emetas, "raw": eraw, "seconds": esecs})
@@ -331,7 +335,9 @@ def main():
     rp = sub.add_parser("report")
     rp.add_argument("--jobs", type=int)
     rp.add_argument("--timeout", type=int, default=TIMEOUT_S)
-    rp.add_argument("--no-eval", action="store_true")
+    rp.add_argument("--eval", action="store_true",
+                    help="also run the evaluation set (benchmark maintainer only)")
+    rp.add_argument("--no-eval", action="store_true", help="the default; kept for older scripts")
     sub.add_parser("check")
     d = sub.add_parser("diff")
     d.add_argument("old")
@@ -346,7 +352,7 @@ def main():
     elif a.cmd == "score":
         cmd_score(a.scenarios, a.events)
     elif a.cmd == "report":
-        cmd_report(a.jobs, a.timeout, not a.no_eval)
+        cmd_report(a.jobs, a.timeout, a.eval and not a.no_eval)
     elif a.cmd == "diff":
         cmd_diff(a.old, a.new, a.set, a.group)
     elif a.cmd == "check":

@@ -29,12 +29,38 @@ FAMILY_COUNT = 20       # scenarios per family per set (scale: SCALE_SIZES)
 SCALE_SIZES = [50, 200, 1000]
 
 
+# Only the benchmark maintainer runs the evaluation set: every session on the benchmark
+# machine runs as one user, so the seed file's mode alone does not keep a tuning session out.
+EVAL_OWNER_VAR = "BENCH_EVAL_OWNER"
+EVAL_OWNER = "proc-bench"
+
+
+def _eval_seeds():
+    """The private seed file's content, or None when it is not here. Refuses (SystemExit)
+    unless BENCH_EVAL_OWNER names the benchmark maintainer."""
+    if os.environ.get(EVAL_OWNER_VAR) != EVAL_OWNER:
+        raise SystemExit("the evaluation set is run by the benchmark maintainer only (%s=%s); "
+                         "tune on the tuning set" % (EVAL_OWNER_VAR, EVAL_OWNER))
+    try:
+        with open(EVAL_SEEDS, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
 def eval_root():
     """The evaluation root seed from ~/re/bench-eval-seeds, or None when it is not here."""
     try:
-        with open(EVAL_SEEDS, encoding="utf-8") as f:
-            return int(json.load(f)["eval_root"])
-    except (OSError, ValueError, KeyError):
+        return int(_eval_seeds()["eval_root"])
+    except (TypeError, ValueError, KeyError):
+        return None
+
+
+def eval_rotation():
+    """Which set of evaluation seeds is in use (1, 2, ...; a new one after each release)."""
+    try:
+        return int(_eval_seeds()["rotation"])
+    except (TypeError, ValueError, KeyError):
         return None
 
 

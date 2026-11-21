@@ -251,8 +251,9 @@ def render_all(res):
     if ev:
         L.append("## Evaluation set\n")
         L.append("%d scenarios, run in %d parallel processes in %d min on the benchmark machine "
-                 "(the time a full evaluation run takes there).\n" % (ev["scenarios"], ev["jobs"],
-                                                                      round(ev["seconds"] / 60.0)))
+                 "(the time a full evaluation run takes there).%s\n" % (
+                     ev["scenarios"], ev["jobs"], round(ev["seconds"] / 60.0),
+                     " Seeds: rotation %d." % ev["rotation"] if ev.get("rotation") else ""))
         L.append(picture("random", "Pooled scores over the evaluation random set, one bar per pack"))
         omitted = [p for p in packs if p in CHART_OMIT]
         if omitted:

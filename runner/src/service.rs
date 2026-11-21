@@ -424,8 +424,19 @@ impl Runner {
                 let txt = |k: &str| e.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
                 let ev = txt("ev");
                 if st.function == "quality" && txt("scope") == "source" {
-                    let what = if ev == "quality" { txt("measure") } else { txt("action") };
-                    *self.quality_sources.entry((txt("subject"), ev.clone(), what)).or_default() += 1;
+                    if ev == "quality" {
+                        // A quality event carries every measure in its `measures` object;
+                        // count one per measure it states (a null measure is absent).
+                        if let Some(goat_correlator::json::Json::Obj(ms)) = e.get("measures") {
+                            for (name, value) in ms.iter() {
+                                if !matches!(value, goat_correlator::json::Json::Null) {
+                                    *self.quality_sources.entry((txt("subject"), ev.clone(), name.to_string())).or_default() += 1;
+                                }
+                            }
+                        }
+                    } else {
+                        *self.quality_sources.entry((txt("subject"), ev.clone(), txt("action"))).or_default() += 1;
+                    }
                 }
                 if st.function == "quality" {
                     match ev.as_str() {
