@@ -2,7 +2,7 @@
 
 Java 17, standard library only. Implements
 
-- correlate: `spec/correlate.md` (0.8) and `spec/correlate-assign.md` (0.6);
+- correlate: `spec/correlate.md` (1.0) and `spec/correlate-assign.md` (0.7);
 - filter: `spec/filter.md` (0.1);
 - fuse: `spec/fuse.md` (0.2);
 - quality: `spec/quality.md` (0.2).
@@ -50,8 +50,8 @@ The four classes `correlator.VectorTest`, `filter.VectorTest`, `fuse.FuseVectorT
 | Track estimate | `model/TrackEstimate.java` (one axis: `model/Axis.java`; measurement variance: `correlate/Correlator.java`) |
 | Two-model filter | `model/TrackEstimate.java` |
 | Restart | `correlate/Correlator.java` |
-| Tests | `correlate/Tests.java` (the registry: `correlate/Registry.java`, `correlate/TestKind.java`) |
-| Association | `correlate/Confirm.java` |
+| Tests | `correlate/Tests.java`, including the `state` test and its chi-square table (the registry: `correlate/Registry.java`, `correlate/TestKind.java`) |
+| Association | `correlate/Confirm.java` (Sequential test: `correlate/Sprt.java`; stale time of a source, `stale_rate`: `correlate/Correlator.java`) |
 | Events | `correlate/Confirm.java` |
 | Trace | `correlate/Tests.java` |
 | Snapshot | `correlate/Confirm.java` |

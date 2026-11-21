@@ -42,11 +42,27 @@ public final class CorrelatePack {
     public final List<Test> confirm = new ArrayList<>();
     public final List<Test> hold = new ArrayList<>();
     public long confirmCount, holdFailures, staleMs;
+    /**
+     * correlate.md, Stale time of a source: the {@code stale_rate factor=<k> floor_ms=<f>
+     * ceiling_ms=<c> samples=<n>} line, when present (in place of {@code stale_ms}).
+     */
+    public boolean staleRate = false;
+    public double staleFactor;
+    public long staleFloor, staleCeiling, staleSamples;
+    /**
+     * correlate.md, Association, Sequential test: the {@code sprt false=<p> missed=<p> pos_m=<m>
+     * vel_ms=<m/s> hae_sigma_m=<m>} line, when present (method confirm only).
+     */
+    public boolean sprt = false;
+    public double sprtFalse, sprtMissed, sprtPos, sprtVel, sprtHaeSigma;
     public boolean sameSourceAllow = false;
-    public boolean outputLatest = false;
+    /** correlate.md, Pack: {@code output fused | priority | latest}, {@code fused} without the line. */
+    public String output = "fused";
     public final Map<String, Long> priority = new LinkedHashMap<>();
     /** Spec: Pack, `method`: a registered method, {@code confirm} without the line. */
     public String method = Registry.DEFAULT_METHOD;
+    /** The directives the file holds, for the checks made once the whole file is read. */
+    public final Set<String> seen = new HashSet<>();
     /** The registry the pack was read against: its tests and methods. */
     public final Registry registry;
     public double newCost, keepBonus;
@@ -79,6 +95,7 @@ public final class CorrelatePack {
     private static final List<String> FILTER = List.of("accel_var", "default_ce_m", "vel_sigma_ms", "unknown_vel_ms");
     private static final List<String> MANEUVER = List.of("accel_var", "p_enter", "p_leave");
     private static final List<String> RESTART = List.of("gate");
+    private static final List<String> STALE_RATE = List.of("factor", "floor_ms", "ceiling_ms", "samples");
     /** correlate.md, Reports, "Time quality": the three clock states. */
     public static final Set<String> TIME_STATES = Report.TIME_STATES;
 
@@ -89,6 +106,7 @@ public final class CorrelatePack {
             new Directive("method", false, CorrelatePack::methodLine),
             new Directive("filter", false, CorrelatePack::filterLine),
             new Directive("stale_ms", false, (pk, tok, ln) -> pk.staleMs = integer(one(tok, ln), ln)),
+            new Directive("stale_rate", false, CorrelatePack::staleRateLine),
             new Directive("maneuver", false, CorrelatePack::maneuverLine),
             new Directive("restart", false, CorrelatePack::restartLine),
             new Directive("gate", true, (pk, tok, ln) -> pk.gate.add(test(pk, tok, ln))),
@@ -128,7 +146,7 @@ public final class CorrelatePack {
     /** Reads pack.def text against a registry: its tests, methods and directives. */
     public static CorrelatePack parse(String text, Registry registry) throws LoadError {
         CorrelatePack pk = new CorrelatePack(registry);
-        Set<String> seen = new HashSet<>();
+        Set<String> seen = pk.seen;
         Map<String, Integer> firstLine = new LinkedHashMap<>();
         String[] lines = text.split("\n", -1);
         for (int n = 0; n < lines.length; n++) {
@@ -142,7 +160,7 @@ public final class CorrelatePack {
             String dir = tok[0];
             Directive d = registry.directive(dir);
             if (d == null) throw err(ln, "unknown directive " + dir);
-            if (!d.repeating && !seen.add(dir)) throw err(ln, "repeated directive " + dir);
+            if (!seen.add(dir) && !d.repeating) throw err(ln, "repeated directive " + dir);
             firstLine.putIfAbsent(dir, ln);
             d.parser.parse(pk, tok, ln);
         }
@@ -154,6 +172,9 @@ public final class CorrelatePack {
         }
         for (String r : method.required)
             if (!seen.contains(r)) throw err("missing directive " + r);
+        // correlate.md, Pack: one of stale_ms and stale_rate, never both, with either method.
+        if (seen.contains("stale_ms") == seen.contains("stale_rate"))
+            throw err("one of stale_ms and stale_rate is required, never both");
         if (pk.maneuver && !(pk.maneuverAccelVar > pk.accelVar))
             throw err("maneuver accel_var must be above filter accel_var");
         method.check.check(pk);
@@ -200,6 +221,20 @@ public final class CorrelatePack {
         if (!kv.keySet().equals(new HashSet<>(RESTART))) throw err(ln, "restart takes " + RESTART);
         pk.restart = true;
         pk.restartGate = positive(dec(kv.get("gate"), ln), "restart gate", ln);
+    }
+
+    private static void staleRateLine(CorrelatePack pk, String[] tok, int ln) throws LoadError {
+        // correlate.md, Pack: exactly factor (above 0), floor_ms and ceiling_ms (integers,
+        // 0 <= floor_ms <= ceiling_ms) and samples (an integer, 1 or above).
+        Map<String, String> kv = params(tok, 1, ln);
+        if (!kv.keySet().equals(new HashSet<>(STALE_RATE))) throw err(ln, "stale_rate takes " + STALE_RATE);
+        pk.staleRate = true;
+        pk.staleFactor = positive(dec(kv.get("factor"), ln), "factor", ln);
+        pk.staleFloor = integer(kv.get("floor_ms"), ln);
+        pk.staleCeiling = integer(kv.get("ceiling_ms"), ln);
+        if (pk.staleFloor < 0 || pk.staleFloor > pk.staleCeiling)
+            throw err(ln, "stale_rate needs 0 <= floor_ms <= ceiling_ms");
+        pk.staleSamples = atLeastOne(integer(kv.get("samples"), ln), "samples", ln);
     }
 
     private static void timeDefaultLine(CorrelatePack pk, String[] tok, int ln) throws LoadError {
@@ -257,6 +292,7 @@ public final class CorrelatePack {
                 t.key = kv.get(p);
             } else t.num.put(p, dec(kv.get(p), ln));
         }
+        kind.check.check(t, ln);
         return t;
     }
 

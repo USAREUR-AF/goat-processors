@@ -23,7 +23,7 @@ import static goat.model.KeyOrder.KEY_ORDER;
  * The quality function: load_pack, ingest, tick, snapshot (spec/quality.md, version 0.2).
  * The frame and the per-entity filter are the shared model's ({@link Frame}, {@link Axis}), as
  * quality.md cites correlate.md for them, and so is the reading of a report's required and time
- * keys ({@link Report}, correlate.md 0.8, Reports and Time quality).
+ * keys ({@link Report}, correlate.md 1.0, Reports and Time quality).
  */
 public final class Quality implements Processor {
 
