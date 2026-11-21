@@ -3,7 +3,7 @@
 # Every key is explained in /usr/share/doc/goat-processors/README.md, Configure.
 
 # This runner's name and its site. Letters, digits, - and _ only.
-# They form the default output prefix: data/processed/<site>/<name>.
+# The output prefix below is built from them.
 name: processors-1
 site: CHANGE-ME
 
@@ -40,7 +40,12 @@ pipeline:
   - function: quality
     pack: quality-feed
 
-# What the runner publishes, under data/processed/<site>/<name>/.
+# What the runner publishes: a fixed set of keys (tracks, quality, events,
+# status) under volatile/<peer>/stream/processors/<name>/, goat's class for
+# live data that routers pass on and never store. <peer> is the identity the
+# fabric lets this runner write under, usually its certificate's common name;
+# it is the site unless you set it here.
 outputs:
   fabric:
+    # peer: site-a-processors-1
     trace: false

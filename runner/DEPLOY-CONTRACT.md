@@ -3,7 +3,7 @@
 This is what a deployment tool (goatbuilder, processing lane, build target
 type `goat-processors`, host class) does to install a runner and to decide
 that the install worked. `install.sh` follows the same contract by hand.
-Status: Written, for release `runner-v0.1.0` and later `0.x` releases. `runner-v0.2.0` adds the HTTP API (`runner/openapi.yaml`); every step below is unchanged.
+Status: Written, for release `runner-v0.1.0` and later `0.x` releases. `runner-v0.2.0` adds the HTTP API (`runner/openapi.yaml`); every step below is unchanged. `runner-v0.6.0` changes the fabric keys the runner publishes (below); every step is unchanged.
 
 ## Inputs
 
@@ -47,7 +47,7 @@ changes nothing (step 6 restarts the service only when the config changed).
 
 | Command | Output |
 |---|---|
-| `goat-processors config check -o json` | `{"file", "valid", "problems": [string]}`; exit 1 when not valid |
+| `goat-processors config check -o json` | `{"file", "valid", "problems": [string], "warnings": [string]}` (`warnings` 0.6.0 and later); exit 1 when not valid, never for a warning |
 | `goat-processors doctor -o json` | `[{"check", "level": "ok"/"warn"/"fail", "detail", "fix"}]`; exit 1 when any `fail` |
 | `goat-processors selftest -o json` | `{"packs_dir", "vectors", "passed", "failed": [string]}`; exit 1 on any failure |
 | `GET http://127.0.0.1:8470/v1/health` (0.2.0 and later) | 200 `{"healthy": true}` when running and ticking; 503 with `detail` otherwise |
@@ -56,11 +56,19 @@ changes nothing (step 6 restarts the service only when the config changed).
 
 ## What the runner publishes
 
-Under `outputs.fabric.prefix`, default `data/processed/<site>/<name>`:
-`tracks/<id>`, `quality/<scope>/<subject>`, `events/<function>` and, when
-enabled, `trace/<function>` (README.md, Operate). The fabric's access rules
-must allow the runner's certificate to subscribe to its input keys and to
-publish under its prefix.
+Under `outputs.fabric.prefix`, default `volatile/<peer>/stream/processors/<name>`
+(0.6.0 and later; `<peer>` is `outputs.fabric.peer`, default the site): five
+fixed keys, `tracks`, `quality`, `events`, `status` and, when enabled,
+`trace`, each value JSON lines (README.md, "What the runner publishes"). The
+fabric's access rules must allow the runner's certificate to subscribe to its
+input keys and to publish under its prefix: in goat, the peer's write grant
+`volatile/<peer>/**` (goat ADR 1032), so `<peer>` is the certificate's name.
+`install.sh` sets it from the certificate.
+
+Up to 0.5.0 the default was `data/processed/<site>/<name>` with a key per
+track (`tracks/<id>`), per quality subject and per function. 0.6.0 keeps
+that layout for one release behind `layout: per-entity` with
+`prefix: data/processed/<site>/<name>`.
 
 ## Compatibility
 

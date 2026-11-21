@@ -223,7 +223,8 @@ fn cmd_config_check(a: &Args, path: Option<&&str>) -> Result<ExitCode, String> {
     if json {
         let problems = res.as_ref().err().cloned().unwrap_or_default();
         let list = crate::json::Json::Arr(problems.iter().map(|p| crate::json::Json::Str(p.clone())).collect());
-        println!("{{\"file\":{},\"valid\":{},\"problems\":{}}}", crate::json::Json::Str(path.display().to_string()), res.is_ok(), list);
+        let warns = crate::json::Json::Arr(res.as_ref().map(config::warnings).unwrap_or_default().into_iter().map(crate::json::Json::Str).collect());
+        println!("{{\"file\":{},\"valid\":{},\"problems\":{},\"warnings\":{}}}", crate::json::Json::Str(path.display().to_string()), res.is_ok(), list, warns);
     }
     match res {
         Ok(c) => {
@@ -231,6 +232,12 @@ fn cmd_config_check(a: &Args, path: Option<&&str>) -> Result<ExitCode, String> {
                 println!("{}: valid", path.display());
                 for s in &c.pipeline {
                     println!("  {:<10} {}", s.function, c.pack_dir(s).display());
+                }
+                if c.outputs.fabric.is_some() {
+                    println!("  publishes under {}", c.output_prefix());
+                }
+                for w in config::warnings(&c) {
+                    println!("  warning: {w}");
                 }
             }
             Ok(ExitCode::SUCCESS)

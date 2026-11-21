@@ -37,7 +37,12 @@ pub fn wall_ms() -> i64 {
 struct Sinks {
     fabric: Option<fabric::Session>,
     prefix: String,
-    fabric_trace: bool,
+    name: String,
+    site: String,
+    /// The input clock at the last tick.
+    clock: i64,
+    /// With `outputs.fabric.trace`: what bounds the trace on the fabric.
+    trace: Option<TraceGate>,
     batch: Option<Batch>,
     file: Option<(crate::rotate::Rotating, bool)>,
     record: Option<crate::rotate::Rotating>,
@@ -45,11 +50,123 @@ struct Sinks {
     published: u64,
 }
 
+/// One second of the input clock: the window of the fabric's rate limits.
+const WINDOW_MS: i64 = 1000;
+
+/// Events the `events` key leaves out: track and quality events have their
+/// own keys, and `keep` and `pass` repeat each report that went through.
+const NOT_EVENTS: [&str; 7] = ["system", "fused", "quality", "action-start", "action-end", "keep", "pass"];
+
+/// The source an event is about: the part of its entity before `/`.
+fn event_source(e: &Json) -> String {
+    let name = ["entity", "a", "subject"].iter().find_map(|k| e.get(k).and_then(|v| v.as_str())).unwrap_or("");
+    name.split('/').next().filter(|s| !s.is_empty()).unwrap_or("-").to_string()
+}
+
+/// At most `per_s` events per source in each second of the input clock.
+struct Limiter {
+    per_s: u32,
+    window: i64,
+    counts: BTreeMap<String, u32>,
+    dropped: BTreeMap<String, u64>,
+    total: u64,
+}
+
+impl Limiter {
+    fn new(per_s: u32) -> Limiter {
+        Limiter { per_s, window: i64::MIN, counts: BTreeMap::new(), dropped: BTreeMap::new(), total: 0 }
+    }
+
+    /// Whether one more event from `source` may go out now.
+    fn admit(&mut self, source: &str) -> bool {
+        let n = self.counts.entry(source.to_string()).or_insert(0);
+        if *n < self.per_s {
+            *n += 1;
+            return true;
+        }
+        *self.dropped.entry(source.to_string()).or_insert(0) += 1;
+        self.total += 1;
+        false
+    }
+
+    /// At a tick: when the window has passed, one `suppressed` line per
+    /// source that went over, and a new window.
+    fn roll(&mut self, now: i64) -> Vec<Json> {
+        if self.window != i64::MIN && now >= self.window && now - self.window < WINDOW_MS {
+            return vec![];
+        }
+        let from = self.window;
+        self.window = now;
+        self.counts.clear();
+        std::mem::take(&mut self.dropped)
+            .into_iter()
+            .map(|(src, n)| {
+                let mut m = BTreeMap::new();
+                m.insert("ev".into(), Json::Str("suppressed".into()));
+                m.insert("stage".into(), Json::Str("runner".into()));
+                m.insert("source".into(), Json::Str(src));
+                m.insert("count".into(), Json::Int(n as i64));
+                m.insert("from_ms".into(), Json::Int(from));
+                m.insert("limit_per_s".into(), Json::Int(self.per_s as i64));
+                Json::Obj(m)
+            })
+            .collect()
+    }
+}
+
+/// What bounds the trace on the fabric: the entities it names, an end, and
+/// the most bytes in one second of the input clock.
+struct TraceGate {
+    entities: Vec<String>,
+    end_wall_ms: i64,
+    max_bytes: u64,
+    window: i64,
+    bytes: u64,
+    dropped: u64,
+    total_dropped: u64,
+}
+
+impl TraceGate {
+    fn on(&self) -> bool {
+        wall_ms() < self.end_wall_ms
+    }
+
+    /// Whether a record names one of the listed entities (any, with no list).
+    fn wanted(&self, r: &Json) -> bool {
+        if self.entities.is_empty() {
+            return true;
+        }
+        let named = |v: &Json| v.as_str().is_some_and(|x| self.entities.iter().any(|e| e == x));
+        ["entity", "a", "b", "system", "group", "subject"].iter().any(|k| r.get(k).is_some_and(named))
+            || matches!(r.get("members"), Some(Json::Arr(ms)) if ms.iter().any(named))
+    }
+
+    /// Whether `len` more bytes fit in this second, at input-clock `now`.
+    fn admit(&mut self, now: i64, len: usize) -> bool {
+        if now < self.window || now.saturating_sub(self.window) >= WINDOW_MS {
+            self.window = now;
+            self.bytes = 0;
+        }
+        if self.bytes + len as u64 > self.max_bytes {
+            self.dropped += 1;
+            self.total_dropped += 1;
+            return false;
+        }
+        self.bytes += len as u64;
+        true
+    }
+}
+
 /// State of `layout: batch`: what was last published, and when.
 struct Batch {
     heartbeat_ms: i64,
     tracks: Option<(String, i64)>,
     quality: Option<(String, i64)>,
+    status: Option<i64>,
+    /// Events and trace records since the last tick, each with its stage.
+    events: Vec<Json>,
+    trace: Vec<Json>,
+    limiter: Limiter,
     /// A number 1 to 65535 per system track, held while the track lives, for
     /// formats whose track identifier is a number (ASTERIX I062/040).
     numbers: BTreeMap<String, u16>,
@@ -115,26 +232,149 @@ impl Sinks {
                 }
             }
         }
-        let Some(fab) = self.fabric.as_ref() else { return };
-        let mut puts: Vec<(String, Json)> = Vec::new();
+        if self.fabric.is_none() {
+            return;
+        }
         let now = match step {
             Step::Tick(t) => Some(*t),
             _ => None,
         };
+        if let Some(t) = now {
+            self.clock = t;
+        }
+        if self.batch.is_some() {
+            self.emit_batch(out, now);
+        } else {
+            self.emit_per_entity(out, now);
+        }
+    }
+
+    /// Trace records of one stage that pass the trace bounds.
+    fn gate_trace(&mut self, stage: &str, records: &[Json]) -> Vec<Json> {
+        let clock = self.clock;
+        let Some(g) = self.trace.as_mut().filter(|g| g.on()) else { return vec![] };
+        let mut kept = Vec::new();
+        for r in records {
+            if !g.wanted(r) {
+                continue;
+            }
+            let mut r = r.clone();
+            if let Json::Obj(m) = &mut r {
+                m.insert("stage".into(), Json::Str(stage.into()));
+            }
+            if g.admit(clock, r.to_string().len() + 1) {
+                kept.push(r);
+            }
+        }
+        kept
+    }
+
+    /// `layout: batch`: events and trace are gathered at every step; on a
+    /// tick each key of the fixed set is published at most once.
+    fn emit_batch(&mut self, out: &Output, now: Option<i64>) {
+        let track_stage = track_stage(out);
+        let mut gathered_trace = Vec::new();
+        for s in &out.stages {
+            gathered_trace.extend(self.gate_trace(&s.function, &s.trace));
+        }
+        let b = self.batch.as_mut().expect("batch layout");
+        b.trace.extend(gathered_trace);
+        for s in &out.stages {
+            for e in &s.events {
+                let ev = e.get("ev").and_then(|v| v.as_str()).unwrap_or("");
+                if NOT_EVENTS.contains(&ev) || !b.limiter.admit(&event_source(e)) {
+                    continue;
+                }
+                let mut e = e.clone();
+                if let Json::Obj(m) = &mut e {
+                    m.insert("stage".into(), Json::Str(s.function.clone()));
+                }
+                b.events.push(e);
+            }
+        }
+        let Some(t) = now else { return };
+        // Each set is JSON lines: one object per line, each with `now_ms`,
+        // so a reader splits it with newline framing, and the runner's own
+        // input reads it as a list of reports.
+        let lines = |v: &[Json]| v.iter().map(|e| with_now(e, now).to_string() + "\n").collect::<String>();
+        let mut texts: Vec<(String, String)> = Vec::new();
+        let mut tracks: Vec<Json> = track_events(out).into_iter().map(|(_, e)| e).collect();
+        if track_stage.is_some() {
+            b.number(&mut tracks);
+        }
+        let quality: Vec<Json> = out
+            .stages
+            .iter()
+            .filter(|s| s.function == "quality")
+            .flat_map(|s| s.events.iter())
+            .filter(|e| matches!(e.get("ev").and_then(|v| v.as_str()), Some("quality" | "action-start" | "action-end")))
+            .cloned()
+            .collect();
+        if track_stage.is_some() && Batch::due(&mut b.tracks, Json::Arr(tracks.clone()).to_string(), t, b.heartbeat_ms) {
+            texts.push((format!("{}/tracks", self.prefix), lines(&tracks)));
+        }
+        if out.stages.iter().any(|s| s.function == "quality") && Batch::due(&mut b.quality, Json::Arr(quality.clone()).to_string(), t, b.heartbeat_ms) {
+            texts.push((format!("{}/quality", self.prefix), lines(&quality)));
+        }
+        let mut events = std::mem::take(&mut b.events);
+        events.extend(b.limiter.roll(t));
+        if !events.is_empty() {
+            texts.push((format!("{}/events", self.prefix), lines(&events)));
+        }
+        let mut trace = std::mem::take(&mut b.trace);
+        if let Some(g) = self.trace.as_mut().filter(|g| g.dropped > 0 && (t < g.window || t.saturating_sub(g.window) >= WINDOW_MS)) {
+            let mut m = BTreeMap::new();
+            m.insert("stage".into(), Json::Str("runner".into()));
+            m.insert("suppressed".into(), Json::Int(std::mem::take(&mut g.dropped) as i64));
+            m.insert("limit_bytes_per_s".into(), Json::Int(g.max_bytes as i64));
+            trace.push(Json::Obj(m));
+        }
+        if !trace.is_empty() {
+            texts.push((format!("{}/trace", self.prefix), lines(&trace)));
+        }
+        let status_due = match b.status {
+            None => true,
+            Some(last) => t - last >= b.heartbeat_ms || t < last,
+        };
+        if status_due {
+            b.status = Some(t);
+            let mut m = BTreeMap::new();
+            m.insert("name".into(), Json::Str(self.name.clone()));
+            m.insert("site".into(), Json::Str(self.site.clone()));
+            m.insert("version".into(), Json::Str(env!("CARGO_PKG_VERSION").into()));
+            m.insert("tracks".into(), Json::Int(tracks.len() as i64));
+            m.insert("published".into(), Json::Int(self.published as i64));
+            m.insert("output_errors".into(), Json::Int(self.errors as i64));
+            m.insert("events_suppressed".into(), Json::Int(b.limiter.total as i64));
+            m.insert("trace_on".into(), Json::Bool(self.trace.as_ref().is_some_and(|g| g.on())));
+            m.insert("trace_suppressed".into(), Json::Int(self.trace.as_ref().map_or(0, |g| g.total_dropped) as i64));
+            texts.push((format!("{}/status", self.prefix), lines(&[Json::Obj(m)])));
+        }
+        let fab = self.fabric.as_ref().expect("fabric");
+        for (k, v) in texts {
+            match fab.put_text(&k, v) {
+                Ok(()) => self.published += 1,
+                Err(_) => self.errors += 1,
+            }
+        }
+    }
+
+    /// `layout: per-entity`, the layout before 0.6.0: a key per system track
+    /// and per quality subject, events on every call.
+    fn emit_per_entity(&mut self, out: &Output, now: Option<i64>) {
+        let mut puts: Vec<(String, Json)> = Vec::new();
         let track_stage = track_stage(out);
         for (i, s) in out.stages.iter().enumerate() {
             if !s.events.is_empty() {
                 puts.push((format!("{}/events/{}", self.prefix, s.function), line_obj(&s.function, now, Json::Arr(s.events.clone()), "events")));
             }
-            if self.fabric_trace && !s.trace.is_empty() {
-                puts.push((format!("{}/trace/{}", self.prefix, s.function), line_obj(&s.function, now, Json::Arr(s.trace.clone()), "trace")));
+            let trace = self.gate_trace(&s.function, &s.trace);
+            if !trace.is_empty() {
+                puts.push((format!("{}/trace/{}", self.prefix, s.function), line_obj(&s.function, now, Json::Arr(trace), "trace")));
             }
             for e in &s.events {
                 let ev = e.get("ev").and_then(|v| v.as_str()).unwrap_or("");
                 let field = |k: &str| e.get(k).and_then(|v| v.as_str()).map(fabric::key_chunk);
-                if self.batch.is_some() {
-                    continue;
-                }
                 if Some(i) == track_stage && (ev == "fused" || ev == "system") {
                     if let Some(id) = field("group").or_else(|| field("system")) {
                         puts.push((format!("{}/tracks/{}", self.prefix, id), with_now(e, now)));
@@ -147,39 +387,7 @@ impl Sinks {
                 }
             }
         }
-        let mut texts: Vec<(String, String)> = Vec::new();
-        if let (Some(b), Some(t)) = (self.batch.as_mut(), now) {
-            // Each set is JSON lines: one object per line, each with `now_ms`,
-            // so a reader splits it with newline framing, and the runner's own
-            // input reads it as a list of reports.
-            let lines = |v: &[Json]| v.iter().map(|e| with_now(e, now).to_string() + "\n").collect::<String>();
-            let mut tracks: Vec<Json> = track_events(out).into_iter().map(|(_, e)| e).collect();
-            if track_stage.is_some() {
-                b.number(&mut tracks);
-            }
-            let quality: Vec<Json> = out
-                .stages
-                .iter()
-                .filter(|s| s.function == "quality")
-                .flat_map(|s| s.events.iter())
-                .filter(|e| matches!(e.get("ev").and_then(|v| v.as_str()), Some("quality" | "action-start" | "action-end")))
-                .cloned()
-                .collect();
-            if track_stage.is_some() && Batch::due(&mut b.tracks, Json::Arr(tracks.clone()).to_string(), t, b.heartbeat_ms) {
-                texts.push((format!("{}/tracks", self.prefix), lines(&tracks)));
-            }
-            if out.stages.iter().any(|s| s.function == "quality")
-                && Batch::due(&mut b.quality, Json::Arr(quality.clone()).to_string(), t, b.heartbeat_ms)
-            {
-                texts.push((format!("{}/quality", self.prefix), lines(&quality)));
-            }
-        }
-        for (k, v) in texts {
-            match fab.put_text(&k, v) {
-                Ok(()) => self.published += 1,
-                Err(_) => self.errors += 1,
-            }
-        }
+        let fab = self.fabric.as_ref().expect("fabric");
         for (k, v) in puts {
             match fab.put(&k, &v) {
                 Ok(()) => self.published += 1,
@@ -945,11 +1153,26 @@ pub fn run(c: Config) -> Result<(), String> {
     let sinks = Sinks {
         fabric: if c.outputs.fabric.is_some() { session } else { None },
         prefix: c.output_prefix(),
-        fabric_trace: c.outputs.fabric.as_ref().is_some_and(|f| f.trace),
+        name: c.name.clone(),
+        site: c.site.clone(),
+        clock: 0,
+        trace: c.outputs.fabric.as_ref().filter(|f| f.trace).map(|f| TraceGate {
+            entities: f.trace_entities.clone(),
+            end_wall_ms: wall_ms().saturating_add(f.trace_for_s as i64 * 1000),
+            max_bytes: f.trace_max_bytes_per_s,
+            window: i64::MIN,
+            bytes: 0,
+            dropped: 0,
+            total_dropped: 0,
+        }),
         batch: c.outputs.fabric.as_ref().filter(|f| f.layout == crate::config::Layout::Batch).map(|f| Batch {
             heartbeat_ms: f.heartbeat_ms as i64,
             tracks: None,
             quality: None,
+            status: None,
+            events: Vec::new(),
+            trace: Vec::new(),
+            limiter: Limiter::new(f.events_per_source_per_s),
             numbers: BTreeMap::new(),
             next_number: 1,
         }),
@@ -1113,7 +1336,42 @@ pub fn run(c: Config) -> Result<(), String> {
 
 #[cfg(test)]
 mod batch_tests {
-    use super::Batch;
+    use super::{event_source, Batch, Limiter, TraceGate};
+    use crate::json::{parse, Json};
+
+    #[test]
+    fn events_over_the_limit_are_counted_and_summarized_once_a_second() {
+        let mut l = Limiter::new(2);
+        l.roll(0);
+        assert!(l.admit("radar-1") && l.admit("radar-1") && !l.admit("radar-1") && !l.admit("radar-1"));
+        assert!(l.admit("adsb"), "each source has its own limit");
+        assert!(l.roll(500).is_empty(), "within the second");
+        assert!(!l.admit("radar-1"));
+        let s = l.roll(1000);
+        assert_eq!(s.len(), 1);
+        assert_eq!(s[0].get("source").and_then(Json::as_str), Some("radar-1"));
+        assert_eq!(s[0].get("count").and_then(Json::as_i64), Some(3));
+        assert!(l.admit("radar-1"), "a new second");
+        assert_eq!(l.total, 3);
+        assert_eq!(event_source(&parse(r#"{"entity":"radar-1/T1"}"#).unwrap()), "radar-1");
+        assert_eq!(event_source(&parse(r#"{"a":"adsb/A7","b":"x/y"}"#).unwrap()), "adsb");
+        assert_eq!(event_source(&parse(r#"{"system":"S1"}"#).unwrap()), "-");
+    }
+
+    #[test]
+    fn the_trace_names_listed_entities_ends_and_has_a_byte_ceiling() {
+        let mut g = TraceGate { entities: vec!["radar-1/T1".into()], end_wall_ms: i64::MAX, max_bytes: 100, window: i64::MIN, bytes: 0, dropped: 0, total_dropped: 0 };
+        assert!(g.wanted(&parse(r#"{"entity":"radar-1/T1"}"#).unwrap()));
+        assert!(g.wanted(&parse(r#"{"a":"adsb/A7","b":"radar-1/T1"}"#).unwrap()));
+        assert!(g.wanted(&parse(r#"{"members":["radar-1/T1"]}"#).unwrap()));
+        assert!(!g.wanted(&parse(r#"{"entity":"adsb/A7"}"#).unwrap()));
+        assert!(g.admit(0, 60) && !g.admit(10, 60) && g.admit(20, 40));
+        assert!(g.admit(1000, 60), "a new second");
+        assert_eq!(g.total_dropped, 1);
+        assert!(g.on());
+        g.end_wall_ms = 0;
+        assert!(!g.on(), "past its end");
+    }
 
     #[test]
     fn a_set_is_published_on_change_or_at_the_heartbeat() {
@@ -1129,7 +1387,7 @@ mod batch_tests {
     #[test]
     fn a_track_keeps_its_number_and_an_ended_track_frees_it() {
         use crate::json::{self, Json};
-        let mut b = Batch { heartbeat_ms: 1000, tracks: None, quality: None, numbers: Default::default(), next_number: 1 };
+        let mut b = Batch { heartbeat_ms: 1000, tracks: None, quality: None, status: None, events: vec![], trace: vec![], limiter: Limiter::new(20), numbers: Default::default(), next_number: 1 };
         let set = |ids: &[&str]| -> Vec<Json> { ids.iter().map(|i| json::parse(&format!("{{\"group\":\"{i}\"}}")).unwrap()).collect() };
         let num = |t: &Json| t.get("track_number").and_then(|v| v.as_i64()).unwrap();
         let mut a = set(&["s1", "s2"]);

@@ -24,7 +24,7 @@
 # (runner/DEPLOY-CONTRACT.md); until then this script is how a site does it.
 set -eu
 
-RELEASE=0.5.0
+RELEASE=0.6.0
 REPO=USAREUR-AF/goat-processors
 WORKFLOW=.github/workflows/runner-release.yml
 ETC=/etc/goat-processors
@@ -171,6 +171,13 @@ elif grep -v '^[[:space:]]*#' "$CONFIG" | grep -q CHANGE-ME; then
   sed -i -e "s/^site: CHANGE-ME/site: $site/" -e "s#tls/CHANGE-ME:7447#tls/$router#" "$CONFIG"
   [ -z "$name" ] || sed -i "s/^name: .*/name: $name/" "$CONFIG"
   ok "site $site, router tls/$router"
+  # The runner publishes under volatile/<peer>/, and the fabric lets it write
+  # only under the name in its certificate: use that name as the peer.
+  cn=$(openssl x509 -in "$tls/runner.pem" -noout -subject -nameopt multiline 2>/dev/null | sed -n 's/^ *commonName *= *//p' | head -n 1)
+  if [ -n "$cn" ] && [ "$cn" != "$site" ]; then
+    sed -i "s|^    # peer: .*|    peer: $cn|" "$CONFIG"
+    ok "output peer $cn (the certificate's name)"
+  fi
 else
   skip "$CONFIG has no CHANGE-ME values left"
 fi

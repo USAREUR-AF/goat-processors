@@ -46,6 +46,9 @@ pub fn run(config_path: &Path) -> Vec<Finding> {
     let c = match config::load(config_path) {
         Ok(c) => {
             out.push(f("config", Level::Ok, format!("{} is valid", config_path.display()), ""));
+            for w in config::warnings(&c) {
+                out.push(f("config", Level::Warn, w, format!("edit {}, then restart the service", config_path.display())));
+            }
             for s in &c.pipeline {
                 out.push(f("pack", Level::Ok, format!("{} pack {} loads from {}", s.function, s.pack, c.pack_dir(s).display()), ""));
             }
@@ -250,7 +253,34 @@ fn fabric_checks(c: &Config) -> Vec<Finding> {
             out.push(f("fabric", Level::Fail, format!("{loc}: no TCP connection within 3 s"), "check that the router runs, that the mesh is up on this host, and that no firewall blocks the port"));
         }
     }
+    out.extend(output_peer_check(c));
     out
+}
+
+/// The output prefix `volatile/<peer>/...` is writable only when `<peer>` is
+/// the identity the fabric grants this runner, which is usually its
+/// certificate's common name. A router drops a write it does not allow
+/// without telling the writer, so say so here.
+fn output_peer_check(c: &Config) -> Option<Finding> {
+    c.outputs.fabric.as_ref()?;
+    let prefix = c.output_prefix();
+    let peer = prefix.strip_prefix("volatile/")?.split('/').next()?.to_string();
+    let certs = c.fabric.as_ref()?.tls.as_ref().and_then(|t| certificates(&t.certificate)).unwrap_or_default();
+    let cn = certs.first().and_then(|d| {
+        let (_, x) = x509_parser::parse_x509_certificate(d.as_ref()).ok()?;
+        let cn = x.subject().iter_common_name().next()?.as_str().ok()?.to_string();
+        Some(cn)
+    });
+    Some(match cn {
+        Some(cn) if cn == peer => f("output prefix", Level::Ok, format!("publishes under {prefix}; the certificate's name is {cn}"), ""),
+        Some(cn) => f(
+            "output prefix",
+            Level::Warn,
+            format!("publishes under {prefix}, but the certificate's name is {cn}: the fabric may grant writes only under volatile/{cn}/**, and drops others without an error"),
+            format!("set outputs.fabric.peer: {cn} (or the identity the fabric's access rules grant this runner), then restart"),
+        ),
+        None => f("output prefix", Level::Ok, format!("publishes under {prefix}"), ""),
+    })
 }
 
 /// Reads the status file the service writes after every tick.
