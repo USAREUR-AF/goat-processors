@@ -51,15 +51,6 @@ TestResult distance(const TestSpec& t, const TestInput& in) {
     return {dist, max_m, dist < max_m, false};
 }
 
-TestResult window(const TestSpec& t, const TestInput& in) {
-    auto ce_of = [&](const Entity& e) { return ce_at(e.last).value_or(in.default_ce_m); };
-    auto clamp = [&](double e) { return std::min(std::max(e, param(t, "err_min_m")), param(t, "err_max_m")); };
-    double dist = distance_of(in);
-    double ea = clamp(ce_of(in.a)), eb = clamp(ce_of(in.b));
-    double limit = param(t, "multiplier") * std::sqrt(ea * ea + eb * eb) + param(t, "window_m");
-    return {dist, limit, dist < limit, false};
-}
-
 // d² of A against B's prediction for comparison, r A's measurement variance
 // on each axis (ce_a² when A's time error is 0).
 TestResult mahalanobis(const TestSpec& t, const TestInput& in) {
@@ -100,6 +91,50 @@ TestResult same(const TestSpec& t, const TestInput& in) {
     return {va ? *va : Json(), vb ? *vb : Json(), pass, false};
 }
 
+// The `state` test's limits (Abramowitz and Stegun 1964, table 26.8):
+// probability, 4 dof, 5 dof.
+struct ChiSquareRow {
+    double probability, dof4, dof5;
+};
+constexpr ChiSquareRow kChiSquare[] = {
+    {0.95, 9.4877, 11.0705},
+    {0.99, 13.2767, 15.0863},
+    {0.995, 14.8603, 16.7496},
+    {0.999, 18.4668, 20.5150},
+};
+
+const ChiSquareRow* chi_square_row(double probability) {
+    for (const ChiSquareRow& row : kChiSquare)
+        if (row.probability == probability) return &row;
+    return nullptr;
+}
+
+// The full-state track-to-track statistic, 4 dof, or 5 with both heights.
+TestResult state(const TestSpec& t, const TestInput& in) {
+    const StateAxis e = state_axis(in.a.filter.east, in.a.timing.east, in.bp.east);
+    const StateAxis n = state_axis(in.a.filter.north, in.a.timing.north, in.bp.north);
+    double v = e.q + n.q;
+    auto ha = number_at(in.a.last, "hae"), hb = number_at(in.b.last, "hae");
+    const ChiSquareRow& row = *chi_square_row(param(t, "probability"));
+    double limit = row.dof4;
+    long long dof = 4;
+    if (ha && hb) {
+        const double dh = *ha - *hb, h = param(t, "hae_sigma_m");
+        v = v + dh * dh / (2 * h * h);
+        limit = row.dof5;
+        dof = 5;
+    }
+    Json extra = Json::make_object();
+    extra["dof"] = dof;
+    return {v, limit, v < limit, false, std::move(extra)};
+}
+
+const char* check_state(const TestSpec& t) {
+    if (!chi_square_row(param(t, "probability"))) return "state probability is 0.95, 0.99, 0.995 or 0.999";
+    if (!(param(t, "hae_sigma_m") > 0)) return "state hae_sigma_m must be above 0";
+    return nullptr;
+}
+
 } // namespace
 
 // ---- The registration point ---------------------------------------------------
@@ -123,12 +158,12 @@ const TestRegistry& builtin_tests() {
     static const TestRegistry registry = [] {
         TestRegistry r;
         r.add({"distance", {"max_m"}, false, distance});
-        r.add({"window", {"multiplier", "window_m", "err_min_m", "err_max_m"}, false, window});
         r.add({"mahalanobis", {"gate"}, false, mahalanobis});
         r.add({"course", {"max_deg", "min_speed_ms"}, false, course});
         r.add({"speed", {"max_pct", "min_speed_ms"}, false, speed});
         r.add({"altitude", {"max_m"}, false, altitude});
         r.add({"same", {"key"}, true, same});
+        r.add({"state", {"probability", "hae_sigma_m"}, false, state, check_state});
         return r;
     }();
     return registry;

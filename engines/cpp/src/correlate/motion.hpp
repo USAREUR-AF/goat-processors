@@ -55,6 +55,24 @@ Filter for_comparison(Filter predicted, const Point& timing);
 // entity's prediction).
 double d2(const Point& z, const Point& r, const Filter& p);
 
+// "Tests", the `state` test, per axis: the difference of A's filter axis
+// `a` (with A's timing variance `ta`) and B's prediction for comparison `b`,
+// and its full-state statistic q. Also one report's evidence of "Sequential
+// test" (Association), which adds `tpp`, `tvv`.
+struct StateAxis {
+    double dp, dv, spp, spv, svv, det, q;
+};
+StateAxis state_axis(const Axis& a, double ta, const Axis& b);
+
+// "Association", Sequential test: one report's evidence for A (filter `a`,
+// timing variance `ta`, last `hae` `ha`) against B's prediction for
+// comparison `bp` (last `hae` `hb`): the increment of L and the record's d2.
+struct SprtEvidence {
+    double increment, d2;
+};
+SprtEvidence sprt_evidence(const Filter& a, const Point& ta, const Filter& bp, const std::optional<double>& ha,
+                           const std::optional<double>& hb, const SprtParams& sp);
+
 // "Tests": d² of A against B's prediction for comparison `bp`.
 inline double d2(const Entity& a, const Filter& bp) { return d2({a.filter.east.p, a.filter.north.p}, a.r, bp); }
 

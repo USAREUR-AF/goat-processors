@@ -128,6 +128,9 @@ Output Engine::ingest(const Json& r) {
         static_cast<Track&>(it->second) = first_track(c.motion_, z, vel, mv.r);
         method_->restarted(key);
     }
+    // correlate.md "Stale time of a source": an accepted report of an entity
+    // that already existed appends its interval to its source's list.
+    if (!first) c.record_interval(source, time_ms - it->second.last_time_ms);
     Entity& a = it->second;
     a.last_time_ms = time_ms;
     a.last = r;

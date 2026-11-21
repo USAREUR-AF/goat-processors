@@ -1,7 +1,10 @@
 # Open points
 
-No vector contradicts correlate.md 0.8 or correlate-assign.md 0.6 as this
-engine reads them, including the new time quality and time offset vectors
+No vector contradicts correlate.md 1.0 or correlate-assign.md 0.7 as this
+engine reads them, including the new `state`, `sprt`, `stale_rate` and
+`output fused` vectors (packs correlate-sprt, correlate-gnn-state and
+correlate-gnn-priority, load vectors 74-90), the packs whose vectors changed
+with the re-derived defaults, the time quality and time offset vectors
 (scenario vectors 54-56, load vectors 61-73) and the earlier `restart`, `bias`
 and `margin` vectors (scenario vectors 45-53, load vectors 43-60). The 0.4/0.2 entries on ties in the least total and on
 where `method` may appear are settled by these versions (Ranking; Pack) and
