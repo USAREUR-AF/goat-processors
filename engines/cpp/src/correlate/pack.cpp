@@ -80,6 +80,8 @@ TestSpec parse_test(int line, const std::vector<std::string>& words, const TestR
             t.num[kv.first] = parse_number(line, kv.second);
         }
     }
+    if (kind->check)
+        if (const char* what = kind->check(t)) fail(line, what);
     return t;
 }
 
@@ -208,14 +210,46 @@ Pack parse_pack_with(const std::string& text, const TestRegistry& tests) {
         } else if (d == "stale_ms") {
             want_args(line, words, 1);
             p.stale_ms = parse_integer(line, words[1]);
+        } else if (d == "stale_rate") {
+            // correlate.md "Pack": exactly factor (above 0), floor_ms and
+            // ceiling_ms (integers, 0 <= floor_ms <= ceiling_ms), samples (an
+            // integer, 1 or above).
+            auto kv = parse_params(line, words, 1, {"factor", "floor_ms", "ceiling_ms", "samples"});
+            StaleRate sr;
+            sr.factor = parse_number(line, kv["factor"]);
+            sr.floor_ms = parse_integer(line, kv["floor_ms"]);
+            sr.ceiling_ms = parse_integer(line, kv["ceiling_ms"]);
+            sr.samples = parse_integer(line, kv["samples"]);
+            if (!(sr.factor > 0)) fail(line, "stale_rate factor must be above 0");
+            if (sr.floor_ms < 0 || sr.floor_ms > sr.ceiling_ms)
+                fail(line, "stale_rate needs 0 <= floor_ms <= ceiling_ms");
+            if (sr.samples < 1) fail(line, "stale_rate samples must be 1 or above");
+            p.stale_rate = sr;
+        } else if (d == "sprt") {
+            // correlate.md "Pack": false and missed above 0 and below 0.5;
+            // pos_m, vel_ms, hae_sigma_m above 0.
+            auto kv = parse_params(line, words, 1, {"false", "missed", "pos_m", "vel_ms", "hae_sigma_m"});
+            SprtParams sp;
+            sp.false_p = parse_number(line, kv["false"]);
+            sp.missed = parse_number(line, kv["missed"]);
+            sp.pos_m = parse_number(line, kv["pos_m"]);
+            sp.vel_ms = parse_number(line, kv["vel_ms"]);
+            sp.hae_sigma_m = parse_number(line, kv["hae_sigma_m"]);
+            if (!(sp.false_p > 0 && sp.false_p < 0.5) || !(sp.missed > 0 && sp.missed < 0.5))
+                fail(line, "sprt false and missed must be above 0 and below 0.5");
+            if (!(sp.pos_m > 0) || !(sp.vel_ms > 0) || !(sp.hae_sigma_m > 0))
+                fail(line, "sprt pos_m, vel_ms and hae_sigma_m must be above 0");
+            p.sprt = sp;
         } else if (d == "same_source") {
             want_args(line, words, 1);
             if (words[1] == "allow") p.same_source_allow = true;
             else if (words[1] != "forbid") fail(line, "same_source is forbid or allow");
         } else if (d == "output") {
             want_args(line, words, 1);
-            if (words[1] == "latest") p.output_latest = true;
-            else if (words[1] != "priority") fail(line, "output is priority or latest");
+            if (words[1] == "fused") p.output = OutputMode::fused;
+            else if (words[1] == "priority") p.output = OutputMode::priority;
+            else if (words[1] == "latest") p.output = OutputMode::latest;
+            else fail(line, "output is fused, priority or latest");
         } else if (d == "priority") {
             want_args(line, words, 2);
             if (!p.priority.emplace(words[1], parse_integer(line, words[2])).second)
@@ -231,6 +265,10 @@ Pack parse_pack_with(const std::string& text, const TestRegistry& tests) {
     for (const char* d : method.refused)
         if (seen.count(d))
             throw PackError(std::string("pack.def: directive ") + d + " is not allowed with method " + method.name);
+    if (method.check) method.check(seen);
+    // Both methods: one of stale_ms and stale_rate, never both.
+    if (seen.count("stale_ms") == seen.count("stale_rate"))
+        throw PackError("pack.def: one of stale_ms and stale_rate is required, never both");
     // correlate.md "Pack": checked once the whole file is read.
     if (p.maneuver && !(p.maneuver->accel_var > p.filter.accel_var))
         throw PackError("pack.def: maneuver accel_var must be above filter accel_var");

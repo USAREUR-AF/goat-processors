@@ -1,4 +1,4 @@
-// Method assign: spec/correlate-assign.md, version 0.6: "Assignment of one
+// Method assign: spec/correlate-assign.md, version 0.7: "Assignment of one
 // source", "Window", "Snapshot". Section names in comments are
 // that document's unless they name correlate.md.
 
@@ -367,6 +367,7 @@ Json AssignMethod::snapshot() const {
     Json reported = Json::make_array();
     for (const auto& key : reported_) reported.push(key);   // std::set: key order
     s["reported"] = reported;
+    if (pack_.stale_rate) s["intervals"] = core_.intervals_json();   // correlate.md "Snapshot"
     if (pack_.restart_gate) {
         Json restarted = Json::make_array();
         for (const auto& key : restarted_) restarted.push(key);

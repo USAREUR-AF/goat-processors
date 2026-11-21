@@ -100,16 +100,43 @@ TEST(correlate, test_kinds) {
     CHECK(run("same key=@env", a, b).pass);
     CHECK(run("same key=nothing", a, b).pass);
     CHECK(!run("same key=course", a, b).pass);
-    CHECK(run("window multiplier=3 window_m=10 err_min_m=5 err_max_m=100", a, b).pass);
+    // state: q per axis with the velocity terms (both 0 here), 5 dof with heights.
+    cc::TestResult st = run("state probability=0.99 hae_sigma_m=100", a, b);
+    CHECK_EQ(st.value.number, 30.0 * 30 / 200.0 + 40.0 * 40 / 200.0 + 200.0 * 200 / (2 * 100.0 * 100));   // spp = 100 + 0 + 100
+    CHECK_EQ(st.limit.number, 15.0863);
+    CHECK_EQ(st.extra.find("dof")->integer, 5LL);
+    CHECK(st.pass);
     cc::Entity bare = entity("t/c", 1, 1);
     CHECK(run("altitude max_m=1", a, bare).skipped);
     CHECK(run("speed max_pct=1 min_speed_ms=1", a, bare).skipped);
+    cc::TestResult st4 = run("state probability=0.95 hae_sigma_m=100", a, bare);
+    CHECK_EQ(st4.limit.number, 9.4877);
+    CHECK_EQ(st4.extra.find("dof")->integer, 4LL);
+}
+
+TEST(correlate, state_axis_and_sprt_evidence) {
+    corr::Axis a{10, 2, 4, 1, 3}, b{4, -1, 5, 2, 6};
+    cc::StateAxis s = cc::state_axis(a, 1, b);
+    CHECK_EQ(s.spp, 10.0);
+    CHECK_EQ(s.spv, 3.0);
+    CHECK_EQ(s.svv, 9.0);
+    CHECK_EQ(s.det, 81.0);
+    CHECK_EQ(s.q, (9.0 * 36 - 2 * 3.0 * 6 * 3 + 10.0 * 9) / 81);
+    corr::Filter fa{a, a}, fb{b, b};
+    cc::SprtParams sp{0.01, 0.01, 100, 10, 50};
+    cc::SprtEvidence e = cc::sprt_evidence(fa, {1, 1}, fb, std::nullopt, 3.0, sp);
+    CHECK_EQ(e.d2, s.q + s.q);
+    cc::SprtEvidence h = cc::sprt_evidence(fa, {1, 1}, fb, 100.0, 0.0, sp);
+    CHECK_EQ(h.d2, s.q + s.q + 100.0 * 100 / 5000);
+    CHECK(h.increment != e.increment);
 }
 
 TEST(correlate, test_registry) {
     const cc::TestRegistry& r = cc::builtin_tests();
-    for (const char* name : {"distance", "window", "mahalanobis", "course", "speed", "altitude", "same"})
+    for (const char* name : {"distance", "mahalanobis", "course", "speed", "altitude", "same", "state"})
         CHECK(r.find(name) && r.find(name)->run);
+    CHECK(r.find("window") == nullptr);   // retired in correlate.md 1.0
+    CHECK(r.find("state")->check != nullptr);
     CHECK(r.find("spin") == nullptr);
     cc::TestRegistry copy = r;
     copy.add({"distance", {"limit"}, false, nullptr});   // replaces
@@ -132,12 +159,38 @@ TEST(correlate, pack_errors) {
           "pack q\n", "colour red\n", "maneuver accel_var=0.5 p_enter=0.1 p_leave=0.1\n",
           "maneuver accel_var=5 p_enter=0.6 p_leave=0.5\n", "restart gate=0\n", "new_cost 1\n", "priority a\n",
           "priority a 1\npriority a 2\n", "same_source maybe\n", "output first\n", "confirm_count 1.5\n",
-          "confirm_count +\n", "stale_ms 1 2\n", "time_default a error_ms=x\n"})
+          "confirm_count +\n", "stale_ms 1 2\n", "time_default a error_ms=x\n",
+          "gate window multiplier=1 window_m=900 err_min_m=100 err_max_m=5000\n",
+          "gate state probability=0.9 hae_sigma_m=100\n", "gate state probability=0.99 hae_sigma_m=0\n",
+          "stale_rate factor=5 floor_ms=1 ceiling_ms=2 samples=3\n", "sprt false=0.01 missed=0.01 pos_m=1 vel_ms=1 hae_sigma_m=1\n"})
         CHECK_THROWS(corr::PackError, cc::parse_pack(kConfirm + extra));
+    // sprt replaces confirm_count, hold_failures and hold; stale_rate replaces stale_ms.
+    const std::string base = "pack p\nversion 1\nfilter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\n";
+    const std::string sprt = "sprt false=0.01 missed=0.02 pos_m=1 vel_ms=1 hae_sigma_m=1\n";
+    const std::string rate = "stale_rate factor=5 floor_ms=1 ceiling_ms=2 samples=3\n";
+    cc::Pack sp = cc::parse_pack(base + sprt + rate + "output latest\n");
+    CHECK(sp.sprt && sp.sprt->missed == 0.02 && sp.stale_rate && sp.stale_rate->samples == 3);
+    CHECK(sp.output == cc::OutputMode::latest);
+    CHECK(cc::parse_pack(kConfirm).output == cc::OutputMode::fused);
+    CHECK(cc::parse_pack(kConfirm + "output priority\n").output == cc::OutputMode::priority);
+    CHECK(cc::parse_pack(kConfirm + "output fused\n").output == cc::OutputMode::fused);
+    for (const std::string& text :
+         {base + sprt + rate + "confirm_count 1\n", base + sprt + rate + "hold_failures 1\n",
+          base + sprt + rate + "hold distance max_m=1\n", base + "confirm_count 1\nhold_failures 1\n",
+          base + "confirm_count 1\n" + rate, base + sprt,
+          base + "sprt false=0.5 missed=0.01 pos_m=1 vel_ms=1 hae_sigma_m=1\n" + rate,
+          base + "sprt false=0.01 missed=0.01 pos_m=0 vel_ms=1 hae_sigma_m=1\n" + rate,
+          base + sprt + "stale_rate factor=0 floor_ms=1 ceiling_ms=2 samples=3\n",
+          base + sprt + "stale_rate factor=1 floor_ms=3 ceiling_ms=2 samples=3\n",
+          base + sprt + "stale_rate factor=1 floor_ms=1 ceiling_ms=2 samples=0\n",
+          base + sprt + "stale_rate factor=1 floor_ms=-1 ceiling_ms=2 samples=1\n"})
+        CHECK_THROWS(corr::PackError, cc::parse_pack(text));
     for (const char* extra : {"window 0\n", "hypotheses 2\n", "window 2\nmargin 1\n", "margin 0\n",
                               "time_offset sigma_ms=10\n", "bias sigma_m=1 floor_m=2 gate=1\n",
                               "bias sigma_m=0 floor_m=0 gate=1\n", "time_offset sigma_ms=0\n", "keep_bonus -1\n",
-                              "new_cost 0\n", "hold_failures 1\n", "window x\n"})
+                              "new_cost 0\n", "hold_failures 1\n", "window x\n",
+                              "sprt false=0.01 missed=0.01 pos_m=1 vel_ms=1 hae_sigma_m=1\n",
+                              "stale_rate factor=5 floor_ms=1 ceiling_ms=2 samples=3\n"})
         CHECK_THROWS(corr::PackError, cc::parse_pack(kAssign + extra));
     CHECK_THROWS(corr::PackError, cc::parse_pack("pack p\n"));
     cc::Pack ok = cc::parse_pack(kAssign + "window 2\nhypotheses 2\nmargin 1.5e0\nbias sigma_m=300 floor_m=10 gate=13.8\n"
@@ -188,4 +241,92 @@ TEST(correlate, engine_restart_and_time_record) {
         restart = restart || (rec.find("test")->string == "restart" && !rec.find("pass")->boolean);
     CHECK(restart);
     CHECK_EQ(e.snapshot().find("restarted")->array.size(), size_t{1});
+}
+
+TEST(correlate, engine_fused_output_modes) {
+    // Two members, one 10 m north of the other with the same variance: the
+    // fused output is midway; priority and latest give one member.
+    const std::string g = "gate distance max_m=1000\n";
+    for (const char* mode : {"", "output priority\npriority t 1\n", "output latest\n"}) {
+        cc::Engine e(cc::parse_pack(kConfirm + g + mode));
+        Json a = support::report("s", "a", 0, 0, 0);
+        a["hae"] = 100;
+        e.ingest(a);
+        e.ingest(support::report("t", "b", 0, 0.0001, 0));
+        corr::Output o = e.tick(0);
+        const Json& ev = o.events.array[0];
+        if (std::string(mode).empty()) {
+            CHECK(ev.find("primary")->is_null());
+            CHECK(std::abs(ev.find("lat")->number - 0.00005) < 1e-12);
+            CHECK_EQ(ev.find("hae")->number, 100.0);
+        } else {
+            CHECK_EQ(ev.find("primary")->string, std::string(std::string(mode).find("latest") != std::string::npos
+                                                                 ? "s/a" : "t/b"));
+        }
+    }
+}
+
+TEST(correlate, engine_sprt_confirms_and_releases) {
+    const std::string pack =
+        "pack p\nversion 1\nfilter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\n"
+        "gate distance max_m=1000\ngate same key=k\n"
+        "sprt false=0.01 missed=0.01 pos_m=10000 vel_ms=300 hae_sigma_m=100\n"
+        "stale_rate factor=2 floor_ms=1000 ceiling_ms=10000 samples=2\n";
+    cc::Engine e(cc::parse_pack(pack));
+    Json a = support::report("s", "a", 0, 0, 0), b = support::report("t", "b", 0, 0, 0.0001);
+    a["k"] = 1;
+    b["k"] = 1;
+    e.ingest(a);
+    corr::Output o = e.ingest(b);
+    CHECK_EQ(o.events.array.back().find("ev")->string, std::string("correlate"));
+    CHECK_EQ(e.snapshot().find("llr")->object.size(), size_t{1});
+    // A report whose `same` key differs forces the link pair to lo: released.
+    Json a2 = support::report("s", "a", 1000, 0, 0);
+    a2["k"] = 2;
+    o = e.ingest(a2);
+    CHECK_EQ(o.events.array[0].find("reason")->string, std::string("release"));
+    CHECK(o.trace.array.back().find("increment")->is_null());
+    CHECK(e.snapshot().find("llr")->object.empty());
+    CHECK_EQ(e.snapshot().find("intervals")->find("s")->array[0].integer, 1000LL);
+    // A pair with an L whose gate fails is updated (forced when `same` fails).
+    Json a3 = support::report("s", "a", 2000, 0, 0);
+    a3["k"] = 1;
+    e.ingest(a3);   // ungrouped: the pair starts again and correlates
+    Json b3 = support::report("t", "b", 2000, 0.5, 0);   // far: the distance gate fails
+    b3["k"] = 1;
+    o = e.ingest(b3);
+    bool sprt = false;
+    for (const Json& rec : o.trace.array) sprt = sprt || rec.find("stage")->string == "sprt";
+    CHECK(sprt);
+    // Stale after factor times the lower median, within floor and ceiling.
+    o = e.tick(2000 + 2001);
+    bool dropped = false;
+    for (const Json& ev : o.events.array) dropped = dropped || ev.find("ev")->string == "drop";
+    CHECK(dropped);
+}
+
+TEST(correlate, engine_sprt_associate_paths) {
+    const std::string pack =
+        "pack p\nversion 1\nfilter accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100\n"
+        "gate distance max_m=1000\ngate same key=k\n"
+        "sprt false=0.01 missed=0.01 pos_m=10000 vel_ms=300 hae_sigma_m=100\nstale_ms 100000\n";
+    cc::Engine e(cc::parse_pack(pack));
+    Json a = support::report("s", "a", 0, 0, 0), b = support::report("t", "b", 0, 0, 0.0001);
+    a["k"] = 1;
+    b["k"] = 2;   // the `same` gate fails, the pair has no L: nothing
+    e.ingest(a);
+    corr::Output o = e.ingest(b);
+    CHECK(e.snapshot().find("llr")->object.empty());
+    CHECK_EQ(o.events.array.size(), size_t{1});
+    // A third entity correlates with a; then b, ungrouped, is no candidate
+    // of a group holding source s? (b is source t: group {a, c} holds s and u.)
+    Json c = support::report("u", "c", 0, 0, 0.00005);
+    c["k"] = 1;
+    o = e.ingest(c);
+    CHECK_EQ(o.events.array.back().find("ev")->string, std::string("correlate"));
+    // Out of the gate with an L, `same` passing: the pair adds its evidence.
+    Json c2 = support::report("u", "c", 1000, 0.05, 0);
+    c2["k"] = 1;
+    o = e.ingest(c2);   // c is in the group: only the link pair (with a) is updated
+    CHECK(!o.trace.array.empty());
 }
