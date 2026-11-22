@@ -47,7 +47,7 @@ output         priority</pre>
         <a class="btn" href="#start">Quick start</a>
         <a class="btn" href="https://github.com/USAREUR-AF/goat-processors/tree/main/spec">Specifications</a>
       </div>
-      <div class="cmd"><pre><span class="dollar">$ </span><code id="c-start">cd engines/python &amp;&amp; PYTHONPATH=src python3 -m unittest discover -s tests</code></pre><button class="copy" type="button" data-copy="c-start">Copy</button></div>
+      <div class="cmd"><pre data-box="command"><span class="ln"><span class="dollar">$ </span><code id="c-start">cd <span class="w">engines/python</span> &amp;&amp; PYTHONPATH=src python3 <span class="w">-m</span> unittest discover <span class="w">-s</span> tests</code></span></pre><button class="copy" type="button" data-copy="c-start">Copy</button></div>
     </div>
 
     <div class="scope" role="img" aria-label="A replay of test vector 04-separation-dissolves from pack correlate-gnn: radar-1/T1 and adsb/A7 report the same aircraft 10 meters apart, pass the gate on two reports in a row and are grouped as g1; then adsb/A7 turns north, fails the hold test twice (391 and 1874 against a limit of 18.42) and the group dissolves.">
@@ -99,12 +99,12 @@ confirm count        2       limit 2      <span class="pass">pass</span>
     <div>
       <h2>Every decision is in the trace</h2>
       <p>Each test is one record: what it compared, the value it computed, the limit and the result. This is step 3 of <a href="https://github.com/USAREUR-AF/goat-processors/blob/main/packs/correlate-gnn/vectors/04-separation-dissolves.json"><code>04-separation-dissolves.json</code></a>, copied from the vector:</p>
-      <pre class="json">{"stage": "gate", "a": "radar-1/T1", "b": "adsb/A7",
- "test": "mahalanobis", "value": 0.10957452680004903,
- "limit": 9.21, "pass": true}</pre>
+      <pre class="json" style="--hang:2ch" data-box="output"><span class="ln">{"stage": "gate", "a": <span class="w">"radar-1/T1",</span> "b": <span class="w">"adsb/A7",</span>
+</span><span class="ln"> "test": "mahalanobis", "value": 0.10957452680004903,
+</span><span class="ln"> "limit": 9.21, "pass": true}</span></pre>
       <p>The value is the squared distance between the two tracks in units of their combined uncertainty. The limit is the pack line <code>gate mahalanobis gate=9.21</code>. Open any vector in the replay viewer, a single HTML page that works offline:</p>
-      <pre class="block">python3 -I tools/explain/explain.py \
-  packs/correlate-gnn/vectors/04-separation-dissolves.json</pre>
+      <pre class="block" data-box="command"><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/explain/explain.py</span> \
+</span><span class="ln" style="padding-left:4ch;text-indent:-4ch">  <span class="w">packs/correlate-gnn/vectors/04-separation-dissolves.json</span></span></pre>
     </div>
     <figure>
       <picture>
@@ -150,8 +150,8 @@ confirm count        2       limit 2      <span class="pass">pass</span>
       <h2>Scored against ground truth</h2>
       <p>The correlate packs run on generated scenarios: crossing, formation, splitting and turning objects; sensors with bias, latency, low detection, track number swaps and false tracks; sensors whose clocks are offset or drifting. F1 runs from 0 to 1 and scores whether the output puts two tracks together exactly when they are one object. GOSPA is a mean position error that also charges missed and false tracks.</p>
       <p>The default pack, <code>assign-time</code>, on the 500 random scenarios of the evaluation set, which no pack is tuned on: F1 <span class="num" data-measure="f1-random">0.934 (0.921 to 0.947)</span>, equal within the 95&nbsp;% interval to <span data-measure="f1-ties">window and assign-full</span>; GOSPA <span class="num" data-measure="gospa-random">268</span> m.</p>
-      <pre class="block">python3 -I tools/bench/bench.py check   # docs/benchmark.md is current
-python3 -I tools/bench/bench.py report  # rewrite it</pre>
+      <pre class="block" data-box="command"><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/bench/bench.py</span> check   # <span class="w">docs/benchmark.md</span> is current
+</span><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/bench/bench.py</span> report  # rewrite it</span></pre>
       <p><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/docs/benchmark.md">Every score and its formula</a></p>
     </div>
     <figure>
@@ -183,14 +183,14 @@ python3 -I tools/bench/bench.py report  # rewrite it</pre>
   <div class="wrap">
     <h2>Quick start</h2>
     <p class="sub">Each engine and tool uses only its language's standard library.</p>
-    <pre class="block">git clone https://github.com/USAREUR-AF/goat-processors
-cd goat-processors
-
-# run every vector in one language
-cd engines/python &amp;&amp; PYTHONPATH=src python3 -m unittest discover -s tests &amp;&amp; cd ../..
-
-# replay every vector, with an index page
-python3 -I tools/explain/explain.py --all build/explain</pre>
+    <pre class="block" data-box="command"><span class="ln">git clone <span class="w">https://github.com/USAREUR-AF/goat-processors</span>
+</span><span class="ln">cd <span class="w">goat-processors</span>
+</span><span class="ln">
+</span><span class="ln"># run every vector in one language
+</span><span class="ln">cd <span class="w">engines/python</span> &amp;&amp; PYTHONPATH=src python3 <span class="w">-m</span> unittest discover <span class="w">-s</span> tests &amp;&amp; cd <span class="w">../..</span>
+</span><span class="ln">
+</span><span class="ln"># replay every vector, with an index page
+</span><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/explain/explain.py</span> <span class="w">--all</span> <span class="w">build/explain</span></span></pre>
     <p><a href="https://github.com/USAREUR-AF/goat-processors#readme">README</a> &middot; <a href="https://github.com/USAREUR-AF/goat-processors/blob/main/CONTRIBUTING.md">Add a function, a pack or an engine</a> &middot; <a href="https://github.com/USAREUR-AF/goat-processors/blob/main/spec/vector-format.md">Vector format</a></p>
   </div>
 </section>
