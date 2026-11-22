@@ -10,12 +10,15 @@
    row, from the tree, and fails if site/index.html states anything else.
 3. Checks each agent interface status on the page (data-status) against
    tools/readme/agentic.json, the file the README's agent section is written from.
+4. Runs site/fitcheck.py: in headless Chrome at 1440 and 390 px, no command box
+   is cut off, and no output box at 1440 px.
 """
 import glob
 import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -123,7 +126,8 @@ def main():
     if bad:
         return 1
     print("site: numbers match the tree:", ", ".join(f"{k}={v}" for k, v in measured.items()))
-    return 0
+    fit = os.path.join(SITE, "fitcheck.py")
+    return subprocess.run([sys.executable, "-I", fit, SITE, "index.html"]).returncode
 
 
 if __name__ == "__main__":
