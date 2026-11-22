@@ -16,6 +16,7 @@ Usage: fitcheck.py <root-dir> <page> [<page> ...]
   PATH, else the macOS application. With no Chrome the check fails under CI
   (the CI variable is set) and is skipped with a notice otherwise.
 """
+
 import functools
 import http.server
 import json
@@ -26,12 +27,13 @@ import subprocess
 import sys
 import tempfile
 import threading
+from typing import ClassVar
 
 WIDTHS = (1440, 390)
 
 HARNESS = """<!doctype html><meta charset="utf-8"><title>fitcheck</title>
 <body style="margin:0"><pre id="fit-result">pending</pre><script>
-const page = %(page)s, widths = %(widths)s, out = [];
+const page = __PAGE__, widths = __WIDTHS__, out = [];
 function measure(doc, w) {
   const bad = [];
   const label = el => el.textContent.trim().replace(/\\s+/g, ' ').slice(0, 80);
@@ -46,12 +48,16 @@ function measure(doc, w) {
     if (seen.has(box)) continue;
     seen.add(box);
     const kind = box.dataset.box;
-    if (kind !== 'command' && kind !== 'output') { bad.push('data-box="' + kind + '" is not command or output'); continue; }
+    if (kind !== 'command' && kind !== 'output') {
+      bad.push('data-box="' + kind + '" is not command or output');
+      continue;
+    }
     if (kind === 'output' && w < 1440) continue;
     for (const e of [box, ...box.querySelectorAll('pre')]) {
       if (e.offsetParent === null) continue;
       if (e.scrollWidth > e.clientWidth + 1) {
-        bad.push(kind + ' box cut off at ' + w + ' px (' + e.scrollWidth + ' > ' + e.clientWidth + '): "' + label(box) + '"');
+        const size = ' px (' + e.scrollWidth + ' > ' + e.clientWidth + '): "';
+        bad.push(kind + ' box cut off at ' + w + size + label(box) + '"');
         break;
       }
     }
@@ -86,7 +92,7 @@ def find_chrome():
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
-    harness = {}
+    harness: ClassVar[dict] = {}
 
     def do_GET(self):
         body = self.harness.get(self.path.split("?")[0])
@@ -119,29 +125,38 @@ def check(root, pages):
     try:
         for n, page in enumerate(pages):
             url = "/" + page.lstrip("/")
-            Handler.harness["/__fitcheck_%d__.html" % n] = HARNESS % {
-                "page": json.dumps(url), "widths": json.dumps(list(WIDTHS))}
+            harness = HARNESS.replace("__PAGE__", json.dumps(url)).replace("__WIDTHS__", json.dumps(list(WIDTHS)))
+            Handler.harness[f"/__fitcheck_{n}__.html"] = harness
             with tempfile.TemporaryDirectory() as prof:
-                cmd = [chrome, "--headless", "--disable-gpu", "--no-sandbox", "--no-first-run",
-                       "--hide-scrollbars", "--user-data-dir=" + prof, "--window-size=1500,1000",
-                       "--virtual-time-budget=15000", "--dump-dom",
-                       "http://127.0.0.1:%d/__fitcheck_%d__.html" % (port, n)]
-                dom = subprocess.run(cmd, capture_output=True, text=True, timeout=180).stdout
+                cmd = [
+                    chrome,
+                    "--headless",
+                    "--disable-gpu",
+                    "--no-sandbox",
+                    "--no-first-run",
+                    "--hide-scrollbars",
+                    "--user-data-dir=" + prof,
+                    "--window-size=1500,1000",
+                    "--virtual-time-budget=15000",
+                    "--dump-dom",
+                    f"http://127.0.0.1:{port}/__fitcheck_{n}__.html",
+                ]
+                dom = subprocess.run(cmd, capture_output=True, text=True, timeout=180).stdout  # noqa: S603
             m = re.search(r'<pre id="fit-result">(.*?)</pre>', dom, re.S)
             raw = m.group(1) if m else ""
             raw = raw.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&amp;", "&")
             try:
                 results = json.loads(raw)
             except ValueError:
-                print("fitcheck: %s: Chrome returned no result" % page, file=sys.stderr)
+                print(f"fitcheck: {page}: Chrome returned no result", file=sys.stderr)
                 failures += 1
                 continue
             for r in results:
                 for b in r["bad"]:
-                    print("fitcheck: %s @%d: %s" % (page, r["width"], b), file=sys.stderr)
+                    print(f"fitcheck: {page} @{r['width']}: {b}", file=sys.stderr)
                     failures += 1
             if all(not r["bad"] for r in results):
-                print("fitcheck: %s: every box fits at %s px" % (page, " and ".join(map(str, WIDTHS))))
+                print(f"fitcheck: {page}: every box fits at {' and '.join(map(str, WIDTHS))} px")
     finally:
         srv.shutdown()
     return 1 if failures else 0
