@@ -114,8 +114,11 @@ outputs:
     trace: false
   file:
     path: /var/lib/goat-processors/out.jsonl
+    max_mb: 64
 api:
   listen: "127.0.0.1:$API_PORT"
+  audit_max_mb: 64
+  audit_keep: 9
 EOF
 chmod 0644 "$work/etc/runner.yaml"
 docker volume create ci-ctr-state >/dev/null

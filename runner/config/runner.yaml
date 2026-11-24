@@ -49,3 +49,12 @@ outputs:
   fabric:
     # peer: site-a-processors-1
     trace: false
+
+# The API (README.md, "The API, and who may use it") writes every change and
+# every refused request to its audit log, one line of about 200 bytes each.
+# Past audit_max_mb MiB the log is renamed and a new one starts; audit_keep
+# older copies are kept: 10 files of 64 MiB, about three million lines.
+# Without a limit, config check warns.
+api:
+  audit_max_mb: 64
+  audit_keep: 9

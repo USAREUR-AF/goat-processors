@@ -153,17 +153,17 @@ exits 1. The service runs the same check before it starts.
 | `outputs.fabric.trace_max_bytes_per_s` | no | `65536` | the most trace bytes in one second; records past it are counted and left out |
 | `outputs.fabric.layout` | no | `batch` | `batch`: the five fixed keys (Operate, "What the runner publishes"). `per-entity`: the default layout before 0.6.0, one key per system track, per quality subject and per function; `config check` warns, and 0.7.0 removes it (Operate, "Moving from the layout before 0.6.0") |
 | `outputs.file.path` | no | | append one JSON line per stage per step; must be under `/var/lib/goat-processors` |
-| `outputs.file.trace` | no | `false` | include the trace in those lines |
-| `outputs.file.max_mb` | no | no limit | size limit in MiB: past it the file is renamed `<path>.1` (an older `.1` becomes `.2`, and so on) and a new file starts; a line is never split |
+| `outputs.file.trace` | no | `false` | include the trace in those lines. `config check` warns: correlate's tick returns hundreds of thousands of records from about 200 objects |
+| `outputs.file.max_mb` | no | no limit (`config check` warns) | size limit in MiB: past it the file is renamed `<path>.1` (an older `.1` becomes `.2`, and so on) and a new file starts; a line is never split |
 | `outputs.file.keep` | no | `1` | how many older copies to keep, 0 to 9; the oldest is removed |
 | `record.path` | no | | append every ingest and tick (replay format); under `/var/lib/goat-processors` |
-| `record.max_mb`, `record.keep` | no | no limit, `1` | as for `outputs.file`. A replay of a rotated record starts from that file's first line, so keep enough copies to cover the time you may need to replay |
+| `record.max_mb`, `record.keep` | no | no limit (`config check` warns), `1` | as for `outputs.file`. A replay of a rotated record starts from that file's first line, so keep enough copies to cover the time you may need to replay |
 | `status_file` | no | `/run/goat-processors/status.json` | the status the service writes after each tick, read by `doctor` |
 | `api.enabled` | no | `true` | serve the API |
 | `api.listen` | no | `127.0.0.1:8470` | the local listener; a loopback address only (it is plain HTTP) |
 | `api.token_file` | no | `/run/goat-processors/api.token` | the token a local caller shows to change anything; the service writes a new one at each start, readable by root only |
 | `api.audit_file` | no | `/var/lib/goat-processors/audit.jsonl` | every change and every refused request, one JSON line each |
-| `api.audit_max_mb`, `api.audit_keep` | no | no limit, `1` | as for `outputs.file`. `goat-processors audit` reads the current file only |
+| `api.audit_max_mb`, `api.audit_keep` | no | no limit, `1`; the shipped config sets `64` and `9` | as for `outputs.file`. With the API on and no `audit_max_mb`, `config check` warns. `goat-processors audit` reads the current file only |
 | `api.mesh.listen` | no | | `<ip>:<port>` for callers on other hosts, over mutual TLS |
 | `api.metrics_listen` | no | off | `<mesh ip>:<port>` that serves only `GET /metrics` (the Prometheus text), plain HTTP with no caller check, for an obs host's scraper. `config check` refuses an address that listens on every interface |
 | `api.mesh.tls` | no | the `fabric.tls` files | `root_ca` (signs callers' certificates), `certificate`, `private_key` |
@@ -337,9 +337,9 @@ the fabric or a file only when a setting asks for it, within bounds.
 | Fabric: `status` | on; every `heartbeat_ms` | one key, one small value |
 | Fabric: `trace` | **off** | when on: `trace_for_s` (600 s, then off), `trace_entities`, `trace_max_bytes_per_s` (64 KiB/s) |
 | Local store for `explain`, `why`, the page | on, in memory | the trace records of the latest steps, 200 000 records in all. A step that returns more keeps its first 200 000 and the rest are counted in `counters.trace_not_kept` (below: what that means for `explain` at large N) |
-| `outputs.file` | off in the shipped config; when on, events only | `max_mb` and `keep` (rotation); no limit unless set |
-| `record` | off in the shipped config | `max_mb` and `keep`; a rotated record replays from its own first line |
-| Audit log | on | `api.audit_max_mb`, `api.audit_keep` |
+| `outputs.file` | off in the shipped config; when on, events only | `max_mb` and `keep` (rotation); no limit unless set, and `config check` warns |
+| `record` | off in the shipped config | `max_mb` and `keep`; a rotated record replays from its own first line; `config check` warns without `max_mb` |
+| Audit log | on | `api.audit_max_mb`, `api.audit_keep`: 64 MiB and 9 older copies in the shipped config; `config check` warns without a limit |
 | API and MCP replies | on request | `tracks` and `view`: the latest tick; `explain`: one track, at most 1000 events and 1000 trace records; `why`: 200 records to the model; `audit`: `limit` (100, at most 10 000); request bodies 16 MiB; 16 connections at once on the local listener, 32 on the mesh, 4 on metrics |
 | Log | the journal | one line per change, refusal or input problem (unreadable input: the first 10, then every 1000th), never one per report |
 
@@ -474,10 +474,14 @@ table above). The page holds no authority of its own:
 | `https://<mesh address>:<port>/ui` (`api.mesh.listen`), with your client certificate installed in the browser | your certificate's name | what `api.mesh.allow` gives that name. `operate` turns the change buttons on |
 
 To let a person change the runner from a browser, give the API a mesh
-listener and allow their certificate (the keys are in Configure, above):
+listener and allow their certificate (the keys are in Configure, above). Add
+the keys under the config's `api:` section; the shipped config already has
+one, with the audit log's limit, and a second `api:` line is an error:
 
 ```yaml
 api:
+  audit_max_mb: 64
+  audit_keep: 9
   listen: "127.0.0.1:8470"
   mesh:
     listen: "<this host's mesh address>:8471"
@@ -644,7 +648,7 @@ each FAIL is followed by its fix. Doctor changes nothing.
 | `certificates: api.mesh.crl` FAIL: does not read | the file is missing or is not a PEM revocation list; the service keeps the list it last read (at start, it does not start) | copy the CA's current list there |
 | `certificates: api.mesh.crl` warn: past its next update | the list still applies, but the CA has likely issued a newer one | copy the CA's current list there |
 | `output prefix` FAIL or warn: the certificate's name is ... | the runner publishes under `volatile/<peer>/...`, but its certificate names another peer; a router that grants writes only under `volatile/<certificate name>/**` drops the runner's output without an error, and readers see nothing | FAIL when neither `peer` nor `prefix` is set (typically a config kept from 0.5.0), warn when either is set by hand. Add `peer: <certificate name>` under `outputs:` / `  fabric:` (or the identity the fabric grants), then `sudo systemctl restart goat-processors`. The service writes the same line to its log at start |
-| `config` warn: layout per-entity, or a prefix not under volatile/, or the whole trace | a valid setting that breaks goat's fabric rules or publishes much more than needed; the line says which | as the line says; README.md, Configure |
+| `config` warn: layout per-entity, a prefix not under volatile/, the whole trace, a file with no `max_mb` (`outputs.file`, `record`, the audit log), or `outputs.file.trace` | a valid setting that breaks goat's fabric rules, publishes much more than needed, or lets a file grow until the disk is full; the line says which | as the line says; README.md, Configure |
 | `files` warn: a file has no size limit | an output, record or audit file without `max_mb` has passed 1 GiB | set its `max_mb` and `keep` in the config, then `sudo systemctl restart goat-processors` |
 | `files` warn: the disk is 90% full or more | the disk holding a file the service writes is nearly full; when it is full, writes fail (`output_errors`) | free space there, or set `max_mb` on the files |
 | `api` FAIL: the API does not answer | the service is not running, or failed to open its API port | `sudo journalctl -u goat-processors -n 50`; another program may hold port 8470 (`api.listen`) |
