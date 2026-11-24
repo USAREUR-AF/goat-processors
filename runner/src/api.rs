@@ -61,6 +61,9 @@ pub enum Ask {
 pub struct Page {
     pub limit: usize,
     pub after: Option<String>,
+    /// The tick (`now_ms`) the first page came from: a later page is served
+    /// only while that is still the latest tick, so the pages are one list.
+    pub at: Option<i64>,
 }
 
 /// Items a list route returns when the caller does not say, and the most it
@@ -79,7 +82,11 @@ impl Page {
                 _ => return Err(format!("limit {v:?} is not a number of 1 or more")),
             },
         };
-        Ok(Page { limit, after: q.get("after").filter(|a| !a.is_empty()).cloned() })
+        let at = match q.get("at") {
+            None => None,
+            Some(v) => Some(v.parse::<i64>().map_err(|_| format!("at {v:?} is not a now_ms (a number)"))?),
+        };
+        Ok(Page { limit, after: q.get("after").filter(|a| !a.is_empty()).cloned(), at })
     }
 
     /// The items of this page from a list in key order, and the key to ask
@@ -126,7 +133,7 @@ pub const ROUTES: &[(&str, &str, Role, &str)] = &[
     ("POST", "/v1/start", Role::Operate, "resume after a stop"),
     ("GET", "/v1/metrics", Role::Read, "reports per second, processing latency, counts per source"),
     ("GET", "/v1/metrics/prometheus", Role::Read, "the metrics in the Prometheus text format: reports per source, system tracks, multi-source tracks, events, quality per source, latency"),
-    ("GET", "/v1/tracks", Role::Read, "the system tracks of the latest tick, in id order; query limit (default 1000, at most 10000) and after (the next of the previous page)"),
+    ("GET", "/v1/tracks", Role::Read, "the system tracks of the latest tick, in byte order of the id; query limit (default 1000, at most 10000), after (the next of the previous page) and at (the first page's now_ms; 409 when a newer tick has replaced it)"),
     ("GET", "/v1/explain/{track}", Role::Read, "the events and trace records behind one system track"),
     ("POST", "/v1/replay", Role::Read, "run a replay file (the body) through a separate copy of the pipeline"),
     ("GET", "/v1/audit", Role::Operate, "the latest audit lines; query limit (default 100)"),
@@ -401,6 +408,13 @@ impl Server {
     /// the caller's rate limit first, then `handle`. (A tool an MCP call runs
     /// is not counted again: it goes to `handle`.)
     pub fn handle_http(&self, req: &Request, who: Identity) -> Response {
+        // The limit is for the mesh: a program on this host shares the
+        // runner's own machine and cannot reach the fabric through it, and
+        // every local request without the token is one caller, so a busy
+        // local script would otherwise lock out the operator's own commands.
+        if who.via != "mesh" {
+            return self.handle(req, who);
+        }
         let caller = format!("{}:{}", who.via, who.name);
         let verdict = self.rate.lock().map(|mut r| r.take(&caller, std::time::Instant::now())).unwrap_or(Verdict::Allowed);
         if let Verdict::Refused { wait_ms, audit } = verdict {
@@ -823,12 +837,14 @@ mod paging_and_rate_tests {
     #[test]
     fn a_page_is_cut_in_key_order_and_says_what_follows() {
         let q = |pairs: &[(&str, &str)]| pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<BTreeMap<_, _>>();
-        assert_eq!(Page::from_query(&q(&[])).unwrap(), Page { limit: PAGE_DEFAULT, after: None });
+        assert_eq!(Page::from_query(&q(&[])).unwrap(), Page { limit: PAGE_DEFAULT, after: None, at: None });
+        assert_eq!(Page::from_query(&q(&[("at", "1200")])).unwrap().at, Some(1200));
+        assert!(Page::from_query(&q(&[("at", "soon")])).is_err());
         assert_eq!(Page::from_query(&q(&[("limit", "99999")])).unwrap().limit, PAGE_MAX, "more than the most is read as the most");
         assert!(Page::from_query(&q(&[("limit", "0")])).is_err());
         assert!(Page::from_query(&q(&[("limit", "x")])).is_err());
         let items: BTreeMap<String, i64> = (1..=5).map(|i| (format!("S{i}"), i)).collect();
-        let p = |limit, after: Option<&str>| Page { limit, after: after.map(str::to_string) }.cut(items.iter());
+        let p = |limit, after: Option<&str>| Page { limit, after: after.map(str::to_string), at: None }.cut(items.iter());
         assert_eq!(p(2, None), (vec![1, 2], Some("S2".into())));
         assert_eq!(p(2, Some("S2")), (vec![3, 4], Some("S4".into())));
         assert_eq!(p(2, Some("S4")), (vec![5], None), "the last page has no next");

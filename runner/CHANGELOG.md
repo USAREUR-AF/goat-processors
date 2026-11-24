@@ -8,18 +8,25 @@ GitHub release page.
 
 ## Unreleased
 
-- **Each API caller has a rate limit:** `api.rate_per_s` requests per second
-  on average (default 20), `api.rate_burst` at once (default 40), on the
-  local and mesh listeners. Past it the answer is 429 with `retry_after_ms`;
-  the first refusal of each second is audited, and all are counted in
-  `counters.api_rate_limited`. A program that polls faster than that gets
-  429s it did not get before.
-- **`GET /v1/tracks` comes in pages:** at most `limit` tracks (default 1000,
-  at most 10 000) in id order, with `total` and `next`; ask again with
-  `after=<next>`. A reader that took the whole list in one reply gets the
-  first 1000 tracks and must follow `next` (`goat-processors tracks` and the
-  MCP tool `tracks` do). `GET /v1/proposals` returns the newest `limit`;
-  `GET /v1/view` at most 10 000 tracks, with `tracks_total`.
+- **Breaking (sites with more than 1000 system tracks): `GET /v1/tracks`
+  returns pages.** At most `limit` tracks (default 1000, at most 10 000) of
+  the latest tick, in byte order of the id, with `total` and `next`. An
+  unchanged client that reads the list in one reply gets the first 1000 and
+  HTTP 200, with no error. Ask again with `after=<next>&at=<now_ms of the
+  first page>` until `next` is null (a 409 means a newer tick replaced the
+  list: start again), and check that you received `total` tracks.
+  `goat-processors tracks` and the MCP tool `tracks` do this.
+  `GET /v1/proposals` returns the newest `limit` (older ones are in
+  `agents.proposals_file`); `GET /v1/view` at most 10 000 tracks, with
+  `tracks_total`.
+- **Each certificate name on the mesh listener has a rate limit**, a token
+  bucket: up to `api.rate_burst` requests in a quick run after being idle
+  (default 40), then `api.rate_per_s` a second on average (default 20). Past
+  it every route answers 429 with `retry_after_ms` and a `Retry-After`
+  header; the first refusal of each second for each certificate is audited,
+  and all are counted in `counters.api_rate_limited`. A program on the mesh
+  that polls faster gets 429s it did not get before. Callers on the local
+  listener are not limited.
 
 ## 0.7.0
 

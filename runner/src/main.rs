@@ -560,42 +560,54 @@ fn show_pipeline(v: &Json) -> String {
     out
 }
 
-/// `tracks`: every page of GET /v1/tracks, joined into one reply.
+/// `tracks`: every page of GET /v1/tracks, joined into one reply. Later
+/// pages name the first page's tick (`at`); when a newer tick replaces it
+/// mid-way (409), the list is read again from the start, up to 5 times.
 fn cmd_tracks(a: &Args) -> Result<ExitCode, String> {
     let (addr, token) = api_target(a);
-    let mut all: Vec<Json> = Vec::new();
-    let mut first: Option<Json> = None;
-    let mut after: Option<String> = None;
-    loop {
-        let path = match &after {
-            Some(x) => format!("/v1/tracks?limit={}&after={}", api::PAGE_MAX, http::encode(x)),
-            None => format!("/v1/tracks?limit={}", api::PAGE_MAX),
-        };
-        let (status, body) = http::call(&addr, "GET", &path, token.as_deref(), None)?;
-        let v = json::parse(&String::from_utf8_lossy(&body)).map_err(|e| format!("the API answered {status} with no JSON: {e}"))?;
-        if status != 200 {
-            return Err(format!("the API answered {status}: {}", v.get("error").and_then(|e| e.as_str()).unwrap_or("")));
+    'again: for _ in 0..5 {
+        let mut all: Vec<Json> = Vec::new();
+        let mut first: Option<Json> = None;
+        let mut after: Option<String> = None;
+        loop {
+            let at = first.as_ref().and_then(|f| f.get("now_ms")).and_then(|t| t.as_i64());
+            let mut path = format!("/v1/tracks?limit={}", api::PAGE_MAX);
+            if let Some(x) = &after {
+                path.push_str(&format!("&after={}", http::encode(x)));
+            }
+            if let Some(t) = at {
+                path.push_str(&format!("&at={t}"));
+            }
+            let (status, body) = http::call(&addr, "GET", &path, token.as_deref(), None)?;
+            if status == 409 {
+                continue 'again;
+            }
+            let v = json::parse(&String::from_utf8_lossy(&body)).map_err(|e| format!("the API answered {status} with no JSON: {e}"))?;
+            if status != 200 {
+                return Err(format!("the API answered {status}: {}", v.get("error").and_then(|e| e.as_str()).unwrap_or("")));
+            }
+            if let Some(Json::Arr(t)) = v.get("tracks") {
+                all.extend(t.iter().cloned());
+            }
+            after = v.get("next").and_then(|n| n.as_str()).map(str::to_string);
+            first.get_or_insert(v);
+            if after.is_none() {
+                break;
+            }
         }
-        if let Some(Json::Arr(t)) = v.get("tracks") {
-            all.extend(t.iter().cloned());
+        let mut v = first.unwrap_or(Json::Null);
+        if let Json::Obj(m) = &mut v {
+            m.insert("tracks".into(), Json::Arr(all));
+            m.insert("next".into(), Json::Null);
         }
-        after = v.get("next").and_then(|n| n.as_str()).map(str::to_string);
-        first.get_or_insert(v);
-        if after.is_none() {
-            break;
+        if a.output.as_deref() == Some("json") {
+            println!("{v}");
+        } else {
+            print!("{}", show_tracks(&v));
         }
+        return Ok(ExitCode::SUCCESS);
     }
-    let mut v = first.unwrap_or(Json::Null);
-    if let Json::Obj(m) = &mut v {
-        m.insert("tracks".into(), Json::Arr(all));
-        m.insert("next".into(), Json::Null);
-    }
-    if a.output.as_deref() == Some("json") {
-        println!("{v}");
-    } else {
-        print!("{}", show_tracks(&v));
-    }
-    Ok(ExitCode::SUCCESS)
+    Err("the tracks changed on every attempt (a new tick between pages, 5 times); try again".into())
 }
 
 fn show_tracks(v: &Json) -> String {

@@ -1048,7 +1048,14 @@ impl Runner {
             Ask::Pipeline => ok(self.pipeline_json()),
             Ask::Metrics => ok(self.metrics()),
             Ask::Prometheus => crate::http::Response::text(200, "text/plain; version=0.0.4", self.prometheus()),
-            Ask::Tracks(page) => ok(self.tracks_json(&page)),
+            Ask::Tracks(page) => match page.at {
+                Some(at) if Some(at) != self.tracks_now_ms => error(
+                    409,
+                    &format!("the tracks of tick {at} are gone: tick {} replaced them", self.tracks_now_ms.map(|t| t.to_string()).unwrap_or("-".into())),
+                    "start again from the first page (without after and at)",
+                ),
+                _ => ok(self.tracks_json(&page)),
+            },
             Ask::View => ok(self.view(&call.who)),
             Ask::Explain(id) => match self.explain(&id) {
                 Some(v) => ok(v),

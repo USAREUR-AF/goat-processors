@@ -28,17 +28,20 @@ info:
     mesh 32, metrics 4) and closes any more, so callers on one listener
     cannot use up another's.
 
-    Rate: each caller (local, local-admin, or a mesh certificate's name) may
-    make api.rate_per_s requests per second on average (default 20), up to
-    api.rate_burst at once (default 40). Past it the answer is 429
-    `{"error", "retry_after_ms", "fix"}`; the first refusal of each second is
-    audited and every one is counted (counters.api_rate_limited). The metrics
-    listener is not limited. A tool an MCP call runs counts once, as the
-    /mcp request.
+    Rate: on the mesh listener each certificate name has a token bucket: up
+    to api.rate_burst requests in a quick run after being idle (default 40),
+    then api.rate_per_s a second on average (default 20). Past it every route
+    there answers 429 `{"error", "retry_after_ms", "fix"}` with a Retry-After
+    header (whole seconds). The first refusal of each second for each
+    certificate is audited, and every one is counted
+    (counters.api_rate_limited). The local and metrics listeners are not
+    limited. A tool an MCP call runs counts once, as the /mcp request.
 
-    Lists: GET /v1/tracks returns pages (limit, default 1000, at most 10000;
-    after, the previous reply's next); GET /v1/proposals the newest limit;
-    GET /v1/view at most 10000 tracks.
+    Lists: GET /v1/tracks returns pages of one tick (limit, default 1000, at
+    most 10000; after, the previous reply's next; at, the first page's now_ms,
+    409 once a newer tick has replaced it), in byte order of the id. GET
+    /v1/proposals returns the newest limit (older ones are in
+    agents.proposals_file); GET /v1/view at most 10000 tracks.
 servers:
   - url: http://127.0.0.1:8470
 components:
@@ -234,13 +237,14 @@ paths:
               schema: {type: string}
   /v1/tracks:
     get:
-      summary: the system tracks of the latest tick that made tracks, a page at a time (role read; CLI tracks, which reads every page)
+      summary: the system tracks of the latest tick that made tracks, a page at a time, every page from one tick (role read; CLI tracks, which reads every page)
       parameters:
         - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, default: 1000}, description: "tracks in this page; more than 10000 is read as 10000"}
-        - {name: after, in: query, required: false, schema: {type: string}, description: "the next of the previous page: this page starts after that track id"}
+        - {name: after, in: query, required: false, schema: {type: string}, description: "the next of the previous page: this page starts after that id, in byte order (S10 before S2); it need not be a current track id"}
+        - {name: at, in: query, required: false, schema: {type: integer}, description: "the now_ms of the first page; the page is served only while that tick is still the latest (409 otherwise: start again)"}
       responses:
         "200":
-          description: now_ms of that tick, one page of its tracks in id order, how many there are, and the next to ask with (null on the last page)
+          description: now_ms of that tick, one page of its tracks in byte order of the id, how many there are (check you received that many), and the next to ask with (null on the last page)
           content:
             application/json:
               schema:
@@ -251,9 +255,11 @@ paths:
                   total: {type: integer}
                   next: {type: [string, "null"]}
         "400":
-          description: limit is not a number of 1 or more
+          description: limit is not a number of 1 or more, or at is not a number
+        "409":
+          description: at names a tick a newer one has replaced; start again from the first page
         "429":
-          description: the caller is over api.rate_per_s; retry_after_ms says when to ask again
+          description: on the mesh listener, the certificate is over api.rate_per_s (as on every route there); retry_after_ms and Retry-After say when to ask again
   /v1/explain/{track}:
     get:
       summary: the events and trace records behind one system track (role read; CLI explain TRACK)
@@ -453,7 +459,7 @@ paths:
     get:
       summary: the settings proposals, pending and decided, oldest first; the newest limit of them (role read; CLI proposals)
       parameters:
-        - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, default: 1000}, description: "how many of the newest; more than 10000 is read as 10000"}
+        - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, default: 1000}, description: "how many of the newest; more than 10000 is read as 10000; older proposals are in agents.proposals_file"}
       responses:
         "200":
           description: id, by, via, at_ms, function, pack, previous_pack, reason, state (pending, gating, applied, rejected, gate-failed, reverted), decided_by (an identity, or policy), gate (command, exit, passed, seconds, output_tail)
