@@ -10,6 +10,11 @@ use std::time::{Duration, Instant};
 
 use goat_correlator::json::{self, Json};
 
+/// How long a test waits for the service to start (or a state to change).
+/// Normally under a second; generous because CI and shared hosts run many
+/// builds at once, and at a load average near 15 a start took over 20 s.
+const START_WAIT: Duration = Duration::from_secs(60);
+
 fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_goat-processors"))
 }
@@ -62,7 +67,7 @@ impl Service {
         assert!(check.status.success(), "{}", String::from_utf8_lossy(&check.stdout));
         let child = bin().args(["run", "-c"]).arg(dir.join("r.yaml")).stderr(Stdio::null()).spawn().unwrap();
         let s = Service { child, dir, api, udp };
-        let deadline = Instant::now() + Duration::from_secs(20);
+        let deadline = Instant::now() + START_WAIT;
         while Instant::now() < deadline {
             if let Ok((200, _)) = s.raw("GET", "/v1/health", None, None) {
                 return s;
