@@ -59,6 +59,25 @@ impl Rotating {
         Ok(())
     }
 
+    /// Removes the older copies (`<path>.1` and on) whose last write is longer
+    /// ago than `age`. The current file stays. Returns how many it removed.
+    pub fn prune_older_than(&self, age: std::time::Duration) -> usize {
+        let mut removed = 0;
+        for i in 1..=self.keep.max(MAX_KEEP) {
+            let p = copy_path(&self.path, i);
+            let old = std::fs::metadata(&p).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|e| e > age);
+            if old && std::fs::remove_file(&p).is_ok() {
+                removed += 1;
+            }
+        }
+        removed
+    }
+
+    /// The current file and its older copies, newest first.
+    pub fn files(path: &Path, keep: u32) -> Vec<PathBuf> {
+        std::iter::once(path.to_path_buf()).chain((1..=keep).map(|i| copy_path(path, i))).filter(|p| p.exists()).collect()
+    }
+
     fn rotate(&mut self) -> std::io::Result<()> {
         if self.keep == 0 {
             std::fs::remove_file(&self.path)?;

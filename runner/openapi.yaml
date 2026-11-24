@@ -89,7 +89,9 @@ components:
             trace_records and trace_max_step (trace records the pipeline
             returned, in all and in the largest step), trace_not_kept (records
             the explain store left out), api_rate_limited (requests refused
-            over api.rate_per_s).
+            over api.rate_per_s), store_spilled_steps, store_spill_dropped and
+            store_spill_errors (steps the store spill wrote, dropped because
+            its writer was behind, and write errors; 0 without store.spill).
         output_prefix: {type: string}
         fabric_routers: {type: [integer, "null"]}
     Track:
@@ -264,10 +266,17 @@ paths:
     get:
       summary: the events and trace records behind one system track (role read; CLI explain TRACK)
       description: |
-        Among the recent steps the service keeps (up to 200 000 trace
-        records), every event and trace record that names the track or one of
-        its members, each with its step, now_ms and stage. At most the latest
-        1000 of each; `truncated` says when more existed.
+        Among the recent steps the service keeps (store.max_records, default
+        200 000 trace records, and store.max_age_s when set), every event and
+        trace record that names the track or one of its members, each with
+        its step, now_ms and stage. With store.spill set, the records of older
+        steps the spill holds come first: spill_events and spill_records count
+        how many of the returned items came from the spill; the spill is read
+        newest file first, at most 256 MiB a call (spill_read_bytes;
+        spill_read_stopped is true when that budget stopped it). At most the
+        latest 1000 of each; `truncated` says when more existed or the
+        budget stopped the spill read. `why`, the operator page and
+        `explain --html` do not read the spill.
       parameters:
         - {name: track, in: path, required: true, schema: {type: string}}
       responses:

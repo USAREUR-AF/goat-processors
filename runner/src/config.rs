@@ -45,6 +45,9 @@ pub struct Config {
     pub outputs: Outputs,
     #[serde(default)]
     pub record: Option<Record>,
+    /// The decision store behind explain, why and the operator page.
+    #[serde(default)]
+    pub store: Store,
     #[serde(default = "default_status_file")]
     pub status_file: PathBuf,
     #[serde(default)]
@@ -491,6 +494,61 @@ pub struct FileOutput {
     pub keep: u32,
 }
 
+/// The decision store: the latest steps' events and trace records, in memory,
+/// for explain, why and the operator page.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Store {
+    /// The most trace records held in memory (a step that returns more keeps
+    /// its first this many). Default 200 000.
+    #[serde(default = "default_store_records")]
+    pub max_records: usize,
+    /// Steps older than this, in input-clock seconds behind the latest tick,
+    /// leave memory. Off unless set: only max_records bounds the store.
+    #[serde(default)]
+    pub max_age_s: Option<u64>,
+    /// Off unless set: steps leaving memory are written to a file, and
+    /// explain also reads it.
+    #[serde(default)]
+    pub spill: Option<Spill>,
+}
+
+impl Default for Store {
+    fn default() -> Self {
+        Store { max_records: default_store_records(), max_age_s: None, spill: None }
+    }
+}
+
+fn default_store_records() -> usize {
+    200_000
+}
+
+/// The decision store's spill file: the cited events and trace records of
+/// the steps that left memory, one JSON line each.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Spill {
+    /// Under /var/lib/goat-processors.
+    pub path: PathBuf,
+    /// Size limit in MiB; past it the file becomes `<path>.1` and a new one
+    /// starts. Required: a spill has no unbounded form.
+    pub max_mb: u64,
+    /// Older copies kept, 0 to 9. Default 3.
+    #[serde(default = "default_spill_keep")]
+    pub keep: u32,
+    /// Older copies whose last write is longer ago than this, in wall-clock
+    /// seconds, are removed. Default 86400 (a day).
+    #[serde(default = "default_spill_age")]
+    pub max_age_s: u64,
+}
+
+fn default_spill_keep() -> u32 {
+    3
+}
+fn default_spill_age() -> u64 {
+    86_400
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Record {
@@ -620,6 +678,11 @@ pub fn warnings(c: &Config) -> Vec<String> {
     if c.api.enabled && c.api.audit_max_mb.is_none() {
         w.push("api.audit_max_mb: not set, so the audit log grows without limit. Set api.audit_max_mb and api.audit_keep (the shipped config has 64 and 9).".into());
     }
+    if let Some(sp) = &c.store.spill {
+        if !sp.path.starts_with("/var/lib/goat-processors") {
+            w.push(format!("store.spill.path: {} is not under /var/lib/goat-processors; under systemd the service can write nowhere else, and another path stops it at start.", sp.path.display()));
+        }
+    }
     w
 }
 
@@ -743,6 +806,27 @@ pub fn check(c: &Config) -> Vec<String> {
                     }
                 }
             }
+        }
+    }
+
+    // The decision store.
+    if !(100..=5_000_000).contains(&c.store.max_records) {
+        p.push(format!("store.max_records: {} is not 100 to 5000000.", c.store.max_records));
+    }
+    if let Some(a) = c.store.max_age_s {
+        if !(10..=86_400).contains(&a) {
+            p.push(format!("store.max_age_s: {a} is not 10 to 86400."));
+        }
+    }
+    if let Some(sp) = &c.store.spill {
+        if !(1..=10_240).contains(&sp.max_mb) {
+            p.push(format!("store.spill.max_mb: {} is not 1 to 10240 (MiB).", sp.max_mb));
+        }
+        if sp.keep > crate::rotate::MAX_KEEP {
+            p.push(format!("store.spill.keep: {}. Keep 0 to {} older copies.", sp.keep, crate::rotate::MAX_KEEP));
+        }
+        if !(60..=30 * 86_400).contains(&sp.max_age_s) {
+            p.push(format!("store.spill.max_age_s: {} is not 60 to 2592000 (30 days).", sp.max_age_s));
         }
     }
 

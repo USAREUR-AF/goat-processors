@@ -610,6 +610,46 @@ fn operator_page_view_and_browser_rules() {
 }
 
 #[test]
+fn explain_reads_the_store_spill_once_steps_leave_memory() {
+    let d = tmp("store-spill-files");
+    let extra = format!("store:\n  max_records: 100\n  spill:\n    path: {}/store.jsonl\n    max_mb: 1\n    keep: 2\n", d.display());
+    // `extra` goes after the api section: a top-level key.
+    let svc = Service::start("store-spill", &extra);
+    svc.feed(15);
+    std::thread::sleep(Duration::from_millis(500));
+    let st = json::parse(&std::fs::read_to_string(svc.dir.join("status.json")).unwrap()).unwrap();
+    let spilled = st.get("counters").and_then(|c| c.get("store_spilled_steps")).and_then(|v| v.as_i64()).unwrap();
+    assert!(spilled > 0, "steps left memory into the spill: {st}");
+    assert!(std::fs::metadata(d.join("store.jsonl")).map(|m| m.len()).unwrap_or(0) > 0);
+    // explain finds the track's records in the spill as well as in memory.
+    let tracks = svc.get("/v1/tracks");
+    let id = tracks.get("tracks").and_then(|t| t.as_array()).and_then(|a| a.first()).and_then(|t| t.get("system").or_else(|| t.get("group"))).and_then(|x| x.as_str()).unwrap().to_string();
+    let v = svc.get(&format!("/v1/explain/{id}"));
+    let from_spill = v.get("spill_records").and_then(|x| x.as_i64()).unwrap();
+    assert!(from_spill > 0, "{v}");
+    let steps: Vec<i64> = v.get("trace").and_then(|t| t.as_array()).unwrap().iter().filter_map(|t| t.get("step").and_then(|s| s.as_i64())).collect();
+    assert!(steps.windows(2).all(|w| w[0] <= w[1]), "oldest first, spill before memory: {steps:?}");
+    // A spill with no size limit is refused.
+    let bad = svc.dir.join("bad.yaml");
+    let cfg = std::fs::read_to_string(svc.dir.join("r.yaml")).unwrap().replace("    max_mb: 1\n", "");
+    std::fs::write(&bad, cfg).unwrap();
+    let out = bin().args(["config", "check", "-c"]).arg(&bad).output().unwrap();
+    assert!(!out.status.success() && String::from_utf8_lossy(&out.stdout).contains("max_mb"), "{}", String::from_utf8_lossy(&out.stdout));
+}
+
+#[test]
+fn steps_leave_the_store_by_age_as_well() {
+    let d = tmp("store-age-files");
+    let extra = format!("store:\n  max_records: 5000000\n  max_age_s: 10\n  spill:\n    path: {}/store.jsonl\n    max_mb: 1\n", d.display());
+    let svc = Service::start("store-age", &extra);
+    svc.feed(60); // 12 s of reports, far below the record bound
+    std::thread::sleep(Duration::from_millis(500));
+    let st = json::parse(&std::fs::read_to_string(svc.dir.join("status.json")).unwrap()).unwrap();
+    let spilled = st.get("counters").and_then(|c| c.get("store_spilled_steps")).and_then(|v| v.as_i64()).unwrap();
+    assert!(spilled > 0, "steps older than 10 s left memory: {st}");
+}
+
+#[test]
 fn tracks_come_in_pages_of_one_tick_and_local_callers_are_not_limited() {
     let svc = Service::start("paging-local", "  rate_per_s: 1\n  rate_burst: 3\n");
     svc.feed(3);
@@ -622,8 +662,16 @@ fn tracks_come_in_pages_of_one_tick_and_local_callers_are_not_limited() {
     assert_eq!(code, 400, "{body}");
     // A later page names the first page's tick; once a newer tick has
     // replaced it, the page is refused, so pages never mix ticks.
-    let at = v.get("now_ms").and_then(|t| t.as_i64()).unwrap();
-    assert_eq!(svc.raw("GET", &format!("/v1/tracks?limit=1&at={at}"), None, None).unwrap().0, 200, "the same tick is served");
+    // The service ticks every 200 ms, so a tick can fall between two
+    // requests: read a page and ask again at once until both land in one
+    // tick (a 409 in between is the rule working, not a failure).
+    let mut at = 0;
+    let served = (0..20).any(|_| {
+        let first = svc.get("/v1/tracks?limit=1");
+        at = first.get("now_ms").and_then(|t| t.as_i64()).unwrap();
+        svc.raw("GET", &format!("/v1/tracks?limit=1&at={at}"), None, None).unwrap().0 == 200
+    });
+    assert!(served, "the same tick is served");
     svc.feed(3); // ticks every 200 ms
     let (code, body) = svc.raw("GET", &format!("/v1/tracks?limit=1&at={at}"), None, None).unwrap();
     assert_eq!(code, 409, "{body}");

@@ -42,6 +42,18 @@ GitHub release page.
     audit_max_mb: 64
     audit_keep: 9
   ```
+- **The decision store's bounds are settings, and it can spill to disk.**
+  `store.max_records` (default 200 000, as before) and `store.max_age_s`
+  (off by default, so `explain`, `why` and the page reach back as far as
+  before; when set, steps older than that many seconds of input also leave
+  memory). `store.spill` (off by default) writes the steps leaving memory
+  to a size-limited file (`max_mb` required, `keep`, `max_age_s` for older
+  copies, host clock) from a thread of its own, and `explain` (CLI, API,
+  MCP) also reads it, at most 256 MiB a call; its reply adds `spill_events`
+  and `spill_records` (items it holds from the spill), `spill_read_bytes`
+  and `spill_read_stopped`. New status counters `store_spilled_steps`,
+  `store_spill_dropped` and `store_spill_errors`. README.md, Output volume,
+  has the measured fill rate and reach.
 
 ## 0.7.0
 
