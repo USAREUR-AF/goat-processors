@@ -6,8 +6,11 @@ their JSON outputs, the file paths, the config keys, and the fabric keys and
 their value format. The release workflow puts a release's section on its
 GitHub release page.
 
-## Unreleased
+## 0.7.0
 
+- **From 0.5.0 or earlier, also Breaking: the fabric keys** (0.6). Read the
+  0.6.0 notes in `runner/CHANGELOG.md` and INSTALL.md, "Updating from 0.5.0
+  or earlier", before updating.
 - **Breaking: the `quality` value.** The `quality` key goes out when a mark is
   set or cleared, else every `heartbeat_ms` (5 s), instead of on every tick,
   and each value is the whole quality picture: every subject's latest
