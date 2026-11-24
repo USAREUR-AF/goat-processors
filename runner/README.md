@@ -159,9 +159,9 @@ exits 1. The service runs the same check before it starts.
 | `record.path` | no | | append every ingest and tick (replay format); under `/var/lib/goat-processors` |
 | `record.max_mb`, `record.keep` | no | no limit, `1` | as for `outputs.file`. A replay of a rotated record starts from that file's first line, so keep enough copies to cover the time you may need to replay |
 | `store.max_records` | no | `200000` | the most trace records the decision store behind `explain`, `why` and the operator page holds in memory, 100 to 5 000 000; a step that returns more keeps its first this many |
-| `store.max_age_s` | no | `600` | steps older than this many input-clock seconds behind the latest tick leave the store, 10 to 86 400 |
-| `store.spill.path`, `store.spill.max_mb` | no | off | a file the steps leaving the store are written to, as the cited lines `explain` returns; `explain` then also reads it. `max_mb` (1 to 10 240) is required: a spill is never unbounded. Under `/var/lib/goat-processors` |
-| `store.spill.keep`, `store.spill.max_age_s` | no | `3`, `86400` | older copies of the spill to keep (0 to 9), and the age in wall-clock seconds (60 to 30 days) after which an older copy is removed. At most `max_mb` × (`keep` + 1) on disk |
+| `store.max_age_s` | no | off | when set, steps older than this many input-clock seconds behind the latest tick also leave the store (10 to 86 400); off, only `store.max_records` bounds it |
+| `store.spill.path`, `store.spill.max_mb` | no | off | a file the steps leaving the store are written to, as the cited lines `explain` returns, by a thread of its own (the service loop hands each step over and goes on; when the writer is behind by 200 000 records a step is dropped and counted in `counters.store_spill_dropped`). `explain` (CLI, API, MCP) then also reads it; `why`, the operator page and `explain --html` do not. `max_mb` (1 to 10 240) is required: a spill is never unbounded. The path must be under `/var/lib/goat-processors`: the service can write nowhere else, and `config check` warns otherwise |
+| `store.spill.keep`, `store.spill.max_age_s` | no | `3`, `86400` | older copies of the spill to keep (0 to 9), and the age after which an older copy is removed (60 s to 30 days). Unlike `store.max_age_s` (input clock), this is the host's clock: it is about the disk, not the data. At most `max_mb` × (`keep` + 1) on disk; at large N the size limit is reached long before the age (Output volume) |
 | `status_file` | no | `/run/goat-processors/status.json` | the status the service writes after each tick, read by `doctor` |
 | `api.enabled` | no | `true` | serve the API |
 | `api.listen` | no | `127.0.0.1:8470` | the local listener; a loopback address only (it is plain HTTP) |
@@ -340,8 +340,8 @@ the fabric or a file only when a setting asks for it, within bounds.
 | Fabric: `events` | on; the events of each tick, without track and quality events and the per-report `keep` and `pass` | one key; `events_per_source_per_s` (20) per source, then one `suppressed` line |
 | Fabric: `status` | on; every `heartbeat_ms` | one key, one small value |
 | Fabric: `trace` | **off** | when on: `trace_for_s` (600 s, then off), `trace_entities`, `trace_max_bytes_per_s` (64 KiB/s) |
-| Local store for `explain`, `why`, the page | on, in memory | `store.max_records` (200 000) and `store.max_age_s` (600 s of input), whichever comes first. A step that returns more than `max_records` keeps its first that many and the rest are counted in `counters.trace_not_kept` (below: what that means for `explain` at large N) |
-| Store spill | off | when on (`store.spill`): the steps leaving the store, within `max_mb` × (`keep` + 1) on disk, copies removed after `max_age_s`; `explain` reads it off the service loop. It holds what the store held, so a step cut to `max_records` is cut in the spill too. `counters.store_spilled_steps` counts the steps written |
+| Local store for `explain`, `why`, the page | on, in memory | `store.max_records` (200 000), and `store.max_age_s` when set. A step that returns more than `max_records` keeps its first that many and the rest are counted in `counters.trace_not_kept` (below: what that means for `explain` at large N) |
+| Store spill | off | when on (`store.spill`): the steps leaving the store, at most `max_mb` × (`keep` + 1) on disk; older copies removed after `max_age_s` (host clock). Written by its own thread; `explain` (CLI, API, MCP) reads at most 256 MiB of it per call. Measured below. It holds what the store held, so a step cut to `max_records` is cut in the spill too |
 | `outputs.file` | off in the shipped config; when on, events only | `max_mb` and `keep` (rotation); no limit unless set |
 | `record` | off in the shipped config | `max_mb` and `keep`; a rotated record replays from its own first line |
 | Audit log | on | `api.audit_max_mb`, `api.audit_keep` |
@@ -396,6 +396,26 @@ What the figures say:
   writes each stage's events for every report. Set `max_mb` and `keep` on it,
   and on `record`, whenever you turn them on.
 
+**The store spill, measured.** The volume test with the spill on
+(`GP_VOLUME_SPILL=1`, same input) at 50 and 200 objects:
+
+| Objects | Spill per second of input | Reach of 1 GiB | Time for 120 s of input | Peak memory | One `explain` over the spill |
+|---|---|---|---|---|---|
+| 50 | about 1.0 MB | about 18 minutes | 1.1 s (1.0 s without) | 378 MB (217 MB without) | 0.3 s, reading the whole 81 MB |
+| 200 | about 5.8 MB | about 3 minutes | 14.6 s (10.8 s without) | 562 MB (492 MB without) | 1.3 s, stopped at its 256 MiB budget |
+
+So the spill reaches back `max_mb` × (`keep` + 1) divided by those rates:
+4 GiB (`max_mb: 1024`, `keep: 3`) is about 70 minutes of input at 50
+objects and 12 at 200, and the one-day `max_age_s` never applies there. The
+test plays its input as fast as it can (about 110 and 8 times real time),
+so the writer fell behind and dropped steps (946 and 78,
+`counters.store_spill_dropped`); at a live site's pace it has that much more
+time per step. The rates in the table count every step that left the store,
+dropped ones included (bytes per written step times the steps). An
+`explain` reads the newest spill file first and stops after
+256 MiB (`spill_read_stopped` in its reply); a track whose records are older
+than that is not found.
+
 **For a program that uses the engines directly.** `ingest` and `tick` return
 the trace with every call; a library cannot know what the caller keeps. Keep
 it bounded the way the runner does: drop it after reading what you need;
@@ -413,7 +433,8 @@ one step may add to any store; and never forward it whole to a network.
 
 **Run the volume test.** In `runner/`: `cargo test --release --test volume
 -- --ignored --nocapture` (needs `python3`; 50 and 200 objects, about a
-minute; `GP_VOLUME_SIZES=50,200,1000` for more). It writes
+minute; `GP_VOLUME_SIZES=50,200,1000` for more; `GP_VOLUME_SPILL=1` turns the store
+spill on and prints its figures without comparing them). It writes
 `target/volume/results.json` and fails when a figure is over
 `volume/budget.json`. **To raise the budget:** run
 `python3 -I volume/budget.py target/volume/results.json`, which rewrites

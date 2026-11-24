@@ -52,6 +52,13 @@ struct Measured {
     trace_records: u64,
     trace_max_step: u64,
     wall_s: f64,
+    /// With GP_VOLUME_SPILL=1: the store spill's bytes, steps written and
+    /// dropped, and one explain against it (ms, bytes read).
+    spill_bytes: u64,
+    spill_steps: u64,
+    spill_dropped: u64,
+    explain_ms: f64,
+    explain_read_bytes: u64,
 }
 
 impl Measured {
@@ -92,10 +99,15 @@ impl Measured {
             ("record_bytes", self.record_bytes),
             ("trace_records", self.trace_records),
             ("trace_max_step", self.trace_max_step),
+            ("spill_bytes", self.spill_bytes),
+            ("spill_steps", self.spill_steps),
+            ("spill_dropped", self.spill_dropped),
+            ("explain_read_bytes", self.explain_read_bytes),
         ] {
             m.insert(k.into(), Json::Int(v as i64));
         }
         m.insert("wall_s".into(), Json::Num((self.wall_s * 10.0).round() / 10.0));
+        m.insert("explain_ms".into(), Json::Num((self.explain_ms * 10.0).round() / 10.0));
         let mut keys = json::Map::new();
         for (k, (n, b)) in &self.keys {
             let mut e = json::Map::new();
@@ -123,6 +135,8 @@ fn vm_hwm_kb(pid: u32) -> Option<u64> {
 }
 
 fn run(objects: u64, seconds: u64, dir: &Path) -> Measured {
+    let spill_on = std::env::var("GP_VOLUME_SPILL").is_ok_and(|v| v == "1");
+    let api = format!("127.0.0.1:{}", free_port());
     // The input.
     let input = dir.join("input.json");
     let gen = Command::new("python3")
@@ -163,10 +177,15 @@ fn run(objects: u64, seconds: u64, dir: &Path) -> Measured {
 
     // The service, at the shipped defaults but for the input and the files.
     let cfg = format!(
-        "name: vol\nsite: s\npacks_dir: {packs}\ntick_ms: 1000\nclock: input\nfabric:\n  mode: peer\n  connect: [\"tcp/127.0.0.1:{port}\"]\ninputs:\n  file:\n    path: {input}\n    speed: 0\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: quality, pack: quality-feed}}\noutputs:\n  fabric:\n    trace: false\n  file:\n    path: {d}/out.jsonl\nrecord:\n  path: {d}/record.jsonl\nstatus_file: {d}/status.json\napi:\n  enabled: false\n",
+        "name: vol\nsite: s\npacks_dir: {packs}\ntick_ms: 1000\nclock: input\nfabric:\n  mode: peer\n  connect: [\"tcp/127.0.0.1:{port}\"]\ninputs:\n  file:\n    path: {input}\n    speed: 0\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: quality, pack: quality-feed}}\noutputs:\n  fabric:\n    trace: false\n  file:\n    path: {d}/out.jsonl\nrecord:\n  path: {d}/record.jsonl\nstatus_file: {d}/status.json\n{store}",
         packs = repo().join("packs").display(),
         input = input.display(),
         d = dir.display(),
+        store = if spill_on {
+            format!("store:\n  spill:\n    path: {d}/store.jsonl\n    max_mb: 10240\n    keep: 0\napi:\n  listen: \"{api}\"\n  token_file: {d}/api.token\n  audit_file: {d}/audit.jsonl\n  audit_max_mb: 64\n", d = dir.display())
+        } else {
+            "api:\n  enabled: false\n".to_string()
+        },
     );
     std::fs::write(dir.join("r.yaml"), cfg).unwrap();
     let start = Instant::now();
@@ -199,13 +218,51 @@ fn run(objects: u64, seconds: u64, dir: &Path) -> Measured {
     let counter = |k: &str| status.get("counters").and_then(|c| c.get(k)).and_then(|v| v.as_i64()).unwrap_or(0) as u64;
     assert_eq!(counter("reports_in"), reports, "every report reached the service");
     let published = counter("published");
+    let (spill_steps, spill_dropped) = (counter("store_spilled_steps"), counter("store_spill_dropped"));
+    // One explain against the full spill: the cost an operator pays.
+    let (mut explain_ms, mut explain_read_bytes) = (0.0, 0);
+    if spill_on {
+        let get = |path: &str| -> Json {
+            use std::io::{Read, Write};
+            let mut s = std::net::TcpStream::connect(&api).unwrap();
+            write!(s, "GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n").unwrap();
+            let mut out = String::new();
+            s.read_to_string(&mut out).unwrap();
+            json::parse(out.split_once("\r\n\r\n").unwrap().1).unwrap()
+        };
+        let tracks = get("/v1/tracks");
+        if let Some(id) = tracks.get("tracks").and_then(|t| t.as_array()).and_then(|a| a.first()).and_then(|t| t.get("system").or_else(|| t.get("group"))).and_then(|x| x.as_str()) {
+            let t0 = Instant::now();
+            let v = get(&format!("/v1/explain/{id}"));
+            explain_ms = t0.elapsed().as_secs_f64() * 1000.0;
+            explain_read_bytes = v.get("spill_read_bytes").and_then(|x| x.as_i64()).unwrap_or(0) as u64;
+        }
+    }
     let (trace_records, trace_max_step) = (counter("trace_records"), counter("trace_max_step"));
     let _ = child.kill();
     let _ = child.wait();
     let size = |p: &str| std::fs::metadata(dir.join(p)).map(|m| m.len()).unwrap_or(0);
     let keys = keys.lock().unwrap().clone();
     let input_bytes = size("input.json");
-    Measured { objects, reports, seconds, keys, published, peak_rss_kb: peak, input_bytes, file_bytes: size("out.jsonl"), record_bytes: size("record.jsonl"), trace_records, trace_max_step, wall_s }
+    Measured {
+        objects,
+        reports,
+        seconds,
+        keys,
+        published,
+        peak_rss_kb: peak,
+        input_bytes,
+        file_bytes: size("out.jsonl"),
+        record_bytes: size("record.jsonl"),
+        trace_records,
+        trace_max_step,
+        wall_s,
+        spill_bytes: size("store.jsonl"),
+        spill_steps,
+        spill_dropped,
+        explain_ms,
+        explain_read_bytes,
+    }
 }
 
 #[test]
@@ -240,6 +297,11 @@ fn volume_within_the_budget() {
         // On loopback nothing should be dropped: a drop would lower the
         // fabric figures and could hide a rise.
         assert_eq!(m.values(), m.published, "the peer received {} of the {} values the service published", m.values(), m.published);
+        if std::env::var("GP_VOLUME_SPILL").is_ok_and(|v| v == "1") {
+            println!("|   | spill: {} B, {} steps written, {} dropped; explain {:.0} ms, read {} B; not compared with the budget (spill on) |", m.spill_bytes, m.spill_steps, m.spill_dropped, m.explain_ms, m.explain_read_bytes);
+            results.push(m.to_json());
+            continue;
+        }
         if Some(seconds as i64) != budget.get("seconds").and_then(|x| x.as_i64()) {
             println!("|   | {seconds} s of input: the budget is for {} s, so these figures are not compared with it |", budget.get("seconds").map(|x| x.to_string()).unwrap_or_default());
             results.push(m.to_json());

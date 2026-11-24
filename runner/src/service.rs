@@ -777,7 +777,7 @@ impl Runner {
             self.recent_records += records;
             // Steps leave memory past the record bound or past the age bound
             // (input-clock seconds behind the latest tick); the newest stays.
-            let oldest_kept = self.p.last_now_ms.map(|t| t - self.c.store.max_age_s as i64 * 1000);
+            let oldest_kept = self.c.store.max_age_s.and_then(|a| self.p.last_now_ms.map(|t| t - a as i64 * 1000));
             while self.recent.len() > 1 {
                 let front = self.recent.front().unwrap();
                 let too_old = matches!((front.at_ms, oldest_kept), (Some(a), Some(o)) if a < o);
@@ -786,21 +786,11 @@ impl Runner {
                 }
                 let old = self.recent.pop_front().unwrap();
                 self.recent_records -= old.out.stages.iter().map(|s| s.trace.len()).sum::<usize>();
-                if let Some(sp) = self.spill.as_mut() {
-                    let mut lines = Vec::new();
-                    for st in &old.out.stages {
-                        lines.extend(st.events.iter().map(|e| cite(&old, &st.function, e, "event")));
-                        lines.extend(st.trace.iter().map(|t| cite(&old, &st.function, t, "record")));
-                    }
-                    if sp.write(&lines).is_err() {
-                        self.sinks.errors += 1;
-                    }
+                // To the spill's own thread: the loop hands the step over
+                // (no copy, no write here) and goes on.
+                if let Some(sp) = self.spill.as_ref() {
+                    sp.send(old.step, old.now_ms, old.out);
                 }
-            }
-        }
-        if now.is_some() {
-            if let Some(sp) = self.spill.as_mut() {
-                sp.prune();
             }
         }
         self.n += 1;
@@ -818,7 +808,10 @@ impl Runner {
                 cnt.insert("dropped_paused".into(), Json::Int(self.dropped_paused as i64));
                 cnt.insert("dropped_backlog".into(), Json::Int(DROPPED_BACKLOG.load(Ordering::Relaxed) as i64));
                 cnt.insert("trace_not_kept".into(), Json::Int(TRACE_NOT_KEPT.load(Ordering::Relaxed) as i64));
-                cnt.insert("store_spilled_steps".into(), Json::Int(self.spill.as_ref().map_or(0, |s| s.steps) as i64));
+                let load = |f: fn(&crate::store::SpillWriter) -> u64| self.spill.as_ref().map_or(0, f) as i64;
+                cnt.insert("store_spilled_steps".into(), Json::Int(load(|s| s.steps.load(Ordering::Relaxed))));
+                cnt.insert("store_spill_dropped".into(), Json::Int(load(|s| s.dropped.load(Ordering::Relaxed))));
+                cnt.insert("store_spill_errors".into(), Json::Int(load(|s| s.errors.load(Ordering::Relaxed))));
                 cnt.insert("trace_records".into(), Json::Int(TRACE_RECORDS.load(Ordering::Relaxed) as i64));
                 cnt.insert("trace_max_step".into(), Json::Int(TRACE_MAX_STEP.load(Ordering::Relaxed) as i64));
                 cnt.insert("pipeline_changes".into(), Json::Int(self.pipeline_changes as i64));

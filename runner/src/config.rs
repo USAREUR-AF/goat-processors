@@ -476,9 +476,9 @@ pub struct Store {
     #[serde(default = "default_store_records")]
     pub max_records: usize,
     /// Steps older than this, in input-clock seconds behind the latest tick,
-    /// leave memory. Default 600.
-    #[serde(default = "default_store_age")]
-    pub max_age_s: u64,
+    /// leave memory. Off unless set: only max_records bounds the store.
+    #[serde(default)]
+    pub max_age_s: Option<u64>,
     /// Off unless set: steps leaving memory are written to a file, and
     /// explain also reads it.
     #[serde(default)]
@@ -487,15 +487,12 @@ pub struct Store {
 
 impl Default for Store {
     fn default() -> Self {
-        Store { max_records: default_store_records(), max_age_s: default_store_age(), spill: None }
+        Store { max_records: default_store_records(), max_age_s: None, spill: None }
     }
 }
 
 fn default_store_records() -> usize {
     200_000
-}
-fn default_store_age() -> u64 {
-    600
 }
 
 /// The decision store's spill file: the cited events and trace records of
@@ -635,6 +632,11 @@ pub fn warnings(c: &Config) -> Vec<String> {
             w.push(format!("outputs.fabric.trace: every trace record is published for {} s, up to {} bytes per second. To trace a few tracks, list them in outputs.fabric.trace_entities.", f.trace_for_s, f.trace_max_bytes_per_s));
         }
     }
+    if let Some(sp) = &c.store.spill {
+        if !sp.path.starts_with("/var/lib/goat-processors") {
+            w.push(format!("store.spill.path: {} is not under /var/lib/goat-processors; under systemd the service can write nowhere else, and another path stops it at start.", sp.path.display()));
+        }
+    }
     w
 }
 
@@ -765,8 +767,10 @@ pub fn check(c: &Config) -> Vec<String> {
     if !(100..=5_000_000).contains(&c.store.max_records) {
         p.push(format!("store.max_records: {} is not 100 to 5000000.", c.store.max_records));
     }
-    if !(10..=86_400).contains(&c.store.max_age_s) {
-        p.push(format!("store.max_age_s: {} is not 10 to 86400.", c.store.max_age_s));
+    if let Some(a) = c.store.max_age_s {
+        if !(10..=86_400).contains(&a) {
+            p.push(format!("store.max_age_s: {a} is not 10 to 86400."));
+        }
     }
     if let Some(sp) = &c.store.spill {
         if !(1..=10_240).contains(&sp.max_mb) {

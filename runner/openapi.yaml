@@ -234,12 +234,16 @@ paths:
       summary: the events and trace records behind one system track (role read; CLI explain TRACK)
       description: |
         Among the recent steps the service keeps (store.max_records, default
-        200 000 trace records, and store.max_age_s, default 600 s), every
-        event and trace record that names the track or one of its members,
-        each with its step, now_ms and stage. With store.spill set, the
-        records of older steps the spill holds come first (spill_events and
-        spill_records say how many). At most the latest 1000 of each;
-        `truncated` says when more existed.
+        200 000 trace records, and store.max_age_s when set), every event and
+        trace record that names the track or one of its members, each with
+        its step, now_ms and stage. With store.spill set, the records of older
+        steps the spill holds come first: spill_events and spill_records count
+        how many of the returned items came from the spill; the spill is read
+        newest file first, at most 256 MiB a call (spill_read_bytes;
+        spill_read_stopped is true when that budget stopped it). At most the
+        latest 1000 of each; `truncated` says when more existed or the
+        budget stopped the spill read. `why`, the operator page and
+        `explain --html` do not read the spill.
       parameters:
         - {name: track, in: path, required: true, schema: {type: string}}
       responses:

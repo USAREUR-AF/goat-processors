@@ -239,22 +239,25 @@ fn with_spill(sp: &crate::config::Spill, resp: Response) -> Response {
     if names.is_empty() {
         return resp;
     }
-    let (sp_events, sp_trace) = crate::store::search(sp, &names, MAX);
-    let (n_ev, n_tr) = (sp_events.len(), sp_trace.len());
+    let (sp_events, sp_trace, read, stopped) = crate::store::search(sp, &names, MAX, crate::store::SEARCH_BYTES);
     if let Json::Obj(m) = &mut v {
-        let mut more = false;
-        for (key, older) in [("events", sp_events), ("trace", sp_trace)] {
+        let mut more = stopped;
+        for (key, count_key, older) in [("events", "spill_events", sp_events), ("trace", "spill_records", sp_trace)] {
             let newer = m.get(key).and_then(|x| x.as_array()).cloned().unwrap_or_default();
+            let from_spill = older.len();
             let all = [older, newer].concat();
             more |= all.len() > MAX;
             let cut = all.len().saturating_sub(MAX);
+            // How many of the items the reply holds came from the spill (they
+            // come first, so the cut takes them first).
+            m.insert(count_key.into(), Json::Int(from_spill.saturating_sub(cut) as i64));
             m.insert(key.into(), Json::Arr(all.into_iter().skip(cut).collect()));
         }
         if more {
             m.insert("truncated".into(), Json::Bool(true));
         }
-        m.insert("spill_events".into(), Json::Int(n_ev as i64));
-        m.insert("spill_records".into(), Json::Int(n_tr as i64));
+        m.insert("spill_read_bytes".into(), Json::Int(read as i64));
+        m.insert("spill_read_stopped".into(), Json::Bool(stopped));
     }
     Response::json(200, v.to_string())
 }
