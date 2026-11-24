@@ -73,7 +73,16 @@ pub const TOOLS: &[Tool] = &[
     Tool { name: "pipeline", class: Class::Read, level: Level::Lowest, description: "Each function in the running pipeline and its pack.", args: &[], method: "GET", path: "/v1/pipeline", body: None },
     Tool { name: "packs", class: Class::Read, level: Level::Lowest, description: "Every installed pack, by function.", args: &[], method: "GET", path: "/v1/packs", body: None },
     Tool { name: "metrics", class: Class::Read, level: Level::Highest, description: "Reports per second, processing latency and counts per source.", args: &[], method: "GET", path: "/v1/metrics", body: None },
-    Tool { name: "tracks", class: Class::Read, level: Level::Highest, description: "The system tracks of the latest tick: id, members, position, course, speed.", args: &[], method: "GET", path: "/v1/tracks", body: None },
+    Tool {
+        name: "tracks",
+        class: Class::Read,
+        level: Level::Highest,
+        description: "The system tracks of the latest tick, in id order: id, members, position, course, speed. At most limit (default 1000, at most 10000) a call; when the reply's next is not null, call again with after set to it.",
+        args: &[("limit", "string", "how many tracks, 1 to 10000 (default 1000)", false), ("after", "string", "the next of the previous reply", false)],
+        method: "GET",
+        path: "/v1/tracks",
+        body: None,
+    },
     Tool {
         name: "explain",
         class: Class::Read,
@@ -105,7 +114,16 @@ pub const TOOLS: &[Tool] = &[
         path: "/v1/pipeline/{function}",
         body: Some("{json:pack}"),
     },
-    Tool { name: "proposals", class: Class::Read, level: Level::Lowest, description: "Every settings proposal, pending and decided.", args: &[], method: "GET", path: "/v1/proposals", body: None },
+    Tool {
+        name: "proposals",
+        class: Class::Read,
+        level: Level::Lowest,
+        description: "The settings proposals, pending and decided, oldest first: the newest limit (default 1000, at most 10000).",
+        args: &[("limit", "string", "how many of the newest, 1 to 10000 (default 1000)", false)],
+        method: "GET",
+        path: "/v1/proposals",
+        body: None,
+    },
     Tool {
         name: "propose",
         class: Class::Proposal,
@@ -267,12 +285,26 @@ fn call_tool(server: &Server, who: &Identity, name: &str, args: &Json) -> (Resul
     }
     // The same API request the CLI makes, with the caller's identity.
     let mut path = t.path.to_string();
+    let mut query = BTreeMap::new();
     for (a, _, _, required) in t.args {
-        let v = args.get(a).and_then(|v| v.as_str()).map(str::to_string);
+        // A string, or a number written as one (an agent may send limit: 50).
+        let v = args.get(a).and_then(|v| match v {
+            Json::Str(s) => Some(s.clone()),
+            Json::Int(_) | Json::Num(_) => Some(v.to_string()),
+            _ => None,
+        });
         if *required && v.is_none() {
             return (Err((-32602, format!("{name}: the argument {a:?} is required (a string)"))), "missing argument".into());
         }
-        path = path.replace(&format!("{{{a}}}"), &crate::http::encode(&v.unwrap_or_default()));
+        let hole = format!("{{{a}}}");
+        if path.contains(&hole) {
+            path = path.replace(&hole, &crate::http::encode(&v.unwrap_or_default()));
+        } else if t.body.is_none() {
+            // Not in the path and no body: the route's query (limit, after).
+            if let Some(v) = v {
+                query.insert(a.to_string(), v);
+            }
+        }
     }
     let body = match t.body {
         None => Vec::new(),
@@ -283,7 +315,7 @@ fn call_tool(server: &Server, who: &Identity, name: &str, args: &Json) -> (Resul
         }
         Some(arg) => args.get(arg).and_then(|v| v.as_str()).unwrap_or("").as_bytes().to_vec(),
     };
-    let req = Request { method: t.method.into(), path, query: BTreeMap::new(), headers: BTreeMap::new(), body };
+    let req = Request { method: t.method.into(), path, query, headers: BTreeMap::new(), body };
     let resp = server.handle(&req, who.clone());
     let text = String::from_utf8_lossy(&resp.body).to_string();
     let ok = (200..300).contains(&resp.status);

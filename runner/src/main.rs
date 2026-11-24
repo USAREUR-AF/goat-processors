@@ -170,7 +170,7 @@ fn main() -> ExitCode {
         ["stop"] => api_verb(&a, "POST", "/v1/stop".into(), None, Some(show_status)),
         ["start"] => api_verb(&a, "POST", "/v1/start".into(), None, Some(show_status)),
         ["metrics"] => api_verb(&a, "GET", "/v1/metrics".into(), None, Some(show_kv)),
-        ["tracks"] => api_verb(&a, "GET", "/v1/tracks".into(), None, Some(show_tracks)),
+        ["tracks"] => cmd_tracks(&a),
         ["explain", track] if a.html.is_some() => cmd_explain_html(&a, track),
         ["explain", track] => api_verb(&a, "GET", format!("/v1/explain/{}", http::encode(track)), None, Some(show_explain)),
         ["audit"] => api_verb(&a, "GET", "/v1/audit".into(), None, Some(show_lines)),
@@ -558,6 +558,44 @@ fn show_pipeline(v: &Json) -> String {
         out.push_str(&format!("{:<10} {}{}\n", s_of(&s, "function"), s_of(&s, "pack"), note));
     }
     out
+}
+
+/// `tracks`: every page of GET /v1/tracks, joined into one reply.
+fn cmd_tracks(a: &Args) -> Result<ExitCode, String> {
+    let (addr, token) = api_target(a);
+    let mut all: Vec<Json> = Vec::new();
+    let mut first: Option<Json> = None;
+    let mut after: Option<String> = None;
+    loop {
+        let path = match &after {
+            Some(x) => format!("/v1/tracks?limit={}&after={}", api::PAGE_MAX, http::encode(x)),
+            None => format!("/v1/tracks?limit={}", api::PAGE_MAX),
+        };
+        let (status, body) = http::call(&addr, "GET", &path, token.as_deref(), None)?;
+        let v = json::parse(&String::from_utf8_lossy(&body)).map_err(|e| format!("the API answered {status} with no JSON: {e}"))?;
+        if status != 200 {
+            return Err(format!("the API answered {status}: {}", v.get("error").and_then(|e| e.as_str()).unwrap_or("")));
+        }
+        if let Some(Json::Arr(t)) = v.get("tracks") {
+            all.extend(t.iter().cloned());
+        }
+        after = v.get("next").and_then(|n| n.as_str()).map(str::to_string);
+        first.get_or_insert(v);
+        if after.is_none() {
+            break;
+        }
+    }
+    let mut v = first.unwrap_or(Json::Null);
+    if let Json::Obj(m) = &mut v {
+        m.insert("tracks".into(), Json::Arr(all));
+        m.insert("next".into(), Json::Null);
+    }
+    if a.output.as_deref() == Some("json") {
+        println!("{v}");
+    } else {
+        print!("{}", show_tracks(&v));
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn show_tracks(v: &Json) -> String {

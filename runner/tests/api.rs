@@ -608,3 +608,44 @@ fn operator_page_view_and_browser_rules() {
     assert_eq!(st, 200);
     assert_eq!(lines.lines().count() as i64, match r.get("lines") { Some(Json::Int(n)) => *n, _ => 0 });
 }
+
+#[test]
+fn tracks_come_in_pages_and_each_caller_has_a_rate_limit() {
+    let svc = Service::start("paging-rate", "  rate_per_s: 1\n  rate_burst: 3\n");
+    svc.feed(3);
+    // Paging: a page, its total, and no next when it holds them all.
+    let v = svc.get("/v1/tracks?limit=1");
+    assert!(v.get("total").and_then(|t| t.as_i64()).unwrap() >= 1, "{v}");
+    assert_eq!(v.get("tracks").and_then(|t| t.as_array()).map(|a| a.len()), Some(1));
+    let total = v.get("total").and_then(|t| t.as_i64()).unwrap();
+    assert_eq!(v.get("next").map(|n| matches!(n, Json::Null)), Some(total == 1), "{v}");
+    let (code, body) = svc.raw("GET", "/v1/tracks?limit=0", None, None).unwrap();
+    assert_eq!(code, 400, "{body}");
+    assert!(body.contains("not a number of 1 or more"), "{body}");
+    // Rate: the burst of 3 is spent (the two reads and the 400 above), so
+    // the next requests at once are refused, each with how long to wait.
+    std::thread::sleep(Duration::from_millis(3100));
+    let mut codes = Vec::new();
+    let mut retry = None;
+    for _ in 0..10 {
+        let (code, body) = svc.raw("GET", "/v1/status", None, None).unwrap();
+        if code == 429 {
+            retry = json::parse(&body).ok().and_then(|v| v.get("retry_after_ms").and_then(|x| x.as_i64()));
+            assert!(body.contains("api.rate_per_s"), "{body}");
+        }
+        codes.push(code);
+    }
+    assert_eq!(codes.iter().filter(|c| **c == 200).count(), 3, "the burst, then refusals: {codes:?}");
+    assert!(retry.is_some_and(|ms| ms > 0 && ms <= 1000), "{retry:?}");
+    // One audit line for the burst of refusals, not one per request.
+    let audited = std::fs::read_to_string(svc.dir.join("audit.jsonl")).unwrap_or_default().lines().filter(|l| l.contains("\"status\":429")).count();
+    assert_eq!(audited, 1, "one audited refusal a second");
+    // The refusals are counted (read from the status file: the API is busy).
+    std::thread::sleep(Duration::from_millis(500));
+    let st = json::parse(&std::fs::read_to_string(svc.dir.join("status.json")).unwrap()).unwrap();
+    assert!(st.get("counters").and_then(|c| c.get("api_rate_limited")).and_then(|v| v.as_i64()).unwrap() >= 7, "{st}");
+    // After a pause the caller is answered again.
+    std::thread::sleep(Duration::from_millis(1100));
+    assert_eq!(svc.raw("GET", "/v1/health", None, None).unwrap().0, 200);
+}
+

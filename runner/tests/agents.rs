@@ -258,6 +258,12 @@ fn a1_reference_client_lists_and_calls_every_tool() {
         let c = calls.iter().find(|c| s(c, "tool") == n).unwrap_or_else(|| panic!("the client did not call {n}"));
         assert_eq!(c.get("error"), Some(&Json::Bool(false)), "{n}: {}", s(c, "text"));
     }
+    // The tracks tool pages: limit (a number or a string) goes to the query.
+    let (err, text) = svc.tool(None, "tracks", "{\"limit\": 1}");
+    let page = json::parse(&text).unwrap();
+    assert!(!err && page.get("tracks").and_then(|t| t.as_array()).map(|a| a.len()) == Some(1) && page.get("total").is_some(), "{text}");
+    let (err, text) = svc.tool(None, "tracks", "{\"limit\": \"0\"}");
+    assert!(err && text.contains("not a number of 1 or more"), "{text}");
     // A6: every call is audited with identity, tool, inputs digest and result.
     for n in &names {
         let a = svc.agent_audit(n);

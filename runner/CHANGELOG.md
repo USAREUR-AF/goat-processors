@@ -6,6 +6,21 @@ their JSON outputs, the file paths, the config keys, and the fabric keys and
 their value format. The release workflow puts a release's section on its
 GitHub release page.
 
+## Unreleased
+
+- **Each API caller has a rate limit:** `api.rate_per_s` requests per second
+  on average (default 20), `api.rate_burst` at once (default 40), on the
+  local and mesh listeners. Past it the answer is 429 with `retry_after_ms`;
+  the first refusal of each second is audited, and all are counted in
+  `counters.api_rate_limited`. A program that polls faster than that gets
+  429s it did not get before.
+- **`GET /v1/tracks` comes in pages:** at most `limit` tracks (default 1000,
+  at most 10 000) in id order, with `total` and `next`; ask again with
+  `after=<next>`. A reader that took the whole list in one reply gets the
+  first 1000 tracks and must follow `next` (`goat-processors tracks` and the
+  MCP tool `tracks` do). `GET /v1/proposals` returns the newest `limit`;
+  `GET /v1/view` at most 10 000 tracks, with `tracks_total`.
+
 ## 0.7.0
 
 - **From 0.5.0 or earlier, also Breaking: the fabric keys** (0.6). Read the
