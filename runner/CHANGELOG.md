@@ -6,6 +6,17 @@ their JSON outputs, the file paths, the config keys, and the fabric keys and
 their value format. The release workflow puts a release's section on its
 GitHub release page.
 
+## Unreleased
+
+- **The decision store's bounds are settings, and it can spill to disk.**
+  `store.max_records` (default 200 000, as before) and `store.max_age_s`
+  (default 600 s of input; new: steps older than that leave memory).
+  `store.spill` (off by default) writes the steps leaving memory to a
+  size-limited file (`max_mb` required, `keep`, `max_age_s` for older
+  copies), and `explain` also reads it, off the service loop; its reply adds
+  `spill_events` and `spill_records`. New status counter
+  `store_spilled_steps`.
+
 ## 0.7.0
 
 - **From 0.5.0 or earlier, also Breaking: the fabric keys** (0.6). Read the

@@ -17,6 +17,7 @@ mod replay;
 mod rotate;
 mod selftest;
 mod service;
+mod store;
 
 use std::io::Write;
 use std::path::{Path, PathBuf};

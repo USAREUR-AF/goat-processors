@@ -229,6 +229,36 @@ fn host_is_local(req: &Request, listen: &str) -> bool {
         || name.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback())
 }
 
+/// An explain reply from memory, with what the store's spill holds for the
+/// same names added before it (older), still at most 1000 of each. Read
+/// here, in the API thread, so a long read never stalls the service loop.
+fn with_spill(sp: &crate::config::Spill, resp: Response) -> Response {
+    const MAX: usize = 1000;
+    let Ok(mut v) = json::parse(&String::from_utf8_lossy(&resp.body)) else { return resp };
+    let names: Vec<String> = v.get("names").and_then(|n| n.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()).unwrap_or_default();
+    if names.is_empty() {
+        return resp;
+    }
+    let (sp_events, sp_trace) = crate::store::search(sp, &names, MAX);
+    let (n_ev, n_tr) = (sp_events.len(), sp_trace.len());
+    if let Json::Obj(m) = &mut v {
+        let mut more = false;
+        for (key, older) in [("events", sp_events), ("trace", sp_trace)] {
+            let newer = m.get(key).and_then(|x| x.as_array()).cloned().unwrap_or_default();
+            let all = [older, newer].concat();
+            more |= all.len() > MAX;
+            let cut = all.len().saturating_sub(MAX);
+            m.insert(key.into(), Json::Arr(all.into_iter().skip(cut).collect()));
+        }
+        if more {
+            m.insert("truncated".into(), Json::Bool(true));
+        }
+        m.insert("spill_events".into(), Json::Int(n_ev as i64));
+        m.insert("spill_records".into(), Json::Int(n_tr as i64));
+    }
+    Response::json(200, v.to_string())
+}
+
 pub fn error(status: u16, what: &str, fix: &str) -> Response {
     let mut m = BTreeMap::new();
     m.insert("error".into(), Json::Str(what.into()));
@@ -378,7 +408,11 @@ impl Server {
         if !sent {
             return error(503, "the service loop has stopped", "sudo systemctl restart goat-processors");
         }
-        rrx.recv_timeout(Duration::from_secs(10)).unwrap_or_else(|_| error(503, "the service loop did not answer within 10 s", "sudo journalctl -u goat-processors -n 50"))
+        let resp = rrx.recv_timeout(Duration::from_secs(10)).unwrap_or_else(|_| error(503, "the service loop did not answer within 10 s", "sudo journalctl -u goat-processors -n 50"));
+        match (&self.config.store.spill, ROUTES[i].1) {
+            (Some(sp), "/v1/explain/{track}") if resp.status == 200 => with_spill(sp, resp),
+            _ => resp,
+        }
     }
 
     fn packs(&self) -> Response {

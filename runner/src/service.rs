@@ -506,7 +506,7 @@ pub const INPUT_QUEUE: usize = 65_536;
 pub static DROPPED_BACKLOG: AtomicU64 = AtomicU64::new(0);
 
 /// Trace records `explain` does not keep because one step returned more than
-/// it keeps in all (`RECENT_TRACE`).
+/// it keeps in all (`store.max_records`).
 pub static TRACE_NOT_KEPT: AtomicU64 = AtomicU64::new(0);
 
 /// Trace records the pipeline returned, in all and in the largest single
@@ -628,14 +628,14 @@ fn write_status(path: &std::path::Path, v: &Json) {
 }
 
 
-/// Recent steps kept for `explain`: at most this many trace records in all.
-const RECENT_TRACE: usize = 200_000;
 /// Processing times kept for the latency figures.
 const LATENCY_SAMPLES: usize = 2048;
 
 struct Recent {
     step: usize,
     now_ms: Option<i64>,
+    /// The tick it belongs to: its own, or the latest before it (an ingest).
+    at_ms: Option<i64>,
     out: Output,
 }
 
@@ -663,6 +663,8 @@ struct Runner {
     quality_active: BTreeMap<(String, String), Json>,
     tracks_now_ms: Option<i64>,
     recent: VecDeque<Recent>,
+    /// `store.spill`: where steps that leave memory go.
+    spill: Option<crate::store::SpillWriter>,
     recent_records: usize,
     /// (second, reports ingested in it), for the last 10 s.
     rate: VecDeque<(i64, u64)>,
@@ -754,26 +756,51 @@ impl Runner {
         let mut records: usize = out.stages.iter().map(|s| s.trace.len()).sum();
         TRACE_RECORDS.fetch_add(records as u64, Ordering::Relaxed);
         TRACE_MAX_STEP.fetch_max(records as u64, Ordering::Relaxed);
-        if records > RECENT_TRACE {
+        let cap = self.c.store.max_records;
+        if records > cap {
             // One step larger than the whole store (correlate's tick at a
             // thousand objects returns millions of records): keep the first
             // records of each stage up to the bound and count the rest.
-            let mut room = RECENT_TRACE;
+            let mut room = cap;
             for st in out.stages.iter_mut() {
                 let keep = st.trace.len().min(room);
                 st.trace.truncate(keep);
                 st.trace.shrink_to_fit();
                 room -= keep;
             }
-            TRACE_NOT_KEPT.fetch_add((records - RECENT_TRACE) as u64, Ordering::Relaxed);
-            records = RECENT_TRACE;
+            TRACE_NOT_KEPT.fetch_add((records - cap) as u64, Ordering::Relaxed);
+            records = cap;
         }
         if !out.stages.is_empty() {
-            self.recent.push_back(Recent { step: self.n, now_ms: now, out });
+            let at_ms = now.or(self.p.last_now_ms);
+            self.recent.push_back(Recent { step: self.n, now_ms: now, at_ms, out });
             self.recent_records += records;
-            while self.recent_records > RECENT_TRACE && self.recent.len() > 1 {
+            // Steps leave memory past the record bound or past the age bound
+            // (input-clock seconds behind the latest tick); the newest stays.
+            let oldest_kept = self.p.last_now_ms.map(|t| t - self.c.store.max_age_s as i64 * 1000);
+            while self.recent.len() > 1 {
+                let front = self.recent.front().unwrap();
+                let too_old = matches!((front.at_ms, oldest_kept), (Some(a), Some(o)) if a < o);
+                if self.recent_records <= cap && !too_old {
+                    break;
+                }
                 let old = self.recent.pop_front().unwrap();
                 self.recent_records -= old.out.stages.iter().map(|s| s.trace.len()).sum::<usize>();
+                if let Some(sp) = self.spill.as_mut() {
+                    let mut lines = Vec::new();
+                    for st in &old.out.stages {
+                        lines.extend(st.events.iter().map(|e| cite(&old, &st.function, e, "event")));
+                        lines.extend(st.trace.iter().map(|t| cite(&old, &st.function, t, "record")));
+                    }
+                    if sp.write(&lines).is_err() {
+                        self.sinks.errors += 1;
+                    }
+                }
+            }
+        }
+        if now.is_some() {
+            if let Some(sp) = self.spill.as_mut() {
+                sp.prune();
             }
         }
         self.n += 1;
@@ -791,6 +818,7 @@ impl Runner {
                 cnt.insert("dropped_paused".into(), Json::Int(self.dropped_paused as i64));
                 cnt.insert("dropped_backlog".into(), Json::Int(DROPPED_BACKLOG.load(Ordering::Relaxed) as i64));
                 cnt.insert("trace_not_kept".into(), Json::Int(TRACE_NOT_KEPT.load(Ordering::Relaxed) as i64));
+                cnt.insert("store_spilled_steps".into(), Json::Int(self.spill.as_ref().map_or(0, |s| s.steps) as i64));
                 cnt.insert("trace_records".into(), Json::Int(TRACE_RECORDS.load(Ordering::Relaxed) as i64));
                 cnt.insert("trace_max_step".into(), Json::Int(TRACE_MAX_STEP.load(Ordering::Relaxed) as i64));
                 cnt.insert("pipeline_changes".into(), Json::Int(self.pipeline_changes as i64));
@@ -988,12 +1016,7 @@ impl Runner {
         if let Some(Json::Arr(ms)) = track.get("members") {
             names.extend(ms.iter().filter_map(|v| v.as_str().map(str::to_string)));
         }
-        let names_in = |v: &Json| -> bool {
-            ["a", "b", "entity", "group", "system", "subject", "primary"]
-                .iter()
-                .any(|k| v.get(k).and_then(|x| x.as_str()).is_some_and(|x| names.iter().any(|n| n == x)))
-                || matches!(v.get("members"), Some(Json::Arr(ms)) if ms.iter().any(|x| x.as_str().is_some_and(|x| names.iter().any(|n| n == x))))
-        };
+        let names_in = |v: &Json| crate::store::names_in(v, &names);
         let mut events = Vec::new();
         let mut trace = Vec::new();
         for r in &self.recent {
@@ -1220,6 +1243,10 @@ fn quantiles(v: &[i64]) -> Json {
 }
 
 pub fn run(c: Config) -> Result<(), String> {
+    let spill = match &c.store.spill {
+        Some(sp) => Some(crate::store::SpillWriter::open(sp)?),
+        None => None,
+    };
     let p = Pipeline::from_config(&c)?;
     // A certificate that names another peer than the output prefix: the
     // fabric may drop everything published. Say so where the log is read.
@@ -1321,6 +1348,7 @@ pub fn run(c: Config) -> Result<(), String> {
         quality_active: BTreeMap::new(),
         tracks_now_ms: None,
         recent: VecDeque::new(),
+        spill,
         recent_records: 0,
         rate: VecDeque::new(),
         latency_us: VecDeque::new(),

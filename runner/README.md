@@ -158,6 +158,10 @@ exits 1. The service runs the same check before it starts.
 | `outputs.file.keep` | no | `1` | how many older copies to keep, 0 to 9; the oldest is removed |
 | `record.path` | no | | append every ingest and tick (replay format); under `/var/lib/goat-processors` |
 | `record.max_mb`, `record.keep` | no | no limit, `1` | as for `outputs.file`. A replay of a rotated record starts from that file's first line, so keep enough copies to cover the time you may need to replay |
+| `store.max_records` | no | `200000` | the most trace records the decision store behind `explain`, `why` and the operator page holds in memory, 100 to 5 000 000; a step that returns more keeps its first this many |
+| `store.max_age_s` | no | `600` | steps older than this many input-clock seconds behind the latest tick leave the store, 10 to 86 400 |
+| `store.spill.path`, `store.spill.max_mb` | no | off | a file the steps leaving the store are written to, as the cited lines `explain` returns; `explain` then also reads it. `max_mb` (1 to 10 240) is required: a spill is never unbounded. Under `/var/lib/goat-processors` |
+| `store.spill.keep`, `store.spill.max_age_s` | no | `3`, `86400` | older copies of the spill to keep (0 to 9), and the age in wall-clock seconds (60 to 30 days) after which an older copy is removed. At most `max_mb` × (`keep` + 1) on disk |
 | `status_file` | no | `/run/goat-processors/status.json` | the status the service writes after each tick, read by `doctor` |
 | `api.enabled` | no | `true` | serve the API |
 | `api.listen` | no | `127.0.0.1:8470` | the local listener; a loopback address only (it is plain HTTP) |
@@ -336,7 +340,8 @@ the fabric or a file only when a setting asks for it, within bounds.
 | Fabric: `events` | on; the events of each tick, without track and quality events and the per-report `keep` and `pass` | one key; `events_per_source_per_s` (20) per source, then one `suppressed` line |
 | Fabric: `status` | on; every `heartbeat_ms` | one key, one small value |
 | Fabric: `trace` | **off** | when on: `trace_for_s` (600 s, then off), `trace_entities`, `trace_max_bytes_per_s` (64 KiB/s) |
-| Local store for `explain`, `why`, the page | on, in memory | the trace records of the latest steps, 200 000 records in all. A step that returns more keeps its first 200 000 and the rest are counted in `counters.trace_not_kept` (below: what that means for `explain` at large N) |
+| Local store for `explain`, `why`, the page | on, in memory | `store.max_records` (200 000) and `store.max_age_s` (600 s of input), whichever comes first. A step that returns more than `max_records` keeps its first that many and the rest are counted in `counters.trace_not_kept` (below: what that means for `explain` at large N) |
+| Store spill | off | when on (`store.spill`): the steps leaving the store, within `max_mb` × (`keep` + 1) on disk, copies removed after `max_age_s`; `explain` reads it off the service loop. It holds what the store held, so a step cut to `max_records` is cut in the spill too. `counters.store_spilled_steps` counts the steps written |
 | `outputs.file` | off in the shipped config; when on, events only | `max_mb` and `keep` (rotation); no limit unless set |
 | `record` | off in the shipped config | `max_mb` and `keep`; a rotated record replays from its own first line |
 | Audit log | on | `api.audit_max_mb`, `api.audit_keep` |
