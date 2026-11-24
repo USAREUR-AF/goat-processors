@@ -223,11 +223,39 @@ pub struct Api {
     /// to every address. Off when absent.
     #[serde(default)]
     pub metrics_listen: Option<String>,
+    /// Requests per second one caller (one identity: `local`, `local-admin`,
+    /// or a mesh certificate's name) may make, on average; past it the API
+    /// answers 429. The metrics listener is not limited (it has 4
+    /// connections). Default 20.
+    #[serde(default = "default_rate_per_s")]
+    pub rate_per_s: f64,
+    /// How many requests one caller may make at once before the average
+    /// applies. Default 40.
+    #[serde(default = "default_rate_burst")]
+    pub rate_burst: u32,
+}
+
+fn default_rate_per_s() -> f64 {
+    20.0
+}
+fn default_rate_burst() -> u32 {
+    40
 }
 
 impl Default for Api {
     fn default() -> Self {
-        Api { enabled: true, listen: default_api_listen(), token_file: default_token_file(), audit_file: default_audit_file(), audit_max_mb: None, audit_keep: default_keep(), mesh: None, metrics_listen: None }
+        Api {
+            enabled: true,
+            listen: default_api_listen(),
+            token_file: default_token_file(),
+            audit_file: default_audit_file(),
+            audit_max_mb: None,
+            audit_keep: default_keep(),
+            mesh: None,
+            metrics_listen: None,
+            rate_per_s: default_rate_per_s(),
+            rate_burst: default_rate_burst(),
+        }
     }
 }
 
@@ -738,6 +766,12 @@ pub fn check(c: &Config) -> Vec<String> {
     }
 
     // API.
+    if !(c.api.rate_per_s > 0.0 && c.api.rate_per_s <= 10_000.0) {
+        p.push(format!("api.rate_per_s: {} is not above 0 and at most 10000. Say how many requests per second one caller may make.", c.api.rate_per_s));
+    }
+    if !(1..=100_000).contains(&c.api.rate_burst) {
+        p.push(format!("api.rate_burst: {} is not 1 to 100000.", c.api.rate_burst));
+    }
     if c.api.enabled {
         match c.api.listen.parse::<SocketAddr>() {
             Err(_) => p.push(format!("api.listen: {:?} is not an address. Write it as `127.0.0.1:8470`.", c.api.listen)),

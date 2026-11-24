@@ -608,3 +608,84 @@ fn operator_page_view_and_browser_rules() {
     assert_eq!(st, 200);
     assert_eq!(lines.lines().count() as i64, match r.get("lines") { Some(Json::Int(n)) => *n, _ => 0 });
 }
+
+#[test]
+fn tracks_come_in_pages_of_one_tick_and_local_callers_are_not_limited() {
+    let svc = Service::start("paging-local", "  rate_per_s: 1\n  rate_burst: 3\n");
+    svc.feed(3);
+    let v = svc.get("/v1/tracks?limit=1");
+    let total = v.get("total").and_then(|t| t.as_i64()).unwrap();
+    assert!(total >= 1, "{v}");
+    assert_eq!(v.get("tracks").and_then(|t| t.as_array()).map(|a| a.len()), Some(1));
+    assert_eq!(v.get("next").map(|n| matches!(n, Json::Null)), Some(total == 1), "{v}");
+    let (code, body) = svc.raw("GET", "/v1/tracks?limit=0", None, None).unwrap();
+    assert_eq!(code, 400, "{body}");
+    // A later page names the first page's tick; once a newer tick has
+    // replaced it, the page is refused, so pages never mix ticks.
+    let at = v.get("now_ms").and_then(|t| t.as_i64()).unwrap();
+    assert_eq!(svc.raw("GET", &format!("/v1/tracks?limit=1&at={at}"), None, None).unwrap().0, 200, "the same tick is served");
+    svc.feed(3); // ticks every 200 ms
+    let (code, body) = svc.raw("GET", &format!("/v1/tracks?limit=1&at={at}"), None, None).unwrap();
+    assert_eq!(code, 409, "{body}");
+    assert!(body.contains("start again"), "{body}");
+    // goat-processors tracks reads every page, whatever the ticks do.
+    let (ok, out) = svc.cli(&["tracks"]);
+    assert!(ok && out.contains("system tracks"), "{out}");
+    // Local callers are not rate limited (rate_per_s 1 here): the operator's
+    // own commands are never locked out by a script on the same host.
+    for i in 0..60 {
+        assert_eq!(svc.raw("GET", "/v1/health", None, None).unwrap().0, 200, "local request {i}");
+    }
+}
+
+#[test]
+fn each_mesh_certificate_has_a_rate_limit() {
+    if Command::new("openssl").arg("version").output().is_err() || Command::new("curl").arg("--version").output().is_err() {
+        eprintln!("skipped: openssl or curl missing");
+        return;
+    }
+    let certs = tmp("api-rate-certs");
+    openssl(&["ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", "ca.key"], &certs);
+    openssl(&["req", "-x509", "-new", "-key", "ca.key", "-sha256", "-days", "2", "-subj", "/CN=test-ca", "-out", "ca.pem", "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign,cRLSign"], &certs);
+    for who in ["server", "poller", "viewer"] {
+        openssl(&["ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", &format!("{who}.key")], &certs);
+        openssl(&["req", "-new", "-key", &format!("{who}.key"), "-subj", &format!("/CN={who}"), "-out", &format!("{who}.csr")], &certs);
+        std::fs::write(certs.join(format!("{who}.ext")), "subjectAltName=DNS:localhost,IP:127.0.0.1\nextendedKeyUsage=serverAuth,clientAuth\n").unwrap();
+        openssl(&["x509", "-req", "-in", &format!("{who}.csr"), "-CA", "ca.pem", "-CAkey", "ca.key", "-CAcreateserial", "-days", "2", "-sha256", "-extfile", &format!("{who}.ext"), "-out", &format!("{who}.pem")], &certs);
+    }
+    let port = free_port();
+    let extra = format!(
+        "  rate_per_s: 1\n  rate_burst: 3\n  mesh:\n    listen: \"127.0.0.1:{port}\"\n    tls:\n      root_ca: {c}/ca.pem\n      certificate: {c}/server.pem\n      private_key: {c}/server.key\n    allow:\n      - {{name: poller, role: read}}\n      - {{name: viewer, role: read}}\n",
+        c = certs.display()
+    );
+    let svc = Service::start("api-rate", &extra);
+    // A quick run of 10 from one certificate: the burst of 3, then 429s.
+    let mut codes = Vec::new();
+    for _ in 0..10 {
+        codes.push(curl(&certs, port, Some("poller"), "GET", "/v1/status").0);
+    }
+    assert_eq!(codes.iter().filter(|c| *c == "200").count(), 3, "{codes:?}");
+    assert_eq!(codes.iter().filter(|c| *c == "429").count(), 7, "{codes:?}");
+    // The refusal: retry_after_ms in the body, Retry-After in the header.
+    let out = Command::new("curl")
+        .current_dir(&certs)
+        .args(["-s", "-D", "-", "--cacert", "ca.pem", "--cert", "poller.pem", "--key", "poller.key"])
+        .arg(format!("https://localhost:{port}/v1/status"))
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(text.starts_with("HTTP/1.1 429 Too Many Requests"), "{text}");
+    assert!(text.lines().any(|l| l.eq_ignore_ascii_case("retry-after: 1\r") || l.eq_ignore_ascii_case("retry-after: 1")), "{text}");
+    assert!(text.contains("\"retry_after_ms\"") && text.contains("api.rate_per_s"), "{text}");
+    // Another certificate has its own limit.
+    assert_eq!(curl(&certs, port, Some("viewer"), "GET", "/v1/status").0, "200");
+    // The first refusal of each second for each caller is audited, not every one.
+    let refused = svc.audit().iter().filter(|a| s(a, "who") == "poller" && a.get("status").and_then(|x| x.as_i64()) == Some(429)).count();
+    assert!((1..=3).contains(&refused), "{refused} audited refusals for 8");
+    std::thread::sleep(Duration::from_millis(500));
+    let st = json::parse(&std::fs::read_to_string(svc.dir.join("status.json")).unwrap()).unwrap();
+    assert!(st.get("counters").and_then(|c| c.get("api_rate_limited")).and_then(|v| v.as_i64()).unwrap() >= 8, "{st}");
+    // After a pause the certificate is answered again.
+    std::thread::sleep(Duration::from_millis(1100));
+    assert_eq!(curl(&certs, port, Some("poller"), "GET", "/v1/status").0, "200");
+}

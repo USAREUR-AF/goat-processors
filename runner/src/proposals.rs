@@ -143,8 +143,9 @@ impl Book {
         self.list.iter_mut().find(|p| p.id == id)
     }
 
-    pub fn to_json(&self) -> Json {
-        Json::Arr(self.list.iter().map(Proposal::to_json).collect())
+    /// The newest `n` proposals, oldest first.
+    pub fn newest(&self, n: usize) -> Json {
+        Json::Arr(self.list.iter().skip(self.list.len().saturating_sub(n)).map(Proposal::to_json).collect())
     }
 }
 

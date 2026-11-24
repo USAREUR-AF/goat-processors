@@ -165,6 +165,7 @@ exits 1. The service runs the same check before it starts.
 | `api.audit_file` | no | `/var/lib/goat-processors/audit.jsonl` | every change and every refused request, one JSON line each |
 | `api.audit_max_mb`, `api.audit_keep` | no | no limit, `1`; the shipped config sets `64` and `9` | as for `outputs.file`. With the API on and no `audit_max_mb`, `config check` warns. `goat-processors audit` reads the current file only |
 | `api.mesh.listen` | no | | `<ip>:<port>` for callers on other hosts, over mutual TLS |
+| `api.rate_per_s`, `api.rate_burst` | no | `20`, `40` | the rate limit of each certificate name on the mesh listener (a token bucket): up to `rate_burst` requests in a quick run after being idle, then `rate_per_s` a second on average. Past it the API answers 429 with `retry_after_ms` and a `Retry-After` header. Callers on the local listener are not limited, nor is the metrics listener (`/v1/metrics/prometheus` on the mesh listener is) |
 | `api.metrics_listen` | no | off | `<mesh ip>:<port>` that serves only `GET /metrics` (the Prometheus text), plain HTTP with no caller check, for an obs host's scraper. `config check` refuses an address that listens on every interface |
 | `api.mesh.tls` | no | the `fabric.tls` files | `root_ca` (signs callers' certificates), `certificate`, `private_key` |
 | `api.mesh.allow[]` | with `api.mesh` | | `{name: <certificate CN>, role: read or operate}`; a CN not listed is refused. Any certificate the site CA signs with that CN gets the role, so the site CA should give each person and program its own name. The list is read at start: to take access away, remove the name and restart the service, or revoke the certificate (`api.mesh.crl`) |
@@ -340,7 +341,7 @@ the fabric or a file only when a setting asks for it, within bounds.
 | `outputs.file` | off in the shipped config; when on, events only | `max_mb` and `keep` (rotation); no limit unless set, and `config check` warns |
 | `record` | off in the shipped config | `max_mb` and `keep`; a rotated record replays from its own first line; `config check` warns without `max_mb` |
 | Audit log | on | `api.audit_max_mb`, `api.audit_keep`: 64 MiB and 9 older copies in the shipped config; `config check` warns without a limit |
-| API and MCP replies | on request | `tracks` and `view`: the latest tick; `explain`: one track, at most 1000 events and 1000 trace records; `why`: 200 records to the model; `audit`: `limit` (100, at most 10 000); request bodies 16 MiB; 16 connections at once on the local listener, 32 on the mesh, 4 on metrics |
+| API and MCP replies | on request; on the mesh, each certificate name at most `api.rate_per_s` requests per second (20) after a quick run of `api.rate_burst` (40) | `tracks`: pages of one tick, at most `limit` (1000, at most 10 000), with `next`; `view`: at most 10 000 tracks; `proposals`: the newest `limit`; `explain`: one track, at most 1000 events and 1000 trace records; `why`: 200 records to the model; `audit`: `limit` (100, at most 10 000); request bodies 16 MiB; 16 connections at once on the local listener, 32 on the mesh, 4 on metrics |
 | Log | the journal | one line per change, refusal or input problem (unreadable input: the first 10, then every 1000th), never one per report |
 
 **Measured.** The volume test plays N objects seen by a radar and a beacon
@@ -404,7 +405,7 @@ one step may add to any store; and never forward it whole to a network.
 | Live data in the volatile class, routed and never stored (goat ADR 1032) | the default prefix is `volatile/<peer>/stream/processors/<name>`, and every value is sent with congestion control drop |
 | A small, stable set of keys; entity ids in the payload, not the key (goat's fabric cardinality budget) | five fixed keys whatever the number of tracks; the volume test fails on any other key |
 | No subscription to the whole keyspace | `config check` refuses an input key such as `**` |
-| Client demand must not amplify into fabric load (goat ADR 1123) | every API, MCP, CLI and page read is served from the runner's own memory, never by a fabric query; each listener has a fixed number of connections and a request size limit. A per-identity rate limit on the API is Designed, not built |
+| Client demand must not amplify into fabric load (goat ADR 1123) | every API, MCP, CLI and page read is served from the runner's own memory, never by a fabric query; each listener has a fixed number of connections and a request size limit; each certificate name on the mesh has a rate limit (`api.rate_per_s`, 429 past it), and list replies come in pages. Local callers are not limited (they run on the runner's host) |
 
 **Run the volume test.** In `runner/`: `cargo test --release --test volume
 -- --ignored --nocapture` (needs `python3`; 50 and 200 objects, about a
@@ -435,6 +436,32 @@ refused request, is written to `api.audit_file` with who made it.
 Each listener handles a fixed number of connections at once (local 16, mesh
 32, metrics 4), and a request must arrive whole within 30 s, so slow or many
 callers on the mesh or metrics port cannot shut out the local API.
+On the mesh listener each certificate name has a rate limit, a token
+bucket: up to `api.rate_burst` requests in a quick run after being idle
+(default 40), then `api.rate_per_s` a second on average (default 20). Past
+it every route answers 429 with `retry_after_ms` in the body and a
+`Retry-After` header (whole seconds); the first refusal of each second for
+each certificate is audited, and every refusal is counted in
+`counters.api_rate_limited`. Everyone who holds one certificate shares its
+limit, so give each program on the mesh its own certificate. The operator
+page reads `/v1/view` every 2 seconds, well inside the limit. A tool an MCP
+call runs counts once, as the `/mcp` request. Callers on the local listener
+are not limited: they run on the runner's own host, and every local request
+without the token is the same caller, so a limit there would let one busy
+script lock out the operator's own commands.
+
+**Lists come in pages.** `GET /v1/tracks` returns at most `limit` tracks
+(default 1000, at most 10 000) of the latest tick, in byte order of the id
+(`S10` before `S2`), with `now_ms`, `total` and `next`. Ask for the next
+page with `after=<next>&at=<now_ms of the first page>` until `next` is
+null. Every page then comes from the same tick: when a newer tick has
+replaced it, the page is refused with 409, and you start again from the
+first page. `after` need not be a current track id, so a track that ended
+does not break paging. Check that you received `total` tracks.
+`goat-processors tracks` does all this for you, and the MCP tool `tracks`
+takes `limit`, `after` and `at`. `GET /v1/proposals` returns the newest
+`limit`; older ones are in `agents.proposals_file`. `GET /v1/view` holds at
+most 10 000 tracks, and `tracks_total` says how many there are.
 `pack use` takes effect at once and is written to the record file, so a
 replay of the record makes the same change at the same step. It lasts until
 the service restarts; to keep it, write the pack in the config file.
@@ -649,6 +676,7 @@ each FAIL is followed by its fix. Doctor changes nothing.
 | `certificates: api.mesh.crl` warn: past its next update | the list still applies, but the CA has likely issued a newer one | copy the CA's current list there |
 | `output prefix` FAIL or warn: the certificate's name is ... | the runner publishes under `volatile/<peer>/...`, but its certificate names another peer; a router that grants writes only under `volatile/<certificate name>/**` drops the runner's output without an error, and readers see nothing | FAIL when neither `peer` nor `prefix` is set (typically a config kept from 0.5.0), warn when either is set by hand. Add `peer: <certificate name>` under `outputs:` / `  fabric:` (or the identity the fabric grants), then `sudo systemctl restart goat-processors`. The service writes the same line to its log at start |
 | `config` warn: layout per-entity, a prefix not under volatile/, the whole trace, a file with no `max_mb` (`outputs.file`, `record`, the audit log), or `outputs.file.trace` | a valid setting that breaks goat's fabric rules, publishes much more than needed, or lets a file grow until the disk is full; the line says which | as the line says; README.md, Configure |
+| a program on the mesh gets HTTP 429, "over the rate limit" | its certificate name made more than `api.rate_per_s` requests per second on average after a quick run of `api.rate_burst`; everyone using that certificate shares the limit; `counters.api_rate_limited` counts the refusals | wait `Retry-After` (or `retry_after_ms`); read less often, page with `limit`, `after` and `at`, or read `/v1/view` once; give each program its own certificate. To allow more, raise `api.rate_per_s` and `api.rate_burst` and `sudo systemctl restart goat-processors` |
 | `files` warn: a file has no size limit | an output, record or audit file without `max_mb` has passed 1 GiB (`config check` already warns about such a file; this line says it has now passed 1 GiB) | set its `max_mb` and `keep` in the config, then `sudo systemctl restart goat-processors` |
 | `files` warn: the disk is 90% full or more | the disk holding a file the service writes is nearly full; when it is full, writes fail (`output_errors`) | free space there, or set `max_mb` on the files |
 | `api` FAIL: the API does not answer | the service is not running, or failed to open its API port | `sudo journalctl -u goat-processors -n 50`; another program may hold port 8470 (`api.listen`) |
