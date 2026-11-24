@@ -161,7 +161,14 @@ impl TraceGate {
 struct Batch {
     heartbeat_ms: i64,
     tracks: Option<(String, i64)>,
-    quality: Option<(String, i64)>,
+    /// The quality picture: each subject's latest measures, the marks in
+    /// force (action-start until its action-end), the marks cleared since
+    /// the last publish, and whether a mark was set or cleared since then.
+    measures: BTreeMap<(String, String), Json>,
+    marks: BTreeMap<(String, String, String, String), Json>,
+    cleared: Vec<Json>,
+    marks_changed: bool,
+    quality_at: Option<i64>,
     status: Option<i64>,
     /// Events and trace records since the last tick, each with its stage.
     events: Vec<Json>,
@@ -202,6 +209,53 @@ impl Batch {
                 m.insert("track_number".into(), Json::Int(n as i64));
             }
         }
+    }
+
+    /// Takes one quality event into the picture.
+    fn note_quality(&mut self, e: &Json) {
+        let f = |k: &str| e.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+        match e.get("ev").and_then(|v| v.as_str()) {
+            Some("quality") => {
+                self.measures.insert((f("scope"), f("subject")), e.clone());
+            }
+            Some("action-start") => {
+                self.marks.insert((f("scope"), f("subject"), f("action"), f("rule")), e.clone());
+                self.marks_changed = true;
+            }
+            Some("action-end") => {
+                self.marks.remove(&(f("scope"), f("subject"), f("action"), f("rule")));
+                self.cleared.push(e.clone());
+                self.marks_changed = true;
+            }
+            Some("forget") => {
+                for scope in ["entity", "source"] {
+                    if let Some(x) = e.get(scope).and_then(|v| v.as_str()) {
+                        self.measures.remove(&(scope.to_string(), x.to_string()));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// The quality value, when it is due at `now`: a mark set or cleared
+    /// since the last publish, or `heartbeat_ms` passed. It holds every
+    /// subject's latest measures, the marks in force and the marks cleared
+    /// since the last publish, so one value is the whole picture.
+    fn quality_due(&mut self, now: i64) -> Option<Vec<Json>> {
+        let due = self.marks_changed || match self.quality_at {
+            None => true,
+            Some(t) => now - t >= self.heartbeat_ms || now < t,
+        };
+        if !due {
+            return None;
+        }
+        self.quality_at = Some(now);
+        self.marks_changed = false;
+        let mut v: Vec<Json> = self.measures.values().cloned().collect();
+        v.extend(self.marks.values().cloned());
+        v.append(&mut self.cleared);
+        Some(v)
     }
 
     /// Whether a set whose content is `body` is due at `now`: it differs from
@@ -292,6 +346,9 @@ impl Sinks {
                 b.events.push(e);
             }
         }
+        for e in out.stages.iter().filter(|s| s.function == "quality").flat_map(|s| s.events.iter()) {
+            b.note_quality(e);
+        }
         let Some(t) = now else { return };
         // Each set is JSON lines: one object per line, each with `now_ms`,
         // so a reader splits it with newline framing, and the runner's own
@@ -302,19 +359,13 @@ impl Sinks {
         if track_stage.is_some() {
             b.number(&mut tracks);
         }
-        let quality: Vec<Json> = out
-            .stages
-            .iter()
-            .filter(|s| s.function == "quality")
-            .flat_map(|s| s.events.iter())
-            .filter(|e| matches!(e.get("ev").and_then(|v| v.as_str()), Some("quality" | "action-start" | "action-end")))
-            .cloned()
-            .collect();
         if track_stage.is_some() && Batch::due(&mut b.tracks, Json::Arr(tracks.clone()).to_string(), t, b.heartbeat_ms) {
             texts.push((format!("{}/tracks", self.prefix), lines(&tracks)));
         }
-        if out.stages.iter().any(|s| s.function == "quality") && Batch::due(&mut b.quality, Json::Arr(quality.clone()).to_string(), t, b.heartbeat_ms) {
-            texts.push((format!("{}/quality", self.prefix), lines(&quality)));
+        if out.stages.iter().any(|s| s.function == "quality") {
+            if let Some(q) = b.quality_due(t) {
+                texts.push((format!("{}/quality", self.prefix), lines(&q)));
+            }
         }
         let mut events = std::mem::take(&mut b.events);
         events.extend(b.limiter.roll(t));
@@ -453,6 +504,10 @@ pub const INPUT_QUEUE: usize = 65_536;
 
 /// Reports dropped because the input queue was full.
 pub static DROPPED_BACKLOG: AtomicU64 = AtomicU64::new(0);
+
+/// Trace records `explain` does not keep because one step returned more than
+/// it keeps in all (`RECENT_TRACE`).
+pub static TRACE_NOT_KEPT: AtomicU64 = AtomicU64::new(0);
 
 /// Sends an input from a source that must not wait (a fabric callback, a
 /// UDP socket). Returns false when the service loop has ended.
@@ -690,7 +745,22 @@ impl Runner {
             self.tracks = tracks.into_iter().collect();
             self.tracks_now_ms = now;
         }
-        let records: usize = out.stages.iter().map(|s| s.trace.len()).sum();
+        let mut out = out;
+        let mut records: usize = out.stages.iter().map(|s| s.trace.len()).sum();
+        if records > RECENT_TRACE {
+            // One step larger than the whole store (correlate's tick at a
+            // thousand objects returns millions of records): keep the first
+            // records of each stage up to the bound and count the rest.
+            let mut room = RECENT_TRACE;
+            for st in out.stages.iter_mut() {
+                let keep = st.trace.len().min(room);
+                st.trace.truncate(keep);
+                st.trace.shrink_to_fit();
+                room -= keep;
+            }
+            TRACE_NOT_KEPT.fetch_add((records - RECENT_TRACE) as u64, Ordering::Relaxed);
+            records = RECENT_TRACE;
+        }
         if !out.stages.is_empty() {
             self.recent.push_back(Recent { step: self.n, now_ms: now, out });
             self.recent_records += records;
@@ -713,6 +783,7 @@ impl Runner {
             if let Some(Json::Obj(cnt)) = m.get_mut("counters") {
                 cnt.insert("dropped_paused".into(), Json::Int(self.dropped_paused as i64));
                 cnt.insert("dropped_backlog".into(), Json::Int(DROPPED_BACKLOG.load(Ordering::Relaxed) as i64));
+                cnt.insert("trace_not_kept".into(), Json::Int(TRACE_NOT_KEPT.load(Ordering::Relaxed) as i64));
                 cnt.insert("pipeline_changes".into(), Json::Int(self.pipeline_changes as i64));
             }
         }
@@ -1173,7 +1244,11 @@ pub fn run(c: Config) -> Result<(), String> {
         batch: c.outputs.fabric.as_ref().filter(|f| f.layout == crate::config::Layout::Batch).map(|f| Batch {
             heartbeat_ms: f.heartbeat_ms as i64,
             tracks: None,
-            quality: None,
+            measures: BTreeMap::new(),
+            marks: BTreeMap::new(),
+            cleared: Vec::new(),
+            marks_changed: false,
+            quality_at: None,
             status: None,
             events: Vec::new(),
             trace: Vec::new(),
@@ -1345,6 +1420,29 @@ mod batch_tests {
     use crate::json::{parse, Json};
 
     #[test]
+    fn quality_goes_out_when_a_mark_changes_else_at_the_heartbeat() {
+        let mut b = Batch { heartbeat_ms: 5000, tracks: None, measures: Default::default(), marks: Default::default(), cleared: vec![], marks_changed: false, quality_at: None, status: None, events: vec![], trace: vec![], limiter: Limiter::new(20), numbers: Default::default(), next_number: 1 };
+        let q = |subject: &str, n: i64| parse(&format!(r#"{{"ev":"quality","scope":"entity","subject":"{subject}","measures":{{"reports":{n}}}}}"#)).unwrap();
+        b.note_quality(&q("r/T1", 1));
+        assert_eq!(b.quality_due(0).map(|v| v.len()), Some(1), "the first tick publishes");
+        b.note_quality(&q("r/T1", 2));
+        assert!(b.quality_due(1000).is_none(), "new measures alone wait for the heartbeat");
+        let start = parse(r#"{"ev":"action-start","scope":"entity","subject":"r/T1","action":"alert","rule":"silent"}"#).unwrap();
+        b.note_quality(&start);
+        let v = b.quality_due(2000).expect("a mark set goes out at once");
+        assert_eq!(v.len(), 2, "latest measures and the mark: {v:?}");
+        assert!(v[0].to_string().contains(r#""reports":2"#));
+        assert!(b.quality_due(3000).is_none());
+        let v = b.quality_due(7000).expect("the heartbeat");
+        assert!(v.iter().any(|e| e.get("ev").and_then(Json::as_str) == Some("action-start")), "a mark in force stays in every value");
+        b.note_quality(&parse(r#"{"ev":"action-end","scope":"entity","subject":"r/T1","action":"alert","rule":"silent","reason":"clear"}"#).unwrap());
+        let v = b.quality_due(8000).expect("a mark cleared goes out at once");
+        assert!(v.iter().any(|e| e.get("ev").and_then(Json::as_str) == Some("action-end")) && !v.iter().any(|e| e.get("ev").and_then(Json::as_str) == Some("action-start")));
+        b.note_quality(&parse(r#"{"ev":"forget","entity":"r/T1"}"#).unwrap());
+        assert_eq!(b.quality_due(13000).map(|v| v.len()), Some(0), "a forgotten subject leaves the picture; the cleared mark was sent once");
+    }
+
+    #[test]
     fn events_over_the_limit_are_counted_and_summarized_once_a_second() {
         let mut l = Limiter::new(2);
         l.roll(0);
@@ -1392,7 +1490,7 @@ mod batch_tests {
     #[test]
     fn a_track_keeps_its_number_and_an_ended_track_frees_it() {
         use crate::json::{self, Json};
-        let mut b = Batch { heartbeat_ms: 1000, tracks: None, quality: None, status: None, events: vec![], trace: vec![], limiter: Limiter::new(20), numbers: Default::default(), next_number: 1 };
+        let mut b = Batch { heartbeat_ms: 1000, tracks: None, measures: Default::default(), marks: Default::default(), cleared: vec![], marks_changed: false, quality_at: None, status: None, events: vec![], trace: vec![], limiter: Limiter::new(20), numbers: Default::default(), next_number: 1 };
         let set = |ids: &[&str]| -> Vec<Json> { ids.iter().map(|i| json::parse(&format!("{{\"group\":\"{i}\"}}")).unwrap()).collect() };
         let num = |t: &Json| t.get("track_number").and_then(|v| v.as_i64()).unwrap();
         let mut a = set(&["s1", "s2"]);
