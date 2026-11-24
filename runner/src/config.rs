@@ -586,7 +586,7 @@ pub fn warnings(c: &Config) -> Vec<String> {
     }
     if let Some(r) = &c.record {
         if r.max_mb.is_none() {
-            w.push("record: no max_mb, so the record grows without limit (about the size of the input). Set record.max_mb and keep enough copies to cover the time you may need to replay.".into());
+            w.push("record: no max_mb, so the record grows without limit. Set record.max_mb and keep enough copies to cover the time you may need to replay.".into());
         }
     }
     if c.api.enabled && c.api.audit_max_mb.is_none() {

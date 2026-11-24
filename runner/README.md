@@ -474,9 +474,9 @@ table above). The page holds no authority of its own:
 | `https://<mesh address>:<port>/ui` (`api.mesh.listen`), with your client certificate installed in the browser | your certificate's name | what `api.mesh.allow` gives that name. `operate` turns the change buttons on |
 
 To let a person change the runner from a browser, give the API a mesh
-listener and allow their certificate (the keys are in Configure, above). Add
-the keys under the config's `api:` section; the shipped config already has
-one, with the audit log's limit, and a second `api:` line is an error:
+listener and allow their certificate (the keys are in Configure, above).
+Replace the shipped `api:` section with this block, which keeps its two audit
+lines. A second `api:` line is refused by `config check` (`duplicate field`):
 
 ```yaml
 api:
@@ -649,7 +649,7 @@ each FAIL is followed by its fix. Doctor changes nothing.
 | `certificates: api.mesh.crl` warn: past its next update | the list still applies, but the CA has likely issued a newer one | copy the CA's current list there |
 | `output prefix` FAIL or warn: the certificate's name is ... | the runner publishes under `volatile/<peer>/...`, but its certificate names another peer; a router that grants writes only under `volatile/<certificate name>/**` drops the runner's output without an error, and readers see nothing | FAIL when neither `peer` nor `prefix` is set (typically a config kept from 0.5.0), warn when either is set by hand. Add `peer: <certificate name>` under `outputs:` / `  fabric:` (or the identity the fabric grants), then `sudo systemctl restart goat-processors`. The service writes the same line to its log at start |
 | `config` warn: layout per-entity, a prefix not under volatile/, the whole trace, a file with no `max_mb` (`outputs.file`, `record`, the audit log), or `outputs.file.trace` | a valid setting that breaks goat's fabric rules, publishes much more than needed, or lets a file grow until the disk is full; the line says which | as the line says; README.md, Configure |
-| `files` warn: a file has no size limit | an output, record or audit file without `max_mb` has passed 1 GiB | set its `max_mb` and `keep` in the config, then `sudo systemctl restart goat-processors` |
+| `files` warn: a file has no size limit | an output, record or audit file without `max_mb` has passed 1 GiB (`config check` already warns about such a file; this line says it has now passed 1 GiB) | set its `max_mb` and `keep` in the config, then `sudo systemctl restart goat-processors` |
 | `files` warn: the disk is 90% full or more | the disk holding a file the service writes is nearly full; when it is full, writes fail (`output_errors`) | free space there, or set `max_mb` on the files |
 | `api` FAIL: the API does not answer | the service is not running, or failed to open its API port | `sudo journalctl -u goat-processors -n 50`; another program may hold port 8470 (`api.listen`) |
 | `api` FAIL: not healthy: paused | an operator ran `goat-processors stop` | `sudo goat-processors start` |
