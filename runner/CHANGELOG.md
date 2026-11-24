@@ -6,8 +6,11 @@ their JSON outputs, the file paths, the config keys, and the fabric keys and
 their value format. The release workflow puts a release's section on its
 GitHub release page.
 
-## Unreleased
+## 0.8.0
 
+- **From 0.6.x, also Breaking: the `quality` value** (0.7.0); **from 0.5.0 or
+  earlier, also the fabric keys** (0.6). Read those sections of
+  `runner/CHANGELOG.md` before updating.
 - **Breaking (sites with more than 1000 system tracks): `GET /v1/tracks`
   returns pages.** At most `limit` tracks (default 1000, at most 10 000) of
   the latest tick, in byte order of the id, with `total` and `next`. An
