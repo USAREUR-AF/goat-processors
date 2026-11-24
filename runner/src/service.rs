@@ -426,9 +426,9 @@ impl Sinks {
             for e in &s.events {
                 let ev = e.get("ev").and_then(|v| v.as_str()).unwrap_or("");
                 let field = |k: &str| e.get(k).and_then(|v| v.as_str()).map(fabric::key_chunk);
-                if Some(i) == track_stage && (ev == "fused" || ev == "system") {
-                    if let Some(id) = field("group").or_else(|| field("system")) {
-                        puts.push((format!("{}/tracks/{}", self.prefix, id), with_now(e, now)));
+                if Some(i) == track_stage {
+                    if let Some((id, track)) = as_track(e) {
+                        puts.push((format!("{}/tracks/{}", self.prefix, fabric::key_chunk(&id)), with_now(&track, now)));
                     }
                 }
                 if s.function == "quality" && matches!(ev, "quality" | "action-start" | "action-end") {
@@ -467,15 +467,27 @@ fn q_entry<'a>(sources: &'a mut BTreeMap<String, BTreeMap<String, Json>>, src: &
 
 fn track_events(out: &Output) -> Vec<(String, Json)> {
     let Some(i) = track_stage(out) else { return vec![] };
-    out.stages[i]
-        .events
-        .iter()
-        .filter(|e| matches!(e.get("ev").and_then(|v| v.as_str()), Some("fused") | Some("system")))
-        .filter_map(|e| {
-            let id = e.get("group").or_else(|| e.get("system")).and_then(|v| v.as_str())?;
-            Some((id.to_string(), e.clone()))
-        })
-        .collect()
+    out.stages[i].events.iter().filter_map(as_track).collect()
+}
+
+/// A `fused` or `system` event as a system track: its id, and the event.
+/// Fuse gives a source track that correlate put in no group a group of its
+/// own without a name (spec/fuse.md, Groups); its id is that one member.
+fn as_track(e: &Json) -> Option<(String, Json)> {
+    if !matches!(e.get("ev").and_then(|v| v.as_str()), Some("fused") | Some("system")) {
+        return None;
+    }
+    if let Some(id) = ["group", "system"].iter().find_map(|k| e.get(k).and_then(|v| v.as_str())) {
+        return Some((id.to_string(), e.clone()));
+    }
+    let Some(Json::Arr(ms)) = e.get("members") else { return None };
+    let [only] = ms.as_slice() else { return None };
+    let id = only.as_str()?.to_string();
+    let mut e = e.clone();
+    if let Json::Obj(m) = &mut e {
+        m.insert("group".into(), Json::Str(id.clone()));
+    }
+    Some((id, e))
 }
 
 fn line_obj(stage: &str, now: Option<i64>, list: Json, key: &str) -> Json {
@@ -1462,7 +1474,7 @@ pub fn run(c: Config) -> Result<(), String> {
 
 #[cfg(test)]
 mod batch_tests {
-    use super::{event_source, Batch, Limiter, TraceGate};
+    use super::{as_track, event_source, Batch, Limiter, TraceGate};
     use crate::json::{parse, Json};
 
     #[test]
@@ -1531,6 +1543,19 @@ mod batch_tests {
         assert!(!Batch::due(&mut last, "b".into(), 1399, 1000));
         assert!(Batch::due(&mut last, "b".into(), 1400, 1000), "heartbeat");
         assert!(Batch::due(&mut last, "b".into(), 100, 1000), "the clock went back");
+    }
+
+    #[test]
+    fn an_unnamed_group_is_a_track_named_by_its_one_member() {
+        let t = |s: &str| as_track(&parse(s).unwrap());
+        let (id, e) = t(r#"{"ev":"fused","group":null,"members":["radar-1/T2"],"lat":1.0}"#).unwrap();
+        assert_eq!(id, "radar-1/T2");
+        assert_eq!(e.get("group").and_then(Json::as_str), Some("radar-1/T2"));
+        let (id, e) = t(r#"{"ev":"fused","group":"g1","members":["radar-1/T1","radar-2/R1"]}"#).unwrap();
+        assert_eq!((id.as_str(), e.get("group").and_then(Json::as_str)), ("g1", Some("g1")));
+        assert_eq!(t(r#"{"ev":"system","system":"S1","members":["a/1"]}"#).unwrap().0, "S1");
+        assert!(t(r#"{"ev":"fused","group":null,"members":["a/1","b/2"]}"#).is_none(), "no name and no one member to name it by");
+        assert!(t(r#"{"ev":"keep","group":"g1"}"#).is_none());
     }
 
     #[test]

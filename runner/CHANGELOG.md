@@ -8,6 +8,13 @@ GitHub release page.
 
 ## Unreleased
 
+- **Single-source tracks are in the output.** A source track that correlate
+  put in no group (an object only one sensor reports) was left out of the
+  `tracks` key, `GET /v1/tracks`, the operator page, `explain` and the track
+  metrics when the pipeline ends in fuse, although fuse makes a track of it.
+  It is now a system track whose `group` is its one member (`radar-1/T2`).
+  A site whose correlate pack forms groups sees more tracks than before.
+
 - **Breaking (sites with more than 1000 system tracks): `GET /v1/tracks`
   returns pages.** At most `limit` tracks (default 1000, at most 10 000) of
   the latest tick, in byte order of the id, with `total` and `next`. An
