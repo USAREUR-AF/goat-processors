@@ -1,0 +1,30 @@
+# The volume test at sizes a pull request does not run (1000 objects takes
+# about five minutes and 9 GB of memory: correlate's trace per tick grows
+# with the square of the tracks). Started by hand; runner.yml runs 50 and
+# 200 objects on every pull request. Budget: runner/volume/budget.json.
+name: runner-volume
+on:
+  workflow_dispatch:
+    inputs:
+      sizes:
+        description: "object counts, comma-separated (each needs a budget in runner/volume/budget.json)"
+        default: "50,200,1000"
+permissions:
+  contents: read
+jobs:
+  volume:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: the volume test
+        run: cargo test --release --locked --test volume -- --ignored --nocapture
+        working-directory: runner
+        env:
+          GP_VOLUME_SIZES: ${{ inputs.sizes }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: volume-results
+          path: runner/target/volume/results.json
+          if-no-files-found: ignore

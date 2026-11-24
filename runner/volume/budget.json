@@ -1,0 +1,96 @@
+{
+ "about": "Ceilings of the volume test (runner/tests/volume.rs): N objects seen by a radar and a beacon for 120 s of input (runner/volume/scenario.py), correlate-assign-time then quality-feed, at the shipped defaults. Written by runner/volume/budget.py from a run's target/volume/results.json; its docstring gives the rule for each ceiling. 'measured' is that run. To raise a ceiling, run the test, run budget.py on the results (it rewrites this file and the README table), and say in the commit message which figure rose and why.",
+ "seconds": 120,
+ "sizes": {
+  "50": {
+   "fabric_bytes_per_report": 560,
+   "fabric_values_per_s": 3.5,
+   "fabric_bytes_per_s": 34000,
+   "quality_bytes_per_value": 74000,
+   "disk_mb_per_input_hour": 470,
+   "peak_rss_mb": 350,
+   "wall_s": 30,
+   "measured": {
+    "disk_mb_per_input_hour": 370.4,
+    "fabric_bytes_per_report": 440.8,
+    "fabric_bytes_per_s": 26684.7,
+    "fabric_values_per_s": 2.4,
+    "peak_rss_mb": 216.7,
+    "quality_bytes_per_value": 59042.0,
+    "tracks_bytes_per_value": 11510.2,
+    "wall_s": 1.0,
+    "reports": 7265,
+    "trace_records": 926269,
+    "trace_max_step": 12361,
+    "input_bytes": 1531018,
+    "outputs_file_per_input": 7.5,
+    "values": {
+     "events": 120,
+     "quality": 26,
+     "status": 24,
+     "tracks": 120
+    }
+   }
+  },
+  "200": {
+   "fabric_bytes_per_report": 570,
+   "fabric_values_per_s": 3.5,
+   "fabric_bytes_per_s": 138000,
+   "quality_bytes_per_value": 294000,
+   "disk_mb_per_input_hour": 1850,
+   "peak_rss_mb": 750,
+   "wall_s": 50,
+   "measured": {
+    "disk_mb_per_input_hour": 1477.8,
+    "fabric_bytes_per_report": 452.1,
+    "fabric_bytes_per_s": 109767.7,
+    "fabric_values_per_s": 2.5,
+    "peak_rss_mb": 491.0,
+    "quality_bytes_per_value": 234629.4,
+    "tracks_bytes_per_value": 46643.5,
+    "wall_s": 10.8,
+    "reports": 29132,
+    "trace_records": 13682306,
+    "trace_max_step": 365673,
+    "input_bytes": 6163161,
+    "outputs_file_per_input": 7.4,
+    "values": {
+     "events": 120,
+     "quality": 31,
+     "status": 24,
+     "tracks": 120
+    }
+   }
+  },
+  "1000": {
+   "fabric_bytes_per_report": 780,
+   "fabric_values_per_s": 3.5,
+   "fabric_bytes_per_s": 938000,
+   "quality_bytes_per_value": 1478000,
+   "disk_mb_per_input_hour": 9250,
+   "peak_rss_mb": 13500,
+   "wall_s": 1200,
+   "measured": {
+    "disk_mb_per_input_hour": 7397.3,
+    "fabric_bytes_per_report": 618.0,
+    "fabric_bytes_per_s": 749890.5,
+    "fabric_values_per_s": 2.6,
+    "peak_rss_mb": 8995.4,
+    "quality_bytes_per_value": 1181725.9,
+    "tracks_bytes_per_value": 234887.9,
+    "wall_s": 298.5,
+    "reports": 145608,
+    "trace_records": 438736617,
+    "trace_max_step": 11124081,
+    "input_bytes": 30907226,
+    "outputs_file_per_input": 7.4,
+    "values": {
+     "events": 120,
+     "quality": 52,
+     "status": 24,
+     "tracks": 120
+    }
+   }
+  }
+ }
+}
