@@ -1,0 +1,54 @@
+{
+ "about": "Ceilings of the volume test (runner/tests/volume.rs) at the shipped defaults: N objects seen by a radar and a beacon for 120 s of input (runner/volume/scenario.py), correlate-assign-time then quality-feed. Fabric and disk figures are deterministic for a given input and get 25% headroom; memory varies with the machine and gets 50%. 'measured' is the run that set each ceiling (runner 0.6.1 plus this change, on a 16-core x86-64 host). A change that needs a higher ceiling raises it here, in the same pull request, with the reason in the commit.",
+ "seconds": 120,
+ "sizes": {
+  "50": {
+   "fabric_bytes_per_report": 560,
+   "fabric_values_per_s": 3.5,
+   "fabric_bytes_per_s": 34000,
+   "peak_rss_mb": 350,
+   "disk_mb_per_input_hour": 470,
+   "measured": {
+    "disk_mb_per_input_hour": 370.4,
+    "fabric_bytes_per_report": 440.8,
+    "fabric_bytes_per_s": 26684.7,
+    "fabric_values_per_s": 2.4,
+    "peak_rss_mb": 216.6,
+    "reports": 7265,
+    "wall_s": 1.0
+   }
+  },
+  "200": {
+   "fabric_bytes_per_report": 570,
+   "fabric_values_per_s": 3.5,
+   "fabric_bytes_per_s": 138000,
+   "peak_rss_mb": 750,
+   "disk_mb_per_input_hour": 1850,
+   "measured": {
+    "disk_mb_per_input_hour": 1477.8,
+    "fabric_bytes_per_report": 452.1,
+    "fabric_bytes_per_s": 109767.7,
+    "fabric_values_per_s": 2.5,
+    "peak_rss_mb": 491.8,
+    "reports": 29132,
+    "wall_s": 11.1
+   }
+  },
+  "1000": {
+   "fabric_bytes_per_report": 780,
+   "fabric_values_per_s": 3.5,
+   "fabric_bytes_per_s": 938000,
+   "peak_rss_mb": 13500,
+   "disk_mb_per_input_hour": 9250,
+   "measured": {
+    "disk_mb_per_input_hour": 7397.3,
+    "fabric_bytes_per_report": 618.0,
+    "fabric_bytes_per_s": 749890.5,
+    "fabric_values_per_s": 2.6,
+    "peak_rss_mb": 8995.6,
+    "reports": 145608,
+    "wall_s": 287.1
+   }
+  }
+ }
+}

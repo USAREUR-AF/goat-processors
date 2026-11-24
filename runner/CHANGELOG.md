@@ -6,6 +6,22 @@ their JSON outputs, the file paths, the config keys, and the fabric keys and
 their value format. The release workflow puts a release's section on its
 GitHub release page.
 
+## Unreleased
+
+- **The `quality` key goes out when a mark is set or cleared, else every
+  `heartbeat_ms`** (5 s), instead of on every tick. Each value is the whole
+  quality picture: every subject's latest measures, every mark in force, and
+  the marks cleared since the last value. A reader that took each value as
+  that tick's events reads it as the current state instead. At 50 to 1000
+  objects this cuts the fabric bytes per input report by about 2.7 times.
+- The store behind `explain`, `why` and the operator page keeps at most
+  200 000 trace records also when one step returns more; what it leaves out
+  is counted in the status counter `trace_not_kept`.
+- A volume test (`runner/tests/volume.rs`, budget `runner/volume/budget.json`)
+  measures fabric values and bytes per key, peak memory and disk at 50, 200
+  and 1000 objects; CI runs 50 and 200 on every pull request. README.md,
+  "Output volume", has the figures and every output's bound.
+
 ## 0.6.1
 
 The first published 0.6 release: the same runner as 0.6.0, with everything

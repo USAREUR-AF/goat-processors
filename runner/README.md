@@ -36,6 +36,7 @@ how to troubleshoot it.
 |---|---|
 | Runner service: fabric input and output, UDP input, file input, record | Built. Tested: every scenario vector replays exactly; a recorded run replays to the same output; a live fabric test |
 | Fabric output (0.6.0): five fixed keys under `volatile/<peer>/stream/processors/<name>`, sent as droppable live data; events limited per source with a summary; the trace limited to listed entities, an end time and a byte ceiling | Built. Tested: a live fabric test reads only the five keys, a joined track, a `suppressed` summary, a trace of the listed entity only, and `status`; the CI install and container proofs read the same keys from a router |
+| Volume test (`tests/volume.rs`, budget `volume/budget.json`): fabric values and bytes per key, peak memory and disk, at 50, 200 and 1000 objects ([Output volume](#output-volume)) | Built. Measured; CI runs 50 and 200 objects on every pull request and fails over the budget; 1000 objects runs by hand (`runner-volume` workflow) |
 | Config file and `goat-processors config check` | Built. Tested: each kind of mistake is refused with what to fix |
 | `goat-processors doctor` | Built |
 | `goat-processors selftest` (replays every shipped vector) | Built |
@@ -144,7 +145,7 @@ exits 1. The service runs the same check before it starts.
 | `pipeline[].pack` | yes | | a pack name under `packs_dir` (`goat-processors pack ls`), or a path to a pack directory |
 | `outputs.fabric.prefix` | no | `volatile/<peer>/stream/processors/<name>` | key prefix of everything the runner publishes. The default is in goat's volatile class: routers pass it on and never store it (goat ADR 1032) |
 | `outputs.fabric.peer` | no | the `site` | the `<peer>` of the default prefix: the identity the fabric lets this runner write under, `volatile/<peer>/**`. That is usually the common name (CN) of `fabric.tls.certificate`, because a router drops, without an error, a write it does not allow. `install.sh` sets it from the certificate. When neither `peer` nor `outputs.fabric.prefix` is set and the certificate names another peer, doctor fails; when either is set by hand, it warns |
-| `outputs.fabric.heartbeat_ms` | no | `5000` | batch layout only: the longest time between two publishes of an unchanged set of tracks or quality marks, and between two `status` values, input-clock milliseconds; 100 to 3600000 |
+| `outputs.fabric.heartbeat_ms` | no | `5000` | batch layout only, input-clock milliseconds, 100 to 3600000: the longest time between two publishes of an unchanged set of tracks; how often the quality measures are published when no mark is set or cleared; and the time between two `status` values |
 | `outputs.fabric.events_per_source_per_s` | no | `20` | batch layout only: the most events published per source in one second; past it they are counted, and one `suppressed` line per source says how many. 1 to 10000 |
 | `outputs.fabric.trace` | no | `false` | also publish trace records, bounded by the next three settings |
 | `outputs.fabric.trace_entities` | no | every entity | publish only trace records that name one of these source tracks or system tracks, for example `[radar-1/T1, S3]` |
@@ -223,7 +224,7 @@ with `now_ms` (the tick that published it). An empty value means an empty set.
 | Key | Value | When |
 |---|---|---|
 | `<prefix>/tracks` | one system track per line: `system` (or `group`), `members`, `lat`, `lon`, `course`, `speed_ms`, `hae` when known, and `track_number`: a number 1 to 65535 that the track keeps while it lives, for formats whose track identifier is a number (ASTERIX I062/040). A new track takes the next free number, wrapping after 65535. From fuse when the pipeline has it, otherwise from correlate | on a tick, when the set differs from the last one published, or `heartbeat_ms` after it |
-| `<prefix>/quality` | one quality event per line (a measure, `action-start` or `action-end`; `scope` is `entity` or `source`) | the same rule |
+| `<prefix>/quality` | the quality picture, one quality event per line (`scope` is `entity` or `source`): each subject's latest measures (event `quality`), every mark in force (its `action-start`), and each mark cleared since the last value (its `action-end`). A subject the quality function forgets leaves the picture | on a tick, when a mark was set or cleared since the last value, else every `heartbeat_ms` |
 | `<prefix>/events` | the events since the last tick, one per line, each with `stage` (the function that returned it). Left out: track and quality events (they have their own keys), and `keep` and `pass`, which repeat each report that went through. At most `events_per_source_per_s` per source; past it, a line `{"ev":"suppressed","source":..., "count":...}` | on a tick, when there are any |
 | `<prefix>/status` | batch layout only. One line: `name`, `site`, `version`, `tracks`, `published`, `output_errors`, `events_suppressed`, `trace_on`, `trace_suppressed` | every `heartbeat_ms` |
 | `<prefix>/trace` | trace records since the last tick, each with `stage`, within the trace bounds; a line with `"stage":"runner"` and `suppressed` counts records left out by the byte ceiling | with `outputs.fabric.trace: true`, on a tick, until `trace_for_s` has passed |
@@ -317,6 +318,85 @@ login, no capabilities and no new privileges. It sees the file system read
 only except `/var/lib/goat-processors` and `/run/goat-processors`, has no
 access to home directories or devices, and may open only network sockets.
 `systemd-analyze security goat-processors` lists every setting.
+
+## Output volume
+
+The runner follows one rule for what it sends and keeps: **the whole decision
+record exists, but it is pulled on demand from a bounded local store, never
+pushed by default.** Live data goes to the fabric as a fixed set of keys; the
+trace stays in memory for `explain`, `why` and the operator page, and reaches
+the fabric or a file only when a setting asks for it, within bounds.
+
+**Every output, its default and its bound.**
+
+| Output | Default | Bound |
+|---|---|---|
+| Fabric: `tracks` | on; a value when the set of system tracks changed, or every `heartbeat_ms` | one key; one value per tick at most |
+| Fabric: `quality` | on; a value when a mark is set or cleared, else every `heartbeat_ms` (5 s) | one key; the latest measures per subject, not one value per tick |
+| Fabric: `events` | on; the events of each tick, without track and quality events and the per-report `keep` and `pass` | one key; `events_per_source_per_s` (20) per source, then one `suppressed` line |
+| Fabric: `status` | on; every `heartbeat_ms` | one key, one small value |
+| Fabric: `trace` | **off** | when on: `trace_for_s` (600 s, then off), `trace_entities`, `trace_max_bytes_per_s` (64 KiB/s) |
+| Local store for `explain`, `why`, the page | on, in memory | the trace records of the latest steps, 200 000 records in all. A step that returns more (correlate's tick at large N) keeps its first 200 000; the rest are counted in `counters.trace_not_kept` |
+| `outputs.file` | off in the shipped config; when on, events only | `max_mb` and `keep` (rotation); no limit unless set |
+| `record` | off in the shipped config | `max_mb` and `keep`; a rotated record replays from its own first line |
+| Audit log | on | `api.audit_max_mb`, `api.audit_keep` |
+| API and MCP replies | on request | `tracks` and `view`: the latest tick; `explain`: one track, at most 1000 events and 1000 trace records; `why`: 200 records to the model; `audit`: `limit` (100, at most 10 000); request bodies 16 MiB; 16 connections at once on the local listener, 32 on the mesh, 4 on metrics |
+| Log | the journal | one line per change, refusal or input problem (unreadable input: the first 10, then every 1000th), never one per report |
+
+**Measured.** The volume test plays N objects seen by a radar and a beacon
+for 120 s of input through the shipped pipeline (correlate-assign-time, then
+quality-feed) at the shipped defaults, and counts what reaches a fabric peer.
+"Disk" is `outputs.file` and `record` both turned on at their defaults. The
+figures are from `volume/budget.json` (the run that set the budget; 16-core
+x86-64 host):
+
+| Objects | Reports | Fabric values per s | Fabric bytes per input report | Fabric bytes per s | Peak memory | Disk per input hour | Time for 120 s of input |
+|---|---|---|---|---|---|---|---|
+| 50 | 7 265 | 2.4 | 441 | 27 KB | 217 MB | 370 MB | 1 s |
+| 200 | 29 132 | 2.5 | 452 | 110 KB | 492 MB | 1.5 GB | 11 s |
+| 1000 | 145 608 | 2.6 | 618 | 750 KB | 9.0 GB | 7.4 GB | 287 s |
+
+What the figures say:
+
+- **The fabric stays flat per report.** The number of values does not grow with
+  the objects (five keys at most, one value per tick each), and the bytes per
+  input report stay between 440 and 620. At 1000 objects `quality` carries
+  61 MB of the 90 MB (one line per source track, every `heartbeat_ms`) and
+  `tracks` 28 MB.
+- **Memory and time grow with the square of the tracks, in the correlate
+  engine.** On each tick correlate-assign-time tests every pair of tracks and
+  returns a trace record for each test: up to 365 000 records per tick at 200
+  objects, about 3.4 million at 1000. The engine builds them whether or not
+  anything reads them, so at 1000 objects one tick takes about 2.4 s and the
+  process peaks at 9 GB: **the runner does not keep up with a 1 s tick at
+  1000 objects with this pack.** The runner keeps at most 200 000 of those
+  records afterwards; the peak is the engine's. A trace level in the engines'
+  API, for the owner of the engines, is what would remove it.
+- **`outputs.file` is the largest disk user:** about seven times the input,
+  because it writes each stage's events for every report. Set `max_mb` and
+  `keep` on it, and on `record`, whenever you turn them on.
+
+**For a program that uses the engines directly.** `ingest` and `tick` return
+the trace with every call; a library cannot know what the caller keeps. Keep
+it bounded the way the runner does: drop it after reading what you need;
+keep only records that name the entities you follow; put a ceiling on what
+one step may add to any store; and never forward it whole to a network.
+
+**Against goat's fabric rules.**
+
+| Rule | How the runner meets it |
+|---|---|
+| Live data in the volatile class, routed and never stored (goat ADR 1032) | the default prefix is `volatile/<peer>/stream/processors/<name>`, and every value is sent with congestion control drop |
+| A small, stable set of keys; entity ids in the payload, not the key (goat's fabric cardinality budget) | five fixed keys whatever the number of tracks; the volume test fails on any other key |
+| No subscription to the whole keyspace | `config check` refuses an input key such as `**` |
+| Client demand must not amplify into fabric load (goat ADR 1123) | every API, MCP, CLI and page read is served from the runner's own memory, never by a fabric query; each listener has a fixed number of connections and a request size limit. A per-identity rate limit on the API is Designed, not built |
+
+**Run the volume test.** `cargo test --release --test volume -- --ignored
+--nocapture` in `runner/` (50 and 200 objects, about a minute;
+`GP_VOLUME_SIZES=50,200,1000` for more). It writes
+`target/volume/results.json` and fails when a figure is over
+`volume/budget.json`. A change that needs more raises the budget in the same
+pull request and says why.
 
 ## The API, and who may use it
 

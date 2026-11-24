@@ -39,6 +39,21 @@ jobs:
           python3 -I runner/packaging/check-workflows.py --self-test
           python3 -I runner/packaging/check-workflows.py .github/workflows/*.yml
 
+  volume:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: the volume test at 50 and 200 objects, against runner/volume/budget.json
+        run: cargo test --release --locked --test volume -- --ignored --nocapture
+        working-directory: runner
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: volume-results
+          path: runner/target/volume/results.json
+          if-no-files-found: ignore
+
   fieldkit:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
