@@ -22,6 +22,12 @@ The words used below (pack, vector, trace record, track, tick) are defined in
 the README, [Words used here](README.md#words-used-here); the correlate methods
 and packs are in [Methods and packs](README.md#methods-and-packs).
 
+## Contribute a measurement or an improvement
+
+Start at [reviews/README.md](reviews/README.md): replicate a published number,
+improve a pack or add a measurement. One command measures, compares and writes
+the record; CI measures it again.
+
 ## Before you open a pull request
 
 | Check | Command |
@@ -29,6 +35,8 @@ and packs are in [Methods and packs](README.md#methods-and-packs).
 | your function's vectors are what its generator writes, and all seven engines agree on them | `python3 -I tools/make-<function>-vectors.py && git diff --exit-code -- packs spec` (needs the seven toolchains of the README's conformance table) |
 | the engines you changed pass every vector | the command for that engine in the README's conformance table |
 | the replay viewer still replays every vector | `python3 -I tools/explain/test_explain.py` |
+| your performance records hold | `python3 -I tools/review/review.py check --rerun reviews/<yours>.json` |
+| the fuse, filter and quality results are current | `python3 -I tools/bench/functions.py check` |
 | the README and the figures are current | `python3 -I tools/readme/make-readme.py && python3 -I docs/figures/make-figures.py && git diff --exit-code` |
 
 Commits are signed, carry a `Signed-off-by` line (`git commit -s`), and follow

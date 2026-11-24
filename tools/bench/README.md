@@ -26,6 +26,7 @@ Standard library only. Run every command with `python3 -I`.
 | `adapters.py` | the in-process adapter for the Python engine (`PACKS` lists the packs scored) and the events file reader |
 | `score.py` | every score below |
 | `report.py` | `docs/benchmark.md` and the SVG charts |
+| `functions.py` | the accuracy of fuse, filter and quality ("Functions", below) |
 
 ## Scenarios
 
@@ -267,3 +268,30 @@ do not overlap; otherwise no difference is shown.
 |---|---|
 | a pack of the Python engine | add its directory name to `PACKS` in `adapters.py`, run `report`. The charts have eight color slots; past eight packs, name one in `CHART_OMIT` in `report.py` with the reason (it stays in every table) |
 | any other engine | run it on `build/bench/scenarios/*.json` (each `ingest` in order; at each `tick`, its picture), write `<scenario>.events.json` per scenario into one directory, run `score --events <dir>` |
+
+## Functions
+
+`functions.py` measures fuse, filter and quality against ground truth and
+writes [docs/benchmark-functions.md](../../docs/benchmark-functions.md).
+
+| Command | What it does |
+|---|---|
+| `python3 -I tools/bench/functions.py report` | run every case and write the results and the document |
+| `python3 -I tools/bench/functions.py check` | run every case again and confirm both are current (CI), counts exactly and floats to one part in a million |
+| `python3 -I tools/bench/functions.py score fuse fuse-best` | print one pack's scores |
+
+| Function | Case | Right answer |
+|---|---|---|
+| fuse | random scenarios with no sensor fault ("honest sensors"); the same with one source's reports given a second time under another source name, 5 m of noise added; the first 60 random scenarios; the sensor-problems family. False tracks are left out | each report's `fuse.group` is its true object, so grouping is perfect; scored against the object's true position |
+| filter | 20 tracks for 60 s starting within 15 km of one of the pack's boundaries, reported with 20, 100 or 500 m of error | the pack's rules on the true position, computed in `functions.py` without the engine. `keep` is the positive class |
+| quality | four sources of three tracks for 300 s, half the tracks turning in part; source `s0` has one fault whose size is drawn on both sides of the line | the rule is active for the faulty subjects exactly when the size is past the line |
+
+| Score | Formula |
+|---|---|
+| position error RMS | `sqrt(mean d^2)` over every tick and live object, `d` from the estimate to the truth |
+| error ratio | mean of `d^2 / (2 ce^2)`, `ce` the one-sigma error fuse states; 1 when honest |
+| inside 95 % | share of estimates with `d^2 <= 5.99 ce^2` (chi-square, 2 degrees of freedom) |
+| precision, recall, F1 | as above, over reports (filter) or over subjects and ticks after the first 90 s (quality) |
+| delay | mean time from the start of the run to the first activation, over faulty subjects that were ever active |
+
+Intervals are the bootstrap above, over scenarios.
