@@ -120,7 +120,7 @@ confirm count        2       limit 2      <span class="pass">pass</span>
   <div class="wrap feature">
     <div>
       <h2>Seven engines check each other</h2>
-      <p>The Python engine and <code>tools/make-*-vectors.py</code> write the vectors; each generator states its scenarios' decisions by hand and refuses to write a vector whose events differ. The other six engines are written from the specification and the vectors, never from another engine's source. Numbers must match within a relative 1e-6.</p>
+      <p>The specification and the hand-stated decisions are the reference. Every vector is computed by the Rust engine and accepted only when all seven engines agree: each generator, <code>tools/make-*-vectors.py</code>, states its scenarios' decisions by hand, refuses a vector whose events differ from them, and writes a vector only when every engine reproduces its events, trace and final snapshot. Every engine is written from the specification and the vectors alone, never from another engine's source. Numbers must match within a relative 1e-6.</p>
       <div class="scroll"><table>
         <thead><tr><th>Engine</th><th>Runs every vector with</th></tr></thead>
         <tbody>
