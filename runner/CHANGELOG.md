@@ -8,6 +8,11 @@ GitHub release page.
 
 ## Unreleased
 
+- **Each system track says `mono`**: 1 when its members come from one source,
+  0 when from more than one, for formats that carry it (ASTERIX I062/080 MON).
+  The metrics `system_tracks_multi_source` and `source_tracks` now read a
+  member's source as the part before its first `/`, as the rest of the runner
+  does, so a uid with a `/` in it no longer counts as a source of its own.
 - **Single-source tracks are in the output.** A source track that correlate
   put in no group (an object only one sensor reports) was left out of the
   `tracks` key, `GET /v1/tracks`, the operator page, `explain` and the track
