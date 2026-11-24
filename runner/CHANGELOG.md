@@ -6,6 +6,24 @@ their JSON outputs, the file paths, the config keys, and the fabric keys and
 their value format. The release workflow puts a release's section on its
 GitHub release page.
 
+## Unreleased
+
+- `config check` (and doctor) warn on every file that can grow without
+  limit: `outputs.file` or `record` without `max_mb`, the audit log without
+  `api.audit_max_mb` while the API is on, and `outputs.file.trace`. The
+  shipped config sets `api.audit_max_mb: 64` and `api.audit_keep: 9`.
+  The package never rewrites a kept config, so after the update doctor's
+  last line on it is `running, with warnings` (its exit code is unchanged:
+  doctor fails only on a FAIL). To clear it, add these lines at the end of
+  the config, or put the two indented lines in its `api:` section if it has
+  one:
+
+  ```yaml
+  api:
+    audit_max_mb: 64
+    audit_keep: 9
+  ```
+
 ## 0.7.0
 
 - **From 0.5.0 or earlier, also Breaking: the fabric keys** (0.6). Read the

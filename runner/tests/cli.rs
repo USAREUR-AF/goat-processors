@@ -51,6 +51,29 @@ fn config_check_refuses_the_unedited_file() {
 fn config_check_accepts_the_edited_file() {
     let (ok, out) = check(&shipped_with("site-a", "tls/router.site-a:7447"));
     assert!(ok, "{out}");
+    assert!(!out.contains("warning"), "the shipped config bounds everything it turns on: {out}");
+}
+
+#[test]
+fn config_check_warns_on_every_unbounded_file() {
+    let good = shipped_with("site-a", "tls/router.site-a:7447");
+    let unbounded = good.replace("  audit_max_mb: 64\n", "").replace(
+        "    trace: false\n",
+        "    trace: false\n  file:\n    path: /var/lib/goat-processors/out.jsonl\n    trace: true\nrecord:\n  path: /var/lib/goat-processors/record.jsonl\n",
+    );
+    let (ok, out) = check(&unbounded);
+    assert!(ok, "warnings never fail the check: {out}");
+    for want in ["warning: outputs.file: no max_mb", "warning: outputs.file.trace: true", "warning: record: no max_mb", "warning: api.audit_max_mb: not set"] {
+        assert!(out.contains(want), "want {want:?} in:\n{out}");
+    }
+    // Limits set: the size warnings go; the file trace warning stays.
+    let bounded = unbounded.replace("    trace: true\n", "    trace: true\n    max_mb: 100\n").replace("  path: /var/lib/goat-processors/record.jsonl\n", "  path: /var/lib/goat-processors/record.jsonl\n  max_mb: 100\n").replace("api:\n", "api:\n  audit_max_mb: 64\n");
+    let (ok, out) = check(&bounded);
+    assert!(ok, "{out}");
+    assert!(!out.contains("no max_mb") && !out.contains("audit_max_mb: not set") && out.contains("outputs.file.trace: true"), "{out}");
+    // A disabled API writes no audit log.
+    let (_, out) = check(&good.replace("  audit_max_mb: 64\n", "  enabled: false\n"));
+    assert!(!out.contains("audit_max_mb"), "{out}");
 }
 
 #[test]
@@ -107,8 +130,10 @@ fn selftest_replays_every_vector() {
 #[test]
 fn doctor_reports_a_missing_service() {
     let d = tmp("doctor");
-    let cfg = shipped_with("site-a", "tcp/127.0.0.1:1").replace("  tls:\n    root_ca: /etc/goat-processors/tls/ca.pem\n    certificate: /etc/goat-processors/tls/runner.pem\n    private_key: /etc/goat-processors/tls/runner.key\n", "")
-        + &format!("status_file: {}\napi:\n  enabled: false\n", d.join("status.json").display());
+    let cfg = shipped_with("site-a", "tcp/127.0.0.1:1")
+        .replace("  tls:\n    root_ca: /etc/goat-processors/tls/ca.pem\n    certificate: /etc/goat-processors/tls/runner.pem\n    private_key: /etc/goat-processors/tls/runner.key\n", "")
+        .replace("api:\n", "api:\n  enabled: false\n")
+        + &format!("status_file: {}\n", d.join("status.json").display());
     std::fs::write(d.join("r.yaml"), cfg).unwrap();
     let out = bin().args(["doctor", "-o", "json", "-c"]).arg(d.join("r.yaml")).output().unwrap();
     assert_eq!(out.status.code(), Some(1));

@@ -574,6 +574,24 @@ pub fn warnings(c: &Config) -> Vec<String> {
             w.push(format!("outputs.fabric.trace: every trace record is published for {} s, up to {} bytes per second. To trace a few tracks, list them in outputs.fabric.trace_entities.", f.trace_for_s, f.trace_max_bytes_per_s));
         }
     }
+    // Files the service appends to, with no size limit: they grow until the
+    // disk is full, then every write fails (counters.output_errors).
+    if let Some(f) = &c.outputs.file {
+        if f.max_mb.is_none() {
+            w.push("outputs.file: no max_mb, so the file grows without limit (about 7 times the input: README.md, Output volume). Set outputs.file.max_mb and keep.".into());
+        }
+        if f.trace {
+            w.push("outputs.file.trace: true writes every trace record to the file; correlate's tick returns hundreds of thousands of records from about 200 objects (README.md, Output volume). Turn it on only to study a run, with max_mb set.".into());
+        }
+    }
+    if let Some(r) = &c.record {
+        if r.max_mb.is_none() {
+            w.push("record: no max_mb, so the record grows without limit. Set record.max_mb and keep enough copies to cover the time you may need to replay.".into());
+        }
+    }
+    if c.api.enabled && c.api.audit_max_mb.is_none() {
+        w.push("api.audit_max_mb: not set, so the audit log grows without limit. Set api.audit_max_mb and api.audit_keep (the shipped config has 64 and 9).".into());
+    }
     w
 }
 
