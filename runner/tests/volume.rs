@@ -2,17 +2,25 @@
 //! shipped defaults, against the budget in `runner/volume/budget.json`.
 //!
 //! For each N (50 and 200 by default; `GP_VOLUME_SIZES=50,200,1000` for
-//! more), `runner/volume/scenario.py` writes N objects seen by a radar and a
-//! beacon for `GP_VOLUME_SECONDS` (default 120) seconds. The service plays it
-//! from a file on the input clock as fast as it can (`speed: 0`), with the
-//! shipped fabric output (batch layout, trace off) to a fabric peer this test
-//! runs, plus `outputs.file` and `record` at their defaults (events only). The
-//! test counts every value and byte the peer receives per key, reads the
-//! service's peak resident memory from /proc, and the size of the two files.
+//! more), `runner/volume/scenario.py` (needs `python3`) writes N objects seen
+//! by a radar and a beacon for 120 s. The service plays it from a file on the
+//! input clock as fast as it can (`speed: 0`), with the shipped fabric output
+//! (batch layout, trace off) to a fabric peer this test runs, plus
+//! `outputs.file` (events only) and `record` (every ingest and tick). The test
+//! counts every value and byte the peer receives per key and checks the peer
+//! received every value the service published; it reads the service's peak
+//! resident memory from /proc, the size of the input and of the two files,
+//! and the trace counts from the service's status.
+//!
+//! The budget (`runner/volume/budget.json`) is for 120 s of input.
+//! `GP_VOLUME_SECONDS` sets another length: the run then prints its figures
+//! and does not compare them with the budget.
 //!
 //! Ignored by `cargo test`: it takes about a minute at 200 objects. CI runs
 //! it as its own job: `cargo test --release --test volume -- --ignored --nocapture`.
-//! Each run writes `target/volume/results.json` and prints a table.
+//! Each run writes `target/volume/results.json` and prints a table. To raise
+//! the budget: `python3 -I runner/volume/budget.py runner/target/volume/results.json`
+//! (runner/volume/README.md).
 
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader};
@@ -38,8 +46,11 @@ struct Measured {
     keys: BTreeMap<String, (u64, u64)>,
     published: u64,
     peak_rss_kb: u64,
+    input_bytes: u64,
     file_bytes: u64,
     record_bytes: u64,
+    trace_records: u64,
+    trace_max_step: u64,
     wall_s: f64,
 }
 
@@ -60,11 +71,28 @@ impl Measured {
             ("fabric_bytes_per_s", self.bytes() as f64 / s),
             ("peak_rss_mb", self.peak_rss_kb as f64 / 1024.0),
             ("disk_mb_per_input_hour", (self.file_bytes + self.record_bytes) as f64 / 1048576.0 * 3600.0 / s),
+            ("quality_bytes_per_value", self.per_value("quality")),
+            ("tracks_bytes_per_value", self.per_value("tracks")),
+            ("wall_s", self.wall_s),
         ])
+    }
+    fn per_value(&self, key: &str) -> f64 {
+        self.keys.get(key).map(|(n, b)| *b as f64 / (*n).max(1) as f64).unwrap_or(0.0)
     }
     fn to_json(&self) -> Json {
         let mut m = json::Map::new();
-        for (k, v) in [("objects", self.objects), ("reports", self.reports), ("seconds", self.seconds), ("published", self.published), ("peak_rss_kb", self.peak_rss_kb), ("file_bytes", self.file_bytes), ("record_bytes", self.record_bytes)] {
+        for (k, v) in [
+            ("objects", self.objects),
+            ("reports", self.reports),
+            ("seconds", self.seconds),
+            ("published", self.published),
+            ("peak_rss_kb", self.peak_rss_kb),
+            ("input_bytes", self.input_bytes),
+            ("file_bytes", self.file_bytes),
+            ("record_bytes", self.record_bytes),
+            ("trace_records", self.trace_records),
+            ("trace_max_step", self.trace_max_step),
+        ] {
             m.insert(k.into(), Json::Int(v as i64));
         }
         m.insert("wall_s".into(), Json::Num((self.wall_s * 10.0).round() / 10.0));
@@ -171,11 +199,13 @@ fn run(objects: u64, seconds: u64, dir: &Path) -> Measured {
     let counter = |k: &str| status.get("counters").and_then(|c| c.get(k)).and_then(|v| v.as_i64()).unwrap_or(0) as u64;
     assert_eq!(counter("reports_in"), reports, "every report reached the service");
     let published = counter("published");
+    let (trace_records, trace_max_step) = (counter("trace_records"), counter("trace_max_step"));
     let _ = child.kill();
     let _ = child.wait();
     let size = |p: &str| std::fs::metadata(dir.join(p)).map(|m| m.len()).unwrap_or(0);
     let keys = keys.lock().unwrap().clone();
-    Measured { objects, reports, seconds, keys, published, peak_rss_kb: peak, file_bytes: size("out.jsonl"), record_bytes: size("record.jsonl"), wall_s }
+    let input_bytes = size("input.json");
+    Measured { objects, reports, seconds, keys, published, peak_rss_kb: peak, input_bytes, file_bytes: size("out.jsonl"), record_bytes: size("record.jsonl"), trace_records, trace_max_step, wall_s }
 }
 
 #[test]
@@ -201,12 +231,20 @@ fn volume_within_the_budget() {
             "| {n} | {} | {:.1} | {:.1} | {:.0} | {:.0} | {:.1} | {:.1} |",
             m.reports, met["fabric_values_per_s"], met["fabric_bytes_per_report"], met["fabric_bytes_per_s"], met["peak_rss_mb"], met["disk_mb_per_input_hour"], m.wall_s
         );
-        println!("|   | keys: {} | published {} values, received {} |", m.keys.iter().map(|(k, (v, b))| format!("{k} {v} values {b} B")).collect::<Vec<_>>().join("; "), m.published, m.values());
+        println!("|   | keys: {} | published {} values, received {} | trace records {} (largest step {}) | input {} B |", m.keys.iter().map(|(k, (v, b))| format!("{k} {v} values {b} B")).collect::<Vec<_>>().join("; "), m.published, m.values(), m.trace_records, m.trace_max_step, m.input_bytes);
         // Only the fixed key set reaches the fabric.
         for k in m.keys.keys() {
             assert!(["tracks", "quality", "events", "status", "trace"].contains(&k.as_str()), "a key outside the fixed set: {k}");
         }
         assert!(!m.keys.contains_key("trace"), "the trace is off by default");
+        // On loopback nothing should be dropped: a drop would lower the
+        // fabric figures and could hide a rise.
+        assert_eq!(m.values(), m.published, "the peer received {} of the {} values the service published", m.values(), m.published);
+        if Some(seconds as i64) != budget.get("seconds").and_then(|x| x.as_i64()) {
+            println!("|   | {seconds} s of input: the budget is for {} s, so these figures are not compared with it |", budget.get("seconds").map(|x| x.to_string()).unwrap_or_default());
+            results.push(m.to_json());
+            continue;
+        }
         match budget.get("sizes").and_then(|s| s.get(&n.to_string())) {
             Some(b) => {
                 for (k, v) in &met {

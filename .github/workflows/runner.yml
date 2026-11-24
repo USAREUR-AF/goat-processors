@@ -38,6 +38,8 @@ jobs:
         run: |
           python3 -I runner/packaging/check-workflows.py --self-test
           python3 -I runner/packaging/check-workflows.py .github/workflows/*.yml
+      - name: the README's volume table equals runner/volume/budget.json
+        run: python3 -I runner/volume/budget.py --check
 
   volume:
     runs-on: ubuntu-24.04

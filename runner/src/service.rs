@@ -509,6 +509,11 @@ pub static DROPPED_BACKLOG: AtomicU64 = AtomicU64::new(0);
 /// it keeps in all (`RECENT_TRACE`).
 pub static TRACE_NOT_KEPT: AtomicU64 = AtomicU64::new(0);
 
+/// Trace records the pipeline returned, in all and in the largest single
+/// step: how much trace the engines make, whatever is kept of it.
+pub static TRACE_RECORDS: AtomicU64 = AtomicU64::new(0);
+pub static TRACE_MAX_STEP: AtomicU64 = AtomicU64::new(0);
+
 /// Sends an input from a source that must not wait (a fabric callback, a
 /// UDP socket). Returns false when the service loop has ended.
 pub fn offer(tx: &SyncSender<Input>, input: Input) -> bool {
@@ -747,6 +752,8 @@ impl Runner {
         }
         let mut out = out;
         let mut records: usize = out.stages.iter().map(|s| s.trace.len()).sum();
+        TRACE_RECORDS.fetch_add(records as u64, Ordering::Relaxed);
+        TRACE_MAX_STEP.fetch_max(records as u64, Ordering::Relaxed);
         if records > RECENT_TRACE {
             // One step larger than the whole store (correlate's tick at a
             // thousand objects returns millions of records): keep the first
@@ -784,6 +791,8 @@ impl Runner {
                 cnt.insert("dropped_paused".into(), Json::Int(self.dropped_paused as i64));
                 cnt.insert("dropped_backlog".into(), Json::Int(DROPPED_BACKLOG.load(Ordering::Relaxed) as i64));
                 cnt.insert("trace_not_kept".into(), Json::Int(TRACE_NOT_KEPT.load(Ordering::Relaxed) as i64));
+                cnt.insert("trace_records".into(), Json::Int(TRACE_RECORDS.load(Ordering::Relaxed) as i64));
+                cnt.insert("trace_max_step".into(), Json::Int(TRACE_MAX_STEP.load(Ordering::Relaxed) as i64));
                 cnt.insert("pipeline_changes".into(), Json::Int(self.pipeline_changes as i64));
             }
         }

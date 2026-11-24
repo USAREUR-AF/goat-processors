@@ -8,15 +8,20 @@ GitHub release page.
 
 ## Unreleased
 
-- **The `quality` key goes out when a mark is set or cleared, else every
-  `heartbeat_ms`** (5 s), instead of on every tick. Each value is the whole
-  quality picture: every subject's latest measures, every mark in force, and
-  the marks cleared since the last value. A reader that took each value as
-  that tick's events reads it as the current state instead. At 50 to 1000
-  objects this cuts the fabric bytes per input report by about 2.7 times.
+- **Breaking: the `quality` value.** The `quality` key goes out when a mark is
+  set or cleared, else every `heartbeat_ms` (5 s), instead of on every tick,
+  and each value is the whole quality picture: every subject's latest
+  measures, the `action-start` of every mark in force, and the `action-end`
+  of each mark cleared since the last value. A reader treats each value as
+  the whole picture and compares it with the last one: a mark is new when
+  its `action-start` was not in the previous value, and it ended with its
+  `action-end`. A measure can be up to `heartbeat_ms` old. At 50 and 200
+  objects the fabric bytes per input report fell from about 1200 to about
+  445.
 - The store behind `explain`, `why` and the operator page keeps at most
   200 000 trace records also when one step returns more; what it leaves out
-  is counted in the status counter `trace_not_kept`.
+  is counted in the status counter `trace_not_kept`. New status counters
+  `trace_records` and `trace_max_step` count the trace the pipeline returns.
 - A volume test (`runner/tests/volume.rs`, budget `runner/volume/budget.json`)
   measures fabric values and bytes per key, peak memory and disk at 50, 200
   and 1000 objects; CI runs 50 and 200 on every pull request. README.md,
