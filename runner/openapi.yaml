@@ -27,6 +27,21 @@ info:
     Each listener handles a fixed number of connections at once (local 16,
     mesh 32, metrics 4) and closes any more, so callers on one listener
     cannot use up another's.
+
+    Rate: on the mesh listener each certificate name has a token bucket: up
+    to api.rate_burst requests in a quick run after being idle (default 40),
+    then api.rate_per_s a second on average (default 20). Past it every route
+    there answers 429 `{"error", "retry_after_ms", "fix"}` with a Retry-After
+    header (whole seconds). The first refusal of each second for each
+    certificate is audited, and every one is counted
+    (counters.api_rate_limited). The local and metrics listeners are not
+    limited. A tool an MCP call runs counts once, as the /mcp request.
+
+    Lists: GET /v1/tracks returns pages of one tick (limit, default 1000, at
+    most 10000; after, the previous reply's next; at, the first page's now_ms,
+    409 once a newer tick has replaced it), in byte order of the id. GET
+    /v1/proposals returns the newest limit (older ones are in
+    agents.proposals_file); GET /v1/view at most 10000 tracks.
 servers:
   - url: http://127.0.0.1:8470
 components:
@@ -70,7 +85,13 @@ components:
             reports_in, reports_out, ticks, published, unreadable,
             output_errors, per_source, dropped_paused (arrived while stopped),
             dropped_backlog (dropped at the fabric or UDP input because the
-            service loop was behind by 65536 inputs), pipeline_changes.
+            service loop was behind by 65536 inputs), pipeline_changes,
+            trace_records and trace_max_step (trace records the pipeline
+            returned, in all and in the largest step), trace_not_kept (records
+            the explain store left out), api_rate_limited (requests refused
+            over api.rate_per_s), store_spilled_steps, store_spill_dropped and
+            store_spill_errors (steps the store spill wrote, dropped because
+            its writer was behind, and write errors; 0 without store.spill).
         output_prefix: {type: string}
         fabric_routers: {type: [integer, "null"]}
     Track:
@@ -218,10 +239,14 @@ paths:
               schema: {type: string}
   /v1/tracks:
     get:
-      summary: the system tracks of the latest tick that made tracks (role read; CLI tracks)
+      summary: the system tracks of the latest tick that made tracks, a page at a time, every page from one tick (role read; CLI tracks, which reads every page)
+      parameters:
+        - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, default: 1000}, description: "tracks in this page; more than 10000 is read as 10000"}
+        - {name: after, in: query, required: false, schema: {type: string}, description: "the next of the previous page: this page starts after that id, in byte order (S10 before S2); it need not be a current track id"}
+        - {name: at, in: query, required: false, schema: {type: integer}, description: "the now_ms of the first page; the page is served only while that tick is still the latest (409 otherwise: start again)"}
       responses:
         "200":
-          description: now_ms of that tick and its tracks
+          description: now_ms of that tick, one page of its tracks in byte order of the id, how many there are (check you received that many), and the next to ask with (null on the last page)
           content:
             application/json:
               schema:
@@ -229,6 +254,14 @@ paths:
                 properties:
                   now_ms: {type: [integer, "null"]}
                   tracks: {type: array, items: {$ref: "#/components/schemas/Track"}}
+                  total: {type: integer}
+                  next: {type: [string, "null"]}
+        "400":
+          description: limit is not a number of 1 or more, or at is not a number
+        "409":
+          description: at names a tick a newer one has replaced; start again from the first page
+        "429":
+          description: on the mesh listener, the certificate is over api.rate_per_s (as on every route there); retry_after_ms and Retry-After say when to ask again
   /v1/explain/{track}:
     get:
       summary: the events and trace records behind one system track (role read; CLI explain TRACK)
@@ -328,7 +361,8 @@ paths:
                         pack: {type: string, description: the pack it runs now}
                         packs: {type: array, items: {type: string}, description: every installed pack for this function}
                   now_ms: {type: [integer, "null"]}
-                  tracks: {type: array, items: {$ref: "#/components/schemas/Track"}}
+                  tracks: {type: array, items: {$ref: "#/components/schemas/Track"}, description: at most 10000}
+                  tracks_total: {type: integer, description: how many system tracks there are}
                   quality:
                     type: array
                     items:
@@ -432,7 +466,9 @@ paths:
           description: a notification was received
   /v1/proposals:
     get:
-      summary: every settings proposal, pending and decided (role read; CLI proposals)
+      summary: the settings proposals, pending and decided, oldest first; the newest limit of them (role read; CLI proposals)
+      parameters:
+        - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, default: 1000}, description: "how many of the newest; more than 10000 is read as 10000; older proposals are in agents.proposals_file"}
       responses:
         "200":
           description: id, by, via, at_ms, function, pack, previous_pack, reason, state (pending, gating, applied, rejected, gate-failed, reverted), decided_by (an identity, or policy), gate (command, exit, passed, seconds, output_tail)

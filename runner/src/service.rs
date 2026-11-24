@@ -808,6 +808,7 @@ impl Runner {
                 cnt.insert("dropped_paused".into(), Json::Int(self.dropped_paused as i64));
                 cnt.insert("dropped_backlog".into(), Json::Int(DROPPED_BACKLOG.load(Ordering::Relaxed) as i64));
                 cnt.insert("trace_not_kept".into(), Json::Int(TRACE_NOT_KEPT.load(Ordering::Relaxed) as i64));
+                cnt.insert("api_rate_limited".into(), Json::Int(crate::api::RATE_REFUSED.load(Ordering::Relaxed) as i64));
                 let load = |f: fn(&crate::store::SpillWriter) -> u64| self.spill.as_ref().map_or(0, f) as i64;
                 cnt.insert("store_spilled_steps".into(), Json::Int(load(|s| s.steps.load(Ordering::Relaxed))));
                 cnt.insert("store_spill_dropped".into(), Json::Int(load(|s| s.dropped.load(Ordering::Relaxed))));
@@ -890,6 +891,7 @@ impl Runner {
         metric("unreadable_total", "counter", "input samples that were not reports", vec![(String::new(), self.unreadable as f64)]);
         metric("ticks_total", "counter", "ticks made", vec![(String::new(), k.ticks as f64)]);
         metric("published_total", "counter", "values published to the fabric", vec![(String::new(), self.sinks.published as f64)]);
+        metric("api_rate_limited_total", "counter", "API requests refused because their caller was over api.rate_per_s", vec![(String::new(), crate::api::RATE_REFUSED.load(Ordering::Relaxed) as f64)]);
         metric("output_errors_total", "counter", "outputs that failed", vec![(String::new(), self.sinks.errors as f64)]);
         // The system tracks of the latest tick: how many, how many hold
         // members from more than one source, and members per source.
@@ -987,17 +989,24 @@ impl Runner {
         });
         m.insert("pipeline".into(), Json::Arr(pipeline));
         m.insert("now_ms".into(), self.tracks_now_ms.map(Json::Int).unwrap_or(Json::Null));
-        m.insert("tracks".into(), Json::Arr(self.tracks.values().cloned().collect()));
+        // The page needs every track to draw the plan, up to the API's most.
+        m.insert("tracks".into(), Json::Arr(self.tracks.values().take(crate::api::PAGE_MAX).cloned().collect()));
+        m.insert("tracks_total".into(), Json::Int(self.tracks.len() as i64));
         m.insert("quality".into(), Json::Arr(quality));
-        m.insert("proposals".into(), self.book.to_json());
+        m.insert("proposals".into(), self.book.newest(crate::api::PAGE_DEFAULT));
         m.insert("you".into(), Json::Obj(you));
         Json::Obj(m)
     }
 
-    fn tracks_json(&self) -> Json {
+    /// One page of the system tracks (GET /v1/tracks), with how many there
+    /// are and, when more follow, the `next` to ask with.
+    fn tracks_json(&self, page: &crate::api::Page) -> Json {
+        let (tracks, next) = page.cut(self.tracks.iter());
         let mut m = BTreeMap::new();
         m.insert("now_ms".into(), self.tracks_now_ms.map(Json::Int).unwrap_or(Json::Null));
-        m.insert("tracks".into(), Json::Arr(self.tracks.values().cloned().collect()));
+        m.insert("tracks".into(), Json::Arr(tracks));
+        m.insert("total".into(), Json::Int(self.tracks.len() as i64));
+        m.insert("next".into(), next.map(Json::Str).unwrap_or(Json::Null));
         Json::Obj(m)
     }
 
@@ -1055,7 +1064,14 @@ impl Runner {
             Ask::Pipeline => ok(self.pipeline_json()),
             Ask::Metrics => ok(self.metrics()),
             Ask::Prometheus => crate::http::Response::text(200, "text/plain; version=0.0.4", self.prometheus()),
-            Ask::Tracks => ok(self.tracks_json()),
+            Ask::Tracks(page) => match page.at {
+                Some(at) if Some(at) != self.tracks_now_ms => error(
+                    409,
+                    &format!("the tracks of tick {at} are gone: tick {} replaced them", self.tracks_now_ms.map(|t| t.to_string()).unwrap_or("-".into())),
+                    "start again from the first page (without after and at)",
+                ),
+                _ => ok(self.tracks_json(&page)),
+            },
             Ask::View => ok(self.view(&call.who)),
             Ask::Explain(id) => match self.explain(&id) {
                 Some(v) => ok(v),
@@ -1073,7 +1089,7 @@ impl Runner {
                 eprintln!("started by {} ({})", call.who.name, call.who.via);
                 ok(self.status())
             }
-            Ask::Proposals => ok(self.book.to_json()),
+            Ask::Proposals(page) => ok(self.book.newest(page.limit)),
             Ask::Propose { function, pack, reason } => self.propose(&call.who, function, pack, reason),
             Ask::Decide { id, verb } => self.decide(&call.who, &id, &verb),
             Ask::PackUse { function, pack } => match self.p.use_pack(&function, &pack, &self.c.packs_dir.clone()) {

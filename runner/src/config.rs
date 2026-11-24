@@ -226,11 +226,39 @@ pub struct Api {
     /// to every address. Off when absent.
     #[serde(default)]
     pub metrics_listen: Option<String>,
+    /// Requests per second one caller (one identity: `local`, `local-admin`,
+    /// or a mesh certificate's name) may make, on average; past it the API
+    /// answers 429. The metrics listener is not limited (it has 4
+    /// connections). Default 20.
+    #[serde(default = "default_rate_per_s")]
+    pub rate_per_s: f64,
+    /// How many requests one caller may make at once before the average
+    /// applies. Default 40.
+    #[serde(default = "default_rate_burst")]
+    pub rate_burst: u32,
+}
+
+fn default_rate_per_s() -> f64 {
+    20.0
+}
+fn default_rate_burst() -> u32 {
+    40
 }
 
 impl Default for Api {
     fn default() -> Self {
-        Api { enabled: true, listen: default_api_listen(), token_file: default_token_file(), audit_file: default_audit_file(), audit_max_mb: None, audit_keep: default_keep(), mesh: None, metrics_listen: None }
+        Api {
+            enabled: true,
+            listen: default_api_listen(),
+            token_file: default_token_file(),
+            audit_file: default_audit_file(),
+            audit_max_mb: None,
+            audit_keep: default_keep(),
+            mesh: None,
+            metrics_listen: None,
+            rate_per_s: default_rate_per_s(),
+            rate_burst: default_rate_burst(),
+        }
     }
 }
 
@@ -632,6 +660,24 @@ pub fn warnings(c: &Config) -> Vec<String> {
             w.push(format!("outputs.fabric.trace: every trace record is published for {} s, up to {} bytes per second. To trace a few tracks, list them in outputs.fabric.trace_entities.", f.trace_for_s, f.trace_max_bytes_per_s));
         }
     }
+    // Files the service appends to, with no size limit: they grow until the
+    // disk is full, then every write fails (counters.output_errors).
+    if let Some(f) = &c.outputs.file {
+        if f.max_mb.is_none() {
+            w.push("outputs.file: no max_mb, so the file grows without limit (about 7 times the input: README.md, Output volume). Set outputs.file.max_mb and keep.".into());
+        }
+        if f.trace {
+            w.push("outputs.file.trace: true writes every trace record to the file; correlate's tick returns hundreds of thousands of records from about 200 objects (README.md, Output volume). Turn it on only to study a run, with max_mb set.".into());
+        }
+    }
+    if let Some(r) = &c.record {
+        if r.max_mb.is_none() {
+            w.push("record: no max_mb, so the record grows without limit. Set record.max_mb and keep enough copies to cover the time you may need to replay.".into());
+        }
+    }
+    if c.api.enabled && c.api.audit_max_mb.is_none() {
+        w.push("api.audit_max_mb: not set, so the audit log grows without limit. Set api.audit_max_mb and api.audit_keep (the shipped config has 64 and 9).".into());
+    }
     if let Some(sp) = &c.store.spill {
         if !sp.path.starts_with("/var/lib/goat-processors") {
             w.push(format!("store.spill.path: {} is not under /var/lib/goat-processors; under systemd the service can write nowhere else, and another path stops it at start.", sp.path.display()));
@@ -804,6 +850,12 @@ pub fn check(c: &Config) -> Vec<String> {
     }
 
     // API.
+    if !(c.api.rate_per_s > 0.0 && c.api.rate_per_s <= 10_000.0) {
+        p.push(format!("api.rate_per_s: {} is not above 0 and at most 10000. Say how many requests per second one caller may make.", c.api.rate_per_s));
+    }
+    if !(1..=100_000).contains(&c.api.rate_burst) {
+        p.push(format!("api.rate_burst: {} is not 1 to 100000.", c.api.rate_burst));
+    }
     if c.api.enabled {
         match c.api.listen.parse::<SocketAddr>() {
             Err(_) => p.push(format!("api.listen: {:?} is not an address. Write it as `127.0.0.1:8470`.", c.api.listen)),

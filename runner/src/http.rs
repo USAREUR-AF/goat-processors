@@ -87,6 +87,7 @@ fn reason(status: u16) -> &'static str {
         405 => "Method Not Allowed",
         409 => "Conflict",
         413 => "Payload Too Large",
+        429 => "Too Many Requests",
         500 => "Internal Server Error",
         503 => "Service Unavailable",
         _ => "",
@@ -184,8 +185,19 @@ pub fn write_response(stream: &mut impl Write, r: &Response) -> std::io::Result<
     } else {
         ""
     };
+    // A refusal over the rate limit says when to ask again, in the header
+    // HTTP clients read (whole seconds, rounded up) as well as in the body.
+    let retry = if r.status == 429 {
+        crate::json::parse(&String::from_utf8_lossy(&r.body))
+            .ok()
+            .and_then(|v| v.get("retry_after_ms").and_then(|x| x.as_i64()))
+            .map(|ms| format!("Retry-After: {}\r\n", (ms.max(1) + 999) / 1000))
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
     let head = format!(
-        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n{page}Connection: close\r\n\r\n",
+        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n{page}{retry}Connection: close\r\n\r\n",
         r.status,
         reason(r.status),
         r.content_type,

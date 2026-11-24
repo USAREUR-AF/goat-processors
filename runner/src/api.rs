@@ -47,13 +47,64 @@ pub enum Ask {
     Stop,
     Metrics,
     Prometheus,
-    Tracks,
+    Tracks(Page),
     Explain(String),
     /// Everything the Fieldkit page shows, in one read.
     View,
     Propose { function: String, pack: String, reason: String },
-    Proposals,
+    Proposals(Page),
     Decide { id: String, verb: String },
+}
+
+/// One page of a list: at most `limit` items, after the item `after`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Page {
+    pub limit: usize,
+    pub after: Option<String>,
+    /// The tick (`now_ms`) the first page came from: a later page is served
+    /// only while that is still the latest tick, so the pages are one list.
+    pub at: Option<i64>,
+}
+
+/// Items a list route returns when the caller does not say, and the most it
+/// returns whatever the caller says.
+pub const PAGE_DEFAULT: usize = 1000;
+pub const PAGE_MAX: usize = 10_000;
+
+impl Page {
+    /// From the query: `limit` (1 to PAGE_MAX; more is read as PAGE_MAX) and
+    /// `after`.
+    pub fn from_query(q: &BTreeMap<String, String>) -> Result<Page, String> {
+        let limit = match q.get("limit") {
+            None => PAGE_DEFAULT,
+            Some(v) => match v.parse::<usize>() {
+                Ok(n) if n >= 1 => n.min(PAGE_MAX),
+                _ => return Err(format!("limit {v:?} is not a number of 1 or more")),
+            },
+        };
+        let at = match q.get("at") {
+            None => None,
+            Some(v) => Some(v.parse::<i64>().map_err(|_| format!("at {v:?} is not a now_ms (a number)"))?),
+        };
+        Ok(Page { limit, after: q.get("after").filter(|a| !a.is_empty()).cloned(), at })
+    }
+
+    /// The items of this page from a list in key order, and the key to ask
+    /// for the next page with (`after`) when there are more.
+    pub fn cut<'a, V: Clone + 'a>(&self, items: impl Iterator<Item = (&'a String, &'a V)>) -> (Vec<V>, Option<String>) {
+        let mut out = Vec::new();
+        let mut last = None;
+        let mut more = false;
+        for (k, v) in items.filter(|(k, _)| self.after.as_ref().is_none_or(|a| k.as_str() > a.as_str())) {
+            if out.len() == self.limit {
+                more = true;
+                break;
+            }
+            out.push(v.clone());
+            last = Some(k.clone());
+        }
+        (out, if more { last } else { None })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -82,14 +133,14 @@ pub const ROUTES: &[(&str, &str, Role, &str)] = &[
     ("POST", "/v1/start", Role::Operate, "resume after a stop"),
     ("GET", "/v1/metrics", Role::Read, "reports per second, processing latency, counts per source"),
     ("GET", "/v1/metrics/prometheus", Role::Read, "the metrics in the Prometheus text format: reports per source, system tracks, multi-source tracks, events, quality per source, latency"),
-    ("GET", "/v1/tracks", Role::Read, "the system tracks of the latest tick"),
+    ("GET", "/v1/tracks", Role::Read, "the system tracks of the latest tick, in byte order of the id; query limit (default 1000, at most 10000), after (the next of the previous page) and at (the first page's now_ms; 409 when a newer tick has replaced it)"),
     ("GET", "/v1/explain/{track}", Role::Read, "the events and trace records behind one system track"),
     ("POST", "/v1/replay", Role::Read, "run a replay file (the body) through a separate copy of the pipeline"),
     ("GET", "/v1/audit", Role::Operate, "the latest audit lines; query limit (default 100)"),
     ("GET", "/v1/routes", Role::Read, "this table"),
-    ("GET", "/v1/view", Role::Read, "everything the operator page shows in one read: state, pipeline with the packs each function may use, system tracks, quality per source, proposals, and the caller's identity and role"),
+    ("GET", "/v1/view", Role::Read, "everything the operator page shows in one read: state, pipeline with the packs each function may use, system tracks (at most 10000; tracks_total says how many), quality per source, proposals (the newest 1000), and the caller's identity and role"),
     ("GET", "/ui", Role::Read, "the operator page (Fieldkit Processors): one HTML file, no outside assets"),
-    ("GET", "/v1/proposals", Role::Read, "every proposal, pending and decided"),
+    ("GET", "/v1/proposals", Role::Read, "the proposals, pending and decided, oldest first; query limit (default 1000, at most 10000): the newest that many"),
     ("POST", "/v1/proposals", Role::Read, "propose a pack for a function; body {\"function\", \"pack\", \"reason\"}; nothing changes until it is applied"),
     ("POST", "/v1/proposals/{id}/approve", Role::Operate, "apply a pending proposal"),
     ("POST", "/v1/proposals/{id}/reject", Role::Operate, "reject a pending proposal"),
@@ -276,6 +327,64 @@ pub struct Server {
     tx: Mutex<SyncSender<Input>>,
     token: String,
     audit: Mutex<Option<crate::rotate::Rotating>>,
+    rate: Mutex<Rate>,
+}
+
+/// Requests refused because their caller was over `api.rate_per_s`.
+pub static RATE_REFUSED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// A token bucket per caller: `burst` tokens, refilled at `per_s` a second;
+/// a request takes one. Callers idle for a minute are forgotten once more
+/// than `MAX_CALLERS` are held, so the map stays bounded.
+pub struct Rate {
+    per_s: f64,
+    burst: f64,
+    callers: BTreeMap<String, Bucket>,
+}
+
+struct Bucket {
+    tokens: f64,
+    at: std::time::Instant,
+    /// The last refusal written to the audit log: at most one a second per
+    /// caller, so a flood of refused requests cannot flood the log.
+    audited: Option<std::time::Instant>,
+}
+
+const MAX_CALLERS: usize = 10_000;
+
+/// What the bucket says about one request.
+#[derive(Debug, PartialEq)]
+pub enum Verdict {
+    Allowed,
+    /// Refused; wait this many milliseconds. `audit` is true for the first
+    /// refusal of a second.
+    Refused { wait_ms: u64, audit: bool },
+}
+
+impl Rate {
+    pub fn new(per_s: f64, burst: u32) -> Rate {
+        Rate { per_s, burst: burst as f64, callers: BTreeMap::new() }
+    }
+
+    pub fn take(&mut self, caller: &str, now: std::time::Instant) -> Verdict {
+        if self.callers.len() > MAX_CALLERS {
+            self.callers.retain(|_, b| now.duration_since(b.at).as_secs() < 60);
+        }
+        let (per_s, burst) = (self.per_s, self.burst);
+        let b = self.callers.entry(caller.to_string()).or_insert(Bucket { tokens: burst, at: now, audited: None });
+        b.tokens = (b.tokens + now.duration_since(b.at).as_secs_f64() * per_s).min(burst);
+        b.at = now;
+        if b.tokens >= 1.0 {
+            b.tokens -= 1.0;
+            return Verdict::Allowed;
+        }
+        let wait_ms = ((1.0 - b.tokens) / per_s * 1000.0).ceil() as u64;
+        let audit = b.audited.is_none_or(|t| now.duration_since(t).as_secs() >= 1);
+        if audit {
+            b.audited = Some(now);
+        }
+        Verdict::Refused { wait_ms, audit }
+    }
 }
 
 /// Connections handled at once, per listener. Each listener has its own
@@ -328,6 +437,33 @@ impl Server {
         }
     }
 
+    /// Answers one request that arrived on the local or the mesh listener:
+    /// the caller's rate limit first, then `handle`. (A tool an MCP call runs
+    /// is not counted again: it goes to `handle`.)
+    pub fn handle_http(&self, req: &Request, who: Identity) -> Response {
+        // The limit is for the mesh: a program on this host shares the
+        // runner's own machine and cannot reach the fabric through it, and
+        // every local request without the token is one caller, so a busy
+        // local script would otherwise lock out the operator's own commands.
+        if who.via != "mesh" {
+            return self.handle(req, who);
+        }
+        let caller = format!("{}:{}", who.via, who.name);
+        let verdict = self.rate.lock().map(|mut r| r.take(&caller, std::time::Instant::now())).unwrap_or(Verdict::Allowed);
+        if let Verdict::Refused { wait_ms, audit } = verdict {
+            RATE_REFUSED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if audit {
+                self.audit(&who, req, 429);
+            }
+            let mut m = BTreeMap::new();
+            m.insert("error".into(), Json::Str(format!("{} is over the rate limit of {} requests per second (api.rate_per_s)", who.name, self.config.api.rate_per_s)));
+            m.insert("retry_after_ms".into(), Json::Int(wait_ms as i64));
+            m.insert("fix".into(), Json::Str("wait retry_after_ms and try again; a program that reads often can page with limit and after, or read /v1/view once".into()));
+            return Response::json(429, Json::Obj(m).to_string());
+        }
+        self.handle(req, who)
+    }
+
     /// Answers one request from one identity.
     pub fn handle(&self, req: &Request, who: Identity) -> Response {
         let (i, args) = match route(&req.method, &req.path) {
@@ -378,10 +514,16 @@ impl Server {
             "/v1/start" => Ask::Start,
             "/v1/metrics" => Ask::Metrics,
             "/v1/metrics/prometheus" => Ask::Prometheus,
-            "/v1/tracks" => Ask::Tracks,
+            "/v1/tracks" => match Page::from_query(&req.query) {
+                Ok(p) => Ask::Tracks(p),
+                Err(e) => return error(400, &e, "GET /v1/tracks?limit=1000, then ?limit=1000&after=<next> while the reply has next"),
+            },
             "/v1/explain/{track}" => Ask::Explain(args[0].clone()),
             "/v1/view" => Ask::View,
-            "/v1/proposals" if req.method == "GET" => Ask::Proposals,
+            "/v1/proposals" if req.method == "GET" => match Page::from_query(&req.query) {
+                Ok(p) => Ask::Proposals(p),
+                Err(e) => return error(400, &e, "GET /v1/proposals?limit=100 returns the 100 newest"),
+            },
             "/v1/proposals" => {
                 let body = json::parse(&String::from_utf8_lossy(&req.body)).ok();
                 let f = |k: &str| body.as_ref().and_then(|b| b.get(k)).and_then(|v| v.as_str()).map(str::to_string);
@@ -583,7 +725,7 @@ pub fn start(c: &Config, tx: SyncSender<Input>) -> Result<Arc<Server>, String> {
     if audit.is_none() {
         eprintln!("warning: cannot open the audit file {}; requests are not audited", c.api.audit_file.display());
     }
-    let server = Arc::new(Server { config: c.clone(), tx: Mutex::new(tx), token, audit: Mutex::new(audit) });
+    let server = Arc::new(Server { config: c.clone(), tx: Mutex::new(tx), token, audit: Mutex::new(audit), rate: Mutex::new(Rate::new(c.api.rate_per_s, c.api.rate_burst)) });
 
     let local = TcpListener::bind(&c.api.listen).map_err(|e| format!("cannot listen for the API on {}: {e}", c.api.listen))?;
     let s = server.clone();
@@ -596,7 +738,7 @@ pub fn start(c: &Config, tx: SyncSender<Input>) -> Result<Arc<Server>, String> {
                 let resp = match http::read_request(&mut stream) {
                     Ok(req) => {
                         let who = local_identity(&s, &req);
-                        s.handle(&req, who)
+                        s.handle_http(&req, who)
                     }
                     Err((st, e)) => error(st, &e, ""),
                 };
@@ -652,7 +794,7 @@ pub fn start(c: &Config, tx: SyncSender<Input>) -> Result<Arc<Server>, String> {
                     let name = http::peer_name(&tls.conn);
                     let resp = match (req, name) {
                         (Ok(req), Some(name)) => match allow.get(&name) {
-                            Some(role) => s.handle(&req, Identity { name, role: *role, via: "mesh" }),
+                            Some(role) => s.handle_http(&req, Identity { name, role: *role, via: "mesh" }),
                             None => {
                                 let who = Identity { name: name.clone(), role: Role::Read, via: "mesh" };
                                 s.audit(&who, &req, 403);
@@ -723,6 +865,45 @@ fn spawn_limited(busy: &Arc<AtomicUsize>, max: usize, f: impl FnOnce() + Send + 
         f();
         busy.fetch_sub(1, Ordering::SeqCst);
     });
+}
+
+#[cfg(test)]
+mod paging_and_rate_tests {
+    use super::*;
+
+    #[test]
+    fn a_page_is_cut_in_key_order_and_says_what_follows() {
+        let q = |pairs: &[(&str, &str)]| pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<BTreeMap<_, _>>();
+        assert_eq!(Page::from_query(&q(&[])).unwrap(), Page { limit: PAGE_DEFAULT, after: None, at: None });
+        assert_eq!(Page::from_query(&q(&[("at", "1200")])).unwrap().at, Some(1200));
+        assert!(Page::from_query(&q(&[("at", "soon")])).is_err());
+        assert_eq!(Page::from_query(&q(&[("limit", "99999")])).unwrap().limit, PAGE_MAX, "more than the most is read as the most");
+        assert!(Page::from_query(&q(&[("limit", "0")])).is_err());
+        assert!(Page::from_query(&q(&[("limit", "x")])).is_err());
+        let items: BTreeMap<String, i64> = (1..=5).map(|i| (format!("S{i}"), i)).collect();
+        let p = |limit, after: Option<&str>| Page { limit, after: after.map(str::to_string), at: None }.cut(items.iter());
+        assert_eq!(p(2, None), (vec![1, 2], Some("S2".into())));
+        assert_eq!(p(2, Some("S2")), (vec![3, 4], Some("S4".into())));
+        assert_eq!(p(2, Some("S4")), (vec![5], None), "the last page has no next");
+        assert_eq!(p(5, None), (vec![1, 2, 3, 4, 5], None), "exactly a page: no next");
+        assert_eq!(p(2, Some("S9")), (vec![], None));
+    }
+
+    #[test]
+    fn each_caller_has_its_own_bucket_refilled_over_time() {
+        let t0 = std::time::Instant::now();
+        let at = |ms: u64| t0 + std::time::Duration::from_millis(ms);
+        let mut r = Rate::new(2.0, 3);
+        for _ in 0..3 {
+            assert_eq!(r.take("local:local", at(0)), Verdict::Allowed);
+        }
+        assert_eq!(r.take("local:local", at(0)), Verdict::Refused { wait_ms: 500, audit: true }, "the burst is used; one token takes 500 ms at 2 a second");
+        assert!(matches!(r.take("local:local", at(10)), Verdict::Refused { audit: false, .. }), "one audited refusal a second");
+        assert_eq!(r.take("mesh:ops", at(10)), Verdict::Allowed, "another caller is not held back");
+        assert_eq!(r.take("local:local", at(600)), Verdict::Allowed, "refilled");
+        assert!(matches!(r.take("local:local", at(1200)), Verdict::Allowed));
+        assert!(matches!(r.take("local:local", at(1200)), Verdict::Refused { audit: true, .. }), "a new second audits again");
+    }
 }
 
 #[cfg(test)]
