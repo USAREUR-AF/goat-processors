@@ -147,6 +147,11 @@ explained in [Methods and packs](#methods-and-packs).
 
 {{figure:bench}}
 
+Fuse, filter and quality are measured in
+[docs/benchmark-functions.md](docs/benchmark-functions.md). To replicate a
+number, improve one or add a measurement, start at
+[reviews/README.md](reviews/README.md).
+
 ## Design principles
 
 | Principle | In practice |
@@ -164,8 +169,9 @@ explained in [Methods and packs](#methods-and-packs).
 | [`spec/`](spec/) | one specification per function, the shared [vector format](spec/vector-format.md), load vectors |
 | [`packs/`](packs/) | {{n_packs}} rule packs, each with its `pack.def` and its scenario vectors ({{n_vectors}} in all) |
 | [`engines/`](engines/) | one independent engine per language, each with its test runner |
-| [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), the performance harness (`perf/`), the research prototypes (`research/`), this README's generator (`readme/`) |
+| [`tools/`](tools/) | the vector generators, the replay viewer (`explain/`), the benchmark (`bench/`), the performance harness (`perf/`), the performance review tool (`review/`), the research prototypes (`research/`), this README's generator (`readme/`) |
 | [`runner/`](runner/) | the runner: a service for Ubuntu 24.04 that runs a pipeline of the functions on the goat fabric, with its `.deb`, [install guide](runner/INSTALL.md) and [deploy contract](runner/DEPLOY-CONTRACT.md) |
+| [`reviews/`](reviews/) | [performance review](reviews/README.md): where each function stands, open work, and contributed results |
 | [`docs/`](docs/) | the benchmark results, the [performance](docs/performance.md) baseline and the figures, each written by a script; the [methods survey](docs/research/correlation-and-fusion-methods.md) |
 
 ## Working with AI agents
