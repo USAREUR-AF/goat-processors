@@ -30,18 +30,38 @@ FIGURES = [
     "docs/figures/correlate-decision-light.svg", "docs/figures/correlate-decision-dark.svg",
     "docs/figures/seven-engines-light.svg", "docs/figures/seven-engines-dark.svg",
     "docs/figures/bench/random-light.svg", "docs/figures/bench/random-dark.svg",
+    "docs/explainers/correlation-steps-light.svg", "docs/explainers/correlation-steps-dark.svg",
+    "docs/explainers/what-goat-adds-light.svg", "docs/explainers/what-goat-adds-dark.svg",
 ]
 HERO_VECTOR = "packs/correlate-gnn/vectors/04-separation-dissolves.json"
 
 
-def f1_ties(pack):
-    """The packs whose F1 interval on the evaluation set's random scenarios overlaps pack's, as the page names them."""
+def bench_numbers(pack="correlate-assign-time"):
+    """The evaluation set's random scenarios, from docs/figures/bench/results.json: pack's F1 with its
+    95 % interval, its IDF1 and GOSPA, the packs level with it on F1 by the paired test, and the
+    outside baseline's F1."""
     with open(os.path.join(ROOT, "docs/figures/bench/results.json")) as f:
-        g = json.load(f)["evaluation"]["groups"]
-    lo, hi = g[pack]["random"]["ci95"]["f1"]
-    ties = [p[len("correlate-"):] for p in g if p != pack and g[p]["random"].get("ci95", {}).get("f1")
-            and g[p]["random"]["ci95"]["f1"][1] >= lo and g[p]["random"]["ci95"]["f1"][0] <= hi]
-    return " and ".join(ties) if ties else "no other pack"
+        ev = json.load(f)["evaluation"]
+    g, paired = ev["groups"], (ev.get("paired") or {}).get("random", {}).get("gain", {})
+    r = g[pack]["random"]
+    v, (lo, hi) = r["pooled"]["f1"], r["ci95"]["f1"]
+
+    def gain(a, b):                       # how much better b is than a, 95 % interval
+        if b in paired and a in paired[b]:
+            return paired[b][a]["f1"]
+        c = paired.get(a, {}).get(b, {}).get("f1")
+        return [-c[1], -c[0]] if c else None
+
+    base = ev.get("baselines") or []
+    ties = [p[len("correlate-"):] for p in g if p != pack and p not in base and gain(pack, p)
+            and gain(pack, p)[0] <= 0 <= gain(pack, p)[1]]
+    out = {"f1-random": f"{v:.3f} ({lo:.3f} to {hi:.3f})",
+           "idf1-random": f"{r['pooled']['idf1']:.3f}",
+           "gospa-random": f"{r['pooled']['gospa_m']:.0f}",
+           "f1-ties": " and ".join(ties) if ties else "no other pack"}
+    for b in base:
+        out["baseline-f1"] = f"{g[b]['random']['pooled']['f1']:.3f}"
+    return out
 
 
 def measure():
@@ -52,25 +72,12 @@ def measure():
             traces += sum(len(s.get("trace", [])) for s in json.load(f)["steps"])
     engines = [d for d in os.listdir(os.path.join(ROOT, "engines"))
                if os.path.isdir(os.path.join(ROOT, "engines", d))]
-    bench = {}
-    with open(os.path.join(ROOT, "docs/benchmark.md")) as f:
-        for line in f:
-            if line.startswith("| [assign-time]") and "random" not in bench:
-                # the first assign-time row: the evaluation set's random scenarios, each cell "value (low to high)"
-                cells = [c.strip() for c in line.strip().strip("|").split("|")]
-                bench["random"] = cells[1]
-                bench["gospa"] = f"{float(cells[-1].split()[0]):.0f}"
-                break
-    bench["ties"] = f1_ties("correlate-assign-time")
-    return {
+    return dict({
         "engines": f"{len(engines)}",
         "vectors": f"{len(vectors)}",
         "traces": f"{traces:,}",
         "packs": f"{len(glob.glob(os.path.join(ROOT, 'packs/*/pack.def')))}",
-        "f1-random": bench["random"],
-        "gospa-random": bench["gospa"],
-        "f1-ties": bench["ties"],
-    }
+    }, **bench_numbers())
 
 
 ORDER = ["Designed", "Written", "Built"]

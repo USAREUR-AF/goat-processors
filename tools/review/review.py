@@ -40,12 +40,14 @@ import functions as fb  # noqa: E402
 import stats  # noqa: E402
 
 REVIEWS = os.path.join(ROOT, "reviews")
-SCHEMA = 1
+SCHEMA = 2     # 2: each measure holds gain_ci95, the paired interval; 1: the earlier interval-overlap rule
 KINDS = ("improve", "replicate", "measure")
 KEYS = {"schema", "slug", "kind", "function", "pack", "against", "base", "set", "question", "finding",
         "environment", "groups", "better", "worse"}
-HIGHER = {"f1", "precision", "recall"}
-LOWER = {"false_merges", "missed_merges", "swaps", "tta_s", "rms_m", "gospa_m", "delay_s"}
+HIGHER = {"f1", "precision", "recall", "idf1", "completeness", "longest_segment"}
+LOWER = {"false_merges", "missed_merges", "swaps", "tta_s", "rms_m", "gospa_m", "delay_s", "spuriousness",
+         "track_changes_per_min", "siap_pa_m"}
+TOWARD_ONE = {"ambiguity"}
 # The same code on another machine may differ in the last bit of a float. Counts match exactly.
 RERUN_TOLERANCE = 1e-6
 
@@ -81,7 +83,10 @@ def base_commit(ref):
 
 
 def committed(function, pack, base):
-    """{group: summary} of a pack as committed at `base`."""
+    """{group: summary with "runs"} of a pack as committed at `base`.
+
+    "runs" is the list of raw counts per scenario the summary pools: for correlate a
+    {scenario: raw} map, for the other functions a list in case order."""
     path = "docs/figures/bench/" + ("results.json" if function == "correlate" else "functions.json")
     text = git("show", "%s:%s" % (base, path))
     if text is None:
@@ -91,20 +96,31 @@ def committed(function, pack, base):
     if got is None:
         raise Refused("%s has no committed results at %s: name the pack to compare with, --against PACK"
                       % (pack, base[:12]))
-    return {g: s for g, s in got.items() if g != "family: scale"}
+    got = {g: dict(s) for g, s in got.items() if g != "family: scale"}   # results from before scale left the sets
+    if function == "correlate":
+        import bench
+        raw = (doc.get("raw") or {}).get(pack) or {}
+        for g, names in bench.groups_of(doc["meta"]).items():
+            if g in got:
+                got[g]["runs"] = {n: raw.get(n) for n in names}
+    return got
 
 
 def measure(function, pack, jobs=None):
+    """{group: summary with "runs"}, measured on this checkout."""
     if function != "correlate":
         return fb.score_pack(function, pack)
     import bench
-    scs = [s for s in bench.all_scenarios("tuning") if s.family != "scale"]
+    scs = bench.all_scenarios("tuning")
     metas, raw, _ = bench.run_parallel(scs, packs=[pack], jobs=jobs, label=pack)
-    return bench.summarize(raw, metas)[pack]
+    out = bench.summarize(raw, metas)[pack]
+    for g, names in bench.groups_of(metas).items():
+        out[g]["runs"] = {n: raw[pack].get(n) for n in names}
+    return out
 
 
 def verdict(m, old, new):
-    """The repository's rule: better or worse only when the 95 % intervals do not overlap."""
+    """Schema 1 records: better or worse only when the two 95 % intervals do not overlap."""
     if not old or not new or m not in HIGHER | LOWER:
         return "no difference shown"
     if old[1] < new[0]:
@@ -114,27 +130,47 @@ def verdict(m, old, new):
     return "no difference shown"
 
 
-def compare(old, new):
+def _paired(function, a_runs, b_runs, measures):
+    """The paired interval of each measure (stats.paired) on the runs both hold."""
+    if a_runs is None or b_runs is None:
+        return {}
+    if isinstance(a_runs, dict):
+        names = [n for n in a_runs if a_runs[n] is not None and b_runs.get(n) is not None]
+        a, b = [a_runs[n] for n in names], [b_runs[n] for n in names]
+    elif len(a_runs) == len(b_runs):
+        a, b = a_runs, b_runs
+    else:
+        return {}
+    if not a:
+        return {}
+    if function == "correlate":
+        return stats.paired(a, b, measures=measures)
+    return stats.paired(a, b, measures=measures, derive=fb.DERIVE[function])
+
+
+def compare(old, new, function="correlate"):
     groups = {}
     for g in sorted(new):
         if g not in old:
             continue
         a, b = old[g], new[g]
+        ms = [m for m in (stats.MEASURES if "rms_m" in b["pooled"] and "f1" in b["pooled"] else sorted(b["pooled"]))
+              if b["pooled"].get(m) is not None and a["pooled"].get(m) is not None]
+        gains = _paired(function, a.get("runs"), b.get("runs"), [m for m in ms if m in HIGHER | LOWER | TOWARD_ONE])
         rows = {}
-        for m in (stats.MEASURES if "rms_m" in b["pooled"] and "f1" in b["pooled"] else sorted(b["pooled"])):
-            if b["pooled"].get(m) is None or a["pooled"].get(m) is None:
-                continue
+        for m in ms:
             rows[m] = {"value": b["pooled"][m], "ci95": b["ci95"].get(m),
-                       "base_value": a["pooled"][m], "base_ci95": a["ci95"].get(m)}
+                       "base_value": a["pooled"][m], "base_ci95": a["ci95"].get(m), "gain_ci95": gains.get(m)}
         groups[g] = {"n": b["n"], "not_finished": b.get("not_finished", 0), "measures": rows}
     return groups
 
 
 def outcomes(groups):
+    """Better and worse measures: from the paired interval (schema 2), or the overlap rule (schema 1)."""
     out = {"better": [], "worse": []}
     for g in sorted(groups):
         for m, r in groups[g]["measures"].items():
-            v = verdict(m, r["base_ci95"], r["ci95"])
+            v = stats.verdict(r["gain_ci95"]) if "gain_ci95" in r else verdict(m, r["base_ci95"], r["ci95"])
             if v in out:
                 out[v].append("%s: %s" % (g, m))
     return out
@@ -148,9 +184,10 @@ def show(pack, against, groups, only=None):
             continue
         print("\n%s (%d scenarios%s)" % (g, d["n"], ", %d not finished" % d["not_finished"] if d["not_finished"] else ""))
         for m, r in d["measures"].items():
-            v = verdict(m, r["base_ci95"], r["ci95"])
-            print("  %-15s %12.4g -> %-12.4g %s" % (m, r["base_value"], r["value"], "" if v.startswith("no") else v))
-    print("\nbetter: %d, worse: %d (every other measure: the 95 %% intervals overlap)" % (len(out["better"]), len(out["worse"])))
+            v = stats.verdict(r.get("gain_ci95"))
+            print("  %-22s %12.4g -> %-12.4g %s" % (m, r["base_value"], r["value"], "" if v.startswith("no") else v))
+    print("\nbetter: %d, worse: %d (every other measure: the paired interval of the difference includes zero)"
+          % (len(out["better"]), len(out["worse"])))
 
 
 def errors_in(rec, slug):
@@ -158,7 +195,7 @@ def errors_in(rec, slug):
     if not isinstance(rec, dict) or set(rec) != KEYS:
         return ["keys must be exactly: %s" % ", ".join(sorted(KEYS))]
     bad = []
-    if rec["schema"] != SCHEMA:
+    if rec["schema"] not in (1, SCHEMA):
         bad.append("schema must be %d" % SCHEMA)
     if rec["slug"] != slug or not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", slug):
         bad.append("slug must be the file name, in lower-case words joined by hyphens")
@@ -181,7 +218,7 @@ def errors_in(rec, slug):
     try:
         for d in rec["groups"].values():
             for r in d["measures"].values():
-                for k in ("ci95", "base_ci95"):
+                for k in ("ci95", "base_ci95") + (("gain_ci95",) if rec["schema"] >= 2 else ()):
                     if r[k] is not None and not (len(r[k]) == 2 and r[k][0] <= r[k][1]):
                         bad.append("an interval is not [low, high]")
         out = outcomes(rec["groups"])
@@ -206,6 +243,8 @@ def errors_in(rec, slug):
 def rerun_errors(rec, jobs=None):
     """Measure again on this checkout; the record's values and its base must both hold."""
     bad = []
+    if rec["schema"] == 1:
+        return []       # measured with the earlier overlap rule and measure list; its form is checked
     main_ref = "origin/main" if git("rev-parse", "--verify", "--quiet", "origin/main") else "HEAD"
     if git("merge-base", "--is-ancestor", rec["base"], main_ref) is None:
         return ["base %s is not a commit of main" % rec["base"][:12]]
@@ -213,7 +252,7 @@ def rerun_errors(rec, jobs=None):
         old = committed(rec["function"], rec["against"], rec["base"])
     except Refused as e:
         return [str(e)]
-    got = compare(old, measure(rec["function"], rec["pack"], jobs))
+    got = compare(old, measure(rec["function"], rec["pack"], jobs), rec["function"])
     if set(got) != set(rec["groups"]):
         return ["the groups are not the ones the tool measures"]
     for g in got:
@@ -224,9 +263,11 @@ def rerun_errors(rec, jobs=None):
             want = rec["groups"][g]["measures"][m]
             if r["base_value"] != want["base_value"] or r["base_ci95"] != want["base_ci95"]:
                 bad.append("%s %s: the base is not what is committed at %s" % (g, m, rec["base"][:12]))
-            pairs = [(r["value"], want["value"])] + list(zip(r["ci95"] or [], want["ci95"] or []))
+            pairs = [(r["value"], want["value"])] + list(zip(r["ci95"] or [], want["ci95"] or [])) \
+                + list(zip(r.get("gain_ci95") or [], want.get("gain_ci95") or []))
             if any(not math.isclose(x, y, rel_tol=RERUN_TOLERANCE, abs_tol=1e-9)
-                   for x, y in pairs) or bool(r["ci95"]) != bool(want["ci95"]):
+                   for x, y in pairs) or bool(r["ci95"]) != bool(want["ci95"]) \
+                    or bool(r.get("gain_ci95")) != bool(want.get("gain_ci95")):
                 bad.append("%s %s: measured %.6g, recorded %.6g" % (g, m, r["value"], want["value"]))
     return bad
 
@@ -258,7 +299,7 @@ def cmd_measure(a):
     if path and os.path.exists(path):
         raise Refused("%s exists; a record is never rewritten, choose another slug" % os.path.relpath(path, ROOT))
     base = base_commit(a.base)
-    groups = compare(committed(f, against, base), measure(f, a.pack, a.jobs))
+    groups = compare(committed(f, against, base), measure(f, a.pack, a.jobs), f)
     show(a.pack, against, groups, getattr(a, "group", None))
     if not path:
         return

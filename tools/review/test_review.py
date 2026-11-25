@@ -32,9 +32,29 @@ class Verdicts(unittest.TestCase):
         self.assertEqual(R.verdict("f1", None, [0.8, 0.9]), "no difference shown")
 
 
+def record2(**kw):
+    """A schema 2 record: the verdict comes from the paired interval, gain_ci95."""
+    rec = record(schema=2)
+    rec["groups"] = {"g": {"n": 30, "not_finished": 0, "measures": {
+        "f1": {"value": 0.81, "ci95": [0.78, 0.84], "base_value": 0.8, "base_ci95": [0.77, 0.83],
+               "gain_ci95": [0.004, 0.016]}}}}
+    rec.update(kw)
+    return rec
+
+
 class Records(unittest.TestCase):
     def test_a_good_record(self):
         self.assertEqual(R.errors_in(record(), "a-test"), [])
+        self.assertEqual(R.errors_in(record2(), "a-test"), [])
+
+    def test_schema_2_takes_the_verdict_from_the_paired_interval(self):
+        # the separate intervals overlap, the paired interval does not: better
+        self.assertEqual(R.outcomes(record2()["groups"]), {"better": ["g: f1"], "worse": []})
+        self.assertTrue(R.errors_in(record2(better=[]), "a-test"))
+        nogain = record2()
+        del nogain["groups"]["g"]["measures"]["f1"]["gain_ci95"]
+        self.assertTrue(R.errors_in(nogain, "a-test"))
+        self.assertTrue(R.errors_in(record2(schema=3), "a-test"))
 
     def test_what_is_refused(self):
         hidden = copy.deepcopy(record())

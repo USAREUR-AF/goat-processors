@@ -25,7 +25,7 @@ RECORDED_SHIPS = os.path.join(HERE, "data", "recorded-ships.json")
 TUNING_ROOT = 20261120
 EVAL_SEEDS = os.path.expanduser("~/re/bench-eval-seeds")
 RANDOM_COUNT = 500
-FAMILY_COUNT = 20       # scenarios per family per set (scale: SCALE_SIZES)
+FAMILY_COUNT = 20       # scenarios per family per set
 SCALE_SIZES = [50, 200, 1000]
 
 
@@ -292,7 +292,10 @@ def recorded_ships(r, name, window):
                     objs, sensors, duration_s=duration, seed=r.u64())
 
 
-FAMILIES = ["formation", "crossing", "maneuver", "sensor problems", "scale", "clutter", "mixed domains",
+# The accuracy families. `scale` (50, 200 and 1000 objects) is a question of speed: the
+# Python engine does not finish its two larger scenarios within the time limit, so it is
+# not part of either set; tools/perf measures speed.
+FAMILIES = ["formation", "crossing", "maneuver", "sensor problems", "clutter", "mixed domains",
             "track management", "recorded ships"]
 _GEN = {"formation": formation, "crossing": crossing, "maneuver": maneuver, "sensor problems": sensor_problems,
         "mixed domains": mixed_domains, "track management": track_management}

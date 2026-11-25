@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 760 380" width="760" height="380" role="img" aria-labelledby="t d">
+<title id="t">How goat-processors decides which tracks are the same aircraft</title>
+<desc id="d">Six steps: three sensors report their own tracks with different uncertainty; sensor position and clock offsets are removed; each track is predicted ahead with a Kalman filter that switches between a quiet and a maneuver model; only tracks inside the predicted 99 percent region are candidates; all of one sensor&#x27;s tracks are assigned together at the least total cost; the result is one system track per aircraft, committed one update later.</desc>
+<style>svg{font-family:sans-serif}
+text{font-family:sans-serif}
+svg.viz{display:block; width:100%; height:auto; font-family:currentColor;}
+svg .t{fill:#e7e9ec;}
+svg .tq{fill:#a5acb7;}
+svg .ta{fill:#6cc3da;}
+svg .tg{fill:#6fc480;}
+svg .ton{fill:#121417;}
+svg .bxp{fill:#1a1d21; stroke:#30363e; stroke-width:1.25;}
+svg .bxa{fill:#14303a; stroke:#6cc3da; stroke-width:1.25;}
+svg .ln{stroke:#7b8592; stroke-width:1.25; fill:none;}
+svg .lna{stroke:#6cc3da; stroke-width:2; fill:none;}
+svg .lng{stroke:#6fc480; stroke-width:2; fill:none;}
+svg .fa{fill:#6cc3da;}
+svg .fg{fill:#6fc480;}
+svg .fl{fill:#7b8592;}
+svg .fp{fill:#1a1d21;}
+svg .ue{fill:#14303a; stroke:#6cc3da; stroke-width:1; fill-opacity:.75;}
+svg .ug{fill:#14303a; stroke:#6cc3da; stroke-width:1.25; stroke-dasharray:5 4;}
+svg .ugd{fill:#1b2e20; stroke:#6fc480; stroke-width:1;}
+svg .mk{fill:#121417; stroke:#6cc3da; stroke-width:1.5;}
+svg .mkg{fill:none; stroke:#a5acb7; stroke-width:1.5;}
+svg .mkm{fill:#121417; stroke:#9ba2ac; stroke-width:1.5;}
+svg .tp{stroke:#7b8592; stroke-width:1; stroke-dasharray:1.5 3.5; fill:none; stroke-linecap:round;}
+svg .lnad{stroke:#6cc3da; stroke-width:2; fill:none;}
+svg .lnm{stroke:#7b8592; stroke-width:1.25; fill:none; stroke-dasharray:4 4;}</style>
+<rect width="100%" height="100%" fill="#121417"/>
+
+<rect x="20" y="20" width="220" height="162" rx="12" class="bxp"/>
+<circle cx="44" cy="43" r="12" class="fa"/>
+<text x="44" y="47.6" text-anchor="middle" class="ton" font-size="13">1</text>
+<text x="64" y="48" class="t" font-size="15" font-weight="700">Each sensor tracks</text>
+<rect x="270" y="20" width="220" height="162" rx="12" class="bxp"/>
+<circle cx="294" cy="43" r="12" class="fa"/>
+<text x="294" y="47.6" text-anchor="middle" class="ton" font-size="13">2</text>
+<text x="314" y="48" class="t" font-size="15" font-weight="700">Remove offsets</text>
+<text x="286" y="169" class="tq" font-size="13">sensor position and clock</text>
+<rect x="520" y="20" width="220" height="162" rx="12" class="bxp"/>
+<circle cx="544" cy="43" r="12" class="fa"/>
+<text x="544" y="47.6" text-anchor="middle" class="ton" font-size="13">3</text>
+<text x="564" y="48" class="t" font-size="15" font-weight="700">Predict ahead</text>
+<text x="536" y="169" class="tq" font-size="13">Kalman filter with IMM</text>
+<rect x="20" y="198" width="220" height="162" rx="12" class="bxp"/>
+<circle cx="44" cy="221" r="12" class="fa"/>
+<text x="44" y="225.6" text-anchor="middle" class="ton" font-size="13">4</text>
+<text x="64" y="226" class="t" font-size="15" font-weight="700">Gate the candidates</text>
+<text x="36" y="347" class="tq" font-size="13">inside the 99% region</text>
+<rect x="270" y="198" width="220" height="162" rx="12" class="bxp"/>
+<circle cx="294" cy="221" r="12" class="fa"/>
+<text x="294" y="225.6" text-anchor="middle" class="ton" font-size="13">5</text>
+<text x="314" y="226" class="t" font-size="15" font-weight="700">Assign all at once</text>
+<text x="286" y="347" class="tq" font-size="13">least total cost: 5, not 10</text>
+<rect x="520" y="198" width="220" height="162" rx="12" class="bxp"/>
+<circle cx="544" cy="221" r="12" class="fa"/>
+<text x="544" y="225.6" text-anchor="middle" class="ton" font-size="13">6</text>
+<text x="564" y="226" class="t" font-size="15" font-weight="700">One track per aircraft</text>
+<text x="536" y="347" class="tq" font-size="13">committed one tick later</text>
+<path d="M245 101L261.25 101" class="ln"/><path d="M269.25 101L260.25 105.5L260.25 96.5z" class="fl"/>
+<path d="M495 101L511.25 101" class="ln"/><path d="M519.25 101L510.25 105.5L510.25 96.5z" class="fl"/>
+<path d="M245 279L261.25 279" class="ln"/><path d="M269.25 279L260.25 283.5L260.25 274.5z" class="fl"/>
+<path d="M495 279L511.25 279" class="ln"/><path d="M519.25 279L510.25 283.5L510.25 274.5z" class="fl"/>
+<path d="M38 152L224 72" class="tp" data-lint="nohead"/>
+<path d="M38 76L224 156" class="tp" data-lint="nohead"/>
+<ellipse cx="76" cy="115" rx="24" ry="7" transform="rotate(-24 76 115)" class="ue"/>
+<ellipse cx="99" cy="126" rx="12" ry="8" transform="rotate(-10 99 126)" class="ue"/>
+<ellipse cx="96" cy="127" rx="5.5" ry="4.5" transform="rotate(0 96 127)" class="ue"/>
+<path d="M76 110L81 115L76 120L71 115z" class="mk"/>
+<circle cx="99" cy="126" r="4.2" class="mk"/>
+<circle cx="96" cy="127" r="3.4" class="fa"/>
+<ellipse cx="76" cy="89" rx="24" ry="7" transform="rotate(-24 76 89)" class="ue"/>
+<ellipse cx="99" cy="100" rx="12" ry="8" transform="rotate(-10 99 100)" class="ue"/>
+<ellipse cx="96" cy="101" rx="5.5" ry="4.5" transform="rotate(0 96 101)" class="ue"/>
+<path d="M76 84L81 89L76 94L71 89z" class="mk"/>
+<circle cx="99" cy="100" r="4.2" class="mk"/>
+<circle cx="96" cy="101" r="3.4" class="fa"/>
+<path d="M202.03 81.6h15.95v17.52h-15.95z" class="fp" data-lint="halo"/>
+<text x="210" y="94" text-anchor="middle" class="tq" font-size="13" font-weight="700" data-lint="halo">A</text>
+<path d="M202.03 131.6h15.95v17.52h-15.95z" class="fp" data-lint="halo"/>
+<text x="210" y="144" text-anchor="middle" class="tq" font-size="13" font-weight="700" data-lint="halo">B</text>
+<circle cx="41" cy="164.5" r="3.4" class="fa"/>
+<text x="51" y="169" class="tq" font-size="13">beacon</text>
+<circle cx="110.47" cy="164.5" r="4.2" class="mk"/>
+<text x="120.47" y="169" class="tq" font-size="13">radar</text>
+<path d="M166.14 159.5L171.14 164.5L166.14 169.5L161.14 164.5z" class="mk"/>
+<text x="176.14" y="169" class="tq" font-size="13">passive</text>
+<path d="M288 156L474 80" class="tp" data-lint="nohead"/>
+<path d="M288 72L474 148" class="tp" data-lint="nohead"/>
+<path d="M370 78.7L375 83.7L370 88.7L365 83.7z" class="mkg" stroke-dasharray="2.5 2"/>
+<path d="M377 86.7L402.59 96.49" class="lna"/><path d="M411 99.7L399.87 100.8L403.45 91.46z" class="fa"/>
+<path d="M361 57.3h101.7v17.52h-101.7z" class="fp" data-lint="halo"/>
+<text x="364" y="69.7" class="tq" font-size="13" font-weight="700" data-lint="halo">position offset</text>
+<circle cx="330" cy="92.3" r="4.2" class="mkg" stroke-dasharray="2.5 2"/>
+<path d="M337 95.2L374.66 110.51" class="lna"/><path d="M383 113.9L371.85 114.77L375.62 105.5z" class="fa"/>
+<path d="M281 103.9h65.97v17.52h-65.97z" class="fp" data-lint="halo"/>
+<text x="284" y="116.3" class="tq" font-size="13" font-weight="700" data-lint="halo">clock lag</text>
+<ellipse cx="420" cy="101.7" rx="8" ry="6" transform="rotate(0 420 101.7)" class="ue"/>
+<circle cx="420" cy="101.7" r="3.4" class="fa"/>
+<circle cx="423.5" cy="103.2" r="4.2" class="mk"/>
+<path d="M416.5 95.7L421 100.2L416.5 104.7L412 100.2z" class="mk"/>
+<ellipse cx="392" cy="117.6" rx="8" ry="6" transform="rotate(0 392 117.6)" class="ue"/>
+<circle cx="392" cy="117.6" r="3.4" class="fa"/>
+<circle cx="395.5" cy="119.1" r="4.2" class="mk"/>
+<path d="M388.5 111.6L393 116.1L388.5 120.6L384 116.1z" class="mk"/>
+<path d="M542 140L562 132L582 124L602 116" class="ln" data-lint="nohead"/>
+<circle cx="542" cy="140" r="2.6" class="fl"/>
+<circle cx="562" cy="132" r="2.6" class="fl"/>
+<circle cx="582" cy="124" r="2.6" class="fl"/>
+<path d="M607 114L649 98" class="lnad" data-lint="nohead"/>
+<path d="M607 117Q620 118 624 126" class="lna"/>
+<ellipse cx="664" cy="92" rx="15" ry="9" transform="rotate(-20 664 92)" class="ue"/>
+<ellipse cx="634" cy="138" rx="20" ry="12" transform="rotate(30 634 138)" class="ue" stroke-dasharray="4 3"/>
+<circle cx="602" cy="116" r="3.4" class="fa"/>
+<circle cx="664" cy="92" r="2.2" class="fa"/><circle cx="634" cy="138" r="2.2" class="fa"/>
+<text x="684" y="86" class="tq" font-size="13" font-weight="700">quiet</text>
+<text x="660" y="144" class="tq" font-size="13" font-weight="700">maneuver</text>
+<ellipse cx="96" cy="290" rx="50" ry="29" transform="rotate(-12 96 290)" class="ug"/>
+<path d="M91 290h10M96 285v10" class="lna"/>
+<circle cx="126" cy="282" r="5" class="mk"/>
+<circle cx="204" cy="320" r="5" class="mkm"/>
+<text x="154" y="287" class="ta" font-size="13" font-weight="700">candidate</text>
+<text x="194" y="325" text-anchor="end" class="tq" font-size="13" font-weight="700">ignored</text>
+<text x="314" y="252" text-anchor="middle" class="tq" font-size="13" font-weight="700">radar</text>
+<text x="432" y="252" text-anchor="middle" class="tq" font-size="13" font-weight="700">system tracks</text>
+<path d="M320 272L419 315" class="lnm" data-lint="nohead"/>
+<path d="M320 318L419 275" class="lnm" data-lint="nohead"/>
+<path d="M320 272L419 272" class="lna" data-lint="nohead"/>
+<path d="M320 318L419 318" class="lna" data-lint="nohead"/>
+<circle cx="314" cy="272" r="5.5" class="mk"/>
+<circle cx="314" cy="318" r="5.5" class="mk"/>
+<circle cx="432" cy="272" r="13" class="bxa"/>
+<text x="432" y="276.29" text-anchor="middle" class="t" font-size="13" font-weight="700">A</text>
+<circle cx="432" cy="318" r="13" class="bxa"/>
+<text x="432" y="322.29" text-anchor="middle" class="t" font-size="13" font-weight="700">B</text>
+<path d="M383.17 264.1h13.66v17.52h-13.66z" class="fp" data-lint="halo"/>
+<text x="390" y="276.5" text-anchor="middle" class="ta" font-size="13" font-weight="700" data-lint="halo">3</text>
+<path d="M383.17 310.1h13.66v17.52h-13.66z" class="fp" data-lint="halo"/>
+<text x="390" y="322.5" text-anchor="middle" class="ta" font-size="13" font-weight="700" data-lint="halo">2</text>
+<path d="M339.17 276.1h13.66v17.52h-13.66z" class="fp" data-lint="halo"/>
+<text x="346" y="288.5" text-anchor="middle" class="tq" font-size="13" font-weight="700" data-lint="halo">1</text>
+<path d="M339.17 298.1h13.66v17.52h-13.66z" class="fp" data-lint="halo"/>
+<text x="346" y="310.5" text-anchor="middle" class="tq" font-size="13" font-weight="700" data-lint="halo">9</text>
+<path d="M538 326L724 250" class="tp" data-lint="nohead"/>
+<path d="M538 250L724 326" class="tp" data-lint="nohead"/>
+<path d="M552.88 319.92L679.36 268.24" class="lng" data-lint="nohead"/>
+<circle cx="552.88" cy="319.92" r="2.4" class="fg"/>
+<circle cx="578.92" cy="309.28" r="2.4" class="fg"/>
+<circle cx="604.96" cy="298.64" r="2.4" class="fg"/>
+<circle cx="631" cy="288" r="2.4" class="fg"/>
+<circle cx="657.04" cy="277.36" r="2.4" class="fg"/>
+<ellipse cx="679.36" cy="268.24" rx="7" ry="5.5" transform="rotate(0 679.36 268.24)" class="ugd"/>
+<circle cx="679.36" cy="268.24" r="3.6" class="fg"/>
+<path d="M552.88 256.08L679.36 307.76" class="lng" data-lint="nohead"/>
+<circle cx="552.88" cy="256.08" r="2.4" class="fg"/>
+<circle cx="578.92" cy="266.72" r="2.4" class="fg"/>
+<circle cx="604.96" cy="277.36" r="2.4" class="fg"/>
+<circle cx="631" cy="288" r="2.4" class="fg"/>
+<circle cx="657.04" cy="298.64" r="2.4" class="fg"/>
+<ellipse cx="679.36" cy="307.76" rx="7" ry="5.5" transform="rotate(0 679.36 307.76)" class="ugd"/>
+<circle cx="679.36" cy="307.76" r="3.6" class="fg"/>
+<text x="679.36" y="255.24" text-anchor="middle" class="tg" font-size="13" font-weight="700">A</text>
+<text x="679.36" y="329.76" text-anchor="middle" class="tg" font-size="13" font-weight="700">B</text>
+</svg>

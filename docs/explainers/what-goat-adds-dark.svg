@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 760 356" width="760" height="356" role="img" aria-labelledby="t d">
+<title id="t">What is different about goat&#x27;s track processing</title>
+<desc id="d">Messages in 4,248 sensor formats are translated by goat-transformers into one shared model; each report carries its clock quality, and a looser clock gives a wider position region; goat-processors filters, correlates, fuses and checks quality without reading a clock, with behavior set by a settings pack; system tracks go out on the Zenoh fabric, and a trace record explains every decision.</desc>
+<style>svg{font-family:sans-serif}
+text{font-family:sans-serif}
+svg.viz{display:block; width:100%; height:auto; font-family:currentColor;}
+svg .t{fill:#e7e9ec;}
+svg .tq{fill:#a5acb7;}
+svg .ta{fill:#6cc3da;}
+svg .tg{fill:#6fc480;}
+svg .ton{fill:#121417;}
+svg .bx{fill:#121417; stroke:#7b8592; stroke-width:1.25;}
+svg .bxp{fill:#1a1d21; stroke:#30363e; stroke-width:1.25;}
+svg .bxa{fill:#14303a; stroke:#6cc3da; stroke-width:1.25;}
+svg .bxg{fill:#1b2e20; stroke:#6fc480; stroke-width:1.25;}
+svg .ln{stroke:#7b8592; stroke-width:1.25; fill:none;}
+svg .lna{stroke:#6cc3da; stroke-width:2; fill:none;}
+svg .lng{stroke:#6fc480; stroke-width:2; fill:none;}
+svg .fa{fill:#6cc3da;}
+svg .fg{fill:#6fc480;}
+svg .fl{fill:#7b8592;}
+svg .ue{fill:#14303a; stroke:#6cc3da; stroke-width:1; fill-opacity:.85;}
+svg .tp{stroke:#7b8592; stroke-width:1; stroke-dasharray:1.5 3.5; fill:none; stroke-linecap:round;}
+svg .fn{stroke:#7b8592; stroke-width:1.1; fill:none;}
+svg .ck{fill:#121417; stroke:#6cc3da; stroke-width:1.5;}
+svg .ckh{stroke:#6cc3da; stroke-width:1.5; fill:none; stroke-linecap:round; stroke-linejoin:round;}
+svg .ckm{fill:#121417; stroke:#6cc3da; stroke-width:1.5;}
+svg .cks{stroke:#e7e9ec; stroke-width:1.75; stroke-linecap:round; fill:none;}
+svg .lna1{stroke:#6cc3da; stroke-width:1.25; fill:none;}</style>
+<rect width="100%" height="100%" fill="#121417"/>
+
+<text x="68" y="30" text-anchor="middle" class="tq" font-size="13" font-weight="700">4,248 formats</text>
+<circle cx="136.4" cy="25.5" r="11" class="fa"/>
+<text x="136.4" y="30.1" text-anchor="middle" class="ton" font-size="13">1</text>
+<text x="153.4" y="30" class="tq" font-size="13" font-weight="700">goat-transformers</text>
+<circle cx="315.85" cy="25.5" r="11" class="fa"/>
+<text x="315.85" y="30.1" text-anchor="middle" class="ton" font-size="13">2</text>
+<text x="332.85" y="30" class="tq" font-size="13" font-weight="700">each report</text>
+<circle cx="474" cy="25.5" r="11" class="fa"/>
+<text x="474" y="30.1" text-anchor="middle" class="ton" font-size="13">3</text>
+<text x="491" y="30" class="tq" font-size="13" font-weight="700">goat-processors</text>
+<circle cx="641.03" cy="25.5" r="11" class="fa"/>
+<text x="641.03" y="30.1" text-anchor="middle" class="ton" font-size="13">6</text>
+<text x="658.03" y="30" class="tq" font-size="13" font-weight="700">Zenoh fabric</text>
+<rect x="20" y="46" width="96" height="32" rx="6" class="bx"/>
+<text x="68" y="65.6" text-anchor="middle" class="t" font-size="13" font-weight="700">CoT</text>
+<rect x="20" y="89" width="96" height="32" rx="6" class="bx"/>
+<text x="68" y="108.6" text-anchor="middle" class="t" font-size="13" font-weight="700">ASTERIX</text>
+<rect x="20" y="132" width="96" height="32" rx="6" class="bx"/>
+<text x="68" y="151.6" text-anchor="middle" class="t" font-size="13" font-weight="700">NMEA 2000</text>
+<rect x="20" y="175" width="96" height="32" rx="6" class="bx"/>
+<text x="68" y="194.6" text-anchor="middle" class="t" font-size="13" font-weight="700">ADS-B</text>
+<rect x="20" y="218" width="96" height="32" rx="6" class="bx"/>
+<text x="68" y="237.6" text-anchor="middle" class="t" font-size="13" font-weight="700">Remote ID</text>
+<rect x="20" y="261" width="96" height="32" rx="6" class="bx"/>
+<text x="68" y="280.6" text-anchor="middle" class="t" font-size="13" font-weight="700">MAVLink 2</text>
+<rect x="20" y="304" width="96" height="32" rx="6" class="bx"/>
+<text x="68" y="323.6" text-anchor="middle" class="t" font-size="13" font-weight="700">SAPIENT</text>
+<rect x="140" y="120" width="120" height="142" rx="8" class="bxa"/>
+<text x="156" y="150" class="t" font-size="15" font-weight="700">One model</text>
+<text x="156" y="178" class="t" font-size="13">lat, lon</text>
+<text x="244" y="178" text-anchor="end" class="tq" font-size="13" font-weight="700">deg</text>
+<text x="156" y="202" class="t" font-size="13">altitude</text>
+<text x="244" y="202" text-anchor="end" class="tq" font-size="13" font-weight="700">m</text>
+<text x="156" y="226" class="t" font-size="13">time</text>
+<text x="244" y="226" text-anchor="end" class="tq" font-size="13" font-weight="700">ms</text>
+<text x="156" y="250" class="t" font-size="13">time error</text>
+<text x="244" y="250" text-anchor="end" class="tq" font-size="13" font-weight="700">ms</text>
+<path d="M117 62H128" class="fn" data-lint="nohead"/>
+<path d="M117 105H128" class="fn" data-lint="nohead"/>
+<path d="M117 148H128" class="fn" data-lint="nohead"/>
+<path d="M117 191H128" class="fn" data-lint="nohead"/>
+<path d="M117 234H128" class="fn" data-lint="nohead"/>
+<path d="M117 277H128" class="fn" data-lint="nohead"/>
+<path d="M117 320H128" class="fn" data-lint="nohead"/>
+<path d="M128 62V320" class="fn" data-lint="nohead"/>
+<path d="M128 191L130.25 191" class="lna"/><path d="M139.25 191L129.25 196L129.25 186z" class="fa"/>
+<rect x="284" y="46" width="146" height="76" rx="8" class="bx"/>
+<path d="M288 84H340" class="tp" data-lint="nohead"/>
+<ellipse cx="314" cy="84" rx="6" ry="5" class="ue"/><circle cx="314" cy="84" r="3" class="fa"/>
+<circle cx="348.5" cy="74" r="6.5" class="ck"/><path d="M348.5 69.5V74H352.8" class="ckh"/>
+<text x="360" y="78.5" class="t" font-size="13" font-weight="700">±2 ms</text>
+<text x="342" y="101" class="tq" font-size="13">coherent</text>
+<rect x="284" y="153" width="146" height="76" rx="8" class="bx"/>
+<path d="M288 191H340" class="tp" data-lint="nohead"/>
+<ellipse cx="314" cy="191" rx="13" ry="6.5" class="ue"/><circle cx="314" cy="191" r="3" class="fa"/>
+<circle cx="348.5" cy="181" r="6.5" class="ck"/><path d="M348.5 176.5V181H352.8" class="ckh"/>
+<text x="360" y="185.5" class="t" font-size="13" font-weight="700">±80 ms</text>
+<text x="342" y="208" class="tq" font-size="13">drifting</text>
+<rect x="284" y="260" width="146" height="76" rx="8" class="bx"/>
+<path d="M288 298H340" class="tp" data-lint="nohead"/>
+<ellipse cx="314" cy="298" rx="20" ry="8" class="ue"/><circle cx="314" cy="298" r="3" class="fa"/>
+<circle cx="348.5" cy="288" r="6.5" class="ck"/><path d="M348.5 283.5V288H352.8" class="ckh"/>
+<text x="360" y="292.5" class="t" font-size="13" font-weight="700">±400 ms</text>
+<text x="342" y="315" class="tq" font-size="13">free-running</text>
+<path d="M261 191L281.62 91.83" class="ln"/><path d="M283.25 84L285.82 93.73L277.01 91.9z" class="fl"/>
+<path d="M261 191L275.25 191" class="ln"/><path d="M283.25 191L274.25 195.5L274.25 186.5z" class="fl"/>
+<path d="M261 191L281.62 290.17" class="ln"/><path d="M283.25 298L277.01 290.1L285.82 288.27z" class="fl"/>
+<rect x="454" y="46" width="156" height="200" rx="12" class="bxp"/>
+<rect x="468" y="62" width="128" height="32" rx="6" class="bx"/>
+<text x="532" y="81.6" text-anchor="middle" class="t" font-size="13" font-weight="700">filter</text>
+<rect x="468" y="100" width="128" height="32" rx="6" class="bx"/>
+<text x="532" y="119.6" text-anchor="middle" class="t" font-size="13" font-weight="700">correlate</text>
+<rect x="468" y="138" width="128" height="32" rx="6" class="bx"/>
+<text x="532" y="157.6" text-anchor="middle" class="t" font-size="13" font-weight="700">fuse</text>
+<rect x="468" y="176" width="128" height="32" rx="6" class="bx"/>
+<text x="532" y="195.6" text-anchor="middle" class="t" font-size="13" font-weight="700">quality</text>
+<circle cx="477" cy="227.5" r="6.5" class="ckm"/><path d="M477 223V227.5H481.3" class="ckh"/>
+<path d="M469 235.5L485 219.5" class="cks"/>
+<text x="492" y="232" class="t" font-size="13">no clock read</text>
+<path d="M431 84L444 146" class="fn" data-lint="nohead"/>
+<path d="M431 191L444 146" class="fn" data-lint="nohead"/>
+<path d="M431 298L444 146" class="fn" data-lint="nohead"/>
+<path d="M444 146L444.25 146" class="lna"/><path d="M453.25 146L443.25 151L443.25 141z" class="fa"/>
+<path d="M470 286H498L508 296V336H470z" class="bxa"/><path d="M498 286V296H508" class="ln"/><path d="M478 306H500" class="lna1"/><path d="M478 314H500" class="lna1"/><path d="M478 322H500" class="lna1"/>
+<circle cx="533" cy="303" r="11" class="fa"/>
+<text x="533" y="307.6" text-anchor="middle" class="ton" font-size="13">4</text>
+<text x="550" y="308" class="t" font-size="15" font-weight="700">pack</text>
+<text x="522" y="330" class="tq" font-size="13">settings only</text>
+<path d="M489 284L489 255.75" class="lna"/><path d="M489 246.75L494 256.75L484 256.75z" class="fa"/>
+<rect x="632" y="46" width="108" height="132" rx="12" class="bxg"/>
+<circle cx="646" cy="76" r="2.2" class="fg"/>
+<circle cx="659" cy="75" r="2.2" class="fg"/>
+<circle cx="672" cy="74" r="2.2" class="fg"/>
+<circle cx="685" cy="73" r="2.2" class="fg"/>
+<circle cx="698" cy="72" r="2.2" class="fg"/>
+<circle cx="711" cy="71" r="3.6" class="fg"/>
+<circle cx="646" cy="98" r="2.2" class="fg"/>
+<circle cx="659" cy="98.33" r="2.2" class="fg"/>
+<circle cx="672" cy="98.67" r="2.2" class="fg"/>
+<circle cx="685" cy="99" r="2.2" class="fg"/>
+<circle cx="698" cy="99.33" r="2.2" class="fg"/>
+<circle cx="711" cy="99.67" r="3.6" class="fg"/>
+<circle cx="646" cy="120" r="2.2" class="fg"/>
+<circle cx="659" cy="121.33" r="2.2" class="fg"/>
+<circle cx="672" cy="122.67" r="2.2" class="fg"/>
+<circle cx="685" cy="124" r="2.2" class="fg"/>
+<circle cx="698" cy="125.33" r="2.2" class="fg"/>
+<circle cx="711" cy="126.67" r="3.6" class="fg"/>
+<text x="686" y="154" text-anchor="middle" class="tg" font-size="13">system tracks</text>
+<path d="M611 112L622.25 112" class="lng"/><path d="M631.25 112L621.25 117L621.25 107z" class="fg"/>
+<path d="M640 196H740V336L731.67 330L715 336L698.33 330L681.67 336L665 330L648.33 336L640 336z" class="bx"/>
+<text x="680" y="222" class="t" font-size="15" font-weight="700">why</text>
+<text x="652" y="245" class="t" font-size="13">A vs B</text>
+<text x="652" y="266" class="t" font-size="13">value 3.1</text>
+<text x="652" y="287" class="t" font-size="13">limit 9.2</text>
+<text x="652" y="308" class="ta" font-size="13" font-weight="700">joined</text>
+<circle cx="663" cy="217" r="11" class="fa"/>
+<text x="663" y="221.6" text-anchor="middle" class="ton" font-size="13">5</text>
+<path d="M611 218Q628 218 635.52 232.93" class="ln"/><path d="M639.25 240L631.07 234.14L639.03 229.94z" class="fl"/>
+</svg>

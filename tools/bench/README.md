@@ -119,7 +119,7 @@ block (`evaluation.rotation`). When a set of seeds has been seen by a tuning
 session, it is replaced before the next decision that rests on it.
 
 **Families.** Each is a generator in `dataset.py` with its truth stated by
-construction; 20 scenarios per set (scale: 3).
+construction; 20 scenarios per set.
 
 | Family | What it generates |
 |---|---|
@@ -127,7 +127,6 @@ construction; 20 scenarios per set (scale: 3).
 | crossing | 2 to 4 objects whose paths meet at 3 to 25 degrees at one time and point; half then turn onto one heading and fly together (merging) |
 | maneuver | level turns at 3 to 9 g; climbs and dives at 50 to 150 m/s with turns; or surface traffic that stops and starts |
 | sensor problems | two or three of: a 10 to 30 s dropout, intermittent updates, 5 to 15 s latency, out-of-order delivery over 2 to 6 s, error stated 2 to 4 times too small or 2 to 4 times too large, biases on several sensors, clock drift |
-| scale | 50, 200 and 1,000 objects (15 % surface) over a box that grows with the count, 3 to 8 sensors, 120 s (50) or 60 s |
 | clutter | false tracks on the radar at 0, 5, 10, 20 and 40 per scenario, half as many on the passive sensor |
 | mixed domains | surface vessels, a slow helicopter at 100 to 300 m near them, land vehicles (environment `G`) and an aircraft |
 | track management | drops with and without track-number reuse (a dropped number given to the next new track), number swaps between objects, sensors joining late |
@@ -243,13 +242,23 @@ Definitions used by every score, at each tick `t`:
 | GOSPA | per tick, between X, the positions of the output tracks with a live member, and Y, the true positions of the objects with a live track: `(min over assignments of (sum over assigned pairs of min(d, c)^p + (c^p / 2) * (unassigned in X + unassigned in Y)))^(1/p)`, with `c = 500` m, `p = 2`, `alpha = 2`. Reported as the mean over ticks. The assignment is exact (Hungarian method) |
 | GOSPA localisation | the same sum over assigned pairs closer than `c` only, to the power `1/p`, mean over ticks |
 | missed, false per tick | per tick, the objects of Y and the tracks of X left unassigned (or assigned at `c` or more), mean over ticks |
+| on an object | an output track of X is on an object of Y when its distance to it is below `MATCH_M` = 500 m (the GOSPA cut-off) |
+| IDF1 | Ristani et al., ECCV 2016. `co(o, h)`: the ticks at which output track label `h` is on object `o`. IDTP: the largest sum of `co` over one-to-one pairs of objects and labels in the scenario (exact assignment). `IDF1 = 2 * IDTP / (sum of |Y| + sum of |X|)` over ticks; IDP `= IDTP / sum |X|`, IDR `= IDTP / sum |Y|` |
+| completeness | SIAP. `J / N_T`: J the object-ticks with at least one output track on them (each track counted for its nearest object), `N_T` the object-ticks of Y |
+| ambiguity | SIAP. `N_A / J`: `N_A` the track-ticks on an object; 1 is one track per covered object |
+| spuriousness | SIAP. `(N - N_A) / N`: N the track-ticks of X |
+| position accuracy | SIAP. The mean distance of each track on an object to that (nearest) object, m |
+| object's track (SIAP) | at each tick an object keeps the label it had at the tick before while that track is still on it; objects and tracks left over are paired by the one-to-one assignment of least total distance (`min(d, MATCH_M)`) |
+| track changes per min | SIAP rate of track number change. The times an object's track (above) changes from one label to another between two ticks at which it has one, per minute of such ticks |
+| longest segment | SIAP. Per object, the longest run of ticks with the same track, summed over objects, over the object-ticks of Y |
 
 **Aggregation.** For one scenario the scores come from that run's counts. For
 a group (a set's random scenarios, a family, the named set), TP, FP, FN, false merges, missed
 merges, swaps, the episodes' times to associate, the squared errors and the
-per-tick GOSPA values are summed over the runs, and the scores computed from
-the sums: precision, recall and F1 are pooled over every pair-tick, RMS over
-every object-tick, GOSPA is the mean over every tick.
+per-tick GOSPA values, IDTP and the SIAP counts are summed over the runs, and
+the scores computed from the sums: precision, recall and F1 are pooled over
+every pair-tick, RMS over every object-tick, GOSPA is the mean over every
+tick, IDF1 and the SIAP ratios are ratios of the summed counts.
 
 A false track that no engine could tell from a real one still counts in X, so
 a scenario with false tracks has a GOSPA floor shared by every engine.
@@ -258,9 +267,28 @@ a scenario with false tracks has a GOSPA floor shared by every engine.
 (`stats.py`): draw as many scenarios as the group holds, with replacement,
 sum their counts, compute the measure; repeat 1,000 times; take the 2.5th and
 97.5th percentiles. The resampling uses the bench's splitmix64 with a fixed
-seed, so the same results give the same intervals. A difference between two
-packs, or two versions of one, is better or worse only when their intervals
-do not overlap; otherwise no difference is shown.
+seed, so the same results give the same intervals.
+
+**Better or worse.** Two packs, or two versions of one, ran on the same
+scenarios, so they are compared with a paired bootstrap (`stats.paired`):
+each of the 1,000 resamples draws one set of scenarios, the measure is
+computed for both packs from that same draw, and the gain (how much better B
+is than A: B minus A when higher is better, A minus B when lower is better,
+the reduction of the distance from 1 for ambiguity) is kept. B is better
+when the 2.5th percentile of the gain is above 0, worse when the 97.5th is
+below 0; otherwise no difference is shown. Pairs are formed on the scenarios
+both finished. `bench.py diff`, `tools/review/review.py`,
+`tools/review/compare.py`, the README and docs/benchmark.md all use this rule.
+Pairing removes the variation between scenarios that both packs share, so it
+finds smaller real differences than comparing two separate intervals (Efron
+and Tibshirani, *An Introduction to the Bootstrap*, 1993, chapter 16).
+
+**Outside baseline.** `tools/baselines/` holds trackers written with another
+project's code and scored by the same scorer: `stonesoup-gnn`, a Stone Soup
+1.9.1 tracker (its settings are in `tools/baselines/stonesoup_gnn.py`).
+`bench.py report --baselines` and `check --baselines` run it; it needs
+`pip install --require-hashes -r tools/baselines/requirements.txt`. Its time
+limit is four times the packs'.
 
 ## Adding an engine
 

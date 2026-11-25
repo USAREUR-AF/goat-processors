@@ -36,7 +36,7 @@
 <section class="band" id="where">
   <div class="wrap">
     <h2>Where things stand</h2>
-    <p class="sub">The default pack, <code>assign-time</code>, scores F1 <span class="num" data-measure="f1-random">0.934 (0.921 to 0.947)</span> on the 500 random scenarios of the held-out evaluation set. F1 runs from 0 to 1: does the output put two tracks together exactly when they are one object?</p>
+    <p class="sub">The default pack, <code>assign-time</code>, scores F1 <span class="num" data-measure="f1-random">0.947 (0.936 to 0.957)</span> on the 500 random scenarios of the held-out evaluation set. F1 runs from 0 to 1: does the output put two tracks together exactly when they are one object?</p>
     <div class="scroll"><table>
       <thead><tr><th>Function</th><th>Measured against</th><th>Results</th></tr></thead>
       <tbody>
@@ -107,7 +107,7 @@
     <div class="scroll"><table>
       <thead><tr><th>Claim</th><th>Needs</th></tr></thead>
       <tbody>
-        <tr><td>better</td><td>95&nbsp;% intervals that do not overlap, on the public tuning set, then confirmed by a maintainer on the held-out set</td></tr>
+        <tr><td>better</td><td>the paired 95&nbsp;% interval of the difference excludes zero, on the public tuning set, then confirmed by a maintainer on the held-out set</td></tr>
         <tr><td>no worse</td><td>no measure worse, by the same rule</td></tr>
         <tr><td>reproduces</td><td>the published numbers measured again on your machine (<code>review.py record ... --kind replicate</code>)</td></tr>
         <tr><td>works on real data</td><td>a feed check summary and an agreement result, with what was recorded and for how long</td></tr>

@@ -10,6 +10,7 @@ from scenarios import to_plane
 GOSPA_C = 500.0      # cut-off distance, m
 GOSPA_P = 2          # order
 MIN_EPISODE_S = 10   # an episode shorter than this is not counted as a missed merge
+MATCH_M = 500.0      # IDF1 and SIAP: an output track is on an object when within this distance, m
 
 
 def score(truth, vector, ticks):
@@ -29,6 +30,13 @@ def score(truth, vector, ticks):
     gospa_sum = gospa_loc = 0.0
     gospa_missed = gospa_false = 0
     n_ticks = 0
+    # IDF1: ticks each (object, output track) pair is within MATCH_M; totals of both sides.
+    co = {}
+    id_gt = id_hyp = 0
+    # SIAP: per-tick sums, and per object its current best track and run lengths.
+    siap = dict(nt=0, jt=0, na=0, n=0, pa=0.0, changes=0, tracked_s=0.0, ls=0, present=0)
+    best_prev, run, longest, present_ticks = {}, {}, {}, {}
+    prev_now = None
 
     for step, label in zip(vector["steps"], labels):
         if "ingest" in step:
@@ -125,7 +133,79 @@ def score(truth, vector, ticks):
         gospa_missed += missed
         gospa_false += false
 
+        # IDF1 and SIAP use the same two sets as GOSPA, with their labels.
+        H = [(tr["system"], to_plane(tr["lat"], tr["lon"])) for tr in tracks
+             if tr["lat"] is not None and any(m in live_set for m in tr["members"])]
+        G = [(o, to_plane(*truth["objects"][o]["pos"][ti])) for o in sorted(by_obj)
+             if truth["objects"][o]["pos"][ti] is not None]
+        id_gt += len(G)
+        id_hyp += len(H)
+        near = {}                       # object -> tracks within MATCH_M whose nearest object it is
+        on = 0                          # output tracks within MATCH_M of some object
+        for h, hp in H:
+            best = None
+            for o, gp in G:
+                d = math.hypot(hp[0] - gp[0], hp[1] - gp[1])
+                if d < MATCH_M:
+                    co[(o, h)] = co.get((o, h), 0) + 1
+                    if best is None or d < best[0]:
+                        best = (d, o)
+            if best is not None:
+                on += 1
+                siap["pa"] += best[0]
+                near.setdefault(best[1], []).append((best[0], h))
+        dt = (now - prev_now) / 1000.0 if prev_now is not None else 0.0
+        siap["nt"] += len(G)
+        siap["n"] += len(H)
+        siap["na"] += on
+        siap["jt"] += len(near)
+        # Continuity: an object keeps the track it had while that track stays within
+        # MATCH_M (as Stone Soup's track-to-truth association); objects and tracks
+        # left over are paired by the one-to-one assignment of least total distance.
+        own = {}
+        dist = {(o, h): math.hypot(hp[0] - gp[0], hp[1] - gp[1]) for o, gp in G for h, hp in H}
+        taken = set()
+        for o, _ in G:
+            h = best_prev.get(o)
+            if h is not None and h not in taken and dist.get((o, h), MATCH_M) < MATCH_M:
+                own[o] = h
+                taken.add(h)
+        G2 = [o for o, _ in G if o not in own]
+        H2 = [h for h, _ in H if h not in taken]
+        if G2 and H2:
+            nn = max(len(G2), len(H2))
+            cm = [[MATCH_M] * nn for _ in range(nn)]
+            for i, o in enumerate(G2):
+                for j, h in enumerate(H2):
+                    cm[i][j] = min(dist[(o, h)], MATCH_M)
+            for i, j in enumerate(hungarian(cm)):
+                if i < len(G2) and j < len(H2) and cm[i][j] < MATCH_M:
+                    own[G2[i]] = H2[j]
+        for o, _ in G:
+            present_ticks[o] = present_ticks.get(o, 0) + 1
+            if o in own:
+                h = own[o]
+                was = best_prev.get(o)
+                if was is not None:
+                    siap["tracked_s"] += dt
+                    if was != h:
+                        siap["changes"] += 1
+                run[o] = run.get(o, 0) + 1 if was == h else 1
+                longest[o] = max(longest.get(o, 0), run[o])
+                best_prev[o] = h
+            else:
+                best_prev[o] = None
+                run[o] = 0
+        here = {o for o, _ in G}
+        for o in list(best_prev):
+            if o not in here:
+                best_prev[o] = None
+                run[o] = 0
+        prev_now = now
+
     closed.extend(episodes.values())
+    siap["ls"] = sum(longest.values())
+    siap["present"] = sum(present_ticks.values())
     long_eps = [e for e in closed if (e[2] - e[0]) / 1000.0 >= MIN_EPISODE_S]
     missed_merges = sum(1 for e in long_eps if e[1] is None)
     tta = [(e[1] - e[0]) / 1000.0 for e in closed if e[1] is not None]
@@ -137,7 +217,25 @@ def score(truth, vector, ticks):
         "sq_err": sq_err, "n_err": n_err,
         "gospa_sum": gospa_sum, "gospa_loc": gospa_loc,
         "gospa_missed": gospa_missed, "gospa_false": gospa_false, "ticks": n_ticks,
+        "id_tp": id_matches(co), "id_gt": id_gt, "id_hyp": id_hyp,
+        "siap_nt": siap["nt"], "siap_jt": siap["jt"], "siap_na": siap["na"], "siap_n": siap["n"],
+        "siap_pa": siap["pa"], "siap_changes": siap["changes"], "siap_tracked_s": siap["tracked_s"],
+        "siap_ls": siap["ls"], "siap_present": siap["present"],
     }
+
+
+def id_matches(co):
+    """IDF1's IDTP: the largest total of co-located ticks over one-to-one object-track pairs."""
+    objs = sorted({o for o, _ in co})
+    hyps = sorted({h for _, h in co})
+    if not objs:
+        return 0
+    n = max(len(objs), len(hyps))
+    top = max(co.values())
+    cost = [[float(top - co.get((objs[i], hyps[j]), 0)) if i < len(objs) and j < len(hyps) else float(top)
+             for j in range(n)] for i in range(n)]
+    match = hungarian(cost)
+    return sum(co.get((objs[i], hyps[j]), 0) for i, j in enumerate(match) if i < len(objs) and j < len(hyps))
 
 
 def derive(s):
@@ -158,6 +256,15 @@ def derive(s):
         "gospa_loc_m": s["gospa_loc"] / s["ticks"] if s["ticks"] else None,
         "missed_per_tick": s["gospa_missed"] / s["ticks"] if s["ticks"] else None,
         "false_per_tick": s["gospa_false"] / s["ticks"] if s["ticks"] else None,
+        "idf1": 2 * s["id_tp"] / (s["id_gt"] + s["id_hyp"]) if s.get("id_gt", 0) + s.get("id_hyp", 0) else None,
+        "idp": s["id_tp"] / s["id_hyp"] if s.get("id_hyp") else None,
+        "idr": s["id_tp"] / s["id_gt"] if s.get("id_gt") else None,
+        "completeness": s["siap_jt"] / s["siap_nt"] if s.get("siap_nt") else None,
+        "ambiguity": s["siap_na"] / s["siap_jt"] if s.get("siap_jt") else None,
+        "spuriousness": (s["siap_n"] - s["siap_na"]) / s["siap_n"] if s.get("siap_n") else None,
+        "siap_pa_m": s["siap_pa"] / s["siap_na"] if s.get("siap_na") else None,
+        "track_changes_per_min": 60.0 * s["siap_changes"] / s["siap_tracked_s"] if s.get("siap_tracked_s") else None,
+        "longest_segment": s["siap_ls"] / s["siap_present"] if s.get("siap_present") else None,
     }
 
 
