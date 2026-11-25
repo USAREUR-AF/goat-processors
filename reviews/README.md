@@ -10,6 +10,7 @@ contribution takes two commands and changes one file.
 | confirm the published numbers on your machine | [Replicate](#replicate) | one file in `reviews/` |
 | try a better setting | [Improve a pack](#improve-a-pack) | a pack, one file in `reviews/` |
 | measure something nobody has | [Add a measurement](#add-a-measurement) | `tools/bench/`, one file in `reviews/` |
+| prepare for a real sensor feed | [docs/real-feeds.md](../docs/real-feeds.md) | `tools/feeds/` |
 | find something to work on | [Open work](#open-work) | |
 
 A result that did not help is worth recording too: it saves the next person
