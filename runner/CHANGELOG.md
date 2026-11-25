@@ -6,6 +6,16 @@ their JSON outputs, the file paths, the config keys, and the fabric keys and
 their value format. The release workflow puts a release's section on its
 GitHub release page.
 
+## Unreleased
+
+- **Single-source tracks are in the output.** A source track that correlate
+  put in no group (an object only one sensor reports) was left out of the
+  `tracks` key, `GET /v1/tracks`, the operator page, `explain` and the track
+  metrics when the pipeline ends in fuse, although fuse makes a track of it.
+  It is now a system track whose `group` is its one member (`radar-1/T2`).
+  A site whose correlate pack forms groups sees more tracks than before.
+
+
 ## 0.8.0
 
 - **From 0.6.x, also Breaking: the `quality` value** (0.7.0); **from 0.5.0 or
