@@ -46,6 +46,8 @@ code, pre { font-family: var(--mono); }
 .prompt .cur { display: inline-block; width: .6em; height: 1.05em; vertical-align: -.15em; background: var(--accent); margin-left: 4px; animation: blink 1.1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 .wordmark { font: 900 clamp(30px, 5.1vw, 80px)/1.02 var(--mono); letter-spacing: -0.04em; margin: 0; white-space: nowrap; }
+.page-title { font: 900 clamp(28px, 4.2vw, 56px)/1.08 var(--mono); letter-spacing: -0.03em; margin: 0; }
+.card h3 a { color: inherit; }
 .tagline { font-weight: 700; font-size: clamp(19px, 1.9vw, 25px); line-height: 1.3; color: var(--accent); margin: 14px 0 10px; }
 .lede { color: var(--quiet); margin: 0 0 24px; max-width: 38em; }
 .buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }

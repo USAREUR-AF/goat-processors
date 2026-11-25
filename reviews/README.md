@@ -10,6 +10,7 @@ contribution takes two commands and changes one file.
 | confirm the published numbers on your machine | [Replicate](#replicate) | one file in `reviews/` |
 | try a better setting | [Improve a pack](#improve-a-pack) | a pack, one file in `reviews/` |
 | measure something nobody has | [Add a measurement](#add-a-measurement) | `tools/bench/`, one file in `reviews/` |
+| score your own tracker against the packs | [Compare your tracker](#compare-your-tracker) | none |
 | prepare for a real sensor feed | [docs/real-feeds.md](../docs/real-feeds.md) | `tools/feeds/` |
 | find something to work on | [Open work](#open-work) | |
 
@@ -41,6 +42,27 @@ writes `reviews/replicate-PACK-YOURSYSTEM.json`. Commit that file and open a
 pull request. A correlate pack takes one to ten minutes, the others seconds to
 a minute. If it does not match, use `--kind measure` and say what differs:
 that is the more useful result.
+
+## Compare your tracker
+
+Any tracker can be scored on the same scenarios as the packs:
+
+```sh
+python3 -I tools/bench/bench.py generate --out build/bench/scenarios
+# run your tracker on each scenario; write <scenario>.events.json per scenario
+python3 -I tools/review/compare.py build/my-tracker
+```
+
+The events file is in [tools/bench/README.md](../tools/bench/README.md#events-file).
+`compare.py` scores each group whose scenarios all have an events file and sets
+it against `correlate-assign-time`, `correlate-gnn` and `correlate-window`
+(others with `--against`), with the rule below. A pack scored this way gives
+its own published numbers; `tools/review/test_compare.py` checks that. Post
+the output in an issue with the "Performance result" form.
+
+On real data, where no truth exists, `tools/feeds/agree.py` measures how far
+two outputs agree, and either can be your tracker's events file
+([docs/real-feeds.md](../docs/real-feeds.md#agreement-between-correlators)).
 
 ## Improve a pack
 

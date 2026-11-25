@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Validate goat-processors</title>
+<meta name="description" content="Check the correlation engines on your own data, compare them with your tracker, and propose improvements, each with a measured result.">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="index.html"><img src="assets/icon.svg" width="28" height="28" alt="">goat-processors</a>
+    <nav aria-label="Sections">
+      <a href="#real-data">Real data</a><a href="#compare">Compare</a><a href="#improve">Improve</a><a href="#rules">What counts</a>
+      <a class="gh" href="https://github.com/USAREUR-AF/goat-processors">GitHub</a>
+    </nav>
+  </header>
+</div>
+
+<main id="top">
+<section class="band" aria-labelledby="title">
+  <div class="wrap">
+    <h1 class="page-title" id="title">Validate the correlation engines</h1>
+    <p class="tagline">Run them on your data, set them against your tracker, and show a better setting. Every claim is a number with a 95&nbsp;% interval that anyone can measure again.</p>
+    <p class="lede">The correlate packs are scored against ground truth on generated scenarios and on public ship tracks. That is not the same as real sensors. If you have a tracker, a recording or an idea, this page is the way in. Python 3.12 and a clone are enough; nothing to install.</p>
+    <div class="cards">
+      <div class="card"><h3><a href="#real-data">Validate on real data</a></h3><p>Check that your feed is fit for correlation, then see how far the packs agree on it. You share a summary with no positions in it, never the recording.</p></div>
+      <div class="card"><h3><a href="#compare">Compare your tracker</a></h3><p>Write one events file per benchmark scenario and get your scores against every pack on the same scenarios, with the same rule for "better".</p></div>
+      <div class="card"><h3><a href="#improve">Suggest an improvement</a></h3><p>Change a setting, measure it in one command, and open a pull request with the result. CI measures it again.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="where">
+  <div class="wrap">
+    <h2>Where things stand</h2>
+    <p class="sub">The default pack, <code>assign-time</code>, scores F1 <span class="num" data-measure="f1-random">0.934 (0.921 to 0.947)</span> on the 500 random scenarios of the held-out evaluation set. F1 runs from 0 to 1: does the output put two tracks together exactly when they are one object?</p>
+    <div class="scroll"><table>
+      <thead><tr><th>Function</th><th>Measured against</th><th>Results</th></tr></thead>
+      <tbody>
+        <tr><td>correlate</td><td>ground truth: 691 public scenarios, 663 held out</td><td><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/docs/benchmark.md">results</a></td></tr>
+        <tr><td>fuse</td><td>true positions, grouping given; is the stated error honest</td><td><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/docs/benchmark-functions.md#fuse">results</a></td></tr>
+        <tr><td>filter</td><td>the right keep or drop, near a boundary</td><td><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/docs/benchmark-functions.md#filter">results</a></td></tr>
+        <tr><td>quality</td><td>injected faults of graded size</td><td><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/docs/benchmark-functions.md#quality">results</a></td></tr>
+        <tr><td>real sensors</td><td>nothing checked in the open yet</td><td>yours</td></tr>
+      </tbody>
+    </table></div>
+    <p>Only correlate has a held-out set. <a href="https://github.com/USAREUR-AF/goat-processors/blob/main/reviews/README.md#open-work">Open work</a>: each item has today's number and what "done" means.</p>
+  </div>
+</section>
+
+<section class="band" id="real-data">
+  <div class="wrap">
+    <h2>Validate on real data</h2>
+    <p class="sub">Real recordings have no ground truth, so the check is in two parts: is the feed fit for correlation, and do different correlators agree on it? Where they disagree is where to look.</p>
+    <h3>1. Record</h3>
+    <p>The runner records every report and tick when its config sets <code>record.path</code> and <code>record.max_mb</code>. Any other source works too: one JSON report per line, with <code>track.source_id</code>, <code>uid</code>, <code>time_ms</code>, <code>lat</code>, <code>lon</code> and, ideally, <code>ce</code>, the one-sigma error in metres.</p>
+    <h3>2. Check the feed</h3>
+    <pre class="block" data-box="command"><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/feeds/feedcheck.py</span> <span class="w">record.jsonl</span>
+</span><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/feeds/feedcheck.py</span> <span class="w">--demo</span> overlap   # no data yet</span></pre>
+    <p>Each source comes out ready, ready with warnings, or not ready: does it state its error, is that error honest, does its time go forward. With two sources, it says whether they see the same objects and whether fusion is actually exercised. <a href="https://github.com/USAREUR-AF/goat-processors/blob/main/docs/real-feeds.md">Every check and its limit</a>.</p>
+    <h3>3. See where the packs agree</h3>
+    <pre class="block" data-box="command"><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/feeds/agree.py</span> <span class="w">record.jsonl</span> <span class="w">--with</span> <span class="w">correlate-assign-time</span> <span class="w">--with</span> <span class="w">correlate-gnn</span> <span class="w">--worst</span> 5</span></pre>
+    <p>Agreement is pairwise F1 of one output against the other: 1 when every pair of tracks is grouped alike. It is not accuracy. Two outputs can agree and both be wrong, so the ticks where they differ most, listed by second, are the useful part: look at those in your own tools.</p>
+    <h3>4. Share the summary</h3>
+    <pre class="block" data-box="command"><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/feeds/feedcheck.py</span> <span class="w">record.jsonl</span> <span class="w">--rename</span> <span class="w">--json</span> &gt; <span class="w">summary.json</span></span></pre>
+    <p>The summary holds counts, rates, shares and medians, with the sources renamed s1, s2 and so on: no position, no track identifier, no time of day. Paste it into an issue with the "Performance result" form. Do not publish the recording itself.</p>
+  </div>
+</section>
+
+<section class="band" id="compare">
+  <div class="wrap">
+    <h2>Compare your tracker</h2>
+    <p class="sub">Any tracker in any language can be scored, as the seven engines are: run it on the scenario files and write what it outputs at each tick.</p>
+    <pre class="block" data-box="command"><span class="ln"># the 691 public tuning scenarios, each with its truth file
+</span><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/bench/bench.py</span> generate <span class="w">--out</span> <span class="w">build/bench/scenarios</span>
+</span><span class="ln">
+</span><span class="ln"># run your tracker on each scenario, write one events file per scenario, then:
+</span><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/review/compare.py</span> <span class="w">build/my-tracker</span></span></pre>
+    <p>A scenario file is a list of steps, each an <code>ingest</code> of one report or a <code>tick</code>. At each tick, write your whole picture, each output track with the reported tracks it holds:</p>
+    <pre class="json" style="--hang:2ch" data-box="output"><span class="ln">{"engine": "my-tracker", "scenario": "random-01",
+</span><span class="ln"> "ticks": [{"now_ms": 1000, "tracks": [
+</span><span class="ln">   {"system": "T1", "members": ["radar/T3", "beacon/T3"], "lat": 0.98814, "lon": 0.94721}]}]}</span></pre>
+    <p><code>compare.py</code> scores every group whose scenarios all have an events file and sets it against <code>assign-time</code>, <code>gnn</code> and <code>window</code> (others with <code>--against</code>), measure by measure. Scoring one of our own packs this way gives its published numbers, which CI checks. To compare on your real data instead, pass your events file to <code>agree.py</code> as one of the <code>--with</code> outputs.</p>
+    <p><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/tools/bench/README.md#events-file">The events file</a> &middot; <a href="https://github.com/USAREUR-AF/goat-processors/blob/main/tools/bench/README.md#scores">every score and its formula</a></p>
+  </div>
+</section>
+
+<section class="band" id="improve">
+  <div class="wrap">
+    <h2>Suggest an improvement</h2>
+    <p class="sub">A pack is a plain text file of settings. Copy one, change a setting, and measure it against the one you started from.</p>
+    <pre class="block" data-box="command"><span class="ln">cp <span class="w">-r</span> <span class="w">packs/correlate-assign-time</span> <span class="w">packs/correlate-mine</span>   # then edit pack.def
+</span><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/review/review.py</span> try <span class="w">correlate-mine</span> <span class="w">--against</span> <span class="w">correlate-assign-time</span>
+</span><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/review/review.py</span> record <span class="w">my-change</span> <span class="w">correlate-mine</span> <span class="w">--against</span> <span class="w">correlate-assign-time</span> \
+</span><span class="ln" style="padding-left:4ch;text-indent:-4ch">  <span class="w">--kind</span> improve <span class="w">--question</span> "..." <span class="w">--finding</span> "..."</span></pre>
+    <p><code>record</code> writes one file under <code>reviews/</code>. Open a pull request with it and the pack. CI measures it again from your branch, a maintainer runs the held-out set, and the pull request says which measure decided. A setting that did not help is worth recording too, as kind <code>measure</code>: it saves the next person the same work. To change a method rather than a setting, open an issue first: methods change in all seven engines together.</p>
+    <p><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/reviews/README.md">The whole path, step by step</a></p>
+  </div>
+</section>
+
+<section class="band" id="rules">
+  <div class="wrap">
+    <h2>What counts</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Claim</th><th>Needs</th></tr></thead>
+      <tbody>
+        <tr><td>better</td><td>95&nbsp;% intervals that do not overlap, on the public tuning set, then confirmed by a maintainer on the held-out set</td></tr>
+        <tr><td>no worse</td><td>no measure worse, by the same rule</td></tr>
+        <tr><td>reproduces</td><td>the published numbers measured again on your machine (<code>review.py record ... --kind replicate</code>)</td></tr>
+        <tr><td>works on real data</td><td>a feed check summary and an agreement result, with what was recorded and for how long</td></tr>
+        <tr><td>faster</td><td><code>tools/perf/perf.py</code> before and after, on one quiet machine</td></tr>
+      </tbody>
+    </table></div>
+    <p>Do not put real positions, identifiers or recordings in an issue, a pull request or a test. Recorded data in the repository needs a public source whose license allows it. The held-out seeds stay with the maintainer so that nothing is tuned on them; they are published after each release and replaced.</p>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><a href="index.html">Home</a><a href="https://github.com/USAREUR-AF/goat-processors">Repository</a><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/CONTRIBUTING.md">Contributing</a><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/LICENSE">Apache License 2.0</a></p>
+    <p>Portions written by U.S. Federal government employees within the scope of their employment are in the public domain in the United States. Part of <a href="https://github.com/USAREUR-AF/goatcore">goat</a>.</p>
+  </div>
+</footer>
+</body>
+</html>

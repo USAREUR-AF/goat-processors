@@ -1,0 +1,48 @@
+name: Performance result
+description: A measured result on real data, your tracker against the packs, or a setting that helped or did not
+labels: ["performance", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Paths and commands: https://usareur-af.github.io/goat-processors/contribute.html and reviews/README.md.
+        Paste summaries only. **Never paste a recording, a real position or a real track identifier.**
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What you measured
+      options:
+        - A real feed (feedcheck.py summary)
+        - Agreement between correlators on real data (agree.py)
+        - My tracker against the packs (compare.py)
+        - A pack setting (review.py try)
+        - The published numbers on my machine
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: The question
+      description: One sentence, for example "Does correlate-assign-time keep two crossing aircraft apart on our radar pair?"
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: The output
+      description: The tool's output as it printed it (use --rename with feedcheck.py). It is formatted as code.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: How it was measured
+      description: The commit of goat-processors, the commands, and for real data what was recorded and for how long (sensor types, not names or places).
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: What you suggest
+      description: A change to a pack, a method, a check or a scenario family, if the result points to one.

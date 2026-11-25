@@ -66,3 +66,5 @@ jobs:
           python-version: "3.12"
       - name: the feed check gives the known verdicts on generated feeds and shares nothing identifying
         run: python3 -I tools/feeds/test_feedcheck.py
+      - name: an outside tracker's events files score as the packs do; agreement between two outputs
+        run: python3 -I tools/review/test_compare.py
