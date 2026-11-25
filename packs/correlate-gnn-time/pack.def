@@ -1,8 +1,10 @@
-# As correlate-gnn, with time quality: radar-1's clock is known to be within
-# 500 ms of the others (time_default), so its position variance on each axis
-# grows by (velocity x 0.5 s)² (spec/correlate.md, Time quality).
+# As correlate-gnn, with time quality: the clocks of radar-1 and beacon2 are
+# known to be within 500 ms of the others (time_default), so their position
+# variance on each axis grows by (velocity x 0.5 s)² (spec/correlate.md, Time
+# quality). beacon2 is the source with the wrong clock in the benchmark's time
+# scenarios; radar-1 is the source of the conformance vectors.
 pack           correlate-gnn-time
-version        0.1.0
+version        0.2.0
 filter         accel_var=1 default_ce_m=50 vel_sigma_ms=5 unknown_vel_ms=100
 gate           mahalanobis gate=9.21
 gate           same key=track.simulated
@@ -17,3 +19,4 @@ stale_ms       120000
 same_source    forbid
 output         priority
 time_default   radar-1 error_ms=500 state=drifting
+time_default   beacon2 error_ms=500 state=drifting

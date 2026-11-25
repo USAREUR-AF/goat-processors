@@ -11,6 +11,10 @@ specification, a set of settings files (packs), and test cases (vectors) that
 {{n_engines}} independent engines (Python, Rust, Go, Java, C++, Erlang, Zig)
 reproduce exactly, down to the record of every test they run.
 
+Two one-page explainers: [how the correlator decides which tracks are the same
+aircraft](docs/how-correlation-works.md), and [what is different about goat's
+track processing](docs/what-is-different.md).
+
 {{figure:processing-layer}}
 
 ## Words used here
@@ -49,7 +53,8 @@ pack and add one capability. F1 is the [benchmark](#benchmark)'s association
 score, from 0 to 1: how well a pack puts the tracks of one object together
 and keeps different objects apart. It is measured on the benchmark's
 evaluation set, scenarios held out from tuning, and the number in brackets is
-its 95 % interval: two packs differ only when their intervals do not overlap.
+its 95 % interval. Two packs differ only where the paired test of the
+[benchmark](docs/benchmark.md#how-better-is-decided) shows it.
 
 {{methods_and_packs}}
 
@@ -128,12 +133,15 @@ its seeds are published after each release and then replaced. Each set holds
 500 random scenarios and the same families: formations that split and join,
 shallow crossings and merges, 3 to 9 g turns, climbs and dives, stop-and-go
 surface traffic, sensor dropouts, latency, out-of-order bursts, wrong stated
-error and bias, scale up to 1,000 objects, clutter, mixed air, surface and
-land traffic, track-number reuse and late sensors, and ships on recorded
-public AIS tracks. Every score, its formula and its 95 % interval are in
-[docs/benchmark.md](docs/benchmark.md), which `tools/bench/bench.py report`
-writes; a difference counts only when the intervals separate. Pack names are
-explained in [Methods and packs](#methods-and-packs).
+error and bias, clutter, mixed air, surface and land traffic, track-number
+reuse and late sensors, and ships on recorded public AIS tracks. Every score,
+its formula and its 95 % interval are in [docs/benchmark.md](docs/benchmark.md),
+which `tools/bench/bench.py report` writes. Two packs ran on the same
+scenarios, so they are compared scenario by scenario (a paired bootstrap): a
+difference counts only when the interval of the difference excludes zero. An
+outside tracker built with Stone Soup, the open tracking framework of the UK
+Defence Science and Technology Laboratory, is scored beside the packs. Pack
+names are explained in [Methods and packs](#methods-and-packs).
 
 | Measure | Meaning |
 |---|---|
@@ -141,6 +149,8 @@ explained in [Methods and packs](#methods-and-packs).
 | false merge | two tracks of different objects put in one output track; counted each time it starts |
 | missed merge | two tracks of one object kept apart for a whole stretch of at least 10 s |
 | identity swap | an object's output track changes to another while the first still exists |
+| IDF1 | the standard identity measure of multi-target tracking: the share of object-seconds covered by the one output track matched to each object over the whole scenario, from 0 to 1 |
+| completeness, spuriousness | Single Integrated Air Picture (SIAP) measures: the share of object-time covered by some output track; the share of output tracks on no object |
 | GOSPA | the mean, over ticks, of the distance between output and true positions, with each error capped at 500 m and every missed or false track charged half the cap; lower is better |
 
 {{benchmark}}

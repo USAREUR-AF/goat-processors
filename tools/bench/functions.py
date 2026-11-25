@@ -92,7 +92,7 @@ def summarize(function, runs):
     for k, v in vals.items():
         v.sort()
         ci[k] = [v[int(0.025 * (len(v) - 1))], v[int(0.975 * (len(v) - 1))]] if len(v) >= 0.9 * B else None
-    return {"n": n, "pooled": pooled, "ci95": ci}
+    return {"n": n, "pooled": pooled, "ci95": ci, "runs": runs}   # runs: for the paired comparison (tools/review)
 
 
 # ---------------------------------------------------------------------------

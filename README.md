@@ -12,6 +12,10 @@ specification, a set of settings files (packs), and test cases (vectors) that
 seven independent engines (Python, Rust, Go, Java, C++, Erlang, Zig)
 reproduce exactly, down to the record of every test they run.
 
+Two one-page explainers: [how the correlator decides which tracks are the same
+aircraft](docs/how-correlation-works.md), and [what is different about goat's
+track processing](docs/what-is-different.md).
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/processing-layer-dark.svg">
   <img alt="Message formats are translated by goat-transformers into one shared report model. goat-processors reads that model and runs filter, correlate, fuse and quality on it (filter: built; correlate: built; fuse: built; quality: built). Each function returns events, a trace record for every test, and a snapshot of its whole state." src="docs/figures/processing-layer-light.svg">
@@ -59,24 +63,25 @@ pack and add one capability. F1 is the [benchmark](#benchmark)'s association
 score, from 0 to 1: how well a pack puts the tracks of one object together
 and keeps different objects apart. It is measured on the benchmark's
 evaluation set, scenarios held out from tuning, and the number in brackets is
-its 95 % interval: two packs differ only when their intervals do not overlap.
+its 95 % interval. Two packs differ only where the paired test of the
+[benchmark](docs/benchmark.md#how-better-is-decided) shows it.
 
 | Pack | Method | What it does | Adds over the pack it extends | F1, 500 random scenarios (95 % interval) |
 |---|---|---|---|---|
-| [`gnn`](packs/correlate-gnn/pack.def) | `confirm` | pairs two tracks when one lies inside the other's predicted 99 % uncertainty region and they agree on course, speed and height, on two reports in a row; the nearest candidate wins | the base of the per-report packs: a statistical gate, a test of the distance between two tracks measured in units of their combined uncertainty | 0.819 (0.802 to 0.833) |
-| [`gnn-imm`](packs/correlate-gnn-imm/pack.def) | `confirm` | as gnn, with a second motion model for turning or accelerating targets | `gnn`: a two-model filter, so a turning target stays inside its predicted region | 0.856 (0.839 to 0.870) |
-| [`gnn-restart`](packs/correlate-gnn-restart/pack.def) | `confirm` | as gnn, restarting a track's motion filter when a report lands far outside its prediction | `gnn`: recovery when a sensor's track number moves to another object | 0.843 (0.827 to 0.856) |
-| [`gnn-time`](packs/correlate-gnn-time/pack.def) | `confirm` | as gnn, widening the uncertainty of a source whose clock is known to be off (radar-1, 500 ms); no benchmark scenario has a source named radar-1, so there it scores exactly as gnn | `gnn`: time quality: a clock error becomes position uncertainty | 0.819 (0.802 to 0.833) |
-| [`window`](packs/correlate-window/pack.def) | `confirm` | pairs two tracks whose distance is under a fixed window that grows with both tracks' reported error | `gnn`: a distance window in place of the statistical gate, which tolerates a sensor with a fixed position bias | 0.934 (0.928 to 0.940) |
-| [`distance`](packs/correlate-distance/pack.def) | `confirm` | pairs two tracks closer than 200 m, for feeds that report no error; tracks of one source may pair; the output follows the latest report | `gnn`: plain distance, for sources with no error estimate | 0.812 (0.797 to 0.825) |
-| [`assign`](packs/correlate-assign/pack.def) | `assign` | at each tick, places each source's tracks into one output track per object by the least total cost, and combines the members' positions weighted by their uncertainty | the base of the assignment packs | 0.681 (0.656 to 0.704) |
-| [`assign-imm`](packs/correlate-assign-imm/pack.def) | `assign` | as assign, with a second motion model for turning or accelerating targets | `assign`: the two-model filter | 0.750 (0.726 to 0.771) |
-| [`assign-window`](packs/correlate-assign-window/pack.def) | `assign` | as assign, keeping up to three candidate histories over two ticks before committing | `assign`: a multi-frame window | 0.669 (0.644 to 0.692) |
-| [`assign-bias`](packs/correlate-assign-bias/pack.def) | `assign` | as assign-imm, estimating a position offset for each pair of sensors | `assign-imm`: sensor bias estimation, so a sensor off by a few hundred meters still joins | 0.885 (0.870 to 0.899) |
-| [`assign-full`](packs/correlate-assign-full/pack.def) | `assign` | as assign-bias, with filter restart, the two-tick window with a margin, and a 20 s stale time | `assign-bias`: every option of assign 0.5 together | 0.935 (0.922 to 0.947) |
-| [`assign-time`](packs/correlate-assign-time/pack.def) | `assign` | as assign-full, also fitting a clock offset for each pair of sources | `assign-full`: clock offset: a lag along the track that grows with speed is read as a clock error, not a position bias | 0.934 (0.921 to 0.947) |
+| [`gnn`](packs/correlate-gnn/pack.def) | `confirm` | pairs two tracks when one lies inside the other's predicted 99 % uncertainty region and they agree on course, speed and height, on two reports in a row; the nearest candidate wins | the base of the per-report packs: a statistical gate, a test of the distance between two tracks measured in units of their combined uncertainty | 0.817 (0.801 to 0.831) |
+| [`gnn-imm`](packs/correlate-gnn-imm/pack.def) | `confirm` | as gnn, with a second motion model for turning or accelerating targets | `gnn`: a two-model filter, so a turning target stays inside its predicted region | 0.866 (0.851 to 0.878) |
+| [`gnn-restart`](packs/correlate-gnn-restart/pack.def) | `confirm` | as gnn, restarting a track's motion filter when a report lands far outside its prediction | `gnn`: recovery when a sensor's track number moves to another object | 0.845 (0.830 to 0.859) |
+| [`gnn-time`](packs/correlate-gnn-time/pack.def) | `confirm` | as gnn, widening the uncertainty of the sources whose clock is known to be off (radar-1 and beacon2, 500 ms); in the benchmark only the time scenarios have such a source | `gnn`: time quality: a clock error becomes position uncertainty | 0.817 (0.801 to 0.831) |
+| [`window`](packs/correlate-window/pack.def) | `confirm` | pairs two tracks whose distance is under a fixed window that grows with both tracks' reported error | `gnn`: a distance window in place of the statistical gate, which tolerates a sensor with a fixed position bias | 0.927 (0.922 to 0.933) |
+| [`distance`](packs/correlate-distance/pack.def) | `confirm` | pairs two tracks closer than 200 m, for feeds that report no error; tracks of one source may pair; the output follows the latest report | `gnn`: plain distance, for sources with no error estimate | 0.792 (0.774 to 0.808) |
+| [`assign`](packs/correlate-assign/pack.def) | `assign` | at each tick, places each source's tracks into one output track per object by the least total cost, and combines the members' positions weighted by their uncertainty | the base of the assignment packs | 0.688 (0.664 to 0.711) |
+| [`assign-imm`](packs/correlate-assign-imm/pack.def) | `assign` | as assign, with a second motion model for turning or accelerating targets | `assign`: the two-model filter | 0.767 (0.744 to 0.789) |
+| [`assign-window`](packs/correlate-assign-window/pack.def) | `assign` | as assign, keeping up to three candidate histories over two ticks before committing | `assign`: a multi-frame window | 0.676 (0.653 to 0.699) |
+| [`assign-bias`](packs/correlate-assign-bias/pack.def) | `assign` | as assign-imm, estimating a position offset for each pair of sensors | `assign-imm`: sensor bias estimation, so a sensor off by a few hundred meters still joins | 0.893 (0.879 to 0.904) |
+| [`assign-full`](packs/correlate-assign-full/pack.def) | `assign` | as assign-bias, with filter restart, the two-tick window with a margin, and a 20 s stale time | `assign-bias`: every option of assign 0.5 together | 0.947 (0.936 to 0.957) |
+| [`assign-time`](packs/correlate-assign-time/pack.def) | `assign` | as assign-full, also fitting a clock offset for each pair of sources | `assign-full`: clock offset: a lag along the track that grows with speed is read as a clock error, not a position bias | 0.947 (0.936 to 0.957) |
 
-**Default: `assign-time`**, the pack the runner ships. Every number here is from the evaluation set, with its 95 % interval in brackets; one pack is better than another only where the intervals do not overlap. F1 on the 500 random scenarios: 0.934 (0.921 to 0.947), equal within the interval to the highest, `assign-full` 0.935 (0.922 to 0.947); also equal within the interval: `window`. In 8 of the 9 scenario families it is highest or equal within the interval to the highest: formation, crossing, maneuver, sensor problems, clutter, mixed domains, track management, recorded ships. It has no score in scale (3 of 3 scenarios over the 300 s limit). Its position error (GOSPA, a mean position error that also charges missed and false tracks) on the random set is 268 m (250 to 287), equal within the interval to the lowest. Its weak point is identity swaps (an object's output track changing to another): 471 (371 to 580) on the random set, against `window` 122 (100 to 146) to `gnn` 321 (270 to 373) for the per-report packs, so the `confirm` method stays selectable.
+**Default: `assign-time`**, the pack the runner ships. Every number here is from the evaluation set, with its 95 % interval in brackets; one pack is better than another only where the paired test of [docs/benchmark.md](docs/benchmark.md#how-better-is-decided) shows it; "level with" means it shows no difference. F1 on the 500 random scenarios: 0.947 (0.936 to 0.957), level with the highest, `assign-full` 0.947 (0.936 to 0.957). In 6 of the 8 scenario families it is highest or level with the highest: formation, crossing, maneuver, sensor problems, clutter, track management. It is below in mixed domains (`assign-bias` 0.999 (0.998 to 1.000) against 0.998 (0.997 to 0.999)); recorded ships (`assign-bias` 0.999 (0.999 to 1.000) against 0.999 (0.998 to 1.000)). Its position error (GOSPA, a mean position error that also charges missed and false tracks) on the random set is 255 m (235 to 276), level with the lowest. Its weak point is identity swaps (an object's output track changing to another): 428 (336 to 537) on the random set, against `window` 120 (99 to 143) to `gnn` 369 (306 to 429) for the per-report packs, so the `confirm` method stays selectable.
 
 ## Quick start
 
@@ -178,12 +183,15 @@ its seeds are published after each release and then replaced. Each set holds
 500 random scenarios and the same families: formations that split and join,
 shallow crossings and merges, 3 to 9 g turns, climbs and dives, stop-and-go
 surface traffic, sensor dropouts, latency, out-of-order bursts, wrong stated
-error and bias, scale up to 1,000 objects, clutter, mixed air, surface and
-land traffic, track-number reuse and late sensors, and ships on recorded
-public AIS tracks. Every score, its formula and its 95 % interval are in
-[docs/benchmark.md](docs/benchmark.md), which `tools/bench/bench.py report`
-writes; a difference counts only when the intervals separate. Pack names are
-explained in [Methods and packs](#methods-and-packs).
+error and bias, clutter, mixed air, surface and land traffic, track-number
+reuse and late sensors, and ships on recorded public AIS tracks. Every score,
+its formula and its 95 % interval are in [docs/benchmark.md](docs/benchmark.md),
+which `tools/bench/bench.py report` writes. Two packs ran on the same
+scenarios, so they are compared scenario by scenario (a paired bootstrap): a
+difference counts only when the interval of the difference excludes zero. An
+outside tracker built with Stone Soup, the open tracking framework of the UK
+Defence Science and Technology Laboratory, is scored beside the packs. Pack
+names are explained in [Methods and packs](#methods-and-packs).
 
 | Measure | Meaning |
 |---|---|
@@ -191,24 +199,27 @@ explained in [Methods and packs](#methods-and-packs).
 | false merge | two tracks of different objects put in one output track; counted each time it starts |
 | missed merge | two tracks of one object kept apart for a whole stretch of at least 10 s |
 | identity swap | an object's output track changes to another while the first still exists |
+| IDF1 | the standard identity measure of multi-target tracking: the share of object-seconds covered by the one output track matched to each object over the whole scenario, from 0 to 1 |
+| completeness, spuriousness | Single Integrated Air Picture (SIAP) measures: the share of object-time covered by some output track; the share of output tracks on no object |
 | GOSPA | the mean, over ticks, of the distance between output and true positions, with each error capped at 500 m and every missed or false track charged half the cap; lower is better |
 
-| Pack | F1, 500 random | F1 per family, lowest | False merges | Identity swaps | GOSPA, m |
-|---|---:|---|---:|---:|---:|
-| [`gnn`](#methods-and-packs) | 0.819<br>(0.802 to 0.833) | 0.806 (formation) | 508<br>(432 to 582) | 321<br>(270 to 373) | 411<br>(393 to 428) |
-| [`window`](#methods-and-packs) | 0.934<br>(0.928 to 0.940) | 0.821 (formation) | 680<br>(597 to 768) | 122<br>(100 to 146) | 315<br>(301 to 331) |
-| [`distance`](#methods-and-packs) | 0.812<br>(0.797 to 0.825) | 0.706 (sensor problems) | 119<br>(82 to 156) | 277<br>(235 to 323) | 411<br>(394 to 429) |
-| [`assign`](#methods-and-packs) | 0.681<br>(0.656 to 0.704) | 0.707 (sensor problems) | 78<br>(55 to 103) | 1424<br>(1266 to 1579) | 479<br>(460 to 498) |
-| [`gnn-imm`](#methods-and-packs) | 0.856<br>(0.839 to 0.870) | 0.889 (formation) | 595<br>(513 to 674) | 217<br>(175 to 262) | 369<br>(351 to 388) |
-| [`assign-imm`](#methods-and-packs) | 0.750<br>(0.726 to 0.771) | 0.852 (sensor problems) | 83<br>(59 to 109) | 1830<br>(1558 to 2112) | 424<br>(405 to 445) |
-| [`assign-window`](#methods-and-packs) | 0.669<br>(0.644 to 0.692) | 0.700 (sensor problems) | 428<br>(369 to 490) | 2180<br>(1936 to 2418) | 480<br>(461 to 499) |
-| [`assign-bias`](#methods-and-packs) | 0.885<br>(0.870 to 0.899) | 0.898 (track management) | 48<br>(31 to 66) | 767<br>(664 to 876) | 332<br>(314 to 350) |
-| [`assign-full`](#methods-and-packs) | 0.935<br>(0.922 to 0.947) | 0.935 (sensor problems) | 57<br>(36 to 83) | 495<br>(383 to 610) | 267<br>(250 to 287) |
-| [`gnn-restart`](#methods-and-packs) | 0.843<br>(0.827 to 0.856) | 0.817 (formation) | 513<br>(433 to 587) | 301<br>(247 to 357) | 383<br>(366 to 403) |
-| [`assign-time`](#methods-and-packs) | 0.934<br>(0.921 to 0.947) | 0.942 (formation) | 51<br>(33 to 70) | 471<br>(371 to 580) | 268<br>(250 to 287) |
-| [`gnn-time`](#methods-and-packs) | 0.819<br>(0.802 to 0.833) | 0.806 (formation) | 508<br>(432 to 582) | 321<br>(270 to 373) | 411<br>(393 to 428) |
+| Pack | F1, 500 random | IDF1 | F1 per family, lowest | Completeness | Spuriousness | Identity swaps | GOSPA, m |
+|---|---:|---:|---|---:|---:|---:|---:|
+| [`gnn`](#methods-and-packs) | 0.817<br>(0.801 to 0.831) | 0.613 | 0.777 (formation) | 0.995 | 0.202 | 369<br>(306 to 429) | 405<br>(385 to 425) |
+| [`window`](#methods-and-packs) | 0.927<br>(0.922 to 0.933) | 0.759 | 0.775 (formation) | 0.988 | 0.202 | 120<br>(99 to 143) | 317<br>(299 to 334) |
+| [`distance`](#methods-and-packs) | 0.792<br>(0.774 to 0.808) | 0.633 | 0.728 (sensor problems) | 0.996 | 0.242 | 280<br>(238 to 323) | 427<br>(408 to 448) |
+| [`assign`](#methods-and-packs) | 0.688<br>(0.664 to 0.711) | 0.605 | 0.748 (sensor problems) | 0.997 | 0.194 | 1487<br>(1335 to 1659) | 473<br>(452 to 494) |
+| [`gnn-imm`](#methods-and-packs) | 0.866<br>(0.851 to 0.878) | 0.700 | 0.898 (track management) | 0.996 | 0.182 | 223<br>(181 to 273) | 354<br>(333 to 373) |
+| [`assign-imm`](#methods-and-packs) | 0.767<br>(0.744 to 0.789) | 0.658 | 0.890 (sensor problems) | 0.999 | 0.169 | 1934<br>(1659 to 2255) | 409<br>(387 to 432) |
+| [`assign-window`](#methods-and-packs) | 0.676<br>(0.653 to 0.699) | 0.602 | 0.740 (sensor problems) | 0.988 | 0.192 | 2146<br>(1941 to 2375) | 474<br>(453 to 495) |
+| [`assign-bias`](#methods-and-packs) | 0.893<br>(0.879 to 0.904) | 0.754 | 0.897 (track management) | 0.999 | 0.197 | 753<br>(660 to 871) | 324<br>(304 to 343) |
+| [`assign-full`](#methods-and-packs) | 0.947<br>(0.936 to 0.957) | 0.817 | 0.945 (sensor problems) | 1.000 | 0.173 | 421<br>(323 to 535) | 255<br>(235 to 276) |
+| [`gnn-restart`](#methods-and-packs) | 0.845<br>(0.830 to 0.859) | 0.637 | 0.805 (formation) | 0.999 | 0.168 | 356<br>(297 to 416) | 374<br>(355 to 394) |
+| [`assign-time`](#methods-and-packs) | 0.947<br>(0.936 to 0.957) | 0.819 | 0.965 (formation) | 1.000 | 0.173 | 428<br>(336 to 537) | 255<br>(235 to 276) |
+| [`gnn-time`](#methods-and-packs) | 0.817<br>(0.801 to 0.831) | 0.613 | 0.777 (formation) | 0.995 | 0.202 | 369<br>(306 to 429) | 405<br>(385 to 425) |
+| [`stonesoup-gnn`](docs/benchmark.md#outside-baseline) (outside baseline) | 0.714<br>(0.687 to 0.741) | 0.595 | 0.594 (sensor problems) | 0.999 | 0.143 | 15761<br>(14290 to 17211) | 460<br>(437 to 484) |
 
-All numbers are from the evaluation set (663 scenarios, held-out seeds); brackets are 95 % bootstrap intervals. False merges, identity swaps and GOSPA are over the random scenarios; every family is in [docs/benchmark.md](docs/benchmark.md).
+All numbers are from the evaluation set (660 scenarios, held-out seeds); brackets are 95 % bootstrap intervals. Every measure but the per-family F1 is over the random scenarios; every family, measure and source is in [docs/benchmark.md](docs/benchmark.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/bench/random-dark.svg">

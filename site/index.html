@@ -13,7 +13,7 @@
   <header class="top">
     <a class="brand" href="#top"><img src="assets/icon.svg" width="28" height="28" alt="">goat-processors</a>
     <nav aria-label="Sections">
-      <a href="#what">What it is</a><a href="#trace">Trace</a><a href="#benchmark">Benchmark</a><a href="#start">Start</a><a href="contribute.html">Contribute</a>
+      <a href="#what">What it is</a><a href="#how">How it decides</a><a href="#different">What goat adds</a><a href="#trace">Trace</a><a href="#benchmark">Benchmark</a><a href="#start">Start</a><a href="contribute.html">Contribute</a>
       <a class="gh" href="https://github.com/USAREUR-AF/goat-processors">GitHub</a>
     </nav>
   </header>
@@ -95,6 +95,50 @@ confirm count        2       limit 2      <span class="pass">pass</span>
   </div>
 </section>
 
+<section class="band" id="how">
+  <div class="wrap">
+    <h2>How it decides which tracks are the same aircraft</h2>
+    <p class="sub">Every track is predicted with a Kalman filter and must pass a statistical gate to be considered. The default method then goes past sequential gating: it assigns all of a sensor&rsquo;s tracks at once and checks each choice against the next update before committing it.</p>
+    <figure>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/from-tree/correlation-steps-dark.svg">
+        <img src="assets/from-tree/correlation-steps-light.svg" width="760" height="380" loading="lazy" alt="Six steps: three sensors report their own tracks with different uncertainty; sensor position and clock offsets are removed; each track is predicted ahead with a Kalman filter that switches between a quiet and a maneuver model; only tracks inside the predicted 99 percent region are candidates; all of one sensor's tracks are assigned together at the least total cost; the result is one system track per aircraft, committed one update later.">
+      </picture>
+    </figure>
+    <div class="cards">
+      <div class="card"><h3>1&ensp;Each sensor tracks</h3><p>A radar, a beacon and a passive sensor each report their own tracks of the same aircraft, each with its own uncertainty.</p></div>
+      <div class="card"><h3>2&ensp;Remove offsets</h3><p>For each pair of sensors, a position offset and a clock offset are estimated, so a sensor that is off or late still joins.</p></div>
+      <div class="card"><h3>3&ensp;Predict ahead</h3><p>A constant-velocity Kalman filter per track; for turning targets, an interacting multiple model filter with a quiet and a maneuver model.</p></div>
+      <div class="card"><h3>4&ensp;Gate the candidates</h3><p>Only a track inside the other&rsquo;s predicted 99&nbsp;% region, in units of their combined uncertainty, is a candidate.</p></div>
+      <div class="card"><h3>5&ensp;Assign all at once</h3><p>All of one sensor&rsquo;s tracks are placed together at the least total cost, so one close track cannot take another&rsquo;s match.</p></div>
+      <div class="card"><h3>6&ensp;Commit one tick later</h3><p>Up to three candidate histories are kept over two ticks; a choice the next reports contradict is never committed.</p></div>
+    </div>
+    <p style="margin-top:24px"><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/docs/how-correlation-works.md">The explainer</a> &middot; <a href="https://github.com/USAREUR-AF/goat-processors/blob/main/spec/correlate-assign.md">the specification</a></p>
+  </div>
+</section>
+
+<section class="band" id="different">
+  <div class="wrap">
+    <h2>What goat adds</h2>
+    <p class="sub">The processing works on one shared model of every sensor&rsquo;s reports, carries the quality of each sensor&rsquo;s clock with every report, and explains every decision it makes.</p>
+    <figure>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/from-tree/what-goat-adds-dark.svg">
+        <img src="assets/from-tree/what-goat-adds-light.svg" width="760" height="356" loading="lazy" alt="Sensor formats feed goat-transformers, which writes one model in fixed units including time error. Each report carries its clock's error and state, with a wider position region the looser the clock. goat-processors runs filter, correlate, fuse and quality without reading a clock, set by a pack of settings, and publishes system tracks on the Zenoh fabric with a record of why each decision was made.">
+      </picture>
+    </figure>
+    <div class="cards">
+      <div class="card"><h3>One shared model</h3><p>goat-transformers translates thousands of formats into typed keys in fixed units; a new sensor format needs no change here.</p></div>
+      <div class="card"><h3>Clock quality on every report</h3><p>Each report can state its clock&rsquo;s error bound and state; clock error becomes position uncertainty, and a clock offset is fitted between sensors.</p></div>
+      <div class="card"><h3>Never reads a clock</h3><p>The only time is the time in the reports, so a recording replayed later gives exactly the same decisions.</p></div>
+      <div class="card"><h3>Behavior set by packs</h3><p>A pack is a settings file with no code; a mission changes behavior by choosing one.</p></div>
+      <div class="card"><h3>Every decision explained</h3><p>A trace record for every test: what was compared, the value, the limit and the result.</p></div>
+      <div class="card"><h3>On the goat data fabric</h3><p>Reports in and system tracks out over Zenoh, as droppable live data; each node runs its own processing.</p></div>
+    </div>
+    <p style="margin-top:24px"><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/docs/what-is-different.md">The explainer</a> &middot; <a href="#benchmark">measured in the open</a></p>
+  </div>
+</section>
+
 <section class="band" id="trace">
   <div class="wrap feature">
     <div>
@@ -150,7 +194,7 @@ confirm count        2       limit 2      <span class="pass">pass</span>
     <div>
       <h2>Scored against ground truth</h2>
       <p>The correlate packs run on generated scenarios: crossing, formation, splitting and turning objects; sensors with bias, latency, low detection, track number swaps and false tracks; sensors whose clocks are offset or drifting. F1 runs from 0 to 1 and scores whether the output puts two tracks together exactly when they are one object. GOSPA is a mean position error that also charges missed and false tracks.</p>
-      <p>The default pack, <code>assign-time</code>, on the 500 random scenarios of the evaluation set, which no pack is tuned on: F1 <span class="num" data-measure="f1-random">0.934 (0.921 to 0.947)</span>, equal within the 95&nbsp;% interval to <span data-measure="f1-ties">window and assign-full</span>; GOSPA <span class="num" data-measure="gospa-random">268</span> m.</p>
+      <p>The default pack, <code>assign-time</code>, on the 500 random scenarios of the evaluation set, which no pack is tuned on: F1 <span class="num" data-measure="f1-random">0.947 (0.936 to 0.957)</span>, level with <span data-measure="f1-ties">assign-full</span> by the paired test; IDF1 <span class="num" data-measure="idf1-random">0.819</span>; GOSPA <span class="num" data-measure="gospa-random">255</span> m. A textbook tracker built with Stone Soup, the open tracking framework of the UK Defence Science and Technology Laboratory, scores F1 <span class="num" data-measure="baseline-f1">0.714</span> on the same scenarios.</p>
       <pre class="block" data-box="command"><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/bench/bench.py</span> check   # <span class="w">docs/benchmark.md</span> is current
 </span><span class="ln">python3 <span class="w">-I</span> <span class="w">tools/bench/bench.py</span> report  # rewrite it</span></pre>
       <p><a href="https://github.com/USAREUR-AF/goat-processors/blob/main/docs/benchmark.md">Every score and its formula</a> &middot; <a href="contribute.html">Check them on your data, or against your tracker</a></p>

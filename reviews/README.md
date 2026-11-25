@@ -75,9 +75,11 @@ two outputs agree, and either can be your tracker's events file
    python3 -I tools/review/review.py try correlate-mine --against correlate-assign-time --group random
    ```
 
-   A measure is **better** or **worse** only when the two 95 % intervals do
-   not overlap. Anything else is no difference shown, whichever way the number
-   moved.
+   Both packs run on the same scenarios, so the comparison is paired: a
+   measure is **better** or **worse** only when the 95 % interval of the
+   difference, scenario by scenario, excludes zero
+   ([docs/benchmark.md](../docs/benchmark.md#how-better-is-decided)). Anything
+   else is no difference shown, whichever way the number moved.
 3. Record it with `record`, `--kind improve` and `--against`. The tool refuses
    `improve` when no measure is better. It lists every worse measure, and the
    finding must say why the trade is worth it.
@@ -125,7 +127,7 @@ contributors never conflict over a file.
 
 | Claim | Needs |
 |---|---|
-| "better" | intervals that do not overlap, on the tuning set, confirmed on the held-out set where one exists |
+| "better" | the paired interval of the difference excludes zero, on the tuning set, confirmed on the held-out set where one exists |
 | "no worse" | an empty worse list |
 | "reproduces" | a `replicate` record |
 | "faster" | `tools/perf/perf.py` before and after on one quiet machine, with the pull request |

@@ -8,9 +8,10 @@
 
 Every group whose scenarios all have an events file is scored and set against
 the packs' committed results on the same scenarios, with the repository's rule:
-better or worse only when the 95 % intervals do not overlap. A group with a
-missing events file is listed as partial and not compared, since its interval
-would come from other scenarios.
+a paired bootstrap over the scenarios, better or worse only when the 95 %
+interval of the difference excludes zero (docs/benchmark.md, "How better is
+decided"). A group with a missing events file is listed as partial and not
+compared, since its interval would come from other scenarios.
 
 The output holds scores only, no positions; it can go into an issue or a pull
 request as it is. The path, end to end: reviews/README.md, "Compare your tracker".
@@ -65,6 +66,8 @@ def compare_dir(events_dir, scenarios_dir, against, base=None):
     canon = bench.groups_of(json.loads(text)["meta"])
     complete = {g for g, names in canon.items() if all(raw.get(n) is not None for n in names)}
     mine = {g: s for g, s in bench.summarize({"x": raw}, metas)["x"].items() if g in complete}
+    for g in mine:
+        mine[g]["runs"] = {n: raw.get(n) for n in canon[g]}
     groups = {g: n for g, n in canon.items() if any(m in raw for m in n)}
     out = {"engine": engine, "base": base, "scored": sum(v is not None for v in raw.values()),
            "scenarios": len(raw), "partial": sorted(set(groups) - complete), "against": {}}
@@ -80,7 +83,7 @@ def show(res):
     if res["partial"]:
         print("not compared (an events file is missing): %s" % ", ".join(res["partial"]))
     for pack, r in res["against"].items():
-        print("\nagainst %s: %d better, %d worse (every other measure: the intervals overlap)"
+        print("\nagainst %s: %d better, %d worse (every other measure: the paired interval includes zero)"
               % (pack, len(r["better"]), len(r["worse"])))
         for g, d in r["groups"].items():
             f1 = d["measures"].get("f1")

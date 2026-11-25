@@ -26,7 +26,7 @@ class Sets(unittest.TestCase):
         fam = collections.Counter(s.family for s in scs)
         self.assertEqual(fam["random"], dataset.RANDOM_COUNT)
         self.assertEqual(fam["formation"], dataset.FAMILY_COUNT)
-        self.assertEqual(fam["scale"], len(dataset.SCALE_SIZES))
+        self.assertEqual(fam["scale"], 0, "scale is a speed question, outside the accuracy sets")
         names = [s.name for s in scs]
         self.assertEqual(len(names), len(set(names)), "scenario names are unique")
         self.assertTrue(set(s.name for s in S.named()) <= set(names), "the named set is part of tuning")
@@ -153,9 +153,73 @@ class Intervals(unittest.TestCase):
         self.assertLess(lo, hi)
 
     def test_verdict(self):
-        self.assertEqual(stats.verdict("f1", [0.8, 0.85], [0.9, 0.95]), "better")
-        self.assertEqual(stats.verdict("false_merges", [10, 20], [30, 40]), "worse")
-        self.assertEqual(stats.verdict("f1", [0.8, 0.9], [0.85, 0.95]), "no difference shown")
+        self.assertEqual(stats.verdict([0.01, 0.05]), "better")
+        self.assertEqual(stats.verdict([-3, -1]), "worse")
+        self.assertEqual(stats.verdict([-0.01, 0.02]), "no difference shown")
+        self.assertEqual(stats.verdict(None), "no difference shown")
+
+    def test_paired_finds_a_consistent_gain_the_overlap_rule_misses(self):
+        # Scenarios differ widely in difficulty; B misses one pair fewer on every scenario.
+        a = [self.raw(20 + 15 * (i % 9), i % 5, 6 + 5 * (i % 7)) for i in range(40)]
+        b = [dict(r, fn=r["fn"] - 1, tp=r["tp"] + 1) for r in a]
+        ca, cb = stats.interval(a)["f1"], stats.interval(b)["f1"]
+        self.assertTrue(ca[1] >= cb[0], "the separate intervals overlap")
+        self.assertEqual(stats.verdict(stats.paired(a, b)["f1"]), "better")
+        self.assertEqual(stats.verdict(stats.paired(b, a)["f1"]), "worse")
+
+    def test_paired_with_itself_shows_nothing(self):
+        a = [self.raw(10 + i % 7, i % 3, i % 4) for i in range(30)]
+        self.assertEqual(stats.paired(a, a)["f1"], [0.0, 0.0])
+        self.assertEqual(stats.verdict(stats.paired(a, a)["f1"]), "no difference shown")
+
+    def test_ambiguity_is_judged_by_distance_from_one(self):
+        self.assertGreater(stats._gain("ambiguity", 1.3, 1.1), 0)
+        self.assertLess(stats._gain("ambiguity", 1.0, 1.2), 0)
+
+
+class Measures(unittest.TestCase):
+    """IDF1 and the SIAP measures on a known scenario, with outputs built from truth."""
+
+    def setUp(self):
+        sc = next(x for x in S.named() if x.name == "parallel-500m")
+        self.vector, self.truth = sc.build()
+
+    def picture(self, label_of):
+        """One output track per object at its true position; label_of(object, tick index) names it."""
+        t, owner, last, ticks = self.truth, {}, {}, {}
+        k = 0
+        for step, lab in zip(self.vector["steps"], t["labels"]):
+            if "ingest" in step:
+                r = step["ingest"]
+                key = "%s/%s" % (r["track.source_id"], r["uid"])
+                owner[key], last[key] = lab, r["time_ms"]
+                continue
+            now = step["tick"]
+            out = []
+            for o, d in t["objects"].items():
+                p = d["pos"][k]
+                members = [m for m, ob in owner.items() if ob == o and last[m] >= now - t["live_ms"]]
+                if p is not None and members:
+                    out.append({"system": label_of(o, k), "members": members, "lat": p[0], "lon": p[1]})
+            ticks[now] = out
+            k += 1
+        return scoring.derive(scoring.score(t, self.vector, ticks))
+
+    def test_perfect_picture(self):
+        d = self.picture(lambda o, k: "S-" + o)
+        self.assertEqual((d["f1"], d["idf1"], d["completeness"], d["ambiguity"], d["spuriousness"],
+                          d["longest_segment"], d["track_changes_per_min"]), (1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0))
+        self.assertAlmostEqual(d["gospa_m"], 0.0, places=6)
+
+    def test_labels_traded_halfway(self):
+        half = len(self.truth["ticks"]) // 2
+        other = {"o1": "o2", "o2": "o1"}
+        d = self.picture(lambda o, k: "S-" + (o if k < half else other[o]))
+        self.assertLess(d["idf1"], 0.6)                   # each label covers each object for half its life
+        self.assertGreater(d["idf1"], 0.4)
+        self.assertGreater(d["track_changes_per_min"], 0)
+        self.assertLess(d["longest_segment"], 0.6)
+        self.assertEqual((d["completeness"], d["spuriousness"]), (1.0, 0.0))   # coverage itself is unchanged
 
 
 class Detections(unittest.TestCase):

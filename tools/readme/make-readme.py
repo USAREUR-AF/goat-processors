@@ -82,8 +82,8 @@ PACKS = {
                 "a two-model filter, so a turning target stays inside its predicted region"),
     "gnn-restart": ("gnn", "as gnn, restarting a track's motion filter when a report lands far outside its prediction",
                     "recovery when a sensor's track number moves to another object"),
-    "gnn-time": ("gnn", "as gnn, widening the uncertainty of a source whose clock is known to be off (radar-1, 500 ms); "
-                 "no benchmark scenario has a source named radar-1, so there it scores exactly as gnn",
+    "gnn-time": ("gnn", "as gnn, widening the uncertainty of the sources whose clock is known to be off (radar-1 and "
+                 "beacon2, 500 ms); in the benchmark only the time scenarios have such a source",
                  "time quality: a clock error becomes position uncertainty"),
     "window": ("gnn", "pairs two tracks whose distance is under a fixed window that grows with both tracks' reported error",
                "a distance window in place of the statistical gate, which tolerates a sensor with a fixed position bias"),
@@ -131,21 +131,38 @@ def ev_cell(s, key, f, unit=""):
     return (f % v) + unit + (" (%s to %s)" % (f % c[0], f % c[1]) if c else "")
 
 
+PAIRED = {}     # group -> the evaluation set's paired comparisons (bench.paired_groups), set by methods_and_packs
+
+
+def worse_than(group, a, b, key):
+    """Is b shown worse than a on key by the paired test (docs/benchmark.md)?"""
+    pg = PAIRED.get(group)
+    if not pg:
+        return False
+    g = pg["gain"]
+    if b in g and a in g[b]:
+        ci = g[b][a].get(key)
+    elif a in g and b in g[a]:
+        c = g[a][b].get(key)
+        ci = [-c[1], -c[0]] if c else None
+    else:
+        ci = None
+    return bool(ci) and ci[1] < 0
+
+
 def standing(g, packs, pack, group, key, higher):
-    """Where pack stands on key in group, by 95 % interval: ("top", []), ("equal", [leaders]) when its interval
-    overlaps the best pack's, ("below", [leaders]) when it does not, or (None, []) when it has no score there."""
+    """Where pack stands on key in group: ("top", []), ("equal", [leaders]) when the paired test does not show
+    it worse than the best pack, ("below", [leaders]) when it does, or (None, []) when it has no score there."""
     def val(p):
         s = g[p].get(group) or {}
-        return (s.get("pooled") or {}).get(key), (s.get("ci95") or {}).get(key)
-    scored = [p for p in packs if val(p)[0] is not None]
+        return (s.get("pooled") or {}).get(key)
+    scored = [p for p in packs if val(p) is not None]
     if pack not in scored:
         return None, []
-    best = (max if higher else min)(scored, key=lambda p: val(p)[0])
-    if best == pack or val(best)[0] == val(pack)[0]:
+    best = (max if higher else min)(scored, key=val)
+    if best == pack or val(best) == val(pack):
         return "top", []
-    (_, cp), (_, cb) = val(pack), val(best)
-    overlap = cp and cb and (cp[1] >= cb[0] if higher else cp[0] <= cb[1])
-    return ("equal" if overlap else "below"), [best]
+    return ("below" if worse_than(group, best, pack, key) else "equal"), [best]
 
 
 def group_name(k):
@@ -162,6 +179,8 @@ def methods_and_packs():
     order = [n for n in PACKS]
     ev = (d or {}).get("evaluation") or {}
     g = ev.get("groups")
+    PAIRED.clear()
+    PAIRED.update(ev.get("paired") or {})
     nr = g[d["packs"][0]]["random"]["n"] if g else 0
     out = ["| Pack | Method | What it does | Adds over the pack it extends | F1, %d random scenarios (95 %% interval) |" % nr,
            "|---|---|---|---|---|"]
@@ -181,8 +200,8 @@ def methods_and_packs():
 
 
 def default_paragraph(d, g, best):
-    """Why the default is the default, from the evaluation set, saying "equal within the interval" wherever the
-    95 % intervals overlap: a difference counts only when they separate (docs/benchmark.md)."""
+    """Why the default is the default, from the evaluation set, saying "level with" wherever the paired test shows
+    no difference: a difference counts only when it does (docs/benchmark.md)."""
     packs = d["packs"]
     short = lambda p: p[len("correlate-"):]
     groups = list(g[best])
@@ -193,12 +212,12 @@ def default_paragraph(d, g, best):
     if st == "top":
         f1s = "%s, the highest of every pack" % f1
     else:
-        f1s = "%s, %s the highest, `%s` %s" % (f1, "equal within the interval to" if st == "equal" else "below",
+        f1s = "%s, %s the highest, `%s` %s" % (f1, "level with" if st == "equal" else "below",
                                               short(lead[0]), ev_cell(g[lead[0]]["random"], "f1", "%.3f"))
     eq = [p for p in packs if p != best and standing(g, packs, p, "random", "f1", True)[0] in ("top", "equal")
           and (lead == [] or p != lead[0])]
     if eq:
-        f1s += "; also equal within the interval: %s" % ", ".join("`%s`" % short(p) for p in eq)
+        f1s += "; also level with it: %s" % ", ".join("`%s`" % short(p) for p in eq)
     ok, below, unfinished = [], [], []
     for k in fams:
         s2, l2 = standing(g, packs, best, k, "f1", True)
@@ -211,7 +230,7 @@ def default_paragraph(d, g, best):
                                                       ev_cell(g[best][k], "f1", "%.3f")))
         else:
             ok.append(group_name(k))
-    fam = "In %d of the %d scenario families it is highest or equal within the interval to the highest" % (len(ok), len(fams))
+    fam = "In %d of the %d scenario families it is highest or level with the highest" % (len(ok), len(fams))
     fam += (": %s." % ", ".join(ok)) if ok else "."
     if below:
         fam += " It is below in %s." % "; ".join(below)
@@ -219,7 +238,7 @@ def default_paragraph(d, g, best):
         fam += " It has no score in %s." % "; ".join(unfinished)
     gs, gl = standing(g, packs, best, "random", "gospa_m", False)
     gos = ev_cell(r, "gospa_m", "%.0f", " m")
-    gpos = {"top": "the lowest of every pack", "equal": "equal within the interval to the lowest",
+    gpos = {"top": "the lowest of every pack", "equal": "level with the lowest",
             "below": "above the lowest"}.get(gs, "")
     confirm = [p for p in packs if method_of(rel("packs", p)) != "assign"
                and (g[p]["random"].get("pooled") or {}).get("swaps") is not None]
@@ -231,7 +250,9 @@ def default_paragraph(d, g, best):
              % (ev_cell(r, "swaps", "%d"), short(cs[0]), ev_cell(g[cs[0]]["random"], "swaps", "%d"),
                 short(cs[-1]), ev_cell(g[cs[-1]]["random"], "swaps", "%d"))) if confirm else ""
     return ("**Default: `%s`**, the pack the runner ships. Every number here is from the evaluation set, with its "
-            "95 %% interval in brackets; one pack is better than another only where the intervals do not overlap. "
+            "95 %% interval in brackets; one pack is better than another only where the paired test of "
+            "[docs/benchmark.md](docs/benchmark.md#how-better-is-decided) shows it; \"level with\" means it shows no "
+            "difference. "
             "F1 on the %d random scenarios: %s. %s Its position error (GOSPA, a mean position error that also charges "
             "missed and false tracks) on the random set is %s, %s. %s"
             % (short(best), r["n"], f1s, fam, gos, gpos, swaps)).strip()
@@ -333,20 +354,24 @@ def benchmark():
         v, c = summ["pooled"][key], summ["ci95"].get(key)
         return (f % v) + ("<br>(%s to %s)" % (f % c[0], f % c[1]) if c else "")
 
-    head = ("| Pack | F1, %d random | F1 per family, lowest | False merges | Identity swaps | GOSPA, m |\n"
-            "|---|---:|---|---:|---:|---:|" % g[packs[0]]["random"]["n"])
+    head = ("| Pack | F1, %d random | IDF1 | F1 per family, lowest | Completeness | Spuriousness | Identity swaps | "
+            "GOSPA, m |\n|---|---:|---:|---|---:|---:|---:|---:|" % g[packs[0]]["random"]["n"])
     rows = []
-    for pack in packs:
+    for pack in packs + [b for b in ev.get("baselines", []) if b in g]:
         r = g[pack]["random"]
         low = min(((g[pack][k]["pooled"]["f1"], k[len("family: "):]) for k in fams
                    if g[pack][k].get("pooled") and g[pack][k]["pooled"]["f1"] is not None), default=None)
         n = pack.replace("correlate-", "")
-        rows.append("| [`%s`](#methods-and-packs) | %s | %s | %s | %s | %s |" % (
-            n, ci(r, "f1", "%.3f"), "%.3f (%s)" % low if low else "", ci(r, "false_merges", "%d"),
+        name = ("[`%s`](#methods-and-packs)" % n if pack in packs
+                else "[`%s`](docs/benchmark.md#outside-baseline) (outside baseline)" % n)
+        rows.append("| %s | %s | %s | %s | %s | %s | %s | %s |" % (
+            name, ci(r, "f1", "%.3f"), "%.3f" % r["pooled"]["idf1"], "%.3f (%s)" % low if low else "",
+            "%.3f" % r["pooled"]["completeness"], "%.3f" % r["pooled"]["spuriousness"],
             ci(r, "swaps", "%d"), ci(r, "gospa_m", "%.0f")))
     return ("%s\n%s\n\nAll numbers are from the evaluation set (%d scenarios, held-out seeds); brackets are "
-            "95 %% bootstrap intervals. False merges, identity swaps and GOSPA are over the random scenarios; "
-            "every family is in [docs/benchmark.md](docs/benchmark.md)." % (head, "\n".join(rows), ev["scenarios"]))
+            "95 %% bootstrap intervals. Every measure but the per-family F1 is over the random scenarios; "
+            "every family, measure and source is in [docs/benchmark.md](docs/benchmark.md)."
+            % (head, "\n".join(rows), ev["scenarios"]))
 
 
 def picture(name, alt, width=None):

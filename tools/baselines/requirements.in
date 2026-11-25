@@ -1,0 +1,3 @@
+# The outside baselines of tools/baselines. requirements.txt is compiled from this file:
+# uv pip compile requirements.in --universal --python-version 3.12 --generate-hashes --exclude-newer 2026-11-11 -o requirements.txt
+stonesoup==1.9.1
