@@ -470,24 +470,40 @@ fn track_events(out: &Output) -> Vec<(String, Json)> {
     out.stages[i].events.iter().filter_map(as_track).collect()
 }
 
-/// A `fused` or `system` event as a system track: its id, and the event.
-/// Fuse gives a source track that correlate put in no group a group of its
-/// own without a name (spec/fuse.md, Groups); its id is that one member.
+/// A `fused` or `system` event as a system track: its id, and the event with
+/// `mono` added. Fuse gives a source track that correlate put in no group a
+/// group of its own without a name (spec/fuse.md, Groups); its id is that one
+/// member.
 fn as_track(e: &Json) -> Option<(String, Json)> {
     if !matches!(e.get("ev").and_then(|v| v.as_str()), Some("fused") | Some("system")) {
         return None;
     }
-    if let Some(id) = ["group", "system"].iter().find_map(|k| e.get(k).and_then(|v| v.as_str())) {
-        return Some((id.to_string(), e.clone()));
-    }
-    let Some(Json::Arr(ms)) = e.get("members") else { return None };
-    let [only] = ms.as_slice() else { return None };
-    let id = only.as_str()?.to_string();
+    let members: Vec<&str> = match e.get("members") {
+        Some(Json::Arr(ms)) => ms.iter().filter_map(|m| m.as_str()).collect(),
+        _ => vec![],
+    };
+    let named = ["group", "system"].iter().find_map(|k| e.get(k).and_then(|v| v.as_str()));
+    let id = match (named, members.as_slice()) {
+        (Some(id), _) => id.to_string(),
+        (None, [only]) => only.to_string(),
+        _ => return None,
+    };
     let mut e = e.clone();
     if let Json::Obj(m) = &mut e {
-        m.insert("group".into(), Json::Str(id.clone()));
+        if named.is_none() {
+            m.insert("group".into(), Json::Str(id.clone()));
+        }
+        let sources: std::collections::BTreeSet<&str> = members.iter().map(|m| member_source(m)).collect();
+        if !sources.is_empty() {
+            m.insert("mono".into(), Json::Int(i64::from(sources.len() == 1)));
+        }
     }
     Some((id, e))
+}
+
+/// The source of a member, `<source>/<uid>`.
+fn member_source(member: &str) -> &str {
+    member.split('/').next().unwrap_or(member)
 }
 
 fn line_obj(stage: &str, now: Option<i64>, list: Json, key: &str) -> Json {
@@ -913,7 +929,7 @@ impl Runner {
             let mut srcs = std::collections::BTreeSet::new();
             if let Some(Json::Arr(ms)) = t.get("members") {
                 for m in ms.iter().filter_map(|m| m.as_str()) {
-                    let src = m.rsplit_once('/').map(|(a, _)| a).unwrap_or(m).to_string();
+                    let src = member_source(m).to_string();
                     *per_source.entry(src.clone()).or_default() += 1;
                     srcs.insert(src);
                 }
@@ -1556,6 +1572,16 @@ mod batch_tests {
         assert_eq!(t(r#"{"ev":"system","system":"S1","members":["a/1"]}"#).unwrap().0, "S1");
         assert!(t(r#"{"ev":"fused","group":null,"members":["a/1","b/2"]}"#).is_none(), "no name and no one member to name it by");
         assert!(t(r#"{"ev":"keep","group":"g1"}"#).is_none());
+    }
+
+    #[test]
+    fn a_track_says_whether_its_members_come_from_one_source() {
+        let mono = |ms: &str| as_track(&parse(&format!(r#"{{"ev":"system","system":"S1","members":{ms}}}"#)).unwrap()).unwrap().1.get("mono").and_then(Json::as_i64);
+        assert_eq!(mono(r#"["radar-1/T1"]"#), Some(1));
+        assert_eq!(mono(r#"["radar-1/T1","radar-1/T2"]"#), Some(1), "two tracks of one source");
+        assert_eq!(mono(r#"["radar-1/a/1","radar-1/b/2"]"#), Some(1), "a slash in the uid");
+        assert_eq!(mono(r#"["radar-1/T1","radar-2/R1"]"#), Some(0));
+        assert_eq!(mono("[]"), None, "no members: not stated");
     }
 
     #[test]
