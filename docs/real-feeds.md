@@ -38,6 +38,21 @@ does not overlap, and no setting fixes that. "Not exercised although the
 sources see the same objects" means correlation keeps them apart: compare the
 sources' stated errors and biases, then try another pack with `--pack`.
 
+## Agreement between correlators
+
+A real recording has no truth, so accuracy cannot be scored on it. What can be
+measured is how far two outputs agree:
+
+```sh
+python3 -I tools/feeds/agree.py RECORD --with correlate-assign-time --with correlate-gnn --worst 5
+python3 -I tools/feeds/agree.py RECORD --with correlate-assign-time --with my-tracker.events.json
+```
+
+Agreement is the pairwise F1 of one output against the other: 1 when every
+pair of live tracks is grouped alike. Two outputs can agree and both be wrong;
+the ticks where they differ most (`--worst`) are where to look. The output
+names sources and seconds from the start, never a position or a track.
+
 ## Watching a feed in service
 
 The runner's metrics give what to watch.

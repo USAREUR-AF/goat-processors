@@ -103,31 +103,38 @@ def check_agentic(page):
     return bad
 
 
+# Every page of the site; each number on any of them is checked against the tree.
+PAGES = ["index.html", "contribute.html"]
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for rel in FIGURES + [HERO_VECTOR]:
         shutil.copyfile(os.path.join(ROOT, rel), os.path.join(OUT, os.path.basename(rel)))
-    with open(os.path.join(SITE, "index.html")) as f:
-        page = f.read()
     measured = measure()
-    stated = dict(re.findall(r'data-measure="([a-z0-9-]+)">([^<]*)<', page))
     bad = 0
-    for key, value in measured.items():
-        if key not in stated:
-            print(f"site/index.html: no data-measure=\"{key}\"")
+    for name in PAGES:
+        with open(os.path.join(SITE, name)) as f:
+            page = f.read()
+        stated = dict(re.findall(r'data-measure="([a-z0-9-]+)">([^<]*)<', page))
+        for key, value in measured.items():
+            if key not in stated:
+                if name == "index.html":          # the home page states every number; others any of them
+                    print(f"site/{name}: no data-measure=\"{key}\"")
+                    bad += 1
+            elif stated[key] != value:
+                print(f"site/{name}: {key} says {stated[key]}, the tree gives {value}")
+                bad += 1
+        for key in stated.keys() - measured.keys():
+            print(f"site/{name}: data-measure=\"{key}\" is not measured by site/build.py")
             bad += 1
-        elif stated[key] != value:
-            print(f"site/index.html: {key} says {stated[key]}, the tree gives {value}")
-            bad += 1
-    for key in stated.keys() - measured.keys():
-        print(f"site/index.html: data-measure=\"{key}\" is not measured by site/build.py")
-        bad += 1
-    bad += check_agentic(page)
+        if name == "index.html":
+            bad += check_agentic(page)
     if bad:
         return 1
     print("site: numbers match the tree:", ", ".join(f"{k}={v}" for k, v in measured.items()))
     fit = os.path.join(SITE, "fitcheck.py")
-    return subprocess.run([sys.executable, "-I", fit, SITE, "index.html"]).returncode
+    return subprocess.run([sys.executable, "-I", fit, SITE] + PAGES).returncode
 
 
 if __name__ == "__main__":

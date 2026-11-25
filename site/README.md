@@ -9,6 +9,7 @@ requests, no web fonts.
 | File | What it is |
 |---|---|
 | `index.html` | the page |
+| `contribute.html` | the page for outside contributors: validate on real data, compare a tracker, propose an improvement |
 | `assets/site.css` | its styles, light and dark (`prefers-color-scheme`) |
 | `assets/hero.js` | the copy buttons, and the hero's replay of one vector |
 | `assets/icon.svg` | the page icon |
