@@ -232,6 +232,66 @@ fn service_record_replays_to_the_same_output() {
 }
 
 #[test]
+/// A report's radar cross section reaches the system track, per source, in
+/// the service and in a replay of the same reports.
+fn service_carries_the_radar_cross_section_per_source() {
+    let d = tmp("service-rcs");
+    let mut sources = std::collections::BTreeSet::new();
+    let lines: Vec<String> = std::fs::read_to_string(scenario(&d))
+        .unwrap()
+        .lines()
+        .map(|l| {
+            let r = json::parse(l).unwrap();
+            let src = r.get("track.source_id").unwrap().as_str().unwrap().to_string();
+            // One value per source, so the output shows whose value is whose.
+            let v = if sources.is_empty() || sources.iter().next() == Some(&src) { "0.25" } else { "1.5" };
+            sources.insert(src);
+            format!("{},\"radar.rcs_m2\":{v}}}", l.trim_end().strip_suffix('}').unwrap())
+        })
+        .collect();
+    assert!(sources.len() >= 2, "the scenario needs two sources: {sources:?}");
+    let scen = d.join("rcs.jsonl");
+    std::fs::write(&scen, lines.join("\n") + "\n").unwrap();
+    let cfg = format!(
+        "name: t\nsite: s\npacks_dir: {}\ntick_ms: 1000\nclock: input\ninputs:\n  file:\n    path: {}\n    speed: 0\npipeline:\n  - {{function: correlate, pack: correlate-assign-time}}\n  - {{function: fuse, pack: fuse-independent}}\noutputs:\n  file:\n    path: {}\nstatus_file: {}\napi:\n  enabled: false\n",
+        repo().join("packs").display(),
+        scen.display(),
+        d.join("out.jsonl").display(),
+        d.join("status.json").display()
+    );
+    std::fs::write(d.join("r.yaml"), cfg).unwrap();
+    run_until_inputs_end(&d.join("r.yaml"));
+    let out = std::fs::read_to_string(d.join("out.jsonl")).unwrap();
+    let mut both = 0;
+    for stage in out.lines().map(|l| json::parse(l).unwrap()) {
+        let Some(events) = stage.get("events").and_then(|e| e.as_array()) else { continue };
+        for e in events {
+            let Some(rcs) = e.get("rcs").and_then(|r| r.as_array()) else { continue };
+            let members: Vec<&str> = e.get("members").unwrap().as_array().unwrap().iter().filter_map(|m| m.as_str()).collect();
+            for entry in rcs {
+                let member = entry.get("member").unwrap().as_str().unwrap();
+                assert!(members.contains(&member), "{member} is not a member of this track");
+                let first = sources.iter().next().unwrap();
+                let want = if entry.get("source").unwrap().as_str() == Some(first) { 0.25 } else { 1.5 };
+                assert_eq!(entry.get("rcs_m2").unwrap().as_f64(), Some(want), "each source keeps its own value");
+                assert!(entry.get("time_ms").unwrap().as_i64().is_some());
+            }
+            // The top value is the value of the entry with the latest time.
+            let latest = rcs.iter().max_by_key(|x| x.get("time_ms").unwrap().as_i64().unwrap()).unwrap();
+            let top = e.get("rcs_m2").unwrap().as_f64().unwrap();
+            let latest_ms = latest.get("time_ms").unwrap().as_i64();
+            assert!(rcs.iter().any(|x| x.get("time_ms").unwrap().as_i64() == latest_ms && x.get("rcs_m2").unwrap().as_f64() == Some(top)));
+            if rcs.len() >= 2 {
+                both += 1;
+            }
+        }
+    }
+    assert!(both > 0, "no track listed the value of two sources");
+    let replay = bin().args(["replay"]).arg(&scen).args(["-c"]).arg(d.join("r.yaml")).output().unwrap();
+    assert_eq!(String::from_utf8(replay.stdout).unwrap(), out);
+}
+
+#[test]
 /// The layout before 0.6.0, kept for one release behind `layout: per-entity`.
 fn service_per_entity_layout_still_publishes_a_key_per_track() {
     use zenoh::Wait;

@@ -228,11 +228,23 @@ with `now_ms` (the tick that published it). An empty value means an empty set.
 
 | Key | Value | When |
 |---|---|---|
-| `<prefix>/tracks` | one system track per line: `system` (or `group`), `members`, `lat`, `lon`, `course`, `speed_ms`, `hae` when known, `mono` (1 when its members come from one source, 0 when from more than one; ASTERIX I062/080 MON), and `track_number`: a number 1 to 65535 that the track keeps while it lives, for formats whose track identifier is a number (ASTERIX I062/040). A new track takes the next free number, wrapping after 65535. From fuse when the pipeline has it, otherwise from correlate. A source track that correlate put in no group is a track of its own from fuse, and its `group` is its one member (`radar-1/T2`); when it joins a group, the group's name and number take its place | on a tick, when the set differs from the last one published, or `heartbeat_ms` after it |
+| `<prefix>/tracks` | one system track per line: `system` (or `group`), `members`, `lat`, `lon`, `course`, `speed_ms`, `hae` when known, `mono` (1 when its members come from one source, 0 when from more than one; ASTERIX I062/080 MON), and `track_number`: a number 1 to 65535 that the track keeps while it lives, for formats whose track identifier is a number (ASTERIX I062/040). A new track takes the next free number, wrapping after 65535. When a member's reports carry `radar.rcs_m2` (radar cross section, square meters): `rcs`, one entry per such member (`member`, `source`, `rcs_m2`, `time_ms` of the report that stated it), and `rcs_m2`, the value of the member that reported most recently; see "Radar cross section" below. From fuse when the pipeline has it, otherwise from correlate. A source track that correlate put in no group is a track of its own from fuse, and its `group` is its one member (`radar-1/T2`); when it joins a group, the group's name and number take its place | on a tick, when the set differs from the last one published, or `heartbeat_ms` after it |
 | `<prefix>/quality` | the quality picture, one quality event per line (`scope` is `entity` or `source`): each subject's latest measures (event `quality`), every mark in force (its `action-start`), and each mark cleared since the last value (its `action-end`). A subject leaves the picture when quality returns `forget` for it: quality-feed forgets a source track after 5 minutes without a report (`forget_ms=300000` in its pack) | on a tick, when a mark was set or cleared since the last value, else every `heartbeat_ms` |
 | `<prefix>/events` | the events since the last tick, one per line, each with `stage` (the function that returned it). Left out: track and quality events (they have their own keys), and `keep` and `pass`, which repeat each report that went through. At most `events_per_source_per_s` per source; past it, a line `{"ev":"suppressed","source":..., "count":...}` | on a tick, when there are any |
 | `<prefix>/status` | batch layout only. One line: `name`, `site`, `version`, `tracks`, `published`, `output_errors`, `events_suppressed`, `trace_on`, `trace_suppressed` | every `heartbeat_ms` |
 | `<prefix>/trace` | trace records since the last tick, each with `stage`, within the trace bounds; a line with `"stage":"runner"` and `suppressed` counts records left out by the byte ceiling | with `outputs.fabric.trace: true`, on a tick, until `trace_for_s` has passed |
+
+**Radar cross section.** A report may carry `radar.rcs_m2`, the radar cross
+section in square meters as that radar measured it. The value depends on the
+radar (its frequency and polarization) and on the aspect from which it sees
+the object, so two radars that track one object report different values and
+both are right. The runner therefore never averages or combines it. A system
+track lists each member's last value beside the member and its source, with
+the time of the report that stated it (`rcs`), and gives one top-level value,
+`rcs_m2`, for a reader that can show only one: the value of the member that
+reported most recently. Correlate, fuse and filter do not read the key; a
+report that passes a filter keeps it. A member's value is dropped 10 minutes
+after the last report that stated it.
 
 Every value is sent as live data: when a link is congested it is dropped, not
 waited for, so the runner never backs up the fabric. JSON lines let a reader
