@@ -1,6 +1,6 @@
 [package]
 name = "goat-processors"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2021"
 rust-version = "1.80"
 description = "goat-processors runner: runs a declared pipeline of processing functions on the goat fabric"
@@ -31,6 +31,12 @@ webpki-roots = "=1.0.12"
 lto = "thin"
 codegen-units = 1
 strip = "symbols"
+
+# zenoh-link-tls 1.9.0 with eclipse-zenoh/zenoh#2910: without it a read and a
+# write can enter one rustls connection together, which can crash the process.
+# Remove with the first zenoh release that carries it (vendor/README.md).
+[patch.crates-io]
+zenoh-link-tls = { path = "vendor/zenoh-link-tls" }
 
 # The runner is its own workspace, apart from the engines.
 [workspace]

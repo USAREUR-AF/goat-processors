@@ -210,9 +210,21 @@ fn track_events(out: &Output) -> Vec<(String, Json)> {
         .filter(|e| matches!(e.get("ev").and_then(|v| v.as_str()), Some("fused") | Some("system")))
         .filter_map(|e| {
             let id = e.get("group").or_else(|| e.get("system")).and_then(|v| v.as_str())?;
-            Some((id.to_string(), e.clone()))
+            let mut track = e.clone();
+            if let (Json::Obj(m), Some(mono)) = (&mut track, mono(e)) {
+                m.insert("mono".into(), Json::Int(mono));
+            }
+            Some((id.to_string(), track))
         })
         .collect()
+}
+
+/// 1 when a track's members come from one source, 0 when from more than one.
+/// A member is `<source>/<uid>`.
+fn mono(e: &Json) -> Option<i64> {
+    let Some(Json::Arr(ms)) = e.get("members") else { return None };
+    let sources: std::collections::BTreeSet<&str> = ms.iter().filter_map(|m| m.as_str()?.split('/').next()).collect();
+    (!sources.is_empty()).then_some(i64::from(sources.len() == 1))
 }
 
 fn line_obj(stage: &str, now: Option<i64>, list: Json, key: &str) -> Json {
@@ -988,7 +1000,16 @@ pub fn run(c: Config) -> Result<(), String> {
 
 #[cfg(test)]
 mod batch_tests {
-    use super::Batch;
+    use super::{mono, Batch};
+
+    #[test]
+    fn a_track_says_whether_its_members_come_from_one_source() {
+        let m = |ms: &str| mono(&goat_correlator::json::parse(&format!(r#"{{"ev":"system","system":"S1","members":{ms}}}"#)).unwrap());
+        assert_eq!(m(r#"["radar-1/T1"]"#), Some(1));
+        assert_eq!(m(r#"["radar-1/a/1","radar-1/b/2"]"#), Some(1));
+        assert_eq!(m(r#"["radar-1/T1","radar-2/R1"]"#), Some(0));
+        assert_eq!(m("[]"), None);
+    }
 
     #[test]
     fn a_set_is_published_on_change_or_at_the_heartbeat() {

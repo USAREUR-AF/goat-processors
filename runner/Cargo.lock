@@ -674,7 +674,7 @@ dependencies = [
 
 [[package]]
 name = "goat-processors"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "goat_correlator",
  "ring",
@@ -2858,8 +2858,6 @@ dependencies = [
 [[package]]
 name = "zenoh-link-tls"
 version = "1.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6f6b308ae2599f9c1344fbcd3418b2c3a3a9fe287ec39501ba834168493ba37"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -2882,7 +2880,6 @@ dependencies = [
  "zenoh-link-commons",
  "zenoh-protocol",
  "zenoh-result",
- "zenoh-runtime",
 ]
 
 [[package]]
