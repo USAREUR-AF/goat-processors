@@ -11,6 +11,8 @@ import sys
 
 RUNNER = pathlib.Path(__file__).resolve().parent.parent
 OUT = RUNNER / "THIRD-PARTY.md"
+# Patched copies of third-party crates (runner/vendor/README.md): they have no registry source.
+VENDORED = {d.name for d in (RUNNER / "vendor").iterdir() if d.is_dir()}
 TARGETS = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]
 
 
@@ -32,7 +34,7 @@ def main():
                                      cwd=RUNNER, check=True, capture_output=True, text=True).stdout)
     used = used_ids()
     rows = sorted((p["name"], p["version"], (p.get("license") or "see the crate").strip(), p.get("repository") or "")
-                  for p in meta["packages"] if p["source"] and (p["name"], p["version"]) in used)
+                  for p in meta["packages"] if (p["source"] or p["name"] in VENDORED) and (p["name"], p["version"]) in used)
     lines = [
         "<!-- Written by runner/packaging/third-party.py from Cargo.lock. Do not edit. -->",
         "# Third-party crates in the runner",
