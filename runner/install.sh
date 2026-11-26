@@ -24,7 +24,7 @@
 # (runner/DEPLOY-CONTRACT.md); until then this script is how a site does it.
 set -eu
 
-RELEASE=0.8.0
+RELEASE=0.8.1
 REPO=USAREUR-AF/goat-processors
 WORKFLOW=.github/workflows/runner-release.yml
 ETC=/etc/goat-processors

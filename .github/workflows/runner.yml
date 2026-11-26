@@ -21,6 +21,9 @@ jobs:
       - name: every vector replays through the runner; config, doctor, selftest, service and fabric tests
         run: cargo test --locked
         working-directory: runner
+      - name: the vendored TLS link (runner/vendor/README.md), full-duplex traffic does not race
+        run: cargo test --locked -p zenoh-link-tls
+        working-directory: runner
       - uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2.90.6
         with:
           tool: cargo-audit@0.23.0,cargo-deny@0.21.0

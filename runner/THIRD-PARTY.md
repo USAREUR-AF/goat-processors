@@ -235,27 +235,27 @@ The runner (`runner/`) is built from these crates, each at the exact version
 | webpki-roots | 1.0.12 | CDLA-Permissive-2.0 | https://github.com/rustls/webpki-roots |
 | winnow | 1.0.5 | MIT | https://github.com/winnow-rs/winnow |
 | x509-parser | 0.18.1 | MIT OR Apache-2.0 | https://github.com/rusticata/x509-parser.git |
-| zenoh | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-buffers | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-codec | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-collections | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-config | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-core | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-crypto | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-keyexpr | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-link | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-link-commons | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-link-tcp | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-link-tls | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-macros | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-plugin-trait | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-protocol | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-result | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-runtime | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-sync | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-task | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-transport | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
-| zenoh-util | 1.9.0 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-buffers | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-codec | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-collections | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-config | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-core | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-crypto | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-keyexpr | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-link | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-link-commons | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-link-tcp | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-link-tls | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-macros | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-plugin-trait | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-protocol | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-result | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-runtime | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-sync | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-task | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-transport | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
+| zenoh-util | 1.10.2 | EPL-2.0 OR Apache-2.0 | https://github.com/eclipse-zenoh/zenoh |
 | zerocopy | 0.8.63 | BSD-2-Clause OR Apache-2.0 OR MIT | https://github.com/google/zerocopy |
 | zeroize | 1.9.2 | Apache-2.0 OR MIT | https://github.com/RustCrypto/utils |
 | zmij | 1.0.23 | MIT | https://github.com/dtolnay/zmij |
