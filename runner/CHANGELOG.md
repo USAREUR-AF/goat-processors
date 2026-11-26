@@ -8,6 +8,13 @@ GitHub release page.
 
 ## Unreleased
 
+- **A system track carries the radar cross section its members report.** When
+  a report has `radar.rcs_m2` (square meters), the track has `rcs`, one entry
+  per member that stated a value (`member`, `source`, `rcs_m2`, `time_ms`),
+  and `rcs_m2`, the value of the member that reported most recently. The
+  value is per source because it depends on the radar and on the aspect it
+  sees the object from; the runner does not average it. A track none of whose
+  members states a value is unchanged.
 
 ## 0.8.1
 
