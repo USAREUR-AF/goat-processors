@@ -1,6 +1,6 @@
 [package]
 name = "goat-processors"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2021"
 rust-version = "1.80"
 description = "goat-processors runner: runs a declared pipeline of processing functions on the goat fabric"
@@ -15,7 +15,7 @@ path = "src/main.rs"
 # The Rust engine, through its public API only (load_pack, ingest, tick, snapshot).
 goat_correlator = { path = "../engines/rust" }
 # Every third-party crate is pinned and listed in NOTICE.
-zenoh = { version = "=1.9.0", default-features = false, features = ["transport_tcp", "transport_tls"] }
+zenoh = { version = "=1.10.2", default-features = false, features = ["transport_tcp", "transport_tls"] }
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_norway = "=0.9.42"
 # The API's mutual TLS listener. Each is already in the build through zenoh.
@@ -31,6 +31,12 @@ webpki-roots = "=1.0.12"
 lto = "thin"
 codegen-units = 1
 strip = "symbols"
+
+# zenoh-link-tls 1.10.2 with eclipse-zenoh/zenoh#2910: without it a read and a
+# write can enter one rustls connection together, which can crash the process.
+# Remove with the first zenoh release that carries it (vendor/README.md).
+[patch.crates-io]
+zenoh-link-tls = { path = "vendor/zenoh-link-tls" }
 
 # The runner is its own workspace, apart from the engines.
 [workspace]

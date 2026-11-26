@@ -8,6 +8,17 @@ GitHub release page.
 
 ## Unreleased
 
+
+## 0.8.1
+
+- **TLS link crash and stalled bursts fixed.** On a `tls/` fabric link the
+  runner could crash (SEGV), and a burst of input could stop part way: the
+  TLS link of zenoh let a read and a write enter one rustls connection at the
+  same time (goatcore advisory GHSA-g8qm-wc43-r83h). The runner moves to
+  zenoh 1.10.2 and is built with the upstream fix (eclipse-zenoh/zenoh#2910)
+  in `runner/vendor/`, until a zenoh release carries it; zenoh 1.10.2 alone
+  does not. A test sends 5000 messages over mutual TLS while the runner
+  publishes on the same link (`runner/tests/tls_burst.rs`).
 - **Each system track says `mono`**: 1 when its members come from one source,
   0 when from more than one, for formats that carry it (ASTERIX I062/080 MON).
   The metrics `system_tracks_multi_source` and `source_tracks` now read a
