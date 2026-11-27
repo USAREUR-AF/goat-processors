@@ -198,10 +198,22 @@ identity by source priority.
 
 | Key | Value | When |
 |---|---|---|
-| `<prefix>/tracks/<id>` | one system track: `system` (or `group`), `members`, `lat`, `lon`, `course`, `speed_ms`, `hae` when known, and `now_ms`. From fuse when the pipeline has it, otherwise from correlate | every tick, one per system track |
+| `<prefix>/tracks/<id>` | one system track: `system` (or `group`), `members`, `lat`, `lon`, `course`, `speed_ms`, `hae` when known, `rcs` and `rcs_m2` when a member reports a radar cross section (see "Radar cross section" below), and `now_ms`. From fuse when the pipeline has it, otherwise from correlate | every tick, one per system track |
 | `<prefix>/quality/<scope>/<subject>` | a quality measure event, or an `action-start` / `action-end`; `scope` is `entity` or `source` | every tick |
 | `<prefix>/events/<function>` | `{stage, now_ms, events}`: every event one function returned for one call | each call with events |
 | `<prefix>/trace/<function>` | `{stage, now_ms, trace}` | with `outputs.fabric.trace: true` |
+
+**Radar cross section.** A report may carry `radar.rcs_m2`, the radar cross
+section in square meters as that radar measured it. The value depends on the
+radar (its frequency and polarization) and on the aspect from which it sees
+the object, so two radars that track one object report different values and
+both are right. The runner therefore never averages or combines it. A system
+track lists each member's last value beside the member and its source, with
+the time of the report that stated it (`rcs`), and gives one top-level value,
+`rcs_m2`, for a reader that can show only one: the value of the member that
+reported most recently. Correlate, fuse and filter do not read the key; a
+report that passes a filter keeps it. A member's value is dropped 10 minutes
+after the last report that stated it.
 
 With `outputs.fabric.layout: batch` the key set is fixed and does not grow
 with the number of tracks:
