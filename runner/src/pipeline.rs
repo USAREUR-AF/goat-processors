@@ -294,7 +294,7 @@ impl RcsBook {
         let mut top: Option<(f64, i64)> = None;
         for m in &members {
             let Some(&(v, t)) = self.by_member.get(m) else { continue };
-            let mut o = crate::json::Map::new();
+            let mut o = goat_correlator::json::Map::new();
             o.insert("member".into(), Json::Str(m.clone()));
             o.insert("source".into(), Json::Str(m.split('/').next().unwrap_or(m).to_string()));
             o.insert("rcs_m2".into(), Json::Num(v));
@@ -416,7 +416,7 @@ fn track_membership(m: &mut BTreeMap<String, String>, groups: &mut BTreeMap<Stri
 #[cfg(test)]
 mod rcs_tests {
     use super::RcsBook;
-    use crate::json::parse;
+    use goat_correlator::json::parse;
 
     #[test]
     fn a_track_lists_each_members_radar_cross_section_and_the_latest_on_top() {
