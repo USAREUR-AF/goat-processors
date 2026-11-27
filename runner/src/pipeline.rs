@@ -107,11 +107,13 @@ pub struct Pipeline {
     /// entity -> the provenance of its latest agent-derived report
     /// (`provenance.kind` = `agent`), carried onto the system tracks it joins.
     provenance: BTreeMap<String, Json>,
+    /// Each source track's last radar cross section.
+    rcs: RcsBook,
 }
 
 impl Pipeline {
     pub fn new(stages: Vec<Stage>) -> Pipeline {
-        Pipeline { stages, membership: BTreeMap::new(), groups: BTreeMap::new(), counters: Counters::default(), last_now_ms: None, provenance: BTreeMap::new() }
+        Pipeline { stages, membership: BTreeMap::new(), groups: BTreeMap::new(), counters: Counters::default(), last_now_ms: None, provenance: BTreeMap::new(), rcs: RcsBook::default() }
     }
 
     /// Builds the pipeline from a checked config.
@@ -129,6 +131,7 @@ impl Pipeline {
         if let Some(src) = report.get("track.source_id").and_then(|v| v.as_str()) {
             *self.counters.per_source.entry(src.to_string()).or_default() += 1;
         }
+        self.rcs.note(report);
         if let Some((entity, prov)) = agent_provenance(report) {
             self.provenance.insert(entity, prov);
         }
@@ -172,6 +175,11 @@ impl Pipeline {
         }
         if !self.provenance.is_empty() {
             self.mark_agent_tracks(&mut out);
+        }
+        if let Some(i) = out.stages.iter().rposition(|s| s.function == "fuse" || s.function == "correlate") {
+            for e in out.stages[i].events.iter_mut() {
+                self.rcs.decorate(e);
+            }
         }
         out
     }
@@ -222,6 +230,84 @@ impl Pipeline {
             m.insert(s.function.clone().into(), s.engine.snapshot());
         }
         Json::Obj(m)
+    }
+}
+
+/// The report key of a radar cross section (goat-transformers `radar.rcs_m2`,
+/// square metres).
+const RCS_KEY: &str = "radar.rcs_m2";
+/// A source track's last radar cross section is kept this long after that
+/// source track's last report that stated one (input clock).
+const RCS_KEEP_MS: i64 = 600_000;
+
+/// The radar cross section each source track last reported.
+///
+/// A radar cross section depends on the radar and on the aspect it sees the
+/// object from, so it is a measurement of one source and is never combined:
+/// a system track lists each member's value beside the member, and its one
+/// top-level value is the value of the member that reported most recently.
+/// The engines do not read the key (spec/correlate.md, Reports: "any other
+/// key"), so the pipeline carries it from the report to the track, in the
+/// service and in a replay alike.
+#[derive(Default)]
+struct RcsBook {
+    /// `<source>/<uid>` to (square metres, time of the report).
+    by_member: BTreeMap<String, (f64, i64)>,
+    latest_ms: i64,
+}
+
+impl RcsBook {
+    /// Reads a report as it is ingested.
+    fn note(&mut self, r: &Json) {
+        let (Some(src), Some(uid), Some(t)) = (
+            r.get("track.source_id").and_then(|v| v.as_str()),
+            r.get("uid").and_then(|v| v.as_str()),
+            r.get("time_ms").and_then(|v| v.as_i64()),
+        ) else {
+            return;
+        };
+        self.latest_ms = self.latest_ms.max(t);
+        if let Some(v) = r.get(RCS_KEY).and_then(|v| v.as_f64()).filter(|v| v.is_finite()) {
+            let e = self.by_member.entry(format!("{src}/{uid}")).or_insert((v, t));
+            if t >= e.1 {
+                *e = (v, t);
+            }
+        }
+        let floor = self.latest_ms - RCS_KEEP_MS;
+        self.by_member.retain(|_, (_, at)| *at >= floor);
+    }
+
+    /// Adds to a `fused` or `system` event `rcs`, one entry per member that
+    /// reported a value (`member`, `source`, `rcs_m2`, `time_ms`, in member
+    /// order), and `rcs_m2`, the value of the entry with the latest
+    /// `time_ms` (the first such in member order). An event none of whose
+    /// members reported a value is unchanged.
+    fn decorate(&self, e: &mut Json) {
+        if self.by_member.is_empty() || !matches!(e.get("ev").and_then(|v| v.as_str()), Some("fused") | Some("system")) {
+            return;
+        }
+        let members: Vec<String> = match e.get("members") {
+            Some(Json::Arr(ms)) => ms.iter().filter_map(|m| m.as_str()).map(str::to_string).collect(),
+            _ => return,
+        };
+        let mut list = Vec::new();
+        let mut top: Option<(f64, i64)> = None;
+        for m in &members {
+            let Some(&(v, t)) = self.by_member.get(m) else { continue };
+            let mut o = crate::json::Map::new();
+            o.insert("member".into(), Json::Str(m.clone()));
+            o.insert("source".into(), Json::Str(m.split('/').next().unwrap_or(m).to_string()));
+            o.insert("rcs_m2".into(), Json::Num(v));
+            o.insert("time_ms".into(), Json::Int(t));
+            list.push(Json::Obj(o));
+            if top.map_or(true, |(_, at)| t > at) {
+                top = Some((v, t));
+            }
+        }
+        if let (Json::Obj(m), Some((v, _))) = (e, top) {
+            m.insert("rcs".into(), Json::Arr(list));
+            m.insert("rcs_m2".into(), Json::Num(v));
+        }
     }
 }
 
@@ -324,5 +410,54 @@ fn track_membership(m: &mut BTreeMap<String, String>, groups: &mut BTreeMap<Stri
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod rcs_tests {
+    use super::RcsBook;
+    use crate::json::parse;
+
+    #[test]
+    fn a_track_lists_each_members_radar_cross_section_and_the_latest_on_top() {
+        let mut b = RcsBook::default();
+        let rep = |s: &str| parse(s).unwrap();
+        b.note(&rep(r#"{"track.source_id":"radar-1","uid":"T1","time_ms":1000,"lat":1.0,"lon":2.0,"radar.rcs_m2":0.25}"#));
+        b.note(&rep(r#"{"track.source_id":"radar-2","uid":"R7","time_ms":3000,"lat":1.0,"lon":2.0,"radar.rcs_m2":1.5}"#));
+        b.note(&rep(r#"{"track.source_id":"radar-1","uid":"T1","time_ms":2000,"lat":1.0,"lon":2.0,"radar.rcs_m2":0.5}"#));
+        // A report without the key leaves the last value in place.
+        b.note(&rep(r#"{"track.source_id":"radar-1","uid":"T1","time_ms":2500,"lat":1.0,"lon":2.0}"#));
+        // A member that never stated one is not listed.
+        b.note(&rep(r#"{"track.source_id":"radar-3","uid":"X","time_ms":2600,"lat":1.0,"lon":2.0}"#));
+        let mut e = rep(r#"{"ev":"system","system":"S1","members":["radar-1/T1","radar-2/R7","radar-3/X"],"lat":1.0}"#);
+        b.decorate(&mut e);
+        assert_eq!(
+            e.get("rcs").unwrap().to_string(),
+            r#"[{"member":"radar-1/T1","rcs_m2":0.5,"source":"radar-1","time_ms":2000},{"member":"radar-2/R7","rcs_m2":1.5,"source":"radar-2","time_ms":3000}]"#
+        );
+        assert_eq!(e.get("rcs_m2").and_then(|v| v.as_f64()), Some(1.5), "the member that reported most recently");
+        // No member with a value: the event is unchanged. Other events are never touched.
+        let plain = r#"{"ev":"system","system":"S2","members":["radar-3/X"]}"#;
+        let mut e = rep(plain);
+        b.decorate(&mut e);
+        assert_eq!(e.to_string(), rep(plain).to_string());
+        let mut e = rep(r#"{"ev":"keep","members":["radar-1/T1"]}"#);
+        b.decorate(&mut e);
+        assert!(e.get("rcs").is_none());
+    }
+
+    #[test]
+    fn a_radar_cross_section_is_forgotten_ten_minutes_after_its_last_report() {
+        let mut b = RcsBook::default();
+        let rep = |s: &str| parse(s).unwrap();
+        b.note(&rep(r#"{"track.source_id":"radar-1","uid":"T1","time_ms":1000,"lat":1.0,"lon":2.0,"radar.rcs_m2":0.25}"#));
+        b.note(&rep(r#"{"track.source_id":"radar-2","uid":"R7","time_ms":601000,"lat":1.0,"lon":2.0,"radar.rcs_m2":2.0}"#));
+        assert!(b.by_member.contains_key("radar-1/T1"), "exactly at the limit is kept");
+        b.note(&rep(r#"{"track.source_id":"radar-2","uid":"R7","time_ms":601001,"lat":1.0,"lon":2.0}"#));
+        assert!(!b.by_member.contains_key("radar-1/T1"));
+        assert!(b.by_member.contains_key("radar-2/R7"));
+        // A value that is not a finite number is not kept.
+        b.note(&rep(r#"{"track.source_id":"radar-4","uid":"Z","time_ms":601002,"lat":1.0,"lon":2.0,"radar.rcs_m2":"big"}"#));
+        assert!(!b.by_member.contains_key("radar-4/Z"));
     }
 }
